@@ -557,3 +557,188 @@ Display `run_log.txt` content inline on the run detail page, collapsible per ste
 
 ### Handover
 _filled on completion_
+
+---
+
+## EPIC 8 — Cost Optimization: Model Routing
+Route pipeline tasks to the appropriate model (Haiku / Sonnet / Opus) based on task complexity to minimize API costs without sacrificing quality.
+
+---
+
+## [E8-S1] Haiku schema validator — storyboard.json
+**Epic:** E8 — Cost Optimization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E1-S3
+
+### Goal
+Validate `storyboard.json` against the v0.4 schema using Haiku before any downstream step runs.
+
+### Acceptance Criteria
+- [ ] Haiku called with schema from `docs/PROMPTS.md` + generated `storyboard.json`
+- [ ] Returns `{valid: bool, errors: [list of field/rule violations]}`
+- [ ] If invalid: step halts, errors written to `run_log.json` and `run_log.txt`
+- [ ] If valid: pipeline proceeds to next step
+- [ ] Haiku model string: `claude-haiku-4-5-20251001`
+- [ ] Validation cost logged per run in `run_log.json`
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Submit a valid storyboard — confirm pipeline proceeds. Submit a storyboard with a missing `sfx` field — confirm halt + error logged.
+
+### Files to read
+- `docs/PROMPTS.md` — schema section
+- `src/storyboard.py` — E1-S3 output
+- `docs/ARCHITECTURE.md` — run_log.json schema
+
+### Files to create or modify
+- `src/validators/storyboard_validator.py` — new
+- `tests/test_storyboard_validator.py` — new
+- `src/storyboard.py` — add validation call after generation
+
+### Handover
+_filled on completion_
+
+---
+
+## [E8-S2] Haiku asset manifest generator
+**Epic:** E8 — Cost Optimization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E2-S1, E8-S1
+
+### Goal
+Replace Sonnet with Haiku for asset manifest generation — pure structured transformation from storyboard scenes to asset queue entries.
+
+### Acceptance Criteria
+- [ ] Haiku receives `storyboard.json` scenes array
+- [ ] Returns `asset_manifest.json` with one entry per scene: `{scene_id, primary_query, fallback_query, ai_prompt, asset_type, duration_s, motion_effect}`
+- [ ] Output schema matches E3 asset acquisition input contract
+- [ ] Haiku model string: `claude-haiku-4-5-20251001`
+- [ ] Falls back to Sonnet if Haiku returns malformed JSON (log the fallback)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Run with a known good `storyboard.json` — verify `asset_manifest.json` has correct entry count, all fields populated, no nulls where not allowed.
+
+### Files to read
+- `src/asset_manifest.py` — E2-S1 output
+- `docs/ARCHITECTURE.md` — asset manifest schema
+- `docs/PROMPTS.md` — storyboard.json schema
+
+### Files to create or modify
+- `src/asset_manifest.py` — swap model, add fallback logic
+- `tests/test_asset_manifest.py` — add Haiku-specific assertions
+
+### Handover
+_filled on completion_
+
+---
+
+## [E8-S3] Haiku run log summarizer
+**Epic:** E8 — Cost Optimization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E1-S2, E6-S1
+
+### Goal
+Generate human-readable `run_log.txt` from `run_log.json` using Haiku for display in the operator UI.
+
+### Acceptance Criteria
+- [ ] Haiku receives `run_log.json`
+- [ ] Returns plain English summary per step: `"Step 2b — Storyboard: Complete (14 scenes, 38s total)"` / `"Step 3 — Asset Manifest: Failed — missing sfx field in scene 03b"`
+- [ ] Summary written to `run_log.txt` in Drive run folder
+- [ ] UI displays `run_log.txt` inline, collapsible per step
+- [ ] Called after every step completion or failure
+- [ ] Haiku model string: `claude-haiku-4-5-20251001`
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Complete E1-S3 on DEV — verify `run_log.txt` appears in Drive with readable step summary. Check UI displays it correctly.
+
+### Files to read
+- `src/drive.py` — E1-S2 output, Drive write utility
+- `docs/ARCHITECTURE.md` — run_log.json schema
+- `src/static/` — E6 operator UI output
+
+### Files to create or modify
+- `src/log_summarizer.py` — new
+- `tests/test_log_summarizer.py` — new
+- `src/pipeline.py` — call summarizer after each step
+
+### Handover
+_filled on completion_
+
+---
+
+## [E8-S4] Model router utility
+**Epic:** E8 — Cost Optimization
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Depends on:** E8-S1, E8-S2, E8-S3
+
+### Goal
+Centralize model selection logic in a single utility. All Claude API calls go through the router — no hardcoded model strings scattered across modules.
+
+### Acceptance Criteria
+- [ ] `ModelRouter` class in `src/utils/model_router.py`
+- [ ] Task types defined as constants: `VALIDATE`, `TRANSFORM`, `SUMMARIZE`, `GENERATE`, `REASON`
+- [ ] Router maps task type to model string
+- [ ] Model overridable via ENV var per task type (for testing/cost tuning)
+- [ ] All existing Claude API calls refactored to use router
+- [ ] Cost per call logged: model used, input tokens, output tokens, USD estimate
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Run full pipeline on DEV — verify `run_log.txt` shows correct model used per step and token counts.
+
+### Files to read
+- `src/storyboard.py`
+- `src/asset_manifest.py`
+- `src/validators/storyboard_validator.py`
+- `src/log_summarizer.py`
+- `docs/TECH_STACK.md`
+
+### Files to create or modify
+- `src/utils/model_router.py` — new
+- `src/storyboard.py` — refactor model call
+- `src/asset_manifest.py` — refactor model call
+- `src/validators/storyboard_validator.py` — refactor model call
+- `src/log_summarizer.py` — refactor model call
+- `.env.example` — add `MODEL_*` override vars
+- `ENV.md` — document new vars
+
+### Handover
+_filled on completion_

@@ -127,6 +127,24 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D017 — Model selection policy (task-based routing)
+**Date:** 2026-05-21
+**Decision:** Claude API calls are routed to different models based on task type. No hardcoded model strings in modules — all routing goes through `src/utils/model_router.py` (E8-S4).
+
+| Task type | Model | Rationale |
+|-----------|-------|-----------|
+| `VALIDATE` — schema checks, field validation | `claude-haiku-4-5-20251001` | Structured, low-complexity; cost matters at scale |
+| `TRANSFORM` — storyboard → asset manifest | `claude-haiku-4-5-20251001` | Pure structured transformation, no reasoning required |
+| `SUMMARIZE` — run_log.json → run_log.txt | `claude-haiku-4-5-20251001` | Template-like output, no creativity required |
+| `GENERATE` — script → storyboard (prompt v0.4) | `claude-sonnet-4-6` | Creative + structured; quality matters for output |
+| `REASON` — sprint review, architecture decisions | `claude-opus-4-7` | Highest complexity; used outside the pipeline |
+
+**Rationale:** Haiku is sufficient for deterministic transformation tasks. Sonnet handles the core creative/structured generation. Opus reserved for high-stakes reasoning outside the production pipeline.
+**Constraint:** Model strings must never be hardcoded in individual modules. Always use `ModelRouter` with task type constants.
+**Override:** Each task type's model is overridable via `MODEL_<TASK_TYPE>` ENV var for testing and cost tuning.
+
+---
+
 ## D016 — Client-side Claude API calls in script-generator.html
 **Date:** 2026-05-21
 **Decision:** `tools/script-generator.html` calls the Claude API directly from the browser using the `anthropic-dangerous-client-side-api-key-allowed` header. Acceptable for local `/tools` use only.
