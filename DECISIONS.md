@@ -124,3 +124,12 @@ All significant architecture decisions and new dependency introductions are logg
 **Decision:** `GOOGLE_SERVICE_ACCOUNT_JSON` ENV var holds the base64-encoded contents of the service account JSON file. Decoded at startup.
 **Rationale:** Railway ENV vars don't handle multiline JSON well. Base64 is a clean workaround.
 **How to encode:** `base64 -i service-account.json | tr -d '\n'`
+
+---
+
+## D016 — Client-side Claude API calls in script-generator.html
+**Date:** 2026-05-21
+**Decision:** `tools/script-generator.html` calls the Claude API directly from the browser using the `anthropic-dangerous-client-side-api-key-allowed` header. Acceptable for local `/tools` use only.
+**Rationale:** Standalone operator tool, opened locally, no server required. Browser-direct is the simplest and correct architecture for this use case.
+**Constraint:** If Step 2a (script generation) is ever integrated into the Railway operator UI, the Claude API call must move server-side to avoid exposing the API key in a shared web context.
+**Status:** Deferred — out of scope for current epics. Integration is not planned.
