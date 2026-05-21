@@ -16,3 +16,4 @@ _METHODOLOGY IMPROVEMENT notes from sprint reviews are recorded here._
 | Sprint | Date | Improvement |
 |--------|------|-------------|
 | 0 (init) | 2026-05-21 | Project initialized via /init-project |
+| 0 (init) | 2026-05-21 | Before issuing git commands, check the last reported commit in the session to avoid duplicate commit suggestions. |
