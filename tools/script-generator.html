@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Script Generator — The Housing Equation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #090909;
+      --surface:      #111111;
+      --surface-2:    #181818;
+      --border:       #222222;
+      --border-light: #2C2C2C;
+      --text:         #E0DBD0;
+      --text-mid:     #9A9288;
+      --text-dim:     #5A5650;
+      --amber:        #CC8E0C;
+      --amber-bright: #E0A820;
+      --amber-dim:    #40290A;
+      --red:          #BE3618;
+      --blue:         #2868B8;
+      --green:        #1A8838;
+      --font-display: 'Bebas Neue', 'Arial Narrow', sans-serif;
+      --font-mono:    'IBM Plex Mono', 'Courier New', monospace;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+
+    /* ── LAYOUT ─────────────────────────────────────────────────── */
+    .wrap {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 36px 24px 80px;
+    }
+
+    /* ── HEADER ─────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 36px;
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .rec {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--red);
+      flex-shrink: 0;
+      animation: rec-pulse 2.4s ease-in-out infinite;
+    }
+
+    @keyframes rec-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.25; }
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: 30px;
+      letter-spacing: 0.05em;
+      line-height: 1;
+      color: var(--text);
+    }
+
+    .header-tag {
+      text-align: right;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      line-height: 1.8;
+    }
+
+    .header-tag em {
+      display: block;
+      color: var(--amber);
+      font-style: normal;
+    }
+
+    /* ── LABEL ──────────────────────────────────────────────────── */
+    .label {
+      font-size: 9px;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 7px;
+    }
+
+    /* ── API KEY ────────────────────────────────────────────────── */
+    .key-row {
+      display: flex;
+      gap: 8px;
+      align-items: flex-end;
+      margin-bottom: 28px;
+    }
+
+    .key-field { flex: 1; }
+
+    .key-input-group {
+      display: flex;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      transition: border-color 0.15s;
+    }
+
+    .key-input-group:focus-within { border-color: var(--amber); }
+
+    #api-key {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text);
+      letter-spacing: 0.04em;
+    }
+
+    #api-key::placeholder { color: var(--text-dim); }
+
+    .btn-ghost {
+      background: transparent;
+      border: none;
+      border-left: 1px solid var(--border);
+      padding: 10px 12px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: color 0.15s;
+    }
+
+    .btn-ghost:hover { color: var(--amber); }
+
+    .key-badge {
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 9px;
+      letter-spacing: 0.16em;
+      color: var(--text-dim);
+      white-space: nowrap;
+      align-self: stretch;
+      display: flex;
+      align-items: center;
+      transition: all 0.2s;
+    }
+
+    .key-badge.saved {
+      color: var(--green);
+      border-color: var(--green);
+    }
+
+    /* ── BRIEF ──────────────────────────────────────────────────── */
+    .brief-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 7px;
+    }
+
+    .char-count {
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    textarea#brief {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      outline: none;
+      resize: vertical;
+      padding: 13px 15px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: var(--text);
+      line-height: 1.65;
+      min-height: 96px;
+      transition: border-color 0.15s;
+      margin-bottom: 12px;
+    }
+
+    textarea#brief::placeholder { color: var(--text-dim); }
+    textarea#brief:focus { border-color: var(--amber); }
+
+    /* ── GENERATE BUTTON ────────────────────────────────────────── */
+    #btn-generate {
+      width: 100%;
+      padding: 15px 24px;
+      background: var(--amber);
+      border: none;
+      cursor: pointer;
+      font-family: var(--font-display);
+      font-size: 20px;
+      letter-spacing: 0.14em;
+      color: #07070A;
+      transition: background 0.12s, opacity 0.12s;
+    }
+
+    #btn-generate:hover:not(:disabled) { background: var(--amber-bright); }
+
+    #btn-generate:disabled {
+      cursor: not-allowed;
+      background: var(--amber-dim);
+      color: var(--amber);
+    }
+
+    /* ── ERROR ──────────────────────────────────────────────────── */
+    #error-msg {
+      display: none;
+      margin-top: 12px;
+      padding: 10px 14px;
+      border: 1px solid var(--red);
+      background: rgba(190, 54, 24, 0.08);
+      font-size: 12px;
+      color: var(--red);
+      letter-spacing: 0.04em;
+    }
+
+    #error-msg.on { display: block; }
+
+    /* ── STREAM ─────────────────────────────────────────────────── */
+    #stream-box {
+      display: none;
+      margin-top: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    #stream-box.on { display: block; }
+
+    .stream-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: var(--text-dim);
+    }
+
+    .cursor-blink {
+      display: inline-block;
+      width: 6px;
+      height: 11px;
+      background: var(--amber);
+      animation: blink 1.1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    #stream-text {
+      padding: 12px 14px;
+      font-size: 10px;
+      line-height: 1.5;
+      color: var(--text-dim);
+      max-height: 180px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ── OUTPUT SECTION ─────────────────────────────────────────── */
+    #output {
+      display: none;
+      margin-top: 28px;
+    }
+
+    #output.on { display: block; }
+
+    .output-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .output-title {
+      font-family: var(--font-display);
+      font-size: 15px;
+      letter-spacing: 0.1em;
+      color: var(--green);
+    }
+
+    .output-meta {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-align: right;
+      line-height: 1.7;
+    }
+
+    /* ── VARIATION GRID ─────────────────────────────────────────── */
+    .var-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    @media (max-width: 680px) {
+      .var-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ── VARIATION CARD ─────────────────────────────────────────── */
+    .v-card {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .v-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 9px 13px;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+    }
+
+    .v-num {
+      font-family: var(--font-display);
+      font-size: 15px;
+      letter-spacing: 0.1em;
+      color: var(--amber);
+      flex-shrink: 0;
+    }
+
+    .v-approach {
+      font-size: 9px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-mid);
+      text-align: right;
+    }
+
+    .v-script {
+      padding: 15px 13px;
+      font-size: 13px;
+      line-height: 1.75;
+      color: var(--text);
+      flex: 1;
+      border-bottom: 1px solid var(--border);
+      white-space: pre-wrap;
+    }
+
+    /* ── SCORE SECTION ──────────────────────────────────────────── */
+    .v-scores {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .scores-head {
+      font-size: 8px;
+      letter-spacing: 0.22em;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .s-row {
+      display: grid;
+      grid-template-columns: 86px 1fr 28px;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+    }
+
+    .s-row:last-child { margin-bottom: 0; }
+
+    .s-row.s-overall {
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid var(--border);
+    }
+
+    .s-label {
+      font-size: 8px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+
+    .s-row.s-overall .s-label { color: var(--text-mid); }
+
+    .s-track {
+      height: 3px;
+      background: var(--border-light);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .s-fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 0;
+      transition: width 0.9s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .s-val {
+      font-size: 10px;
+      font-weight: 500;
+      text-align: right;
+    }
+
+    /* ── CARD FOOTER ────────────────────────────────────────────── */
+    .v-stats {
+      display: flex;
+      gap: 18px;
+      padding: 7px 13px;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .v-stats strong {
+      color: var(--text-mid);
+      font-weight: 500;
+    }
+
+    .v-rationale {
+      padding: 8px 13px;
+      font-size: 11px;
+      font-style: italic;
+      color: var(--text-mid);
+      line-height: 1.55;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .v-actions {
+      display: flex;
+      gap: 0;
+    }
+
+    .btn-action {
+      flex: 1;
+      padding: 9px 8px;
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .btn-action:last-child { border-right: none; }
+
+    .btn-action:hover {
+      background: var(--surface-2);
+      color: var(--amber);
+    }
+
+    .btn-action.ok {
+      color: var(--green);
+      background: rgba(26, 136, 56, 0.06);
+    }
+
+    /* ── EXPORT BAR ─────────────────────────────────────────────── */
+    .export-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .btn-export {
+      flex: 1;
+      padding: 11px;
+      background: transparent;
+      border: 1px solid var(--border-light);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-mid);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .btn-export:hover {
+      border-color: var(--amber);
+      color: var(--amber);
+    }
+
+    .btn-clear {
+      padding: 11px 20px;
+      background: transparent;
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+
+    .btn-clear:hover {
+      border-color: var(--red);
+      color: var(--red);
+    }
+
+    /* ── FOOTER ─────────────────────────────────────────────────── */
+    footer {
+      margin-top: 56px;
+      padding-top: 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      color: var(--text-dim);
+    }
+
+    /* ── SCROLLBAR ──────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 3px; height: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border-light); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-group">
+      <div class="rec"></div>
+      <div class="logo">THE HOUSING EQUATION</div>
+    </div>
+    <div class="header-tag">
+      SCRIPT GENERATOR
+      <em>V2.0 · STANDALONE</em>
+    </div>
+  </header>
+
+  <!-- API KEY -->
+  <div class="key-row">
+    <div class="key-field">
+      <div class="label">ANTHROPIC API KEY</div>
+      <div class="key-input-group">
+        <input type="password" id="api-key" placeholder="sk-ant-api03-…" autocomplete="off" spellcheck="false">
+        <button class="btn-ghost" id="btn-toggle-key">SHOW</button>
+      </div>
+    </div>
+    <div>
+      <div class="label">&nbsp;</div>
+      <div class="key-badge" id="key-badge">NOT SAVED</div>
+    </div>
+  </div>
+
+  <!-- BRIEF -->
+  <div>
+    <div class="brief-head">
+      <div class="label">PRODUCTION BRIEF</div>
+      <div class="char-count"><span id="char-count">0</span> / 500</div>
+    </div>
+    <textarea id="brief" rows="4" maxlength="500"
+      placeholder="Enter topic, angle, or production brief.&#10;E.g.: 'The myth that homeownership builds wealth — why it reversed for most Americans since 2008'"></textarea>
+  </div>
+
+  <!-- GENERATE -->
+  <button id="btn-generate">GENERATE SCRIPTS ▶▶</button>
+
+  <!-- ERROR -->
+  <div id="error-msg"></div>
+
+  <!-- STREAM -->
+  <div id="stream-box">
+    <div class="stream-bar">
+      <span class="cursor-blink"></span>
+      PROCESSING · CLAUDE SONNET 4 · AWAITING RESPONSE
+    </div>
+    <pre id="stream-text"></pre>
+  </div>
+
+  <!-- OUTPUT -->
+  <div id="output">
+    <div class="output-banner">
+      <div class="output-title">GENERATION COMPLETE</div>
+      <div class="output-meta">
+        <span id="out-ts"></span><br>
+        claude-sonnet-4-20250514
+      </div>
+    </div>
+    <div class="var-grid" id="var-grid"></div>
+    <div class="export-row">
+      <button class="btn-export" id="btn-export-json">EXPORT FULL JSON</button>
+      <button class="btn-clear" id="btn-clear">CLEAR ↺</button>
+    </div>
+  </div>
+
+  <footer>
+    <span>THE HOUSING EQUATION · INTERNAL PRODUCTION TOOLS</span>
+    <span>KEY STORED IN LOCALSTORAGE · SENT ONLY TO ANTHROPIC API</span>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── CONFIG ─────────────────────────────────────────────────── */
+  const MODEL   = 'claude-sonnet-4-20250514';
+  const API_URL = 'https://api.anthropic.com/v1/messages';
+  const LS_KEY  = 'the_eq_api_key_v2';
+
+  const SYSTEM_PROMPT = `You are a script writer for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics.
+
+Channel profile:
+- Format: 30–60 second YouTube Short, 9:16 vertical, voiceover only
+- Voice: Authoritative, slightly ominous, documentary narrator
+- Style: Facts hit like gut-punches. Short, declarative sentences. Hard cuts in delivery.
+- Topic: American housing economics — affordability, policy, systemic failure, market dynamics
+- Tone: Never conversational. Always data-grounded.
+
+Generate exactly 2 distinct voiceover script variations for the given brief.
+Each variation MUST take a meaningfully different approach: different opening, narrative arc, and emotional register.
+
+Respond with ONLY valid JSON — no preamble, no markdown, no explanation — in this exact structure:
+
+{
+  "variations": [
+    {
+      "id": 1,
+      "approach": "3–5 word label for the angle",
+      "script": "Full voiceover text. Every sentence earns its place.",
+      "word_count": 115,
+      "estimated_duration_s": 49,
+      "scores": {
+        "hook": 8.5,
+        "data_density": 7.0,
+        "tension": 9.2,
+        "clarity": 8.0,
+        "overall": 8.2
+      },
+      "score_rationale": "One sentence on what earns or loses the overall score."
+    },
+    {
+      "id": 2,
+      "approach": "...",
+      "script": "...",
+      "word_count": 120,
+      "estimated_duration_s": 51,
+      "scores": { "hook": 0, "data_density": 0, "tension": 0, "clarity": 0, "overall": 0 },
+      "score_rationale": "..."
+    }
+  ]
+}
+
+Score definitions (0–10):
+- hook: Does the first sentence demand attention in under 2 seconds?
+- data_density: Specific numbers, stats, or named facts per 30s of runtime
+- tension: Does it create urgency, dread, or stakes the viewer can feel?
+- clarity: Is the core message unmistakable?
+- overall: Weighted quality score for this channel's format
+
+Target: 90–140 words per script (~38–60 seconds at 140 wpm).`;
+
+  /* ── SCORE DISPLAY CONFIG ───────────────────────────────────── */
+  const SCORE_KEYS   = ['hook', 'data_density', 'tension', 'clarity'];
+  const SCORE_LABELS = { hook: 'HOOK', data_density: 'DATA DENSITY', tension: 'TENSION', clarity: 'CLARITY', overall: 'OVERALL' };
+  const SCORE_COLORS = { hook: '#CC8E0C', data_density: '#2868B8', tension: '#BE3618', clarity: '#1A8838', overall: '#A09A90' };
+
+  /* ── STATE ──────────────────────────────────────────────────── */
+  let currentResult = null;
+  let currentBrief  = '';
+
+  /* ── INIT ───────────────────────────────────────────────────── */
+  const $  = id => document.getElementById(id);
+  const el = tag => document.createElement(tag);
+
+  function init() {
+    const saved = localStorage.getItem(LS_KEY);
+    if (saved) {
+      $('api-key').value = saved;
+      setBadge(true);
+    }
+
+    $('api-key').addEventListener('input', function () {
+      const v = this.value.trim();
+      if (v) { localStorage.setItem(LS_KEY, v); setBadge(true); }
+      else   { localStorage.removeItem(LS_KEY);  setBadge(false); }
+    });
+
+    $('btn-toggle-key').addEventListener('click', function () {
+      const inp = $('api-key');
+      if (inp.type === 'password') { inp.type = 'text'; this.textContent = 'HIDE'; }
+      else                          { inp.type = 'password'; this.textContent = 'SHOW'; }
+    });
+
+    $('brief').addEventListener('input', function () {
+      $('char-count').textContent = this.value.length;
+    });
+
+    $('brief').addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') run();
+    });
+
+    $('btn-generate').addEventListener('click', run);
+    $('btn-clear').addEventListener('click', clearAll);
+    $('btn-export-json').addEventListener('click', exportJson);
+
+    $('var-grid').addEventListener('click', handleCardClick);
+  }
+
+  function setBadge(saved) {
+    const b = $('key-badge');
+    b.textContent = saved ? 'SAVED ✓' : 'NOT SAVED';
+    b.className   = saved ? 'key-badge saved' : 'key-badge';
+  }
+
+  /* ── GENERATE ───────────────────────────────────────────────── */
+  async function run() {
+    const apiKey = $('api-key').value.trim();
+    const brief  = $('brief').value.trim();
+
+    if (!apiKey) return showError('API key required. Enter your Anthropic key above.');
+    if (!brief)  return showError('Enter a topic or production brief.');
+
+    clearError();
+    currentBrief = brief;
+
+    const btn = $('btn-generate');
+    btn.disabled    = true;
+    btn.textContent = 'GENERATING…';
+
+    $('output').classList.remove('on');
+    $('var-grid').innerHTML = '';
+
+    const streamBox  = $('stream-box');
+    const streamText = $('stream-text');
+    streamBox.classList.add('on');
+    streamText.textContent = '';
+
+    let fullText = '';
+
+    try {
+      const res = await fetch(API_URL, {
+        method:  'POST',
+        headers: {
+          'Content-Type':   'application/json',
+          'x-api-key':      apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-client-side-api-key-allowed': 'true',
+        },
+        body: JSON.stringify({
+          model:     MODEL,
+          max_tokens: 2048,
+          stream:    true,
+          system:    SYSTEM_PROMPT,
+          messages:  [{ role: 'user', content: brief }],
+        }),
+      });
+
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const d = await res.json(); msg = d.error?.message || msg; } catch {}
+        throw new Error(msg);
+      }
+
+      const reader  = res.body.getReader();
+      const decoder = new TextDecoder();
+      let   leftover = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        leftover += decoder.decode(value, { stream: true });
+        const lines = leftover.split('\n');
+        leftover = lines.pop();
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (raw === '[DONE]') continue;
+          try {
+            const evt = JSON.parse(raw);
+            if (evt.type === 'content_block_delta' && evt.delta?.type === 'text_delta') {
+              fullText += evt.delta.text;
+              streamText.textContent = fullText;
+              streamText.scrollTop = streamText.scrollHeight;
+            }
+          } catch {}
+        }
+      }
+
+      /* Parse JSON from response */
+      const match = fullText.trim().match(/\{[\s\S]*\}/);
+      if (!match) throw new Error('Response did not contain valid JSON.');
+
+      currentResult = JSON.parse(match[0]);
+      if (!Array.isArray(currentResult.variations) || !currentResult.variations.length) {
+        throw new Error('Unexpected response structure from model.');
+      }
+
+      streamBox.classList.remove('on');
+      render(currentResult.variations, brief);
+
+    } catch (err) {
+      streamBox.classList.remove('on');
+      showError(err.message || 'Generation failed. Check your API key and try again.');
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = 'GENERATE SCRIPTS ▶▶';
+    }
+  }
+
+  /* ── RENDER ─────────────────────────────────────────────────── */
+  function render(variations, brief) {
+    $('out-ts').textContent = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+
+    const grid = $('var-grid');
+    grid.innerHTML = '';
+
+    variations.forEach((v, i) => {
+      const card = buildCard(v);
+      grid.appendChild(card);
+      /* stagger score bar animations */
+      setTimeout(() => {
+        card.querySelectorAll('.s-fill').forEach(f => {
+          f.style.width = ((parseFloat(f.dataset.value) / 10) * 100) + '%';
+        });
+      }, 80 + i * 80);
+    });
+
+    const out = $('output');
+    out.classList.add('on');
+    out.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function buildCard(v) {
+    const card = el('div');
+    card.className = 'v-card';
+    card.dataset.id = v.id;
+
+    /* Score rows (hook, data, tension, clarity) */
+    const scoreRows = SCORE_KEYS.map(key => scoreRow(key, v.scores[key])).join('');
+
+    card.innerHTML = `
+      <div class="v-header">
+        <div class="v-num">VARIATION ${String(v.id).padStart(2, '0')}</div>
+        <div class="v-approach">${esc(v.approach)}</div>
+      </div>
+      <div class="v-script">${esc(v.script)}</div>
+      <div class="v-scores">
+        <div class="scores-head">METRICS</div>
+        ${scoreRows}
+        <div class="s-row s-overall">
+          <div class="s-label">${SCORE_LABELS.overall}</div>
+          <div class="s-track">
+            <div class="s-fill" data-value="${v.scores.overall}"
+              style="background:${SCORE_COLORS.overall}"></div>
+          </div>
+          <div class="s-val" style="color:${SCORE_COLORS.overall}">${fmtScore(v.scores.overall)}</div>
+        </div>
+      </div>
+      <div class="v-stats">
+        <span><strong>${v.word_count}</strong> WORDS</span>
+        <span>~<strong>${v.estimated_duration_s}s</strong> DURATION</span>
+      </div>
+      <div class="v-rationale">${esc(v.score_rationale)}</div>
+      <div class="v-actions">
+        <button class="btn-action" data-action="copy-script">COPY SCRIPT</button>
+        <button class="btn-action" data-action="copy-json">COPY JSON</button>
+      </div>
+    `;
+
+    return card;
+  }
+
+  function scoreRow(key, value) {
+    return `
+      <div class="s-row">
+        <div class="s-label">${SCORE_LABELS[key]}</div>
+        <div class="s-track">
+          <div class="s-fill" data-value="${value}"
+            style="background:${SCORE_COLORS[key]}"></div>
+        </div>
+        <div class="s-val" style="color:${SCORE_COLORS[key]}">${fmtScore(value)}</div>
+      </div>`;
+  }
+
+  /* ── CARD ACTIONS ───────────────────────────────────────────── */
+  function handleCardClick(e) {
+    const btn = e.target.closest('.btn-action');
+    if (!btn || !currentResult) return;
+
+    const card  = btn.closest('.v-card');
+    const id    = parseInt(card.dataset.id, 10);
+    const v     = currentResult.variations.find(x => x.id === id);
+    if (!v) return;
+
+    const action = btn.dataset.action;
+
+    if (action === 'copy-script') {
+      copyText(v.script, btn, 'COPIED ✓', 'COPY SCRIPT');
+    }
+    if (action === 'copy-json') {
+      const json = JSON.stringify(v, null, 2);
+      copyText(json, btn, 'COPIED ✓', 'COPY JSON');
+    }
+  }
+
+  async function copyText(text, btn, successLabel, origLabel) {
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.textContent = successLabel;
+      btn.classList.add('ok');
+      setTimeout(() => { btn.textContent = origLabel; btn.classList.remove('ok'); }, 2000);
+    } catch {
+      /* fallback */
+      const ta = el('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.textContent = successLabel;
+      btn.classList.add('ok');
+      setTimeout(() => { btn.textContent = origLabel; btn.classList.remove('ok'); }, 2000);
+    }
+  }
+
+  /* ── EXPORT ─────────────────────────────────────────────────── */
+  async function exportJson() {
+    if (!currentResult) return;
+    const data = {
+      channel:      'The Housing Equation',
+      brief:        currentBrief,
+      generated_at: new Date().toISOString(),
+      model:        MODEL,
+      variations:   currentResult.variations,
+    };
+    const json = JSON.stringify(data, null, 2);
+    const btn  = $('btn-export-json');
+    const orig = btn.textContent;
+
+    try {
+      await navigator.clipboard.writeText(json);
+      btn.textContent = 'COPIED ✓';
+      setTimeout(() => { btn.textContent = orig; }, 2200);
+    } catch {
+      /* Trigger download as fallback */
+      const blob = new Blob([json], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = el('a');
+      a.href     = url;
+      a.download = `housing-eq-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  /* ── CLEAR ──────────────────────────────────────────────────── */
+  function clearAll() {
+    $('output').classList.remove('on');
+    $('var-grid').innerHTML = '';
+    $('stream-box').classList.remove('on');
+    $('brief').value = '';
+    $('char-count').textContent = '0';
+    clearError();
+    currentResult = null;
+    currentBrief  = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  /* ── UTILS ──────────────────────────────────────────────────── */
+  function showError(msg) {
+    const e = $('error-msg');
+    e.textContent = '⚠  ' + msg;
+    e.classList.add('on');
+  }
+
+  function clearError() {
+    $('error-msg').classList.remove('on');
+  }
+
+  function fmtScore(n) {
+    return (Math.round(n * 10) / 10).toFixed(1);
+  }
+
+  function esc(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  /* ── BOOT ───────────────────────────────────────────────────── */
+  document.addEventListener('DOMContentLoaded', init);
+
+})();
+</script>
+</body>
+</html>
