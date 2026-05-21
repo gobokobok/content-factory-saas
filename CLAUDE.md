@@ -1,0 +1,87 @@
+# Content Factory — Session Bootstrap
+
+## Startup protocol
+On every new session, read in this order:
+1. **This file** (CLAUDE.md)
+2. **SPRINT.md** — current sprint and active story
+3. **The active story** in BACKLOG.md
+4. **DONE.md** — last 3 entries for recent context
+5. **CONVENTIONS.md** — coding standards before touching any code
+
+## Project summary
+Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
+
+## Current sprint
+**Sprint 1** — Railway foundation, Drive integration, storyboard generation
+
+## Active story
+**E1-S1** — Railway service skeleton (FastAPI, health check, ENV validation)
+
+## Environments
+
+| Env   | Deploy trigger    | Railway service         | Drive root folder       |
+|-------|-------------------|-------------------------|-------------------------|
+| Local | `.env.local`      | —                       | `GOOGLE_DRIVE_ROOT_ID`  |
+| DEV   | Push to `main`    | `content-factory-dev`   | Content Factory DEV     |
+| PROD  | Git tag `v*.*.*`  | `content-factory-prod`  | Content Factory         |
+
+## Key documents
+
+| File | Purpose |
+|------|---------|
+| BACKLOG.md | All epics and stories |
+| SPRINT.md | Current sprint, story statuses |
+| DONE.md | Completed stories log |
+| DECISIONS.md | All architecture and dependency decisions |
+| CONVENTIONS.md | Python coding standards |
+| ENV.md | All environment variables (no values) |
+| docs/ARCHITECTURE.md | System design, data flow, component map |
+| docs/TECH_STACK.md | Stack choices, versions, rationale |
+| docs/PROMPTS.md | Storyboard prompt v0.4 and changelog |
+| docs/TESTING.md | Test strategy per layer |
+| docs/UI_GUIDELINES.md | Operator UI design rules |
+
+## Run folder structure (Drive)
+```
+/Content Factory/runs/{YYYY-MM-DD}_{slug}/
+  storyboard.json
+  asset_manifest.json
+  run_log.json        ← step-level checkpoint state
+  run_log.txt         ← human-readable log
+  ffmpeg_script.sh
+  /video
+  /images
+  /sfx
+  /music              ← copied from /music-library
+  /voiceover          ← operator uploads .mp3 here
+  /output
+```
+
+## Drive root structure
+```
+/Content Factory          ← PROD root (GOOGLE_DRIVE_ROOT_ID)
+  /music-library          ← shared, operator-managed
+  /runs
+    /{YYYY-MM-DD}_{slug}/
+```
+
+## Hard constraints
+- **No new dependencies** without a DECISIONS.md entry first
+- **Every function** must have a docstring
+- **Every story** ships with tests (see docs/TESTING.md)
+- **No hardcoded values** — all config via ENV vars
+- **No UI frameworks** — plain HTML/JS only for operator UI
+- **Free-tier APIs only** for POC (Pexels, Replicate, Freesound)
+- CI must be green before marking a story complete
+
+## Pipeline steps reference
+
+| Step | Epic | Description |
+|------|------|-------------|
+| 2a   | —    | Brief → Script (`/tools/script-generator.html`, standalone) |
+| 2b   | E1   | Script → `storyboard.json` (Claude API, prompt v0.4) |
+| 3    | E2   | Storyboard → `asset_manifest.json` |
+| 4    | E3   | Asset acquisition (Pexels → Replicate fallback) |
+| 5    | E4   | Asset manifest → `ffmpeg_script.sh` |
+| 6    | E5   | FFmpeg execution → upload output to Drive |
+| 7    | E6   | Operator UI (trigger, monitor, retry, upload voiceover) |
