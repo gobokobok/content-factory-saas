@@ -10,6 +10,22 @@ Format:
 
 ---
 
+## [E2-S1] Asset manifest generation
+**Completed:** 2026-05-22
+**Sprint:** 2
+**Handover:**
+- `src/manifest.py`: `build_manifest(run_id, storyboard_data) → AssetManifest` — pure transformation, no API calls. Maps `visual_prompts.primary_stk → primary_query`, `fallback_stk → fallback_query`, `ai_generate → ai_generate_prompt`. Raises `ManifestError` on invalid storyboard. `clip_type_breakdown(manifest) → dict[str, int]` helper for summary stats.
+- `src/routes/manifest.py`: `POST /runs/{run_id}/manifest` — reads `runs/{run_id}/storyboard.json` from R2 (→404 on missing), builds manifest (→422 + run_log `failed` on bad storyboard), uploads `runs/{run_id}/asset_manifest.json`, updates run_log `asset_manifest: complete`. Returns `{status, manifest_key, scene_count, clip_type_breakdown}`.
+- `src/models.py`: `ManifestEntry`, `AssetManifest`, `ManifestResponse` added. E3 asset acquisition reads `AssetManifest.entries` — each entry has `primary_query`, `fallback_query`, `ai_generate_prompt`, `clip_type`, and `status: "pending"`.
+- `src/exceptions.py`: `ManifestError` added.
+- `src/main.py`: manifest router registered via `app.include_router(manifest_router.router)`.
+- R2 key pattern: `runs/{run_id}/asset_manifest.json`.
+- `tests/test_manifest.py`: 27 tests, all passing. 95 total.
+- No new ENV vars. No new dependencies.
+**Promoted to backlog:** none
+
+---
+
 ## [E6-S0] Minimal run creation UI
 **Completed:** 2026-05-22
 **Sprint:** 1

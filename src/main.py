@@ -10,6 +10,7 @@ from fastapi.responses import FileResponse
 from pydantic import ValidationError
 
 from src.config import Settings, get_settings
+from src.routes import manifest as manifest_router
 from src.routes import runs as runs_router
 from src.routes import storyboard as storyboard_router
 
@@ -44,6 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(title="Content Factory", lifespan=lifespan)
 app.include_router(runs_router.router)
 app.include_router(storyboard_router.router)
+app.include_router(manifest_router.router)
 
 
 @app.get("/", include_in_schema=False)

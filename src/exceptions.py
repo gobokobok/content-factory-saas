@@ -11,3 +11,7 @@ class StoryboardAPIError(Exception):
 
 class StoryboardParseError(Exception):
     """Raised when the Claude response cannot be parsed into a valid storyboard."""
+
+
+class ManifestError(Exception):
+    """Raised when asset manifest generation fails (e.g. invalid storyboard data)."""

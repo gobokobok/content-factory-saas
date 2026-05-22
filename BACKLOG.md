@@ -260,7 +260,8 @@ Parse `storyboard.json` scenes → `asset_manifest.json` with one asset spec per
 ## [E2-S1] Asset manifest generation
 **Epic:** E2 — Storyboard to Asset Manifest
 **Sprint:** 2
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-22
 **Priority:** high
 **Depends on:** E1-S3
 
@@ -299,7 +300,14 @@ POST to `/runs/{run_id}/manifest` on DEV using a run with a completed storyboard
 - `tests/test_manifest.py`
 
 ### Handover
-_filled on completion_
+- `src/manifest.py`: `build_manifest(run_id, storyboard_data) → AssetManifest` — pure transformation, no API calls. Maps `visual_prompts.primary_stk → primary_query`, `fallback_stk → fallback_query`, `ai_generate → ai_generate_prompt`. Raises `ManifestError` on invalid storyboard data. `clip_type_breakdown(manifest) → dict[str, int]` helper available.
+- `src/routes/manifest.py`: `POST /runs/{run_id}/manifest` — reads `storyboard.json` from R2 (→404 on StorageError), builds manifest (→422 + run_log `failed` on ManifestError), uploads `asset_manifest.json`, updates run_log `complete`. Returns `ManifestResponse`.
+- `src/models.py`: `ManifestEntry` (scene_id, clip_type, primary_query, fallback_query, ai_generate_prompt, status="pending"), `AssetManifest` (run_id, entries), `ManifestResponse` (status, manifest_key, scene_count, clip_type_breakdown).
+- `src/exceptions.py`: `ManifestError` added.
+- `src/main.py`: manifest router registered.
+- R2 key: `runs/{run_id}/asset_manifest.json`.
+- `tests/test_manifest.py`: 27 tests — 11 unit (build_manifest), 3 unit (clip_type_breakdown), 13 route integration. All passing. 95 total.
+- No new ENV vars. No new dependencies.
 
 ---
 

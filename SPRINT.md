@@ -42,7 +42,7 @@
 
 | ID | Title | Status |
 |----|-------|--------|
-| E2-S1 | Asset manifest generation | backlog |
+| E2-S1 | Asset manifest generation | done |
 | E3-S1 | Pexels stock footage integration | backlog |
 | E3-S2 | Replicate/Flux AI image generation fallback | backlog |
 | E3-S3 | Asset acquisition orchestrator | backlog |

@@ -116,6 +116,36 @@ class Storyboard(BaseModel):
     summary: StoryboardSummary
 
 
+# ── Asset manifest schemas ─────────────────────────────────────────────────────
+
+
+class ManifestEntry(BaseModel):
+    """Asset requirements for a single storyboard scene."""
+
+    scene_id: str
+    clip_type: Literal["hard_cut", "still_with_motion", "animated"]
+    primary_query: str
+    fallback_query: str
+    ai_generate_prompt: str
+    status: str = "pending"
+
+
+class AssetManifest(BaseModel):
+    """Full asset_manifest.json structure — one entry per storyboard scene."""
+
+    run_id: str
+    entries: list[ManifestEntry]
+
+
+class ManifestResponse(BaseModel):
+    """Response body for POST /runs/{run_id}/manifest."""
+
+    status: str
+    manifest_key: str
+    scene_count: int
+    clip_type_breakdown: dict[str, int]
+
+
 class StoryboardRequest(BaseModel):
     """Request body for POST /runs/{run_id}/storyboard."""
 
