@@ -348,7 +348,7 @@ class TestBuildFfmpegScript:
         assert "sfx0" in script
         assert "sfx1" in script
 
-    def test_amix_input_count_matches_sfx_count(self):
+    def test_amix_input_count_is_dynamic(self):
         scenes = [
             _scene("01", "hard_cut", 3.0, sfx="whoosh"),
             _scene("02", "hard_cut", 3.0, sfx="silence"),
@@ -356,15 +356,32 @@ class TestBuildFfmpegScript:
         sb = _storyboard(scenes)
         mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        # 1 SFX + voiceover + music = 3 inputs
-        assert "amix=inputs=3" in script
+        # amix count is driven by bash variable, not hardcoded
+        assert "amix=inputs=${_n_audio}" in script
+        assert "_n_audio=2" in script  # initialised to vo + music
 
-    def test_no_sfx_amix_has_two_inputs(self):
+    def test_no_sfx_amix_is_dynamic(self):
         scenes = [_scene("01", "hard_cut", 3.0, sfx="silence")]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("01", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "amix=inputs=2" in script
+        assert "amix=inputs=${_n_audio}" in script
+        assert "_n_audio=2" in script
+
+    def test_sfx_wrapped_in_file_existence_check(self):
+        scenes = [_scene("01", "hard_cut", 3.0, sfx="whoosh", sfx_timing="scene_start")]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert 'if [ -f "$BASE/sfx/whoosh.mp3" ]; then' in script
+
+    def test_sfx_inputs_use_bash_array(self):
+        scenes = [_scene("01", "hard_cut", 3.0, sfx="whoosh", sfx_timing="scene_start")]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "_sfx_inputs=()" in script
+        assert '"${_sfx_inputs[@]}"' in script
 
     def test_concat_list_contains_all_scenes(self):
         scenes = [

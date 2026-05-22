@@ -196,8 +196,10 @@ def _audio_section(storyboard: Storyboard) -> str:
     """
     Build the audio assembly ffmpeg command.
 
-    Inputs: video_only, voiceover, music (always present — silence fallback),
-    then one input per non-silence SFX in scene order.
+    SFX inputs are conditional: each file is checked for existence at runtime
+    with [ -f "..." ] so the script runs correctly even when SFX files were
+    not acquired (e.g. before Freesound integration is implemented).
+    The filter_complex and amix input count are built dynamically in bash.
     """
     sfx_entries: list[tuple[str, int]] = []  # (sfx_name, delay_ms)
     offset_s = 0.0
@@ -207,41 +209,41 @@ def _audio_section(storyboard: Storyboard) -> str:
             sfx_entries.append((scene.sfx, delay_ms))
         offset_s += scene.duration_s
 
-    input_flags = [
-        '-i "$WORK/video_only.mp4"',
-        '-i "$VO"',
-        '-i "$MUSIC"',
+    lines = [
+        "# ── Audio assembly ─────────────────────────────────────────",
+        "# SFX inputs are conditional — only include files present at render time",
+        "_sfx_inputs=()",
+        '_sfx_filters=""',
+        '_sfx_labels=""',
+        "_sfx_n=3",
+        "_n_audio=2",
+        "",
     ]
-    filter_parts = [
-        "[1:a]volume=1.0[vo]",
-        "[2:a]volume=0.15[music]",
-    ]
-    sfx_labels: list[str] = []
+
     for i, (sfx_name, delay_ms) in enumerate(sfx_entries):
-        input_flags.append(f'-i "$BASE/sfx/{sfx_name}.mp3"')
         label = f"sfx{i}"
-        idx = 3 + i
-        filter_parts.append(f"[{idx}:a]adelay={delay_ms}|{delay_ms}[{label}]")
-        sfx_labels.append(label)
+        lines.append(f'if [ -f "$BASE/sfx/{sfx_name}.mp3" ]; then')
+        lines.append(f'  _sfx_inputs+=(-i "$BASE/sfx/{sfx_name}.mp3")')
+        lines.append(f'  _sfx_filters="${{_sfx_filters}};[${{_sfx_n}}:a]adelay={delay_ms}|{delay_ms}[{label}]"')
+        lines.append(f'  _sfx_labels="${{_sfx_labels}}[{label}]"')
+        lines.append("  _sfx_n=$((_sfx_n + 1))")
+        lines.append("  _n_audio=$((_n_audio + 1))")
+        lines.append("fi")
+        lines.append("")
 
-    mix_labels = "[vo][music]" + "".join(f"[{l}]" for l in sfx_labels)
-    n_inputs = 2 + len(sfx_labels)
-    filter_parts.append(
-        f"{mix_labels}amix=inputs={n_inputs}:duration=first:normalize=0[aout]"
-    )
+    lines.extend([
+        'ffmpeg -y \\',
+        '  -i "$WORK/video_only.mp4" \\',
+        '  -i "$VO" \\',
+        '  -i "$MUSIC" \\',
+        '  "${_sfx_inputs[@]}" \\',
+        '  -filter_complex "[1:a]volume=1.0[vo];[2:a]volume=0.15[music]${_sfx_filters};[vo][music]${_sfx_labels}amix=inputs=${_n_audio}:duration=first:normalize=0[aout]" \\',
+        '  -map 0:v -map "[aout]" \\',
+        "  -c:v copy -c:a aac -b:a 192k \\",
+        '  "$BASE/output/final.mp4"',
+    ])
 
-    inputs_str = " \\\n  ".join(input_flags)
-    filter_str = ";\\\n      ".join(filter_parts)
-
-    return (
-        "# ── Audio assembly ─────────────────────────────────────────\n"
-        f"ffmpeg -y \\\n"
-        f"  {inputs_str} \\\n"
-        f'  -filter_complex "\\\n      {filter_str}" \\\n'
-        '  -map 0:v -map "[aout]" \\\n'
-        "  -c:v copy -c:a aac -b:a 192k \\\n"
-        '  "$BASE/output/final.mp4"'
-    )
+    return "\n".join(lines)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
