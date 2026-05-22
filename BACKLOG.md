@@ -62,7 +62,8 @@ Hit `GET /health` on Railway DEV URL. Confirm 200 response with correct environm
 ## [E1-S2] Google Drive integration
 **Epic:** E1 — Script to Storyboard
 **Sprint:** 1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-05-22
 **Priority:** high
 **Depends on:** E1-S1
 

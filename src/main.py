@@ -8,6 +8,7 @@ from fastapi import FastAPI, Depends
 from pydantic import ValidationError
 
 from src.config import Settings, get_settings
+from src.routes import runs as runs_router
 
 
 def _configure_logging(log_level: str) -> None:
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(title="Content Factory", lifespan=lifespan)
+app.include_router(runs_router.router)
 
 
 @app.get("/health")
