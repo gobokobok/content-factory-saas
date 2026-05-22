@@ -48,3 +48,4 @@
 | E3-S2 | Replicate/Flux AI image generation fallback | done |
 | E3-S3 | Asset acquisition orchestrator | done |
 | E4-S1 | FFmpeg script generator | done |
+| E5-S1 | FFmpeg execution and output upload | done |

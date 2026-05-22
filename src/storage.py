@@ -84,6 +84,22 @@ class R2Client:
         except (BotoCoreError, ClientError, Exception) as exc:
             raise StorageError(f"R2 get failed for '{key}': {exc}") from exc
 
+    def get_bytes(self, key: str) -> bytes:
+        """Download raw bytes from R2."""
+        try:
+            response = self._client.get_object(Bucket=self._bucket, Key=key)
+            return response["Body"].read()
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise StorageError(f"R2 get failed for '{key}': {exc}") from exc
+
+    def list_keys(self, prefix: str) -> list[str]:
+        """List all R2 keys with the given prefix. Returns an empty list if none exist."""
+        try:
+            response = self._client.list_objects_v2(Bucket=self._bucket, Prefix=prefix)
+            return [obj["Key"] for obj in response.get("Contents", [])]
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise StorageError(f"R2 list failed for prefix '{prefix}': {exc}") from exc
+
     def create_run_folder(self, run_id: str) -> str:
         """
         Initialise a run prefix in R2 by uploading run_log.json.

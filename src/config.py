@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     REPLICATE_POLL_INTERVAL_SECONDS: int = 3
     REPLICATE_MAX_POLL_ATTEMPTS: int = 60
 
+    # FFmpeg
+    FFMPEG_TIMEOUT_SECONDS: int = 300
+
     @field_validator("LOG_LEVEL")
     @classmethod
     def validate_log_level(cls, v: str) -> str:

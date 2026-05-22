@@ -27,3 +27,7 @@ class ReplicateError(Exception):
 
 class FFmpegBuildError(Exception):
     """Raised when ffmpeg_script.sh cannot be generated (e.g. unacquired scene assets)."""
+
+
+class RenderError(Exception):
+    """Raised when FFmpeg execution fails or output cannot be uploaded."""

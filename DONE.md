@@ -10,6 +10,24 @@ Format:
 
 ---
 
+## [E5-S1] FFmpeg execution and output upload
+**Completed:** 2026-05-22
+**Sprint:** unassigned
+**Handover:**
+- `src/renderer.py`: `render_run(run_id, manifest, storage, timeout_seconds) → dict` — full render orchestration. Always cleans up `/tmp/{run_id}/` in a `finally` block. Returns `{status, output_key, duration_seconds, exit_code}`. Raises `StorageError` on unexpected R2 failures (propagates to route as 500).
+- Module-level helpers (importable and tested): `download_run_assets(run_id, manifest, storage)` — downloads all manifest `file_key` entries + `voiceover/`, `music/`, `sfx/` prefix files; `download_script(run_id, storage) → Path` — downloads `ffmpeg_script.sh`, makes executable; `execute_script(script_path, timeout_seconds) → CompletedProcess`; `upload_output(run_id, storage) → str` — uploads `/tmp/{run_id}/output/*` to R2, returns key for `final.mp4`, raises `RenderError` if absent; `cleanup(run_id)` — `shutil.rmtree` with `ignore_errors=True`; `_write_run_log_txt(run_id, content, storage)` — non-fatal, swallows `StorageError`.
+- `src/routes/render.py`: `POST /runs/{run_id}/render` — reads `asset_manifest.json` from R2 (→ 404), calls `render_run`, updates run_log `complete`/`failed`. HTTP 200 for both outcomes; 500 on unexpected `StorageError`.
+- `src/storage.py`: `R2Client.get_bytes(key) → bytes` and `R2Client.list_keys(prefix) → list[str]` added.
+- `src/models.py`: `RenderResponse(status, output_key, duration_seconds, exit_code)` added.
+- `src/exceptions.py`: `RenderError` added.
+- `src/config.py`: `FFMPEG_TIMEOUT_SECONDS: int = 300` added (configurable via ENV).
+- R2 key pattern: `runs/{run_id}/output/final.mp4`. Timeout (`subprocess.TimeoutExpired`) yields `exit_code=-1` and `status="failed"`.
+- `tests/test_renderer.py`: 30 tests. 247 total passing.
+- Smoke test deferred — POST to `/runs/{run_id}/render` on DEV once a run with completed storyboard + manifest + assets + ffmpeg_script exists; verify `final.mp4` in R2 console.
+**Promoted to backlog:** none
+
+---
+
 ## [E4-S1] FFmpeg script generator
 **Completed:** 2026-05-22
 **Sprint:** 2

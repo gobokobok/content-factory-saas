@@ -194,3 +194,12 @@ class FFmpegScriptResponse(BaseModel):
 
     status: str
     script_key: str
+
+
+class RenderResponse(BaseModel):
+    """Response body for POST /runs/{run_id}/render."""
+
+    status: str
+    output_key: str
+    duration_seconds: float
+    exit_code: int
