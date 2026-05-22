@@ -118,7 +118,8 @@ Call `POST /runs` with a test slug via the DEV URL. Verify folder appears in Goo
 ## [E1-S2b] Migrate storage from Google Drive to Cloudflare R2
 **Epic:** E1 — Script to Storyboard
 **Sprint:** 1
-**Status:** ready
+**Status:** done
+**Completed:** 2026-05-22
 **Priority:** high
 **Story points:** 3
 **Depends on:** E1-S2
@@ -179,7 +180,16 @@ Verify `run_log.json` appears at key `runs/2026-05-22_test-affordability/run_log
 - `tests/test_health.py` — updated VALID_ENV
 
 ### Handover
-_filled on completion_
+- `src/storage.py`: `R2Client(account_id, access_key_id, secret_access_key, bucket_name)` — init builds boto3 S3 client with R2 endpoint. Key methods: `create_run_folder(run_id) → prefix`, `upload_json(key, data)`, `get_json(key) → dict`, `update_run_log(run_id, step, status, output_url=None)`. Module-level `_build_run_log(run_id)` available for tests.
+- `src/exceptions.py`: `StorageError` replaces `DriveError`. Import and catch in all routes.
+- `src/models.py`: `RunCreateResponse` now has `storage_prefix` (was `drive_folder_id`). `StepLog` gains optional `output_url` field. All other schemas unchanged.
+- `src/config.py`: R2 vars — `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME` (all required). Google vars removed.
+- `src/routes/runs.py`: run_id constructed in route (`{today}_{slug}`), passed directly to `client.create_run_folder(run_id)`. Returns `{run_id, storage_prefix}`.
+- `tests/test_storage.py`: 18 tests, boto3 mocked via `patch("src.storage.boto3.client")`. Mock pattern: `patch` returns `mock_client`; set `mock_client.put_object` / `get_object` return values directly.
+- R2 key structure: `runs/{run_id}/run_log.json`, `runs/{run_id}/storyboard.json`, etc. No folder creation — prefixes are implicit.
+- Railway DEV: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME=content-factory-dev` set and verified. Bucket: `content-factory-dev`.
+- 47 tests passing.
+**Promoted to backlog:** none
 
 ---
 
