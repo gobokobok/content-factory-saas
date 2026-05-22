@@ -49,9 +49,9 @@ app.include_router(manifest_router.router)
 
 
 @app.get("/", include_in_schema=False)
-def create_run_ui() -> FileResponse:
-    """Serve the run creation form."""
-    return FileResponse(_STATIC_DIR / "create-run.html")
+def pipeline_ui() -> FileResponse:
+    """Serve the end-to-end pipeline UI."""
+    return FileResponse(_STATIC_DIR / "pipeline.html")
 
 
 @app.get("/health")

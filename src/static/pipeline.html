@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Factory — Pipeline</title>
+  <style>
+    body {
+      background: #0f0f0f;
+      color: #e5e5e5;
+      font-family: monospace;
+      padding: 2rem;
+      max-width: 640px;
+    }
+    h1 { font-size: 1.1rem; margin-bottom: 1.5rem; color: #ffffff; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: #9ca3af; }
+    input[type="text"], textarea {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #e5e5e5;
+      font-family: monospace;
+      font-size: 0.95rem;
+      padding: 0.5rem 0.6rem;
+      box-sizing: border-box;
+    }
+    textarea { resize: vertical; min-height: 160px; }
+    .hint { font-size: 0.75rem; color: #6b7280; margin-top: 0.3rem; }
+    .hint.invalid { color: #ef4444; }
+    button {
+      margin-top: 1rem;
+      background: #1a1a1a;
+      border: 1px solid #555;
+      color: #e5e5e5;
+      font-family: monospace;
+      font-size: 0.95rem;
+      padding: 0.5rem 1.2rem;
+      cursor: pointer;
+    }
+    button:disabled { color: #6b7280; border-color: #333; cursor: not-allowed; }
+    #steps { margin-top: 2rem; }
+    .step {
+      border: 1px solid #333;
+      padding: 0.8rem;
+      margin-bottom: 0.75rem;
+      display: none;
+    }
+    .step.visible { display: block; }
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.4rem;
+    }
+    .step-name { font-size: 0.8rem; color: #9ca3af; }
+    .status-dot {
+      font-size: 0.85rem;
+    }
+    .status-dot.pending { color: #6b7280; }
+    .status-dot.running { color: #facc15; }
+    .status-dot.complete { color: #22c55e; }
+    .status-dot.failed { color: #ef4444; }
+    .step-body { font-size: 0.85rem; color: #e5e5e5; }
+    .step-body .label { color: #6b7280; font-size: 0.8rem; }
+    .step-body .value { color: #e5e5e5; }
+    .step-body .error-msg { color: #ef4444; }
+    .spinner {
+      display: inline-block;
+      color: #facc15;
+      font-size: 0.85rem;
+    }
+    .breakdown { margin-top: 0.4rem; padding-left: 1rem; }
+    .breakdown li { list-style: none; font-size: 0.8rem; color: #9ca3af; }
+    .breakdown li span { color: #e5e5e5; }
+  </style>
+</head>
+<body>
+  <h1>Content Factory — Run Pipeline</h1>
+
+  <form id="form" autocomplete="off">
+    <label for="slug">Slug</label>
+    <input type="text" id="slug" name="slug" placeholder="housing-affordability-crisis">
+    <p id="slug-hint" class="hint">lowercase letters and hyphens only</p>
+
+    <label for="script" style="margin-top:1rem;">Voiceover Script</label>
+    <textarea id="script" name="script" placeholder="Paste your plain-text VO script here…"></textarea>
+    <p id="script-hint" class="hint">required</p>
+
+    <button type="submit" id="submit" disabled>Run Pipeline</button>
+  </form>
+
+  <div id="steps">
+    <!-- Step 1: Create Run -->
+    <div class="step" id="step-run">
+      <div class="step-header">
+        <span class="status-dot pending" id="dot-run">○</span>
+        <span class="step-name">Step 1 — Create Run</span>
+      </div>
+      <div class="step-body" id="body-run"></div>
+    </div>
+
+    <!-- Step 2: Storyboard -->
+    <div class="step" id="step-storyboard">
+      <div class="step-header">
+        <span class="status-dot pending" id="dot-storyboard">○</span>
+        <span class="step-name">Step 2 — Generate Storyboard</span>
+      </div>
+      <div class="step-body" id="body-storyboard"></div>
+    </div>
+
+    <!-- Step 3: Asset Manifest -->
+    <div class="step" id="step-manifest">
+      <div class="step-header">
+        <span class="status-dot pending" id="dot-manifest">○</span>
+        <span class="step-name">Step 3 — Build Asset Manifest</span>
+      </div>
+      <div class="step-body" id="body-manifest"></div>
+    </div>
+  </div>
+
+  <script>
+    const slugInput = document.getElementById('slug');
+    const scriptInput = document.getElementById('script');
+    const slugHint = document.getElementById('slug-hint');
+    const scriptHint = document.getElementById('script-hint');
+    const submitBtn = document.getElementById('submit');
+    const SLUG_RE = /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/;
+
+    function validateForm() {
+      const slugOk = SLUG_RE.test(slugInput.value);
+      const scriptOk = scriptInput.value.trim().length > 0;
+      submitBtn.disabled = !(slugOk && scriptOk);
+    }
+
+    slugInput.addEventListener('input', () => {
+      const v = slugInput.value;
+      if (v === '') {
+        slugHint.textContent = 'lowercase letters and hyphens only';
+        slugHint.className = 'hint';
+      } else if (SLUG_RE.test(v)) {
+        slugHint.textContent = 'looks good';
+        slugHint.className = 'hint';
+      } else {
+        slugHint.textContent = 'lowercase letters and hyphens only, no leading/trailing hyphens';
+        slugHint.className = 'hint invalid';
+      }
+      validateForm();
+    });
+
+    scriptInput.addEventListener('input', () => {
+      if (scriptInput.value.trim().length > 0) {
+        scriptHint.textContent = '';
+      } else {
+        scriptHint.textContent = 'required';
+      }
+      validateForm();
+    });
+
+    function showStep(id) {
+      document.getElementById('step-' + id).classList.add('visible');
+    }
+
+    function setDot(id, state) {
+      const dot = document.getElementById('dot-' + id);
+      const symbols = { pending: '○', running: '◌', complete: '●', failed: '✕' };
+      dot.textContent = symbols[state] || '○';
+      dot.className = 'status-dot ' + state;
+    }
+
+    function setBody(id, html) {
+      document.getElementById('body-' + id).innerHTML = html;
+    }
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Running…';
+
+      const slug = slugInput.value;
+      const script = scriptInput.value.trim();
+
+      // ── Step 1: Create Run ──────────────────────────────────────────────────
+      showStep('run');
+      setDot('run', 'running');
+      setBody('run', '<span class="spinner">creating run…</span>');
+
+      let runId;
+      try {
+        const res = await fetch('/runs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug }),
+        });
+        if (res.status !== 201) {
+          let detail = res.statusText;
+          try { detail = (await res.json()).detail || detail; } catch (_) {}
+          setDot('run', 'failed');
+          setBody('run', '<span class="error-msg">Error ' + res.status + ': ' + detail + '</span>');
+          resetSubmit();
+          return;
+        }
+        const data = await res.json();
+        runId = data.run_id;
+        setDot('run', 'complete');
+        setBody('run',
+          '<span class="label">run_id: </span><span class="value">' + runId + '</span><br>' +
+          '<span class="label">storage: </span><span class="value">' + data.storage_prefix + '</span>'
+        );
+      } catch (err) {
+        setDot('run', 'failed');
+        setBody('run', '<span class="error-msg">Network error: ' + err.message + '</span>');
+        resetSubmit();
+        return;
+      }
+
+      // ── Step 2: Generate Storyboard ─────────────────────────────────────────
+      showStep('storyboard');
+      setDot('storyboard', 'running');
+      setBody('storyboard', '<span class="spinner">Generating storyboard, please wait (30–60s)…</span>');
+
+      let sceneCount;
+      try {
+        const res = await fetch('/runs/' + runId + '/storyboard', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script }),
+        });
+        if (res.status !== 200) {
+          let detail = res.statusText;
+          try { detail = (await res.json()).detail || detail; } catch (_) {}
+          setDot('storyboard', 'failed');
+          setBody('storyboard', '<span class="error-msg">Error ' + res.status + ': ' + detail + '</span>');
+          resetSubmit();
+          return;
+        }
+        const data = await res.json();
+        sceneCount = data.scene_count;
+        setDot('storyboard', 'complete');
+        setBody('storyboard',
+          '<span class="label">status: </span><span class="value">' + data.status + '</span><br>' +
+          '<span class="label">scenes: </span><span class="value">' + sceneCount + '</span><br>' +
+          '<span class="label">key: </span><span class="value">' + data.storyboard_key + '</span>'
+        );
+      } catch (err) {
+        setDot('storyboard', 'failed');
+        setBody('storyboard', '<span class="error-msg">Network error: ' + err.message + '</span>');
+        resetSubmit();
+        return;
+      }
+
+      // ── Step 3: Build Asset Manifest ────────────────────────────────────────
+      showStep('manifest');
+      setDot('manifest', 'running');
+      setBody('manifest', '<span class="spinner">building asset manifest…</span>');
+
+      try {
+        const res = await fetch('/runs/' + runId + '/manifest', {
+          method: 'POST',
+        });
+        if (res.status !== 200) {
+          let detail = res.statusText;
+          try { detail = (await res.json()).detail || detail; } catch (_) {}
+          setDot('manifest', 'failed');
+          setBody('manifest', '<span class="error-msg">Error ' + res.status + ': ' + detail + '</span>');
+          resetSubmit();
+          return;
+        }
+        const data = await res.json();
+        setDot('manifest', 'complete');
+
+        let breakdownHtml = '';
+        if (data.clip_type_breakdown && Object.keys(data.clip_type_breakdown).length > 0) {
+          breakdownHtml = '<ul class="breakdown">';
+          for (const [type, count] of Object.entries(data.clip_type_breakdown)) {
+            breakdownHtml += '<li>' + type + ': <span>' + count + '</span></li>';
+          }
+          breakdownHtml += '</ul>';
+        }
+
+        setBody('manifest',
+          '<span class="label">status: </span><span class="value">' + data.status + '</span><br>' +
+          '<span class="label">scenes: </span><span class="value">' + data.scene_count + '</span><br>' +
+          '<span class="label">key: </span><span class="value">' + data.manifest_key + '</span>' +
+          breakdownHtml
+        );
+      } catch (err) {
+        setDot('manifest', 'failed');
+        setBody('manifest', '<span class="error-msg">Network error: ' + err.message + '</span>');
+        resetSubmit();
+        return;
+      }
+
+      submitBtn.textContent = 'Done';
+    });
+
+    function resetSubmit() {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Run Pipeline';
+    }
+  </script>
+</body>
+</html>

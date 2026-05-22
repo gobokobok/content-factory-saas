@@ -586,7 +586,7 @@ Open the page in a browser. Enter a slug (e.g. `test-run`). Click Submit. Confir
 ## [E6-S1] End-to-end pipeline UI (Runs + Storyboard + Manifest)
 **Epic:** E6 — Operator UI
 **Sprint:** 1
-**Status:** ready
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E2-S1
 **Story points:** 3
