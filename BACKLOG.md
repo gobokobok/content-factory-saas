@@ -115,12 +115,80 @@ Call `POST /runs` with a test slug via the DEV URL. Verify folder appears in Goo
 
 ---
 
+## [E1-S2b] Migrate storage from Google Drive to Cloudflare R2
+**Epic:** E1 — Script to Storyboard
+**Sprint:** 1
+**Status:** ready
+**Priority:** high
+**Story points:** 3
+**Depends on:** E1-S2
+**Blocks:** E1-S3
+
+### Goal
+Replace Google Drive + OAuth with Cloudflare R2 + static API token so storage integration requires zero human OAuth steps and works autonomously.
+
+### Acceptance Criteria
+- [ ] `src/storage.py` R2Client passes all unit tests with mocked boto3
+- [ ] `POST /runs` returns `{"run_id": "...", "storage_prefix": "runs/{run_id}/"}` with HTTP 201
+- [ ] `run_log.json` appears in R2 bucket after smoke test
+- [ ] All Google Drive deps removed from `requirements.txt`
+- [ ] Railway DEV env vars updated (human action — see smoke test)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+```bash
+curl -X POST https://content-factory-dev-production.up.railway.app/runs \
+  -H "Content-Type: application/json" \
+  -d '{"slug": "test-affordability"}'
+```
+Verify `run_log.json` appears at key `runs/2026-05-22_test-affordability/run_log.json` in the Cloudflare R2 dashboard.
+
+### Human actions required
+1. Create Cloudflare account at cloudflare.com if you don't have one
+2. R2 → Create bucket named `content-factory-dev`
+3. R2 → Manage R2 API Tokens → Create token → R2 read and write → select `content-factory-dev` bucket → copy Account ID, Access Key ID, Secret Access Key
+4. Railway DEV → remove `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` → add `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME=content-factory-dev`
+
+### Files to read
+- CLAUDE.md
+- CONVENTIONS.md
+- `src/config.py`
+- `src/models.py`
+- `src/routes/runs.py`
+
+### Files to create or modify
+- `src/storage.py` — new: R2Client using boto3 S3-compatible API
+- `src/config.py` — swap Google OAuth vars for R2 vars
+- `src/exceptions.py` — StorageError replaces DriveError
+- `src/models.py` — RunCreateResponse: drive_folder_id → storage_prefix; add output_url to StepLog
+- `src/routes/runs.py` — R2Client replaces DriveClient
+- `src/drive.py` — delete
+- `scripts/get_drive_token.py` — delete
+- `requirements.txt` — remove google libs, add boto3
+- `ENV.md` — replace Google vars with R2 vars
+- `DECISIONS.md` — D021 added, D003 + D020 updated
+- `tests/test_drive.py` → `tests/test_storage.py` — rewritten for R2Client
+- `tests/test_runs.py` — updated mocks and assertions
+- `tests/test_health.py` — updated VALID_ENV
+
+### Handover
+_filled on completion_
+
+---
+
 ## [E1-S3] Storyboard generation
 **Epic:** E1 — Script to Storyboard
 **Sprint:** 1
 **Status:** backlog
 **Priority:** high
-**Depends on:** E1-S2
+**Depends on:** E1-S2b
 
 ### Goal
 Call the Claude API with the v0.4 storyboard prompt, parse the response into a validated `storyboard.json`, upload it to the run folder in Drive, and update `run_log.json` to mark the step complete or failed.

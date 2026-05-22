@@ -21,11 +21,10 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
-## D003 — Google Drive for storage
-**Date:** 2026-05-21 (auth method revised 2026-05-22 — see D020)
-**Decision:** Google Drive is the run storage layer. Auth originally planned as service account JSON; revised to OAuth refresh token after discovering service accounts have no quota on personal Drive.
-**Rationale:** Operator already uses Drive; no new storage infra needed.
-**Trade-off:** OAuth refresh token requires a one-time local setup step (`scripts/get_drive_token.py`). Token must be re-generated if revoked; publish consent screen to Production to prevent 7-day expiry.
+## D003 — Storage layer
+**Date:** 2026-05-21 (revised 2026-05-22 — see D020, D021)
+**Decision:** Storage layer migrated from Google Drive to Cloudflare R2. See D021 for final rationale.
+**History:** Originally Google Drive with service account auth → revised to OAuth refresh token (D020) → replaced with Cloudflare R2 (D021) due to OAuth being incompatible with autonomous operation.
 
 ---
 
@@ -145,8 +144,24 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
-## D020 — OAuth refresh token replaces service account JSON for Drive auth
+## D021 — Migrate storage from Google Drive to Cloudflare R2
 **Date:** 2026-05-22
+**Decision:** Replace Google Drive (with OAuth refresh token auth) with Cloudflare R2 as the pipeline storage layer.
+**Rationale:**
+- Service accounts have no storage quota on personal Google Drive (HTTP 403 — D020)
+- OAuth refresh token requires a human-in-the-loop consent flow, which is incompatible with autonomous Claude Code operation and adds ongoing maintenance burden (token expiry, re-auth)
+- Cloudflare R2 uses static API token auth: 3 ENV vars, no expiry, no consent flow, no quota issues on personal accounts
+- R2 is S3-compatible — boto3 works out of the box with a custom endpoint URL
+- Free tier: 10 GB storage, 1M Class A operations/month — sufficient for POC
+**Endpoint format:** `https://<R2_ACCOUNT_ID>.r2.cloudflarestorage.com`
+**No real folders:** R2 is a flat key-value store. Run "folders" are key prefixes (e.g. `runs/2026-05-22_test-affordability/`). No folder creation needed.
+**Updates:** D003 and D020 revised to reflect final decision.
+**Dependency added:** `boto3` (replaces all google-* libraries)
+
+---
+
+## D020 — OAuth refresh token (superseded by D021)
+**Date:** 2026-05-22 (superseded 2026-05-22 by D021 — R2 migration)
 **Decision:** Authenticate with Google Drive using a stored OAuth 2.0 refresh token (`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_REFRESH_TOKEN`) instead of a service account JSON key.
 **Rationale:** Service accounts have no personal Drive storage quota — uploads fail with HTTP 403 `storageQuotaExceeded` on personal Google accounts. Shared Drives (which solve the quota issue) require Google Workspace, which the operator does not have.
 **Alternatives rejected:**
