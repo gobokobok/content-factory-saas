@@ -72,6 +72,10 @@ class R2Client:
         except (BotoCoreError, ClientError, Exception) as exc:
             raise StorageError(f"R2 upload failed for '{key}': {exc}") from exc
 
+    def upload_text(self, key: str, content: str, content_type: str = "text/plain") -> None:
+        """Encode content as UTF-8 and upload to the given R2 key."""
+        self.upload_bytes(key, content.encode("utf-8"), content_type)
+
     def get_json(self, key: str) -> dict:
         """Download and parse a JSON object from R2."""
         try:

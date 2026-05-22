@@ -187,3 +187,10 @@ class StoryboardResponse(BaseModel):
 
     status: str
     storyboard_key: str
+
+
+class FFmpegScriptResponse(BaseModel):
+    """Response body for POST /runs/{run_id}/ffmpeg-script."""
+
+    status: str
+    script_key: str

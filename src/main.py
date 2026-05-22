@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from src.config import Settings, get_settings
 from src.routes import assets as assets_router
+from src.routes import ffmpeg_script as ffmpeg_script_router
 from src.routes import manifest as manifest_router
 from src.routes import runs as runs_router
 from src.routes import storyboard as storyboard_router
@@ -48,6 +49,7 @@ app.include_router(runs_router.router)
 app.include_router(storyboard_router.router)
 app.include_router(manifest_router.router)
 app.include_router(assets_router.router)
+app.include_router(ffmpeg_script_router.router)
 
 
 @app.get("/", include_in_schema=False)

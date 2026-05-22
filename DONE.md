@@ -10,6 +10,25 @@ Format:
 
 ---
 
+## [E4-S1] FFmpeg script generator
+**Completed:** 2026-05-22
+**Sprint:** 2
+**Handover:**
+- `src/ffmpeg_builder.py`: `build_ffmpeg_script(run_id, storyboard, manifest) → str` — pure function, no I/O. Raises `FFmpegBuildError` (with offending `scene_id`) if any manifest entry has `file_key=None`. Module-level helpers (importable, tested): `_local_path(run_id, file_key) → str` (R2 key → `/tmp/{run_id}/...`); `_zoompan_filter(clip_type, motion_effect, frames) → str`; `_parse_sfx_delay_ms(sfx_timing, duration_s, scene_offset_s) → int`.
+- Generated script: `set -euo pipefail` → BASE/WORK vars → voiceover guard (`exit 1` if no `.mp3` in `$BASE/voiceover/`) → music check (anullsrc silence fallback via ffmpeg if absent, WARNING not error) → per-scene ffmpeg commands → concat list heredoc → concat command → audio assembly → done echo.
+- Clip type handling: `hard_cut` → trim + `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920`; `still_with_motion` → `-loop 1 -framerate 25`, source scaled 2160×3840, zoompan 1.0→1.05 centered; `animated` → zoompan 1.0→1.1 zoom_in/zoom_out or 1.1x pan_left/pan_right, driven by `motion_effect` field (unknown → zoom_in fallback).
+- Audio: voiceover at 1.0, music at 0.15, SFX via `adelay={ms}|{ms}` per scene; `sfx="silence"` scenes skipped entirely; `amix=inputs=N:duration=first:normalize=0`.
+- `src/routes/ffmpeg_script.py`: `POST /runs/{run_id}/ffmpeg-script` — sync; reads storyboard + manifest from R2 (→ 404), builds script (→ 422 + run_log `failed`), uploads via `storage.upload_text` (→ 500), updates run_log `complete`. Returns `FFmpegScriptResponse`.
+- `src/models.py`: `FFmpegScriptResponse(status, script_key)` added.
+- `src/exceptions.py`: `FFmpegBuildError` added.
+- `src/storage.py`: `R2Client.upload_text(key, content, content_type)` added — UTF-8 encode + delegate to `upload_bytes`.
+- R2 key: `runs/{run_id}/ffmpeg_script.sh`. No new ENV vars. No new dependencies.
+- `tests/test_ffmpeg_builder.py`: 59 tests — unit for `_local_path`, `_parse_sfx_delay_ms`, `_zoompan_filter`, `build_ffmpeg_script`; 7 route integration tests. 217 total passing.
+- Smoke test deferred — POST to `/runs/{run_id}/ffmpeg-script` on DEV once a run with completed storyboard + manifest exists; inspect `ffmpeg_script.sh` in R2 console.
+**Promoted to backlog:** none
+
+---
+
 ## [E3-S3] Asset acquisition orchestrator
 **Completed:** 2026-05-22
 **Sprint:** 2

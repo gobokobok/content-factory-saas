@@ -23,3 +23,7 @@ class PexelsError(Exception):
 
 class ReplicateError(Exception):
     """Raised when a Replicate prediction create, poll, or image download fails."""
+
+
+class FFmpegBuildError(Exception):
+    """Raised when ffmpeg_script.sh cannot be generated (e.g. unacquired scene assets)."""
