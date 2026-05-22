@@ -423,7 +423,8 @@ Force Pexels to return no results for a scene. Confirm Replicate is called and i
 ## [E3-S3] Asset acquisition orchestrator
 **Epic:** E3 — Asset Acquisition
 **Sprint:** unassigned
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-22
 **Priority:** high
 **Depends on:** E3-S1, E3-S2
 
@@ -455,7 +456,13 @@ POST to `/runs/{run_id}/assets` on DEV. Verify all scenes acquired. Check Drive 
 - `tests/test_acquisition.py`
 
 ### Handover
-_filled on completion_
+- `src/acquisition.py`: `MIN_ACQUIRED_FOR_COMPLETE = 1` — module-level constant documenting the step status rule (complete if ≥ 1 scene acquired; failed only if 0). `acquire_scene(entry, run_id, pexels, replicate, storage) → bool` — single-entry fallback chain, mutates entry in-place; `PexelsError` falls through to Replicate. `run_acquisition(run_id, manifest, pexels, replicate, storage) → dict` — full loop; skips `acquired` entries; returns `{acquired, failed, sources}` where `acquired` is the post-loop total (including pre-existing).
+- `src/routes/assets.py`: `POST /runs/{run_id}/assets` — reads `asset_manifest.json` from R2 (404 if missing), builds `PexelsClient` + `ReplicateClient` from settings, calls `run_acquisition`, writes updated manifest back, updates `run_log.json`, returns `AcquisitionResponse`. HTTP 200 for all normal outcomes (status field is `complete`/`failed`); 500 only on unexpected exception or R2 write failure.
+- `src/models.py`: `AcquisitionResponse(status, acquired, failed, sources, manifest_key)` added.
+- `src/main.py`: `assets_router` registered via `app.include_router(assets_router.router)`.
+- `tests/test_acquisition.py`: 18 tests — 5 unit for `acquire_scene`, 6 unit for `run_acquisition` (including idempotent all-pre-acquired case), 1 constant check, 6 route integration tests. 158 total passing.
+- No new ENV vars. No new dependencies.
+- Smoke test: deferred until Railway DEV deploy completes — POST to `/runs/{run_id}/assets` on DEV, verify all scenes acquired, check Drive folders, confirm `run_log.json` shows `asset_acquisition: complete`.
 
 ---
 

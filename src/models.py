@@ -166,6 +166,16 @@ class ReplicateAcquireResult(BaseModel):
     status: str = "acquired"
 
 
+class AcquisitionResponse(BaseModel):
+    """Response body for POST /runs/{run_id}/assets."""
+
+    status: str
+    acquired: int
+    failed: int
+    sources: dict[str, int]
+    manifest_key: str
+
+
 class StoryboardRequest(BaseModel):
     """Request body for POST /runs/{run_id}/storyboard."""
 

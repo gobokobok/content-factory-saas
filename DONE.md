@@ -10,6 +10,21 @@ Format:
 
 ---
 
+## [E3-S3] Asset acquisition orchestrator
+**Completed:** 2026-05-22
+**Sprint:** 2
+**Handover:**
+- `src/acquisition.py`: `MIN_ACQUIRED_FOR_COMPLETE = 1` at module level with explicit docstring — step is `complete` if ≥ 1 entry acquired after the loop, `failed` only when total acquired = 0. `acquire_scene(entry, run_id, pexels, replicate, storage) → bool` — single-entry fallback chain, mutates entry in-place; `PexelsError` treated same as `None` result (falls through to Replicate). `run_acquisition(run_id, manifest, pexels, replicate, storage) → dict` — full loop over manifest entries; skips `acquired` entries (idempotent); returns `{acquired: N, failed: N, sources: {pexels: N, replicate: N}}` where `acquired` is the total post-loop count including pre-existing acquired entries.
+- `src/routes/assets.py`: `POST /runs/{run_id}/assets` — reads `runs/{run_id}/asset_manifest.json` from R2 (404 if missing), instantiates `PexelsClient` + `ReplicateClient` from settings, calls `run_acquisition`, uploads updated manifest back to same key, calls `update_run_log` with `complete`/`failed` + `output_url=manifest_key`. HTTP 200 for both complete and failed outcomes; 500 only on unexpected exception or R2 write failure.
+- `src/models.py`: `AcquisitionResponse(status, acquired, failed, sources, manifest_key)` added.
+- `src/main.py`: `assets_router` registered.
+- R2 manifest key pattern: `runs/{run_id}/asset_manifest.json` (read and written back in-place with updated source/file_key/status fields).
+- `tests/test_acquisition.py`: 18 tests — all passing. 158 total tests.
+- No new ENV vars. No new dependencies.
+**Promoted to backlog:** none
+
+---
+
 ## [E3-S2] Replicate/Flux AI image generation fallback
 **Completed:** 2026-05-22
 **Sprint:** 2
