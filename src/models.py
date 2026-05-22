@@ -157,6 +157,15 @@ class PexelsAcquireResult(BaseModel):
     status: str = "acquired"
 
 
+class ReplicateAcquireResult(BaseModel):
+    """Result of a successful Replicate/Flux image generation for one scene."""
+
+    scene_id: str
+    source: Literal["replicate"] = "replicate"
+    file_key: str
+    status: str = "acquired"
+
+
 class StoryboardRequest(BaseModel):
     """Request body for POST /runs/{run_id}/storyboard."""
 

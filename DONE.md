@@ -10,6 +10,20 @@ Format:
 
 ---
 
+## [E3-S2] Replicate/Flux AI image generation fallback
+**Completed:** 2026-05-22
+**Sprint:** 2
+**Handover:**
+- `src/replicate_client.py`: `ReplicateClient(api_token, model, poll_interval_seconds=3, max_poll_attempts=60)`. Key method: `acquire_for_entry(entry, run_id, storage) → ReplicateAcquireResult`. Submits prediction via `client.predictions.create(model=model, input={"prompt": ai_generate_prompt})`, polls `prediction.reload()` until terminal status or timeout, downloads image bytes from `str(output[0])`, uploads to `runs/{run_id}/images/{scene_id}.webp`. Always `.webp` — extension never inferred from CDN URL.
+- `src/models.py`: `ReplicateAcquireResult(scene_id, source="replicate", file_key, status="acquired")` added (symmetric with `PexelsAcquireResult`).
+- `src/exceptions.py`: `ReplicateError` added — raised on create failure, poll failure, `failed`/`canceled` prediction status, timeout, empty output, and download failure.
+- All config vars pre-existing: `REPLICATE_API_TOKEN`, `REPLICATE_FLUX_MODEL`, `REPLICATE_POLL_INTERVAL_SECONDS`, `REPLICATE_MAX_POLL_ATTEMPTS`.
+- No new dependencies (`replicate>=1.0.0` already in `requirements.txt` per D007).
+- 140 total tests passing (19 new). End-to-end smoke test deferred to E3-S3 (requires orchestrator route).
+**Promoted to backlog:** none
+
+---
+
 ## [E3-S1] Pexels stock footage integration
 **Completed:** 2026-05-22
 **Sprint:** 2

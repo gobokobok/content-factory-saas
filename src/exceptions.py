@@ -19,3 +19,7 @@ class ManifestError(Exception):
 
 class PexelsError(Exception):
     """Raised when a Pexels API search, rate-limit retry, or asset download fails."""
+
+
+class ReplicateError(Exception):
+    """Raised when a Replicate prediction create, poll, or image download fails."""
