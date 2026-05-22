@@ -196,38 +196,39 @@ Verify `run_log.json` appears at key `runs/2026-05-22_test-affordability/run_log
 ## [E1-S3] Storyboard generation
 **Epic:** E1 — Script to Storyboard
 **Sprint:** 1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-05-22
 **Priority:** high
 **Depends on:** E1-S2b
 
 ### Goal
-Call the Claude API with the v0.4 storyboard prompt, parse the response into a validated `storyboard.json`, upload it to the run folder in Drive, and update `run_log.json` to mark the step complete or failed.
+Call the Claude API with the v0.4 storyboard prompt, parse the response into a validated `storyboard.json`, upload it to the run folder in R2, and update `run_log.json` to mark the step complete or failed.
 
 ### Acceptance Criteria
-- [ ] `POST /runs/{run_id}/storyboard` accepts `{"script": "<plain text VO script>"}`
-- [ ] Calls Claude API using prompt v0.4 from `docs/PROMPTS.md` as system prompt
-- [ ] Parses and validates response as `storyboard.json` (schema defined in `src/models.py`)
-- [ ] Uploads `storyboard.json` to the run's Drive folder
-- [ ] Updates `run_log.json`: step `storyboard` → `complete` (or `failed` with error message)
-- [ ] Returns `{"status": "complete", "storyboard_url": "<drive_file_id>"}` on success
-- [ ] On Claude API error or parse failure: step marked `failed`, error logged, HTTP 500 returned
+- [x] `POST /runs/{run_id}/storyboard` accepts `{"script": "<plain text VO script>"}`
+- [x] Calls Claude API using prompt v0.4 from `docs/PROMPTS.md` as system prompt
+- [x] Parses and validates response as `storyboard.json` (schema defined in `src/models.py`)
+- [x] Uploads `storyboard.json` to the run's R2 prefix
+- [x] Updates `run_log.json`: step `storyboard` → `complete` (or `failed` with error message)
+- [x] Returns `{"status": "complete", "storyboard_key": "runs/{run_id}/storyboard.json"}` on success
+- [x] On Claude API error or parse failure: step marked `failed`, error logged, HTTP 500 returned
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing (mock Claude API)
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Tests written and passing (mock Claude API)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Smoke test
-POST a real VO script to `/runs/{run_id}/storyboard` on DEV. Verify `storyboard.json` appears in Drive. Open file and spot-check scene structure. Confirm `run_log.json` shows `storyboard: complete`.
+POST a real VO script to `/runs/{run_id}/storyboard` on DEV. Verify `storyboard.json` appears in R2. Open file and spot-check scene structure. Confirm `run_log.json` shows `storyboard: complete`.
 
 ### Files to read
 - CLAUDE.md
 - CONVENTIONS.md
 - docs/PROMPTS.md — v0.4 prompt (full text required)
-- `src/drive.py`
+- `src/storage.py` (replaced `src/drive.py` after E1-S2b)
 - `src/models.py`
 
 ### Files to create or modify
@@ -235,10 +236,19 @@ POST a real VO script to `/runs/{run_id}/storyboard` on DEV. Verify `storyboard.
 - `src/routes/storyboard.py` — POST /runs/{run_id}/storyboard
 - `src/main.py` — register storyboard router
 - `src/models.py` — storyboard schema additions
+- `src/exceptions.py` — StoryboardAPIError, StoryboardParseError
+- `src/storage.py` — error param added to update_run_log
 - `tests/test_storyboard.py`
 
 ### Handover
-_filled on completion_
+- `src/storyboard.py`: `generate_storyboard(script, settings) → Storyboard` (async). Calls `_call_claude_api` (async, uses `AsyncAnthropic`, prompt caching on system prompt). `_parse_storyboard_response(text)` splits on `---` separators → `_parse_global`, `_parse_scene`, `_parse_summary`. `SYSTEM_PROMPT` constant holds the full v0.4 text.
+- `src/routes/storyboard.py`: `POST /runs/{run_id}/storyboard` — async, accepts `StoryboardRequest`, returns `StoryboardResponse`. On success: uploads to `runs/{run_id}/storyboard.json`, calls `update_run_log(..., "complete", output_url=key)`. On failure: calls `update_run_log(..., "failed", error=str(exc))`, returns 500.
+- `src/models.py`: `Storyboard` uses `Field(alias="global")` for the global block — always serialise with `model_dump(by_alias=True, mode="json")`. `StoryboardScene.clip_type` is `Literal["hard_cut", "still_with_motion", "animated"]`.
+- `src/exceptions.py`: `StoryboardAPIError` (Claude API failures), `StoryboardParseError` (response parse failures).
+- `src/storage.py`: `update_run_log` now accepts optional `error: str` parameter.
+- `tests/test_storyboard.py`: 21 tests — parser unit tests + route integration tests. Route fixture: `TestClient(app, raise_server_exceptions=False)` without context manager (same pattern as test_runs.py). Mock pattern: `patch("src.routes.storyboard.generate_storyboard", new_callable=AsyncMock)`.
+- Smoke test: 12-scene storyboard generated on DEV for housing-crisis VO script. All fields populated, `run_log.json` shows `storyboard: complete`. 68 tests total passing.
+- AC delta: response uses `storyboard_key` (R2 key path) instead of `storyboard_url` (Drive file ID) — Drive was removed in E1-S2b.
 
 ---
 
