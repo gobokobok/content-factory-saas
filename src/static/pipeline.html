@@ -218,7 +218,6 @@
       setDot('storyboard', 'running');
       setBody('storyboard', '<span class="spinner">Generating storyboard, please wait (30–60s)…</span>');
 
-      let sceneCount;
       try {
         const res = await fetch('/runs/' + runId + '/storyboard', {
           method: 'POST',
@@ -234,11 +233,9 @@
           return;
         }
         const data = await res.json();
-        sceneCount = data.scene_count;
         setDot('storyboard', 'complete');
         setBody('storyboard',
           '<span class="label">status: </span><span class="value">' + data.status + '</span><br>' +
-          '<span class="label">scenes: </span><span class="value">' + sceneCount + '</span><br>' +
           '<span class="label">key: </span><span class="value">' + data.storyboard_key + '</span>'
         );
       } catch (err) {
