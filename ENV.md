@@ -3,7 +3,7 @@
 All variables must be set in Railway for DEV and PROD environments.
 Local development uses `.env.local` (never committed).
 
-See DECISIONS.md D020 for why OAuth refresh token replaced service account JSON.
+See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 
 ---
 
@@ -11,28 +11,29 @@ See DECISIONS.md D020 for why OAuth refresh token replaced service account JSON.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `ENVIRONMENT` | Yes | `dev` or `prod`. Controls logging, Drive root folder. |
+| `ENVIRONMENT` | Yes | `dev` or `prod`. Controls logging. |
 | `PORT` | Railway-set | Set automatically by Railway. Do not override. |
 | `LOG_LEVEL` | No | `DEBUG`, `INFO`, `WARNING`. Default: `INFO`. |
 
 ---
 
-## Google Drive
+## Cloudflare R2 storage
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GOOGLE_CLIENT_ID` | Yes | OAuth 2.0 Client ID (Desktop app type) from GCP Console. |
-| `GOOGLE_CLIENT_SECRET` | Yes | OAuth 2.0 Client Secret from GCP Console. |
-| `GOOGLE_REFRESH_TOKEN` | Yes | Long-lived refresh token. Obtain once by running `python scripts/get_drive_token.py`. |
-| `GOOGLE_DRIVE_ROOT_ID` | Yes | Google Drive folder ID of the environment root (`Content Factory` for PROD, `Content Factory DEV` for DEV). |
+| `R2_ACCOUNT_ID` | Yes | Cloudflare Account ID (found in R2 dashboard, top-right). |
+| `R2_ACCESS_KEY_ID` | Yes | R2 API token Access Key ID. |
+| `R2_SECRET_ACCESS_KEY` | Yes | R2 API token Secret Access Key. |
+| `R2_BUCKET_NAME` | Yes | R2 bucket name. DEV: `content-factory-dev`. PROD: `content-factory`. |
 
-### One-time setup to get GOOGLE_REFRESH_TOKEN
-1. In GCP Console → APIs & Services → Credentials, create an OAuth 2.0 Client ID (type: **Desktop app**)
-2. Download or copy the Client ID and Client Secret
-3. Run locally: `pip install google-auth-oauthlib && python scripts/get_drive_token.py`
-4. Sign in with your Google account in the browser that opens
-5. Copy the printed `GOOGLE_REFRESH_TOKEN` value into Railway Variables
-6. **Publish your OAuth consent screen** (GCP → APIs & Services → OAuth consent screen → Audience → Publish App) to prevent the refresh token from expiring after 7 days
+### One-time setup to get R2 credentials
+1. Create a [Cloudflare account](https://cloudflare.com) if you don't have one
+2. Go to **R2 → Create bucket** — name it `content-factory-dev` (DEV) or `content-factory` (PROD)
+3. Go to **R2 → Manage R2 API Tokens → Create API Token**
+   - Permissions: **Object Read & Write**
+   - Bucket: select your bucket
+   - Click **Create API Token**
+4. Copy **Account ID**, **Access Key ID**, and **Secret Access Key** into Railway Variables
 
 ---
 
@@ -69,5 +70,4 @@ See DECISIONS.md D020 for why OAuth refresh token replaced service account JSON.
 ## How to set in Railway
 1. Go to your Railway service → Variables tab
 2. Add each variable
-3. Set DEV and PROD services independently — they must point to different Drive root folders
-4. Remove `GOOGLE_SERVICE_ACCOUNT_JSON` if it is still present
+3. Set DEV and PROD services independently — they must point to different R2 buckets

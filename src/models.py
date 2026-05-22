@@ -30,6 +30,7 @@ class StepLog(BaseModel):
     status: StepStatus = StepStatus.pending
     completed_at: Optional[str] = None
     error: Optional[str] = None
+    output_url: Optional[str] = None
 
 
 class RunLog(BaseModel):
@@ -61,4 +62,4 @@ class RunCreateResponse(BaseModel):
     """Response body for POST /runs."""
 
     run_id: str
-    drive_folder_id: str
+    storage_prefix: str

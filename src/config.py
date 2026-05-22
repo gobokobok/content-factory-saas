@@ -19,11 +19,11 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["dev", "prod"]
     LOG_LEVEL: str = "INFO"
 
-    # Google Drive — OAuth refresh token auth (personal accounts; no Shared Drive needed)
-    GOOGLE_CLIENT_ID: str
-    GOOGLE_CLIENT_SECRET: str
-    GOOGLE_REFRESH_TOKEN: str
-    GOOGLE_DRIVE_ROOT_ID: str
+    # Cloudflare R2 storage
+    R2_ACCOUNT_ID: str
+    R2_ACCESS_KEY_ID: str
+    R2_SECRET_ACCESS_KEY: str
+    R2_BUCKET_NAME: str
 
     # Claude API
     ANTHROPIC_API_KEY: str

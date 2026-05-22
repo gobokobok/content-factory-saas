@@ -11,10 +11,10 @@ from src.config import Settings
 
 VALID_ENV = {
     "ENVIRONMENT": "dev",
-    "GOOGLE_CLIENT_ID": "fake-client-id",
-    "GOOGLE_CLIENT_SECRET": "fake-client-secret",
-    "GOOGLE_REFRESH_TOKEN": "fake-refresh-token",
-    "GOOGLE_DRIVE_ROOT_ID": "fake-drive-root-id",
+    "R2_ACCOUNT_ID": "fake-account-id",
+    "R2_ACCESS_KEY_ID": "fake-access-key",
+    "R2_SECRET_ACCESS_KEY": "fake-secret-key",
+    "R2_BUCKET_NAME": "content-factory-dev",
     "ANTHROPIC_API_KEY": "sk-ant-fake",
     "PEXELS_API_KEY": "fake-pexels-key",
     "REPLICATE_API_TOKEN": "fake-replicate-token",
@@ -65,10 +65,10 @@ class TestENVValidation:
 
     @pytest.mark.parametrize("missing_var", [
         "ENVIRONMENT",
-        "GOOGLE_CLIENT_ID",
-        "GOOGLE_CLIENT_SECRET",
-        "GOOGLE_REFRESH_TOKEN",
-        "GOOGLE_DRIVE_ROOT_ID",
+        "R2_ACCOUNT_ID",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY",
+        "R2_BUCKET_NAME",
         "ANTHROPIC_API_KEY",
         "PEXELS_API_KEY",
         "REPLICATE_API_TOKEN",

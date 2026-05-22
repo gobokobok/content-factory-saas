@@ -1,0 +1,107 @@
+"""Cloudflare R2 storage client — upload, download, and run_log helpers.
+
+R2 is a flat key-value store; "folders" are key prefixes ending with '/'.
+No folder creation is required — uploading a key like runs/foo/bar.json
+implicitly creates the prefix structure in the R2 console view.
+"""
+
+import json
+import logging
+from datetime import datetime, timezone
+from typing import Optional
+
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+
+from src.exceptions import StorageError
+from src.models import PIPELINE_STEPS, RunLog, StepLog
+
+logger = logging.getLogger(__name__)
+
+_R2_REGION = "auto"
+
+
+class R2Client:
+    """S3-compatible client for Cloudflare R2."""
+
+    def __init__(
+        self,
+        account_id: str,
+        access_key_id: str,
+        secret_access_key: str,
+        bucket_name: str,
+    ) -> None:
+        """Initialise boto3 S3 client pointed at the R2 endpoint for account_id."""
+        endpoint = f"https://{account_id}.r2.cloudflarestorage.com"
+        try:
+            self._client = boto3.client(
+                "s3",
+                endpoint_url=endpoint,
+                aws_access_key_id=access_key_id,
+                aws_secret_access_key=secret_access_key,
+                region_name=_R2_REGION,
+            )
+        except Exception as exc:
+            raise StorageError(f"Failed to initialise R2 client: {exc}") from exc
+        self._bucket = bucket_name
+
+    def upload_json(self, key: str, data: dict) -> None:
+        """Serialise data as JSON and upload to the given R2 key."""
+        content = json.dumps(data, indent=2).encode("utf-8")
+        try:
+            self._client.put_object(
+                Bucket=self._bucket,
+                Key=key,
+                Body=content,
+                ContentType="application/json",
+            )
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise StorageError(f"R2 upload failed for '{key}': {exc}") from exc
+
+    def get_json(self, key: str) -> dict:
+        """Download and parse a JSON object from R2."""
+        try:
+            response = self._client.get_object(Bucket=self._bucket, Key=key)
+            return json.loads(response["Body"].read())
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise StorageError(f"R2 get failed for '{key}': {exc}") from exc
+
+    def create_run_folder(self, run_id: str) -> str:
+        """
+        Initialise a run prefix in R2 by uploading run_log.json.
+
+        R2 has no real folders — the prefix runs/{run_id}/ exists implicitly
+        once any key with that prefix is written. Returns the prefix string.
+        """
+        prefix = f"runs/{run_id}/"
+        run_log = _build_run_log(run_id)
+        self.upload_json(f"{prefix}run_log.json", run_log.model_dump(mode="json"))
+        logger.info("Run prefix initialised: %s", prefix)
+        return prefix
+
+    def update_run_log(
+        self,
+        run_id: str,
+        step: str,
+        status: str,
+        output_url: Optional[str] = None,
+    ) -> None:
+        """Read, update, and re-upload run_log.json for the given step."""
+        key = f"runs/{run_id}/run_log.json"
+        data = self.get_json(key)
+        data["steps"][step]["status"] = status
+        if status == "complete":
+            data["steps"][step]["completed_at"] = datetime.now(timezone.utc).isoformat()
+        if output_url is not None:
+            data["steps"][step]["output_url"] = output_url
+        self.upload_json(key, data)
+        logger.info("run_log updated: run=%s step=%s status=%s", run_id, step, status)
+
+
+def _build_run_log(run_id: str) -> RunLog:
+    """Construct a RunLog with all pipeline steps initialised to pending."""
+    return RunLog(
+        run_id=run_id,
+        created_at=datetime.now(timezone.utc).isoformat(),
+        steps={step: StepLog() for step in PIPELINE_STEPS},
+    )
