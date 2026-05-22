@@ -13,7 +13,9 @@ from src.main import app
 
 VALID_ENV = {
     "ENVIRONMENT": "dev",
-    "GOOGLE_SERVICE_ACCOUNT_JSON": "eyJmYWtlIjoidHJ1ZSJ9",
+    "GOOGLE_CLIENT_ID": "fake-client-id",
+    "GOOGLE_CLIENT_SECRET": "fake-client-secret",
+    "GOOGLE_REFRESH_TOKEN": "fake-refresh-token",
     "GOOGLE_DRIVE_ROOT_ID": "fake-drive-root-id",
     "ANTHROPIC_API_KEY": "sk-ant-fake",
     "PEXELS_API_KEY": "fake-pexels-key",
@@ -69,6 +71,16 @@ class TestCreateRun:
         mock_drive.create_run_folder.assert_called_once_with(
             "housing-crisis", "fake-drive-root-id"
         )
+
+    def test_drive_client_instantiated_with_oauth_vars(self, client):
+        """DriveClient is constructed with the three OAuth ENV vars from settings."""
+        mock_instance = MagicMock()
+        mock_instance.create_run_folder.return_value = ("2026-05-22_test", "folder-id")
+        with patch("src.routes.runs.DriveClient", return_value=mock_instance) as mock_cls:
+            client.post("/runs", json={"slug": "test-slug"})
+            mock_cls.assert_called_once_with(
+                "fake-client-id", "fake-client-secret", "fake-refresh-token"
+            )
 
     def test_drive_error_returns_500(self, client, mock_drive):
         """DriveError from the Drive client maps to HTTP 500."""

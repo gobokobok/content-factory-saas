@@ -1,11 +1,10 @@
 """Google Drive client — authentication, folder creation, file upload, and run_log helpers."""
 
-import base64
 import json
 import logging
 from datetime import date, datetime, timezone
 
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials as OAuthCredentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaInMemoryUpload
 
@@ -15,23 +14,22 @@ from src.models import PIPELINE_STEPS, RunLog, StepLog
 logger = logging.getLogger(__name__)
 
 _DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
-_DRIVE_SCOPES = ["https://www.googleapis.com/auth/drive"]
+_OAUTH_TOKEN_URI = "https://oauth2.googleapis.com/token"
 _SUBFOLDERS = ("video", "images", "sfx", "music", "voiceover", "output")
 
 
 class DriveClient:
     """Wraps the Google Drive v3 API for Content Factory pipeline operations."""
 
-    def __init__(self, service_account_json_b64: str) -> None:
-        """Authenticate with Drive using a base64-encoded service account JSON string."""
+    def __init__(self, client_id: str, client_secret: str, refresh_token: str) -> None:
+        """Authenticate with Drive using a stored OAuth refresh token."""
         try:
-            creds_info = json.loads(base64.b64decode(service_account_json_b64))
-        except Exception as exc:
-            raise DriveError(f"Failed to decode GOOGLE_SERVICE_ACCOUNT_JSON: {exc}") from exc
-
-        try:
-            creds = service_account.Credentials.from_service_account_info(
-                creds_info, scopes=_DRIVE_SCOPES
+            creds = OAuthCredentials(
+                token=None,
+                refresh_token=refresh_token,
+                client_id=client_id,
+                client_secret=client_secret,
+                token_uri=_OAUTH_TOKEN_URI,
             )
             self._service = build("drive", "v3", credentials=creds)
         except Exception as exc:

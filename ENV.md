@@ -3,7 +3,7 @@
 All variables must be set in Railway for DEV and PROD environments.
 Local development uses `.env.local` (never committed).
 
-See DECISIONS.md D015 for how to encode the Google service account JSON.
+See DECISIONS.md D020 for why OAuth refresh token replaced service account JSON.
 
 ---
 
@@ -21,8 +21,18 @@ See DECISIONS.md D015 for how to encode the Google service account JSON.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | Yes | Base64-encoded contents of the GCP service account JSON file. See DECISIONS.md D015. |
+| `GOOGLE_CLIENT_ID` | Yes | OAuth 2.0 Client ID (Desktop app type) from GCP Console. |
+| `GOOGLE_CLIENT_SECRET` | Yes | OAuth 2.0 Client Secret from GCP Console. |
+| `GOOGLE_REFRESH_TOKEN` | Yes | Long-lived refresh token. Obtain once by running `python scripts/get_drive_token.py`. |
 | `GOOGLE_DRIVE_ROOT_ID` | Yes | Google Drive folder ID of the environment root (`Content Factory` for PROD, `Content Factory DEV` for DEV). |
+
+### One-time setup to get GOOGLE_REFRESH_TOKEN
+1. In GCP Console → APIs & Services → Credentials, create an OAuth 2.0 Client ID (type: **Desktop app**)
+2. Download or copy the Client ID and Client Secret
+3. Run locally: `pip install google-auth-oauthlib && python scripts/get_drive_token.py`
+4. Sign in with your Google account in the browser that opens
+5. Copy the printed `GOOGLE_REFRESH_TOKEN` value into Railway Variables
+6. **Publish your OAuth consent screen** (GCP → APIs & Services → OAuth consent screen → Audience → Publish App) to prevent the refresh token from expiring after 7 days
 
 ---
 
@@ -58,5 +68,6 @@ See DECISIONS.md D015 for how to encode the Google service account JSON.
 
 ## How to set in Railway
 1. Go to your Railway service → Variables tab
-2. Add each variable. For `GOOGLE_SERVICE_ACCOUNT_JSON`, paste the base64 value.
-3. Set DEV and PROD services independently — they must point to different Drive root folders.
+2. Add each variable
+3. Set DEV and PROD services independently — they must point to different Drive root folders
+4. Remove `GOOGLE_SERVICE_ACCOUNT_JSON` if it is still present

@@ -1,7 +1,5 @@
 """Tests for DriveClient — all Drive API calls are mocked."""
 
-import base64
-import json
 from datetime import date
 from unittest.mock import MagicMock, patch
 
@@ -12,133 +10,157 @@ from src.exceptions import DriveError
 from src.models import PIPELINE_STEPS, StepStatus
 
 
-FAKE_SA_JSON = {"type": "service_account", "project_id": "test-project"}
-FAKE_SA_B64 = base64.b64encode(json.dumps(FAKE_SA_JSON).encode()).decode()
+FAKE_CLIENT_ID = "fake-client-id"
+FAKE_CLIENT_SECRET = "fake-client-secret"
+FAKE_REFRESH_TOKEN = "fake-refresh-token"
 FAKE_FOLDER_ID = "fake-folder-id"
 FAKE_ROOT_ID = "fake-root-id"
 
 
-@pytest.fixture()
-def mock_drive_service():
-    """Patch Drive auth and service build; configure mock to return empty folder lists and stable IDs."""
-    mock_service = MagicMock()
-    mock_service.files().list().execute.return_value = {"files": []}
-    mock_service.files().create().execute.return_value = {"id": FAKE_FOLDER_ID}
-
+def _make_client(mock_service: MagicMock) -> DriveClient:
+    """Return a DriveClient with auth and Drive service fully mocked."""
     with (
-        patch("src.drive.service_account.Credentials.from_service_account_info"),
+        patch("src.drive.OAuthCredentials"),
         patch("src.drive.build", return_value=mock_service),
     ):
-        yield mock_service
+        return DriveClient(FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, FAKE_REFRESH_TOKEN)
+
+
+@pytest.fixture()
+def mock_service() -> MagicMock:
+    """Drive service mock: list returns empty, create returns a stable folder ID.
+
+    Uses .return_value chains instead of invocations so no calls are recorded
+    during fixture setup — call_args_list[0] is always the first real test call.
+    """
+    svc = MagicMock()
+    svc.files.return_value.list.return_value.execute.return_value = {"files": []}
+    svc.files.return_value.create.return_value.execute.return_value = {"id": FAKE_FOLDER_ID}
+    return svc
+
+
+@pytest.fixture()
+def client(mock_service: MagicMock) -> DriveClient:
+    """DriveClient with mocked auth and service."""
+    return _make_client(mock_service)
 
 
 class TestDriveClientInit:
-    def test_bad_base64_raises_drive_error(self):
-        """Non-base64 input raises DriveError on init."""
-        with pytest.raises(DriveError, match="Failed to decode"):
-            DriveClient("!!!not-base64!!!")
-
-    def test_invalid_json_after_decode_raises_drive_error(self):
-        """Valid base64 that decodes to non-JSON raises DriveError on init."""
-        bad_b64 = base64.b64encode(b"not-json").decode()
-        with pytest.raises(DriveError, match="Failed to decode"):
-            DriveClient(bad_b64)
+    def test_successful_init(self, mock_service):
+        """Valid credentials produce a DriveClient without error."""
+        c = _make_client(mock_service)
+        assert c is not None
 
     def test_build_failure_raises_drive_error(self):
-        """If the Drive API build() call fails, DriveError is raised."""
+        """If build() raises, DriveError is surfaced."""
         with (
-            patch("src.drive.service_account.Credentials.from_service_account_info"),
+            patch("src.drive.OAuthCredentials"),
             patch("src.drive.build", side_effect=Exception("network error")),
         ):
             with pytest.raises(DriveError, match="Failed to build Drive service"):
-                DriveClient(FAKE_SA_B64)
+                DriveClient(FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, FAKE_REFRESH_TOKEN)
 
-    def test_successful_init(self, mock_drive_service):
-        """Valid b64 SA JSON produces a DriveClient without error."""
-        client = DriveClient(FAKE_SA_B64)
-        assert client is not None
+    def test_credentials_constructed_with_correct_params(self):
+        """OAuthCredentials is called with the supplied client_id, secret, refresh_token."""
+        with (
+            patch("src.drive.OAuthCredentials") as mock_creds_cls,
+            patch("src.drive.build"),
+        ):
+            DriveClient(FAKE_CLIENT_ID, FAKE_CLIENT_SECRET, FAKE_REFRESH_TOKEN)
+            mock_creds_cls.assert_called_once_with(
+                token=None,
+                refresh_token=FAKE_REFRESH_TOKEN,
+                client_id=FAKE_CLIENT_ID,
+                client_secret=FAKE_CLIENT_SECRET,
+                token_uri="https://oauth2.googleapis.com/token",
+            )
 
 
 class TestCreateRunFolder:
-    def test_returns_correct_run_id(self, mock_drive_service):
+    def test_returns_correct_run_id(self, client, mock_service):
         """run_id is {today}_{slug}."""
-        client = DriveClient(FAKE_SA_B64)
         run_id, _ = client.create_run_folder("test-slug", FAKE_ROOT_ID)
         assert run_id == f"{date.today().isoformat()}_test-slug"
 
-    def test_returns_folder_id(self, mock_drive_service):
-        """Returned folder_id matches what the Drive API returns."""
-        client = DriveClient(FAKE_SA_B64)
+    def test_returns_folder_id(self, client, mock_service):
+        """Returned folder_id matches the Drive API response."""
         _, folder_id = client.create_run_folder("test-slug", FAKE_ROOT_ID)
         assert folder_id == FAKE_FOLDER_ID
 
-    def test_creates_all_subfolders(self, mock_drive_service):
+    def test_creates_all_subfolders(self, client, mock_service):
         """All six subfolders are created under the run folder."""
-        client = DriveClient(FAKE_SA_B64)
         client.create_run_folder("test-slug", FAKE_ROOT_ID)
 
         created_names = [
             call.kwargs["body"]["name"]
-            for call in mock_drive_service.files().create.call_args_list
+            for call in mock_service.files().create.call_args_list
             if call.kwargs.get("body", {}).get("mimeType") == "application/vnd.google-apps.folder"
         ]
         for subfolder in _SUBFOLDERS:
             assert subfolder in created_names, f"Missing subfolder: {subfolder}"
 
-    def test_creates_runs_parent_folder(self, mock_drive_service):
+    def test_creates_runs_parent_folder(self, client, mock_service):
         """A 'runs' folder is sought/created under the root before the run folder."""
-        client = DriveClient(FAKE_SA_B64)
         client.create_run_folder("test-slug", FAKE_ROOT_ID)
 
         created_names = [
             call.kwargs["body"]["name"]
-            for call in mock_drive_service.files().create.call_args_list
+            for call in mock_service.files().create.call_args_list
             if call.kwargs.get("body", {}).get("mimeType") == "application/vnd.google-apps.folder"
         ]
         assert "runs" in created_names
 
-    def test_uploads_run_log_json(self, mock_drive_service):
+    def test_uploads_run_log_json(self, client, mock_service):
         """run_log.json is uploaded as part of folder creation."""
-        client = DriveClient(FAKE_SA_B64)
         client.create_run_folder("test-slug", FAKE_ROOT_ID)
 
         uploaded_names = [
             call.kwargs["body"]["name"]
-            for call in mock_drive_service.files().create.call_args_list
+            for call in mock_service.files().create.call_args_list
             if "media_body" in call.kwargs
         ]
         assert "run_log.json" in uploaded_names
 
-    def test_reuses_existing_folder(self, mock_drive_service):
+    def test_reuses_existing_folder(self, client, mock_service):
         """If 'runs' folder already exists in Drive, it is reused and not re-created."""
-        existing_id = "existing-runs-folder-id"
-        mock_drive_service.files().list().execute.return_value = {
-            "files": [{"id": existing_id}]
+        mock_service.files.return_value.list.return_value.execute.return_value = {
+            "files": [{"id": "existing-runs-folder-id"}]
         }
-        client = DriveClient(FAKE_SA_B64)
         client.create_run_folder("test-slug", FAKE_ROOT_ID)
 
-        # No folder create calls should have been made for 'runs'
         folder_creates = [
             call.kwargs["body"]["name"]
-            for call in mock_drive_service.files().create.call_args_list
+            for call in mock_service.files().create.call_args_list
             if call.kwargs.get("body", {}).get("mimeType") == "application/vnd.google-apps.folder"
         ]
         assert "runs" not in folder_creates
 
-    def test_drive_list_error_raises_drive_error(self, mock_drive_service):
+    def test_drive_list_error_raises_drive_error(self, client, mock_service):
         """Drive list() failure propagates as DriveError."""
-        mock_drive_service.files().list().execute.side_effect = Exception("quota exceeded")
-        client = DriveClient(FAKE_SA_B64)
+        mock_service.files().list().execute.side_effect = Exception("quota exceeded")
         with pytest.raises(DriveError, match="Drive list failed"):
             client.create_run_folder("test-slug", FAKE_ROOT_ID)
 
-    def test_drive_create_error_raises_drive_error(self, mock_drive_service):
+    def test_drive_create_error_raises_drive_error(self, client, mock_service):
         """Drive create() failure propagates as DriveError."""
-        mock_drive_service.files().create().execute.side_effect = Exception("permission denied")
-        client = DriveClient(FAKE_SA_B64)
+        mock_service.files().create().execute.side_effect = Exception("permission denied")
         with pytest.raises(DriveError):
             client.create_run_folder("test-slug", FAKE_ROOT_ID)
+
+    def test_list_calls_include_all_drives_params(self, client, mock_service):
+        """list() is called with supportsAllDrives and includeItemsFromAllDrives."""
+        client.create_run_folder("test-slug", FAKE_ROOT_ID)
+        list_call_kwargs = mock_service.files().list.call_args_list[0].kwargs
+        assert list_call_kwargs.get("supportsAllDrives") is True
+        assert list_call_kwargs.get("includeItemsFromAllDrives") is True
+
+    def test_create_calls_include_supports_all_drives(self, client, mock_service):
+        """create() is called with supportsAllDrives=True for both folders and file uploads."""
+        client.create_run_folder("test-slug", FAKE_ROOT_ID)
+        for call in mock_service.files().create.call_args_list:
+            assert call.kwargs.get("supportsAllDrives") is True, (
+                f"create() call missing supportsAllDrives=True: {call}"
+            )
 
 
 class TestBuildRunLog:
@@ -161,7 +183,7 @@ class TestBuildRunLog:
             assert entry.error is None
 
     def test_run_id_preserved(self):
-        """run_id matches the slug passed in."""
+        """run_id matches the value passed in."""
         log = _build_run_log("2026-05-22_my-slug")
         assert log.run_id == "2026-05-22_my-slug"
 

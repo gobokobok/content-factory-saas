@@ -20,7 +20,11 @@ def create_run(
     settings: Settings = Depends(get_settings),
 ) -> RunCreateResponse:
     """Create a Drive run folder with subfolders and initialize run_log.json."""
-    client = DriveClient(settings.GOOGLE_SERVICE_ACCOUNT_JSON)
+    client = DriveClient(
+        settings.GOOGLE_CLIENT_ID,
+        settings.GOOGLE_CLIENT_SECRET,
+        settings.GOOGLE_REFRESH_TOKEN,
+    )
     try:
         run_id, folder_id = client.create_run_folder(body.slug, settings.GOOGLE_DRIVE_ROOT_ID)
     except DriveError as exc:

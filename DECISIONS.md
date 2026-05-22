@@ -21,11 +21,11 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
-## D003 — Google Drive for storage (service account auth)
-**Date:** 2026-05-21
-**Decision:** Google Drive is the run storage layer. Auth via service account JSON (base64-encoded in ENV var).
-**Rationale:** Operator already uses Drive; no new storage infra needed. Service account avoids OAuth flow.
-**Trade-off:** Requires operator to set up a GCP service account. One-time setup cost.
+## D003 — Google Drive for storage
+**Date:** 2026-05-21 (auth method revised 2026-05-22 — see D020)
+**Decision:** Google Drive is the run storage layer. Auth originally planned as service account JSON; revised to OAuth refresh token after discovering service accounts have no quota on personal Drive.
+**Rationale:** Operator already uses Drive; no new storage infra needed.
+**Trade-off:** OAuth refresh token requires a one-time local setup step (`scripts/get_drive_token.py`). Token must be re-generated if revoked; publish consent screen to Production to prevent 7-day expiry.
 
 ---
 
@@ -142,6 +142,20 @@ All significant architecture decisions and new dependency introductions are logg
 **Rationale:** Haiku is sufficient for deterministic transformation tasks. Sonnet handles the core creative/structured generation. Opus reserved for high-stakes reasoning outside the production pipeline.
 **Constraint:** Model strings must never be hardcoded in individual modules. Always use `ModelRouter` with task type constants.
 **Override:** Each task type's model is overridable via `MODEL_<TASK_TYPE>` ENV var for testing and cost tuning.
+
+---
+
+## D020 — OAuth refresh token replaces service account JSON for Drive auth
+**Date:** 2026-05-22
+**Decision:** Authenticate with Google Drive using a stored OAuth 2.0 refresh token (`GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` + `GOOGLE_REFRESH_TOKEN`) instead of a service account JSON key.
+**Rationale:** Service accounts have no personal Drive storage quota — uploads fail with HTTP 403 `storageQuotaExceeded` on personal Google accounts. Shared Drives (which solve the quota issue) require Google Workspace, which the operator does not have.
+**Alternatives rejected:**
+- Shared Drive — requires Google Workspace (Enterprise). Not available on personal accounts.
+- OAuth delegation — requires Workspace admin and domain-wide delegation. Not available.
+- Raw REST calls — same quota limitation applies; no benefit over SDK.
+**How:** One-time local flow via `scripts/get_drive_token.py` (uses `google-auth-oauthlib`). Refresh token is long-lived unless revoked. Publish the OAuth consent screen to Production mode to remove the 7-day Testing-mode expiry.
+**Dependency added:** `google-auth-oauthlib>=1.2.0` (local script only; production code uses `google.oauth2.credentials.Credentials` from the existing `google-auth` package).
+**Updates:** D003 revised — service account JSON auth replaced by OAuth refresh token approach.
 
 ---
 

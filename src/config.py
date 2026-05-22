@@ -19,8 +19,10 @@ class Settings(BaseSettings):
     ENVIRONMENT: Literal["dev", "prod"]
     LOG_LEVEL: str = "INFO"
 
-    # Google Drive
-    GOOGLE_SERVICE_ACCOUNT_JSON: str
+    # Google Drive — OAuth refresh token auth (personal accounts; no Shared Drive needed)
+    GOOGLE_CLIENT_ID: str
+    GOOGLE_CLIENT_SECRET: str
+    GOOGLE_REFRESH_TOKEN: str
     GOOGLE_DRIVE_ROOT_ID: str
 
     # Claude API

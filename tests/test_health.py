@@ -11,7 +11,9 @@ from src.config import Settings
 
 VALID_ENV = {
     "ENVIRONMENT": "dev",
-    "GOOGLE_SERVICE_ACCOUNT_JSON": "eyJmYWtlIjoidHJ1ZSJ9",
+    "GOOGLE_CLIENT_ID": "fake-client-id",
+    "GOOGLE_CLIENT_SECRET": "fake-client-secret",
+    "GOOGLE_REFRESH_TOKEN": "fake-refresh-token",
     "GOOGLE_DRIVE_ROOT_ID": "fake-drive-root-id",
     "ANTHROPIC_API_KEY": "sk-ant-fake",
     "PEXELS_API_KEY": "fake-pexels-key",
@@ -63,7 +65,9 @@ class TestENVValidation:
 
     @pytest.mark.parametrize("missing_var", [
         "ENVIRONMENT",
-        "GOOGLE_SERVICE_ACCOUNT_JSON",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_REFRESH_TOKEN",
         "GOOGLE_DRIVE_ROOT_ID",
         "ANTHROPIC_API_KEY",
         "PEXELS_API_KEY",
