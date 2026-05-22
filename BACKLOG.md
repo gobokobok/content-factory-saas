@@ -10,7 +10,7 @@ Plain-text voiceover script → `storyboard.json` via Claude API (prompt v0.4)
 ## [E1-S1] Railway service skeleton
 **Epic:** E1 — Script to Storyboard
 **Sprint:** 1
-**Status:** active
+**Status:** in-progress
 **Priority:** high
 **Depends on:** none
 

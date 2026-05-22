@@ -1,0 +1,44 @@
+"""FastAPI application entry point — registers routes and validates ENV at startup."""
+
+import logging
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+from fastapi import FastAPI, Depends
+from pydantic import ValidationError
+
+from src.config import Settings, get_settings
+
+
+def _configure_logging(log_level: str) -> None:
+    """Set root logger level from settings."""
+    logging.basicConfig(
+        level=getattr(logging, log_level, logging.INFO),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    )
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Validate all ENV vars at startup. Crash fast if anything is missing or invalid."""
+    try:
+        settings = get_settings()
+        _configure_logging(settings.LOG_LEVEL)
+        logging.getLogger(__name__).info(
+            "Startup OK — environment=%s", settings.ENVIRONMENT
+        )
+    except ValidationError as exc:
+        logging.basicConfig(level=logging.ERROR)
+        logging.getLogger(__name__).error("Startup failed — missing or invalid ENV vars:\n%s", exc)
+        raise SystemExit(1) from exc
+
+    yield
+
+
+app = FastAPI(title="Content Factory", lifespan=lifespan)
+
+
+@app.get("/health")
+def health(settings: Settings = Depends(get_settings)) -> dict:
+    """Return service health and current environment."""
+    return {"status": "ok", "environment": settings.ENVIRONMENT}
