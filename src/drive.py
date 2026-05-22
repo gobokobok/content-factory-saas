@@ -48,7 +48,13 @@ class DriveClient:
         try:
             results = (
                 self._service.files()
-                .list(q=query, fields="files(id)", spaces="drive")
+                .list(
+                    q=query,
+                    fields="files(id)",
+                    spaces="drive",
+                    supportsAllDrives=True,
+                    includeItemsFromAllDrives=True,
+                )
                 .execute()
             )
         except Exception as exc:
@@ -64,7 +70,11 @@ class DriveClient:
                 "mimeType": _DRIVE_FOLDER_MIME,
                 "parents": [parent_id],
             }
-            folder = self._service.files().create(body=metadata, fields="id").execute()
+            folder = (
+                self._service.files()
+                .create(body=metadata, fields="id", supportsAllDrives=True)
+                .execute()
+            )
         except Exception as exc:
             raise DriveError(f"Drive folder create failed for '{name}': {exc}") from exc
 
@@ -78,7 +88,7 @@ class DriveClient:
         try:
             file = (
                 self._service.files()
-                .create(body=metadata, media_body=media, fields="id")
+                .create(body=metadata, media_body=media, fields="id", supportsAllDrives=True)
                 .execute()
             )
         except Exception as exc:
