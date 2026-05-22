@@ -5,6 +5,15 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D022 — Human touchpoint rule applied at epic granularity
+**Date:** 2026-05-22
+**Decision:** Every epic must include a UI story that delivers a human-testable artifact at the end of the epic's first functional stories. Applied immediately: E6-S1 added after E2-S1 to cover the pipeline through asset manifest generation.
+**Rationale:** D019 (Human Touchpoint Rule) established that no sprint should pass without something a human can touch. D022 refines this to the epic level — each epic's core backend work must be followed by a UI story before proceeding to the next epic. Prevents accumulating multiple epics of backend-only work with no operator-facing validation.
+**Trade-off:** Slight delay to next backend epic (E3-S1) while UI story is completed. Accepted — the touchpoint catches integration issues early and keeps non-technical stakeholders engaged.
+**Applied to:** E6-S1 (end-to-end pipeline UI covering POST /runs, POST /runs/{run_id}/storyboard, POST /runs/{run_id}/manifest).
+
+---
+
 ## D001 — Modular pipeline architecture
 **Date:** 2026-05-21
 **Decision:** Each pipeline step is a standalone module exposed as an API endpoint. Steps are triggered manually (POC).

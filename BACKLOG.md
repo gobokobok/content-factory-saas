@@ -583,7 +583,65 @@ Open the page in a browser. Enter a slug (e.g. `test-run`). Click Submit. Confir
 
 ---
 
-## [E6-S1] UI skeleton
+## [E6-S1] End-to-end pipeline UI (Runs + Storyboard + Manifest)
+**Epic:** E6 — Operator UI
+**Sprint:** 1
+**Status:** ready
+**Priority:** high
+**Depends on:** E2-S1
+**Story points:** 3
+
+### Goal
+Give a non-technical user a single-page UI to run the full pipeline through asset manifest — no curl, no Postman, no developer assistance.
+
+### Flow
+1. Enter a slug and a VO script → Submit
+2. UI calls `POST /runs` → displays run_id
+3. UI calls `POST /runs/{run_id}/storyboard` (shows "Generating storyboard..." while waiting)
+4. On storyboard complete → UI calls `POST /runs/{run_id}/manifest` automatically
+5. Displays final summary: run_id, scene count, clip type breakdown
+6. Error state shown at each step if any call fails
+
+### Acceptance Criteria
+- [ ] Single HTML page, no frameworks, no styling required
+- [ ] Storyboard step shows a loading indicator (request takes 30–60s)
+- [ ] Each step result displayed before proceeding to next
+- [ ] Full error handling — failed step shows message, does not proceed
+- [ ] Non-technical user can run the pipeline start to finish without developer assistance
+- [ ] Smoke test: enter slug + VO script in browser, verify `run_log.json` in R2 shows `storyboard` and `asset_manifest` both `complete`
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Served from FastAPI (`GET /`)
+- [ ] Manual smoke test completed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open page in browser. Enter a slug and a VO script. Submit. Confirm run_id displayed after POST /runs. Confirm "Generating storyboard..." shown during Claude API call. Confirm scene count and clip type breakdown displayed on completion. Open R2 and verify `run_log.json` shows `storyboard: complete` and `asset_manifest: complete`.
+
+### Files to read
+- CLAUDE.md
+- CONVENTIONS.md
+- docs/UI_GUIDELINES.md
+- `src/static/create-run.html`
+- `src/main.py`
+
+### Files to create or modify
+- `src/static/pipeline.html` — slug + VO script form, sequential fetch calls, result display
+- `src/main.py` — serve `pipeline.html` at `GET /`
+
+### Note
+Storyboard endpoint takes 30–60s. Use `fetch` with no timeout override — browser default is sufficient. Show a spinner or "Generating storyboard, please wait..." text during the call. Async polling is deferred to E6-S3.
+
+**No new backend logic required — UI calls existing endpoints only.**
+
+### Handover
+_filled on completion_
+
+---
+
+## [E6-S1-OLD] UI skeleton (superseded by E6-S1 above)
 **Epic:** E6 — Operator UI
 **Sprint:** unassigned
 **Status:** backlog
