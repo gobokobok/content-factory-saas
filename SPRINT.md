@@ -14,7 +14,7 @@
 | E1-S2b | Migrate storage from Google Drive to Cloudflare R2 | done |
 | E1-S3 | Storyboard generation (Claude API call with v0.4 prompt, parse, upload to R2, update run_log.json) | done |
 | E6-S0 | Minimal run creation UI (slug form → POST /runs → show run_id + Drive link) | done |
-| E6-S1 | End-to-end pipeline UI (Runs + Storyboard + Manifest) — 3pts | ready |
+| E6-S1 | End-to-end pipeline UI (Runs + Storyboard + Manifest) — 3pts | done |
 
 ---
 

@@ -10,6 +10,18 @@ Format:
 
 ---
 
+## [E6-S1] End-to-end pipeline UI (Runs + Storyboard + Manifest)
+**Completed:** 2026-05-22
+**Sprint:** 1
+**Handover:**
+- `src/static/pipeline.html`: self-contained HTML page (inline CSS/JS, no frameworks). Slug validated before enabling submit; VO script textarea required. Sequentially calls `POST /runs` → `POST /runs/{run_id}/storyboard` → `POST /runs/{run_id}/manifest`. Per-step status dots: `○` pending / `◌` running / `●` complete / `✕` failed. Storyboard step shows 30–60s loading message. Manifest step displays scene count + clip type breakdown dict. Any failed step stops the chain, surfaces error detail, re-enables submit.
+- `src/main.py`: `GET /` now serves `pipeline.html` (was `create-run.html`). `create-run.html` preserved in `/static` as reference.
+- No new ENV vars. No new dependencies. 95 tests passing.
+- Smoke test passed on Railway DEV: slug `messy-house-messy-head`, 10 scenes, all steps complete (still_with_motion: 4, animated: 3, hard_cut: 3).
+**Promoted to backlog:** none
+
+---
+
 ## [E2-S1] Asset manifest generation
 **Completed:** 2026-05-22
 **Sprint:** 2

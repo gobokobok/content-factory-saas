@@ -586,7 +586,8 @@ Open the page in a browser. Enter a slug (e.g. `test-run`). Click Submit. Confir
 ## [E6-S1] End-to-end pipeline UI (Runs + Storyboard + Manifest)
 **Epic:** E6 — Operator UI
 **Sprint:** 1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-05-22
 **Priority:** high
 **Depends on:** E2-S1
 **Story points:** 3
@@ -603,12 +604,12 @@ Give a non-technical user a single-page UI to run the full pipeline through asse
 6. Error state shown at each step if any call fails
 
 ### Acceptance Criteria
-- [ ] Single HTML page, no frameworks, no styling required
-- [ ] Storyboard step shows a loading indicator (request takes 30–60s)
-- [ ] Each step result displayed before proceeding to next
-- [ ] Full error handling — failed step shows message, does not proceed
-- [ ] Non-technical user can run the pipeline start to finish without developer assistance
-- [ ] Smoke test: enter slug + VO script in browser, verify `run_log.json` in R2 shows `storyboard` and `asset_manifest` both `complete`
+- [x] Single HTML page, no frameworks, no styling required
+- [x] Storyboard step shows a loading indicator (request takes 30–60s)
+- [x] Each step result displayed before proceeding to next
+- [x] Full error handling — failed step shows message, does not proceed
+- [x] Non-technical user can run the pipeline start to finish without developer assistance
+- [x] Smoke test: enter slug + VO script in browser, verify `run_log.json` in R2 shows `storyboard` and `asset_manifest` both `complete`
 
 ### Definition of Done
 - [ ] All AC checked
@@ -637,7 +638,10 @@ Storyboard endpoint takes 30–60s. Use `fetch` with no timeout override — bro
 **No new backend logic required — UI calls existing endpoints only.**
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html`: self-contained HTML page (inline CSS/JS, no frameworks). Slug validated with `/^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/` before enabling submit. VO script textarea required (non-empty). On submit: sequentially calls `POST /runs` → `POST /runs/{run_id}/storyboard` → `POST /runs/{run_id}/manifest`. Each step rendered as a status row with `○` pending / `◌` running / `●` complete / `✕` failed dot. Storyboard step shows "Generating storyboard, please wait (30–60s)…" during Claude API call. Manifest step displays scene count and clip type breakdown. Any step failure stops the chain and surfaces the error detail; submit re-enables for retry.
+- `src/main.py`: `GET /` updated — now serves `pipeline.html` (was `create-run.html`). `create-run.html` remains in `/static` as a reference artefact.
+- No new ENV vars. No new dependencies. 95 tests passing (no regressions).
+- Smoke test: 10-scene storyboard + manifest generated on DEV for "messy-house-messy-head" VO script. All steps complete. Clip breakdown: still_with_motion: 4, animated: 3, hard_cut: 3.
 
 ---
 
