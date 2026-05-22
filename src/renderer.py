@@ -58,12 +58,13 @@ def download_script(run_id: str, storage: R2Client) -> Path:
 
 
 def execute_script(script_path: Path, timeout_seconds: int) -> subprocess.CompletedProcess:
-    """Run ffmpeg_script.sh as a subprocess. Captures stdout and stderr."""
+    """Run ffmpeg_script.sh as a subprocess. Captures stdout and stderr as text."""
     logger.info("Running %s (timeout=%ds)", script_path, timeout_seconds)
     return subprocess.run(
         [str(script_path)],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout_seconds,
     )
 

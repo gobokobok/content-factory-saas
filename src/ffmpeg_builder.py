@@ -37,6 +37,7 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
         _preamble(run_id),
         _voiceover_check(),
         _music_check(total_s),
+        _debug_section(),
         _scene_section(storyboard, entries, run_id),
         _concat_list(storyboard),
         _concat_command(),
@@ -102,6 +103,28 @@ def _music_check(total_s: float) -> str:
         '  MUSIC="$BASE/music/_silence.mp3"\n'
         "fi\n"
         'echo "Music: $MUSIC"'
+    )
+
+
+def _debug_section() -> str:
+    """
+    Generate pre-flight diagnostics printed to stdout before any scene encoding.
+
+    Output is captured by the renderer and written to run_log.txt regardless of
+    exit code — giving visibility into missing files and the FFmpeg version on
+    the target host. Uses || guards throughout so set -e never triggers here.
+    """
+    return (
+        "# ── Pre-flight diagnostics ─────────────────────────────\n"
+        'echo "=== PRE-FLIGHT CHECK ==="\n'
+        'ffmpeg -version 2>&1 | head -1 || echo "ffmpeg not in PATH"\n'
+        'echo "VO=$VO"\n'
+        'test -f "$VO" && echo "VO: $(wc -c < "$VO") bytes" || echo "VO: NOT FOUND"\n'
+        'echo "MUSIC=$MUSIC"\n'
+        'test -f "$MUSIC" && echo "MUSIC: exists" || echo "MUSIC: NOT FOUND"\n'
+        'echo "video/:  $(ls "$BASE/video/"  2>/dev/null || echo "(empty or missing)")"\n'
+        'echo "images/: $(ls "$BASE/images/" 2>/dev/null || echo "(empty or missing)")"\n'
+        'echo "=== END PRE-FLIGHT ==="'
     )
 
 

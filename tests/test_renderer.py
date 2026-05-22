@@ -288,7 +288,8 @@ class TestExecuteScript:
         mock_run.assert_called_once_with(
             ["/tmp/run-1/ffmpeg_script.sh"],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=300,
         )
         assert result.returncode == 0

@@ -383,6 +383,25 @@ class TestBuildFfmpegScript:
         assert "_sfx_inputs=()" in script
         assert '"${_sfx_inputs[@]}"' in script
 
+    def test_debug_section_present_in_script(self):
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "=== PRE-FLIGHT CHECK ===" in script
+        assert "ffmpeg -version" in script
+        assert 'test -f "$VO"' in script
+        assert 'test -f "$MUSIC"' in script
+        assert 'ls "$BASE/video/"' in script
+        assert 'ls "$BASE/images/"' in script
+
+    def test_debug_section_before_scene_section(self):
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert script.index("PRE-FLIGHT") < script.index("Per-scene processing")
+
     def test_concat_list_contains_all_scenes(self):
         scenes = [
             _scene("01", "hard_cut", 3.0),
