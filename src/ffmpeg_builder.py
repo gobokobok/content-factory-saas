@@ -272,7 +272,7 @@ def _zoompan_filter(
     if clip_type == "still_with_motion":
         return f"zoompan=z='1+0.05*on/{frames}':x='{cx}':y='{cy}'{suffix}"
 
-    effect = (motion_effect or "zoom_in").lower()
+    effect = (motion_effect or "zoom_in").lower().replace("-", "_")
 
     if effect == "zoom_in":
         return f"zoompan=z='1+0.1*on/{frames}':x='{cx}':y='{cy}'{suffix}"

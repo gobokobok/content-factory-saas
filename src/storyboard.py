@@ -315,7 +315,7 @@ def _parse_scene(block: str) -> StoryboardScene:
 def _parse_summary(block: str) -> StoryboardSummary:
     """Parse the SUMMARY section into a StoryboardSummary model."""
     scenes_match = re.search(r"Total scenes:\s*(\d+)", block, re.IGNORECASE)
-    duration_match = re.search(r"Total duration:\s*([\d.]+)", block, re.IGNORECASE)
+    duration_match = re.search(r"Total duration:[^\d]*([\d.]+)", block, re.IGNORECASE)
     rhythm_match = re.search(r"Rhythm:\s*(.+)$", block, re.IGNORECASE | re.MULTILINE)
 
     if not scenes_match:

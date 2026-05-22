@@ -84,7 +84,7 @@ class TestENVValidation:
 
         env = {k: v for k, v in VALID_ENV.items() if k != missing_var}
         with pytest.raises(ValidationError):
-            Settings(**env)
+            Settings(_env_file=None, **env)
 
     def test_invalid_environment_value_raises(self):
         """ENVIRONMENT must be 'dev' or 'prod' — other values raise ValidationError."""
