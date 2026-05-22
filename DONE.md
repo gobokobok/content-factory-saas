@@ -10,6 +10,22 @@ Format:
 
 ---
 
+## [E3-S1] Pexels stock footage integration
+**Completed:** 2026-05-22
+**Sprint:** 2
+**Handover:**
+- `src/pexels.py`: `PexelsClient(api_key, per_page=5)` — synchronous `requests`-based client. Key method: `acquire_for_entry(entry, run_id, storage) → Optional[PexelsAcquireResult]`. Tries `primary_query` then `fallback_query`. `hard_cut` → Videos API → `runs/{run_id}/video/{scene_id}.mp4`; `still_with_motion`/`animated` → Photos API → `runs/{run_id}/images/{scene_id}.jpeg`. Returns `None` when both queries miss (E3-S3 chains to Replicate). Raises `PexelsError` on non-retryable API error.
+- Module-level helpers: `_pick_best_video_file(video)` — highest height ≤ 1080px, tie-broken by width; `_pick_best_photo(photos)` — requires ≥ 1920×1080, minimum excess area.
+- `src/models.py`: `ManifestEntry` gains `source: Optional[str]` and `file_key: Optional[str]`. `PexelsAcquireResult(scene_id, source="pexels", file_key, status="acquired")` added.
+- `src/storage.py`: `R2Client.upload_bytes(key, data, content_type)` added.
+- `src/exceptions.py`: `PexelsError` added.
+- Rate limiting: exponential backoff on 429 — up to 3 retries (1s, 2s, 4s).
+- No new ENV vars (uses existing `PEXELS_API_KEY`, `PEXELS_PER_PAGE`). No new dependencies.
+- 121 total tests passing (26 new). End-to-end smoke test deferred to E3-S3 (requires orchestrator route).
+**Promoted to backlog:** none
+
+---
+
 ## [E6-S1] End-to-end pipeline UI (Runs + Storyboard + Manifest)
 **Completed:** 2026-05-22
 **Sprint:** 1

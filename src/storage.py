@@ -58,6 +58,20 @@ class R2Client:
         except (BotoCoreError, ClientError, Exception) as exc:
             raise StorageError(f"R2 upload failed for '{key}': {exc}") from exc
 
+    def upload_bytes(
+        self, key: str, data: bytes, content_type: str = "application/octet-stream"
+    ) -> None:
+        """Upload raw bytes (images, video files) to the given R2 key."""
+        try:
+            self._client.put_object(
+                Bucket=self._bucket,
+                Key=key,
+                Body=data,
+                ContentType=content_type,
+            )
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise StorageError(f"R2 upload failed for '{key}': {exc}") from exc
+
     def get_json(self, key: str) -> dict:
         """Download and parse a JSON object from R2."""
         try:

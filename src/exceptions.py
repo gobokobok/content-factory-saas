@@ -15,3 +15,7 @@ class StoryboardParseError(Exception):
 
 class ManifestError(Exception):
     """Raised when asset manifest generation fails (e.g. invalid storyboard data)."""
+
+
+class PexelsError(Exception):
+    """Raised when a Pexels API search, rate-limit retry, or asset download fails."""

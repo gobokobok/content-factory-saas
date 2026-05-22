@@ -128,6 +128,8 @@ class ManifestEntry(BaseModel):
     fallback_query: str
     ai_generate_prompt: str
     status: str = "pending"
+    source: Optional[str] = None
+    file_key: Optional[str] = None
 
 
 class AssetManifest(BaseModel):
@@ -144,6 +146,15 @@ class ManifestResponse(BaseModel):
     manifest_key: str
     scene_count: int
     clip_type_breakdown: dict[str, int]
+
+
+class PexelsAcquireResult(BaseModel):
+    """Result of a successful Pexels asset acquisition for one scene."""
+
+    scene_id: str
+    source: Literal["pexels"]
+    file_key: str
+    status: str = "acquired"
 
 
 class StoryboardRequest(BaseModel):
