@@ -196,7 +196,7 @@ Verify `run_log.json` appears at key `runs/2026-05-22_test-affordability/run_log
 ## [E1-S3] Storyboard generation
 **Epic:** E1 — Script to Storyboard
 **Sprint:** 1
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E1-S2b
 

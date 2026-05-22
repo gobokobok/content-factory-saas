@@ -85,6 +85,7 @@ class R2Client:
         step: str,
         status: str,
         output_url: Optional[str] = None,
+        error: Optional[str] = None,
     ) -> None:
         """Read, update, and re-upload run_log.json for the given step."""
         key = f"runs/{run_id}/run_log.json"
@@ -94,6 +95,8 @@ class R2Client:
             data["steps"][step]["completed_at"] = datetime.now(timezone.utc).isoformat()
         if output_url is not None:
             data["steps"][step]["output_url"] = output_url
+        if error is not None:
+            data["steps"][step]["error"] = error
         self.upload_json(key, data)
         logger.info("run_log updated: run=%s step=%s status=%s", run_id, step, status)
 
