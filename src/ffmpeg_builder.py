@@ -76,12 +76,23 @@ def _preamble(run_id: str) -> str:
 
 
 def _voiceover_check() -> str:
-    """Abort with a clear error if no voiceover .mp3 is present."""
+    """
+    Abort with a clear error if no voiceover audio file is present.
+
+    Uses a glob loop instead of ls | head -1 so the check is safe under
+    set -euo pipefail: ls *.mp3 with no matches exits non-zero, which with
+    pipefail propagates as a non-zero pipeline exit and silently kills the
+    script via set -e before any error message is printed.
+    Accepts .mp3, .wav, and .m4a.
+    """
     return (
         "# ── Voiceover ─────────────────────────────────────────────\n"
-        'VO=$(ls "$BASE/voiceover/"*.mp3 2>/dev/null | head -1)\n'
+        'VO=""\n'
+        'for _vo_f in "$BASE/voiceover/"*.mp3 "$BASE/voiceover/"*.wav "$BASE/voiceover/"*.m4a; do\n'
+        '  [ -f "$_vo_f" ] && { VO="$_vo_f"; break; }\n'
+        "done\n"
         'if [ -z "$VO" ]; then\n'
-        '  echo "ERROR: no .mp3 found in $BASE/voiceover/ — upload voiceover before rendering" >&2\n'
+        '  echo "ERROR: no audio file (.mp3/.wav/.m4a) found in $BASE/voiceover/ — upload voiceover before rendering" >&2\n'
         "  exit 1\n"
         "fi\n"
         'echo "Voiceover: $VO"'
@@ -89,17 +100,26 @@ def _voiceover_check() -> str:
 
 
 def _music_check(total_s: float) -> str:
-    """Warn and generate a silent placeholder if no background music .mp3 is present."""
+    """
+    Warn and generate a silent placeholder if no background music file is present.
+
+    Same glob-loop pattern as _voiceover_check to avoid set -o pipefail traps.
+    Accepts .mp3, .wav, and .m4a. The silence fallback uses || true so a missing
+    libmp3lame codec doesn't silently kill the script.
+    """
     return (
         "# ── Background music ───────────────────────────────────────\n"
-        'MUSIC=$(ls "$BASE/music/"*.mp3 2>/dev/null | head -1)\n'
+        'MUSIC=""\n'
+        'for _m_f in "$BASE/music/"*.mp3 "$BASE/music/"*.wav "$BASE/music/"*.m4a; do\n'
+        '  [ -f "$_m_f" ] && { MUSIC="$_m_f"; break; }\n'
+        "done\n"
         'if [ -z "$MUSIC" ]; then\n'
         '  echo "WARNING: no music found in $BASE/music/ — rendering without background music"\n'
         "  ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo \\\n"
         f"    -t {total_s:.1f} \\\n"
         "    -c:a libmp3lame -q:a 9 \\\n"
         '    "$BASE/music/_silence.mp3" \\\n'
-        "    2>/dev/null\n"
+        "    2>/dev/null || true\n"
         '  MUSIC="$BASE/music/_silence.mp3"\n'
         "fi\n"
         'echo "Music: $MUSIC"'
