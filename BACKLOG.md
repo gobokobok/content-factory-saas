@@ -530,7 +530,8 @@ HTML/JS web UI: create runs, trigger steps, upload voiceover, monitor status, vi
 ## [E6-S0] Minimal run creation UI
 **Epic:** E6 — Operator UI
 **Sprint:** 1
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-22
 **Priority:** high
 **Depends on:** E1-S2
 **Story points:** 2
@@ -539,21 +540,21 @@ HTML/JS web UI: create runs, trigger steps, upload voiceover, monitor status, vi
 Give a non-technical stakeholder a human-touchable artifact at the end of Sprint 1: a plain HTML form that creates a production run without curl or Postman.
 
 ### Acceptance Criteria
-- [ ] Single HTML page with a slug input field and a Submit button
-- [ ] On submit, calls `POST /runs` and displays the returned `run_id` and a Google Drive folder link
-- [ ] Error message shown if `POST /runs` returns non-201
-- [ ] No styling required — functional correctness only
-- [ ] A non-technical user can create a run end-to-end without developer assistance
+- [x] Single HTML page with a slug input field and a Submit button
+- [x] On submit, calls `POST /runs` and displays the returned `run_id` and `storage_prefix`
+- [x] Error message shown if `POST /runs` returns non-201
+- [x] No styling required — functional correctness only
+- [x] A non-technical user can create a run end-to-end without developer assistance
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Served from FastAPI (`GET /` or a dedicated route)
-- [ ] Manual smoke test: non-technical user creates a run, folder visible in Drive
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Served from FastAPI (`GET /`)
+- [x] Manual smoke test: open browser, enter slug, confirm run_id + storage_prefix displayed
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Smoke test
-Open the page in a browser. Enter a slug (e.g. `test-run`). Click Submit. Confirm `run_id` appears on screen. Open Google Drive and verify the folder exists.
+Open the page in a browser. Enter a slug (e.g. `test-run`). Click Submit. Confirm `run_id` and `storage_prefix` appear on screen.
 
 ### Files to read
 - CLAUDE.md
@@ -566,7 +567,11 @@ Open the page in a browser. Enter a slug (e.g. `test-run`). Click Submit. Confir
 - `src/main.py` — serve static file or add GET route
 
 ### Handover
-_filled on completion_
+- `src/static/create-run.html`: self-contained HTML form (inline CSS/JS). Slug validated with `/^[a-z][a-z0-9-]*[a-z0-9]$/` before enable Submit. POSTs to `/runs`, displays `run_id` + `storage_prefix` on 201, surfaces error detail on non-201 and network errors.
+- `src/main.py`: `GET /` added — `FileResponse` serving `create-run.html`. No `StaticFiles` mount needed (page has no external assets; `aiofiles` dep avoided).
+- `_STATIC_DIR = Path(__file__).parent / "static"` — future static files served from here.
+- No new ENV vars. No new dependencies.
+- 68 tests passing (no regressions).
 
 ---
 

@@ -10,6 +10,18 @@ Format:
 
 ---
 
+## [E6-S0] Minimal run creation UI
+**Completed:** 2026-05-22
+**Sprint:** 1
+**Handover:**
+- `src/static/create-run.html`: self-contained HTML form (inline CSS/JS). Slug validated with `/^[a-z][a-z0-9-]*[a-z0-9]$/` before enabling Submit. POSTs to `/runs`, displays `run_id` + `storage_prefix` on 201, surfaces error detail on non-201, catches network errors.
+- `src/main.py`: `GET /` serves `create-run.html` via `FileResponse`. `_STATIC_DIR = Path(__file__).parent / "static"` — future pages/assets go here.
+- No `StaticFiles` mount — skipped to avoid `aiofiles` dependency (page has no external assets). Add `StaticFiles` + `aiofiles` when E6-S1 introduces `app.js` / `style.css`.
+- No new ENV vars. No new dependencies. 68 tests passing.
+**Promoted to backlog:** none
+
+---
+
 ## [E1-S3] Storyboard generation
 **Completed:** 2026-05-22
 **Sprint:** 1

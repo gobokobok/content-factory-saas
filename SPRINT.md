@@ -13,7 +13,7 @@
 | E1-S2 | Google Drive integration (service account auth, run folder creation, run_log.json init) | done |
 | E1-S2b | Migrate storage from Google Drive to Cloudflare R2 | done |
 | E1-S3 | Storyboard generation (Claude API call with v0.4 prompt, parse, upload to R2, update run_log.json) | done |
-| E6-S0 | Minimal run creation UI (slug form → POST /runs → show run_id + Drive link) | backlog |
+| E6-S0 | Minimal run creation UI (slug form → POST /runs → show run_id + Drive link) | done |
 
 ---
 

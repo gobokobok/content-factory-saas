@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Factory — Create Run</title>
+  <style>
+    body {
+      background: #0f0f0f;
+      color: #e5e5e5;
+      font-family: monospace;
+      padding: 2rem;
+      max-width: 480px;
+    }
+    h1 { font-size: 1.1rem; margin-bottom: 1.5rem; color: #ffffff; }
+    label { display: block; font-size: 0.85rem; margin-bottom: 0.4rem; color: #9ca3af; }
+    input[type="text"] {
+      width: 100%;
+      background: #1a1a1a;
+      border: 1px solid #333;
+      color: #e5e5e5;
+      font-family: monospace;
+      font-size: 0.95rem;
+      padding: 0.5rem 0.6rem;
+      box-sizing: border-box;
+    }
+    .hint { font-size: 0.75rem; color: #6b7280; margin-top: 0.3rem; }
+    .hint.invalid { color: #ef4444; }
+    button {
+      margin-top: 1rem;
+      background: #1a1a1a;
+      border: 1px solid #555;
+      color: #e5e5e5;
+      font-family: monospace;
+      font-size: 0.95rem;
+      padding: 0.5rem 1.2rem;
+      cursor: pointer;
+    }
+    button:disabled { color: #6b7280; border-color: #333; cursor: not-allowed; }
+    #result {
+      margin-top: 1.5rem;
+      padding: 0.8rem;
+      border: 1px solid #333;
+      display: none;
+    }
+    #result.success { border-color: #22c55e; }
+    #result.error { border-color: #ef4444; }
+    .label { color: #6b7280; font-size: 0.8rem; }
+    .value { color: #e5e5e5; }
+    .error-msg { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <h1>Create Run</h1>
+
+  <form id="form" autocomplete="off">
+    <label for="slug">Slug</label>
+    <input type="text" id="slug" name="slug" placeholder="housing-affordability-crisis">
+    <p id="hint" class="hint">lowercase letters and hyphens only</p>
+    <button type="submit" id="submit" disabled>Submit</button>
+  </form>
+
+  <div id="result"></div>
+
+  <script>
+    const slugInput = document.getElementById('slug');
+    const hint = document.getElementById('hint');
+    const submitBtn = document.getElementById('submit');
+    const resultDiv = document.getElementById('result');
+    const SLUG_RE = /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/;
+
+    slugInput.addEventListener('input', () => {
+      const v = slugInput.value;
+      if (v === '') {
+        hint.textContent = 'lowercase letters and hyphens only';
+        hint.className = 'hint';
+        submitBtn.disabled = true;
+      } else if (SLUG_RE.test(v)) {
+        hint.textContent = 'looks good';
+        hint.className = 'hint';
+        submitBtn.disabled = false;
+      } else {
+        hint.textContent = 'lowercase letters and hyphens only, no leading/trailing hyphens';
+        hint.className = 'hint invalid';
+        submitBtn.disabled = true;
+      }
+    });
+
+    document.getElementById('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating…';
+      resultDiv.style.display = 'none';
+      resultDiv.className = '';
+
+      try {
+        const res = await fetch('/runs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: slugInput.value }),
+        });
+
+        if (res.status === 201) {
+          const data = await res.json();
+          resultDiv.innerHTML =
+            'Run created.<br>' +
+            '<span class="label">Run ID: </span><span class="value">' + data.run_id + '</span><br>' +
+            '<span class="label">Storage: </span><span class="value">' + data.storage_prefix + '</span>';
+          resultDiv.className = 'success';
+        } else {
+          let detail = res.statusText;
+          try { detail = (await res.json()).detail || detail; } catch (_) {}
+          resultDiv.innerHTML = '<span class="error-msg">Error ' + res.status + ': ' + detail + '</span>';
+          resultDiv.className = 'error';
+        }
+      } catch (err) {
+        resultDiv.innerHTML = '<span class="error-msg">Network error: ' + err.message + '</span>';
+        resultDiv.className = 'error';
+      }
+
+      resultDiv.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Submit';
+    });
+  </script>
+</body>
+</html>
