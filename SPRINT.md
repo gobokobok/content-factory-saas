@@ -10,8 +10,9 @@
 | ID | Title | Status |
 |----|-------|--------|
 | E1-S1 | Railway service skeleton (FastAPI, health check, ENV validation) | done |
-| E1-S2 | Google Drive integration (service account auth, run folder creation, run_log.json init) | backlog |
+| E1-S2 | Google Drive integration (service account auth, run folder creation, run_log.json init) | in-progress |
 | E1-S3 | Storyboard generation (Claude API call with v0.4 prompt, parse, upload to Drive, update run_log.json) | backlog |
+| E6-S0 | Minimal run creation UI (slug form → POST /runs → show run_id + Drive link) | backlog |
 
 ---
 
@@ -21,6 +22,7 @@
 - [ ] `run_log.json` initialized with all steps `pending`
 - [ ] Storyboard generated from plain-text VO script and uploaded to Drive
 - [ ] All stories have passing tests and green CI
+- [ ] **Human touchpoint:** non-technical user can create a run via browser form (E6-S0)
 
 ---
 

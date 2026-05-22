@@ -62,7 +62,7 @@ Hit `GET /health` on Railway DEV URL. Confirm 200 response with correct environm
 ## [E1-S2] Google Drive integration
 **Epic:** E1 — Script to Storyboard
 **Sprint:** 1
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Depends on:** E1-S1
 
@@ -104,7 +104,13 @@ Call `POST /runs` with a test slug via the DEV URL. Verify folder appears in Goo
 - `tests/test_runs.py`
 
 ### Handover
-_filled on completion_
+- `src/exceptions.py`: `DriveError` — base exception for all Drive failures. Import and catch in routes.
+- `src/models.py`: `StepStatus` enum, `StepLog`, `RunLog` (run_log.json schema), `RunCreateRequest` (slug validation), `RunCreateResponse`. `PIPELINE_STEPS` tuple defines the canonical step order.
+- `src/drive.py`: `DriveClient` class — init from base64 SA JSON, `create_run_folder(slug, root_folder_id)` → `(run_id, folder_id)`, `upload_json(data, filename, folder_id)` → file ID. `_build_run_log(run_id)` helper (module-level). Idempotent: reuses existing folders by name via `_get_or_create_folder`.
+- `src/routes/runs.py`: `POST /runs` — validates slug, instantiates `DriveClient`, returns 201 `{run_id, drive_folder_id}` or 500 on `DriveError`.
+- `src/main.py`: `runs_router` registered via `app.include_router()`.
+- `tests/test_drive.py` + `tests/test_runs.py`: 30 new tests, all passing. Drive API fully mocked via `unittest.mock.patch`.
+- All 43 tests passing (13 from E1-S1, 30 new).
 
 ---
 
@@ -429,6 +435,49 @@ _filled on completion_
 
 ## EPIC 6 — Operator UI (Pipeline Step 7)
 HTML/JS web UI: create runs, trigger steps, upload voiceover, monitor status, view logs
+
+---
+
+## [E6-S0] Minimal run creation UI
+**Epic:** E6 — Operator UI
+**Sprint:** 1
+**Status:** backlog
+**Priority:** high
+**Depends on:** E1-S2
+**Story points:** 2
+
+### Goal
+Give a non-technical stakeholder a human-touchable artifact at the end of Sprint 1: a plain HTML form that creates a production run without curl or Postman.
+
+### Acceptance Criteria
+- [ ] Single HTML page with a slug input field and a Submit button
+- [ ] On submit, calls `POST /runs` and displays the returned `run_id` and a Google Drive folder link
+- [ ] Error message shown if `POST /runs` returns non-201
+- [ ] No styling required — functional correctness only
+- [ ] A non-technical user can create a run end-to-end without developer assistance
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Served from FastAPI (`GET /` or a dedicated route)
+- [ ] Manual smoke test: non-technical user creates a run, folder visible in Drive
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open the page in a browser. Enter a slug (e.g. `test-run`). Click Submit. Confirm `run_id` appears on screen. Open Google Drive and verify the folder exists.
+
+### Files to read
+- CLAUDE.md
+- CONVENTIONS.md
+- docs/UI_GUIDELINES.md
+- `src/routes/runs.py`
+
+### Files to create or modify
+- `src/static/create-run.html` — slug form, fetch call, result display
+- `src/main.py` — serve static file or add GET route
+
+### Handover
+_filled on completion_
 
 ---
 

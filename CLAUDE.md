@@ -74,6 +74,13 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 - **Free-tier APIs only** for POC (Pexels, Replicate, Freesound)
 - CI must be green before marking a story complete
 
+## Human Touchpoint Rule
+Every sprint must include or culminate in a human-testable artifact. If the sprint is purely infrastructure, scope a minimal UI shim or smoke-test endpoint that a non-technical stakeholder can interact with. Never go more than one sprint without something a human can touch.
+
+**Before finalizing any sprint plan, answer:** "What can a human touch at the end of this sprint?" If the answer is nothing, add a story.
+
+Logged in DECISIONS.md as D019.
+
 ## Pipeline steps reference
 
 | Step | Epic | Description |

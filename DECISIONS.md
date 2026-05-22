@@ -145,6 +145,24 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D019 — Human Touchpoint Rule adopted into APEX-DEV methodology
+**Date:** 2026-05-22
+**Decision:** Every sprint must deliver at least one artifact a non-technical stakeholder can interact with. If a sprint is purely infrastructure, a minimal UI shim or smoke-test endpoint must be added before the sprint is finalized.
+**Rationale:** Avoid multi-sprint infrastructure builds with zero stakeholder visibility. Catching UX and integration assumptions early is cheaper than discovering them after the pipeline is complete.
+**Applied retroactively:** E6-S0 (Minimal run creation UI, 2 points) added to Sprint 1 to satisfy this rule — Sprint 1 was otherwise pure backend infrastructure.
+**Enforcement:** Added to `sprint-review.md` step 6 (sprint planning) as a required check. Also documented in `CLAUDE.md` under Hard Constraints.
+
+---
+
+## D018 — Google Drive SDK choice
+**Date:** 2026-05-22
+**Decision:** Use `google-api-python-client` + `google-auth` + `google-auth-httplib2` for all Google Drive operations.
+**Rationale:** Official Google client libraries with built-in service account auth support. Well-documented, actively maintained, handles OAuth token refresh automatically. Direct Drive REST calls would require manual auth and retry logic.
+**Alternatives considered:** `boto3` (AWS-only, not applicable), raw `requests` against the Drive REST API (more code, no auth helpers).
+**Dependency added:** `google-api-python-client`, `google-auth`, `google-auth-httplib2` (already in `requirements.txt` from project scaffold)
+
+---
+
 ## D016 — Client-side Claude API calls in script-generator.html
 **Date:** 2026-05-21
 **Decision:** `tools/script-generator.html` calls the Claude API directly from the browser using the `anthropic-dangerous-client-side-api-key-allowed` header. Acceptable for local `/tools` use only.
