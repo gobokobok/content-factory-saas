@@ -522,6 +522,24 @@ Generate script for a test run. Manually inspect `ffmpeg_script.sh` in Drive. Ve
 
 ---
 
+## [E4-S2] Captions and on-screen text overlay
+**Epic:** E4 — FFmpeg Script Generation
+**Sprint:** unassigned
+**Status:** backlog
+**Points:** 5
+**Priority:** medium
+**Depends on:** E4-S1
+
+### Goal
+Burn subtitles into video timed to voiceover. Key words/phrases from each scene's VO line displayed as bold, high-contrast, centered text overlay — YouTube Shorts style.
+
+### Acceptance Criteria
+- [ ] FFmpeg drawtext or ASS subtitle burn-in
+- [ ] Text timed to scene boundaries
+- [ ] Style: bold, white text, black outline, centered, bottom third
+
+---
+
 ## EPIC 5 — FFmpeg Execution + Drive Upload (Pipeline Step 6)
 Execute `ffmpeg_script.sh` on Railway, upload final video to Drive `/output`
 
@@ -574,6 +592,42 @@ Trigger render on a fully assembled test run on DEV. Wait for completion. Verify
 - R2 output key: `runs/{run_id}/output/final.mp4`.
 - No new pip dependencies.
 - 30 new tests, 247 total passing.
+
+---
+
+## [E5-S2] Pacing calibration — footage duration matching voiceover
+**Epic:** E5 — FFmpeg Execution + Drive Upload
+**Sprint:** unassigned
+**Status:** backlog
+**Points:** 3
+**Priority:** medium
+**Depends on:** E5-S1
+
+### Goal
+Scene clip durations currently don't match actual voiceover pacing. Measure actual voiceover duration via ffprobe, distribute scene durations proportionally before FFmpeg script generation.
+
+### Acceptance Criteria
+- [ ] ffprobe reads voiceover file duration from R2
+- [ ] Scene durations recalculated proportionally
+- [ ] ffmpeg_script.sh uses corrected durations
+
+---
+
+## [E5-S3] Visual-semantic matching improvement
+**Epic:** E5 — FFmpeg Execution + Drive Upload
+**Sprint:** unassigned
+**Status:** backlog
+**Points:** 3
+**Priority:** medium
+**Depends on:** E5-S1
+
+### Goal
+Pexels queries currently return footage loosely related to VO content. Improve search query generation in storyboard prompt and manifest transformation.
+
+### Acceptance Criteria
+- [ ] Storyboard prompt updated with tighter visual query instructions
+- [ ] Manifest transformation produces more specific search terms
+- [ ] Smoke test: footage visually matches VO topic
 
 ---
 

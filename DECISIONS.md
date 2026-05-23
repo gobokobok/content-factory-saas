@@ -136,11 +136,10 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
-## D015 — Google service account JSON stored as base64 ENV var
-**Date:** 2026-05-21
-**Decision:** `GOOGLE_SERVICE_ACCOUNT_JSON` ENV var holds the base64-encoded contents of the service account JSON file. Decoded at startup.
-**Rationale:** Railway ENV vars don't handle multiline JSON well. Base64 is a clean workaround.
-**How to encode:** `base64 -i service-account.json | tr -d '\n'`
+## D015 — Google service account JSON stored as base64 ENV var *(superseded by D021 — R2 migration)*
+**Date:** 2026-05-21 (superseded 2026-05-22 by D021)
+**Decision:** ~~`GOOGLE_SERVICE_ACCOUNT_JSON` ENV var holds the base64-encoded contents of the service account JSON file. Decoded at startup.~~
+**Status:** Superseded. Storage migrated to Cloudflare R2 (D021). `GOOGLE_SERVICE_ACCOUNT_JSON` is no longer used or required. See D021 for current storage auth approach.
 
 ---
 
@@ -201,12 +200,10 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
-## D018 — Google Drive SDK choice
-**Date:** 2026-05-22
-**Decision:** Use `google-api-python-client` + `google-auth` + `google-auth-httplib2` for all Google Drive operations.
-**Rationale:** Official Google client libraries with built-in service account auth support. Well-documented, actively maintained, handles OAuth token refresh automatically. Direct Drive REST calls would require manual auth and retry logic.
-**Alternatives considered:** `boto3` (AWS-only, not applicable), raw `requests` against the Drive REST API (more code, no auth helpers).
-**Dependency added:** `google-api-python-client`, `google-auth`, `google-auth-httplib2` (already in `requirements.txt` from project scaffold)
+## D018 — Google Drive SDK choice *(superseded by D021 — R2 migration)*
+**Date:** 2026-05-22 (superseded 2026-05-22 by D021)
+**Decision:** ~~Use `google-api-python-client` + `google-auth` + `google-auth-httplib2` for all Google Drive operations.~~
+**Status:** Superseded. Storage migrated to Cloudflare R2 (D021). All Google Drive SDK dependencies removed. Current storage client is `boto3` (S3-compatible, targeting R2 endpoint). See D021.
 
 ---
 
