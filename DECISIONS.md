@@ -5,6 +5,15 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D023 — Custom Dockerfile for FFmpeg on Railway
+**Date:** 2026-05-23
+**Decision:** Replace the default Railway Nixpacks buildpack with a custom `Dockerfile` based on `python:3.11-slim` that installs FFmpeg via `apt-get`.
+**Rationale:** Railway's default Python buildpack does not include FFmpeg. The render pipeline (`ffmpeg_script.sh`) requires FFmpeg to be present at runtime. Confirmed by exit code 127 (`ffmpeg: command not found`) in `run_log.txt` during smoke testing.
+**Implementation:** `Dockerfile` in repo root; `railway.toml` and `railway.prod.toml` updated to `builder = "DOCKERFILE"`.
+**No new Python dependencies** — FFmpeg is a system package only.
+
+---
+
 ## D022 — Human touchpoint rule applied at epic granularity
 **Date:** 2026-05-22
 **Decision:** Every epic must include a UI story that delivers a human-testable artifact at the end of the epic's first functional stories. Applied immediately: E6-S1 added after E2-S1 to cover the pipeline through asset manifest generation.
