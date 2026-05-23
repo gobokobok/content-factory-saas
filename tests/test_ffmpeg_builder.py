@@ -472,6 +472,19 @@ class TestBuildFfmpegScript:
             build_ffmpeg_script(RUN_ID, sb, mf)
         assert "03a" in str(exc_info.value)
 
+    def test_audio_inputs_reset_pts_to_prevent_start_time_offset(self):
+        """VO and music must have asetpts=PTS-STARTPTS to strip non-zero container start_time.
+
+        MP3s cut from longer tracks often encode a non-zero start_time in their container
+        metadata. Without PTS reset, FFmpeg pads silence from t=0 to start_time before
+        playing audio, causing music/VO to appear delayed. Regression guard for smoke-test
+        bug observed 2026-05-23.
+        """
+        sb, mf = _simple_storyboard_and_manifest()
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "[1:a]asetpts=PTS-STARTPTS,volume=1.0[vo]" in script
+        assert "[2:a]asetpts=PTS-STARTPTS,volume=0.15[music]" in script
+
     def test_music_volume_is_fifteen_percent(self):
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)

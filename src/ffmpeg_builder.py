@@ -281,7 +281,7 @@ def _audio_section(storyboard: Storyboard) -> str:
         '  -i "$VO" \\',
         '  "${MUSIC_ARGS[@]}" \\',
         '  "${_sfx_inputs[@]}" \\',
-        '  -filter_complex "[1:a]volume=1.0[vo];[2:a]volume=0.15[music]${_sfx_filters};[vo][music]${_sfx_labels}amix=inputs=${_n_audio}:duration=first:normalize=0[aout]" \\',
+        '  -filter_complex "[1:a]asetpts=PTS-STARTPTS,volume=1.0[vo];[2:a]asetpts=PTS-STARTPTS,volume=0.15[music]${_sfx_filters};[vo][music]${_sfx_labels}amix=inputs=${_n_audio}:duration=first:normalize=0[aout]" \\',
         '  -map 0:v -map "[aout]" \\',
         "  -c:v copy -c:a aac -b:a 192k \\",
         '  "$BASE/output/final.mp4"',
