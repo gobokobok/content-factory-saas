@@ -24,6 +24,30 @@ def download_asset(key: str, run_id: str, storage: R2Client) -> None:
     logger.debug("Downloaded %s → %s", key, local)
 
 
+def copy_music_to_run(run_id: str, storage: R2Client) -> None:
+    """
+    Copy the first eligible music file from music-library/ in R2 to runs/{run_id}/music/.
+
+    Lists keys under music-library/, picks the first .mp3, .wav, or .m4a file,
+    downloads its bytes, and re-uploads to runs/{run_id}/music/{filename}.
+    Logs a warning if no music files are found and continues — the ffmpeg script
+    handles the no-music case via anullsrc so the render is not blocked.
+    """
+    keys = storage.list_keys("music-library/")
+    music_key = next(
+        (k for k in keys if k.lower().endswith((".mp3", ".wav", ".m4a"))),
+        None,
+    )
+    if music_key is None:
+        logger.warning("No music file found in music-library/ — silence fallback will be used")
+        return
+    filename = music_key.split("/")[-1]
+    dest_key = f"runs/{run_id}/music/{filename}"
+    data = storage.get_bytes(music_key)
+    storage.upload_bytes(dest_key, data, "audio/mpeg")
+    logger.info("Copied music %s → %s", music_key, dest_key)
+
+
 def download_run_assets(run_id: str, manifest: AssetManifest, storage: R2Client) -> None:
     """
     Download all acquired manifest assets plus voiceover, music, and sfx files.
@@ -125,6 +149,7 @@ def render_run(
     ffmpeg_output = ""
 
     try:
+        copy_music_to_run(run_id, storage)
         download_run_assets(run_id, manifest, storage)
         script_path = download_script(run_id, storage)
 

@@ -431,11 +431,14 @@ class TestBuildFfmpegScript:
         assert "voiceover" in script
         assert "exit 1" in script
 
-    def test_music_silence_fallback_generated(self):
+    def test_music_silence_fallback_uses_anullsrc(self):
+        """No-music path sets MUSIC_ARGS to anullsrc — no fragile silence file generated."""
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "_silence.mp3" in script
         assert "anullsrc" in script
+        assert "MUSIC_ARGS" in script
+        assert "${MUSIC_ARGS[@]}" in script
+        assert "_silence.mp3" not in script
 
     def test_raises_ffmpeg_build_error_for_missing_file_key(self):
         scenes = [_scene("01", "hard_cut", 3.0)]

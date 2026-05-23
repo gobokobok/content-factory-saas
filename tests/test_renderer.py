@@ -362,6 +362,98 @@ class TestCleanup:
         mock_rmtree.assert_called_once_with("/tmp/run-1", ignore_errors=True)
 
 
+# ── renderer: copy_music_to_run ──────────────────────────────────────────────
+
+
+class TestCopyMusicToRun:
+    def test_copies_first_mp3_from_music_library(self):
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        storage.list_keys.return_value = ["music-library/lofi-beat.mp3"]
+        storage.get_bytes.return_value = b"audio bytes"
+
+        copy_music_to_run(RUN_ID, storage)
+
+        storage.get_bytes.assert_called_once_with("music-library/lofi-beat.mp3")
+        storage.upload_bytes.assert_called_once_with(
+            f"runs/{RUN_ID}/music/lofi-beat.mp3", b"audio bytes", "audio/mpeg"
+        )
+
+    def test_copies_wav_file(self):
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        storage.list_keys.return_value = ["music-library/track.wav"]
+        storage.get_bytes.return_value = b"wav bytes"
+
+        copy_music_to_run(RUN_ID, storage)
+
+        storage.get_bytes.assert_called_once_with("music-library/track.wav")
+        storage.upload_bytes.assert_called_once_with(
+            f"runs/{RUN_ID}/music/track.wav", b"wav bytes", "audio/mpeg"
+        )
+
+    def test_copies_m4a_file(self):
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        storage.list_keys.return_value = ["music-library/track.m4a"]
+        storage.get_bytes.return_value = b"m4a bytes"
+
+        copy_music_to_run(RUN_ID, storage)
+
+        storage.get_bytes.assert_called_once_with("music-library/track.m4a")
+
+    def test_skips_non_audio_keys_and_picks_first_audio(self):
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        storage.list_keys.return_value = [
+            "music-library/README.txt",
+            "music-library/lofi.mp3",
+            "music-library/other.mp3",
+        ]
+        storage.get_bytes.return_value = b"bytes"
+
+        copy_music_to_run(RUN_ID, storage)
+
+        storage.get_bytes.assert_called_once_with("music-library/lofi.mp3")
+
+    def test_warns_and_returns_when_no_music_found(self):
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        storage.list_keys.return_value = []
+
+        copy_music_to_run(RUN_ID, storage)
+
+        storage.get_bytes.assert_not_called()
+        storage.upload_bytes.assert_not_called()
+
+    def test_uploads_to_correct_run_music_key(self):
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        storage.list_keys.return_value = ["music-library/ambient.mp3"]
+        storage.get_bytes.return_value = b"data"
+
+        copy_music_to_run(RUN_ID, storage)
+
+        dest_key = storage.upload_bytes.call_args[0][0]
+        assert dest_key == f"runs/{RUN_ID}/music/ambient.mp3"
+
+    def test_lists_music_library_prefix(self):
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        storage.list_keys.return_value = []
+
+        copy_music_to_run(RUN_ID, storage)
+
+        storage.list_keys.assert_called_once_with("music-library/")
+
+
 # ── renderer: render_run ──────────────────────────────────────────────────────
 
 
@@ -374,6 +466,7 @@ class TestRenderRun:
 
         storage = MagicMock()
         with (
+            patch("src.renderer.copy_music_to_run"),
             patch("src.renderer.download_run_assets"),
             patch("src.renderer.download_script", return_value=Path("/tmp/r/s.sh")),
             patch("src.renderer.execute_script", return_value=self._mock_execute(0)),
@@ -396,6 +489,7 @@ class TestRenderRun:
 
         storage = MagicMock()
         with (
+            patch("src.renderer.copy_music_to_run"),
             patch("src.renderer.download_run_assets"),
             patch("src.renderer.download_script", return_value=Path("/tmp/r/s.sh")),
             patch("src.renderer.execute_script", return_value=self._mock_execute(1)),
@@ -414,6 +508,7 @@ class TestRenderRun:
 
         storage = MagicMock()
         with (
+            patch("src.renderer.copy_music_to_run"),
             patch("src.renderer.download_run_assets"),
             patch("src.renderer.download_script", return_value=Path("/tmp/r/s.sh")),
             patch(
@@ -434,6 +529,7 @@ class TestRenderRun:
 
         storage = MagicMock()
         with (
+            patch("src.renderer.copy_music_to_run"),
             patch("src.renderer.download_run_assets"),
             patch("src.renderer.download_script", return_value=Path("/tmp/r/s.sh")),
             patch("src.renderer.execute_script", return_value=self._mock_execute(0)),
@@ -451,6 +547,7 @@ class TestRenderRun:
 
         storage = MagicMock()
         with (
+            patch("src.renderer.copy_music_to_run"),
             patch("src.renderer.download_run_assets", side_effect=StorageError("R2 down")),
             patch("src.renderer.cleanup") as mock_cleanup,
         ):
@@ -459,11 +556,32 @@ class TestRenderRun:
 
         mock_cleanup.assert_called_once_with(RUN_ID)
 
+    def test_copy_music_called_before_download_run_assets(self, manifest):
+        """copy_music_to_run must run before download_run_assets so music is in R2 when assets download."""
+        from src.renderer import render_run
+
+        call_order = []
+        storage = MagicMock()
+
+        with (
+            patch("src.renderer.copy_music_to_run", side_effect=lambda *_: call_order.append("copy_music")),
+            patch("src.renderer.download_run_assets", side_effect=lambda *_: call_order.append("download_assets")),
+            patch("src.renderer.download_script", return_value=Path("/tmp/r/s.sh")),
+            patch("src.renderer.execute_script", return_value=self._mock_execute(0)),
+            patch("src.renderer._write_run_log_txt"),
+            patch("src.renderer.upload_output", return_value="runs/r/output/final.mp4"),
+            patch("src.renderer.cleanup"),
+        ):
+            render_run(RUN_ID, manifest, storage, 300)
+
+        assert call_order == ["copy_music", "download_assets"]
+
     def test_write_run_log_txt_called_with_combined_output(self, manifest):
         from src.renderer import render_run
 
         storage = MagicMock()
         with (
+            patch("src.renderer.copy_music_to_run"),
             patch("src.renderer.download_run_assets"),
             patch("src.renderer.download_script", return_value=Path("/tmp/r/s.sh")),
             patch(

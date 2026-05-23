@@ -36,7 +36,7 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
         _header(run_id, n_scenes, total_s),
         _preamble(run_id),
         _voiceover_check(),
-        _music_check(total_s),
+        _music_check(),
         _debug_section(),
         _scene_section(storyboard, entries, run_id),
         _concat_list(storyboard),
@@ -99,13 +99,17 @@ def _voiceover_check() -> str:
     )
 
 
-def _music_check(total_s: float) -> str:
+def _music_check() -> str:
     """
-    Warn and generate a silent placeholder if no background music file is present.
+    Check for a background music file and set MUSIC_ARGS for the audio assembly step.
 
-    Same glob-loop pattern as _voiceover_check to avoid set -o pipefail traps.
-    Accepts .mp3, .wav, and .m4a. The silence fallback uses || true so a missing
-    libmp3lame codec doesn't silently kill the script.
+    If a music file (.mp3/.wav/.m4a) is found in $BASE/music/, MUSIC_ARGS is set
+    to (-i "$MUSIC") so it is opened as a file input.
+    If no music file is found, MUSIC_ARGS is set to (-f lavfi -i anullsrc=r=44100:cl=stereo)
+    so the audio assembly uses a direct silence source without a fragile intermediate
+    file generation step.  The intermediate _silence.mp3 approach is deliberately
+    avoided: it requires a working libmp3lame encoder and an extra ffmpeg invocation
+    that can fail silently under set -euo pipefail.
     """
     return (
         "# ── Background music ───────────────────────────────────────\n"
@@ -115,14 +119,11 @@ def _music_check(total_s: float) -> str:
         "done\n"
         'if [ -z "$MUSIC" ]; then\n'
         '  echo "WARNING: no music found in $BASE/music/ — rendering without background music"\n'
-        "  ffmpeg -y -f lavfi -i anullsrc=r=44100:cl=stereo \\\n"
-        f"    -t {total_s:.1f} \\\n"
-        "    -c:a libmp3lame -q:a 9 \\\n"
-        '    "$BASE/music/_silence.mp3" \\\n'
-        "    2>/dev/null || true\n"
-        '  MUSIC="$BASE/music/_silence.mp3"\n'
+        '  MUSIC_ARGS=(-f lavfi -i anullsrc=r=44100:cl=stereo)\n'
+        "else\n"
+        '  MUSIC_ARGS=(-i "$MUSIC")\n'
         "fi\n"
-        'echo "Music: $MUSIC"'
+        'echo "Music: ${MUSIC:-<none — using anullsrc silence>}"'
     )
 
 
@@ -278,7 +279,7 @@ def _audio_section(storyboard: Storyboard) -> str:
         'ffmpeg -y \\',
         '  -i "$WORK/video_only.mp4" \\',
         '  -i "$VO" \\',
-        '  -i "$MUSIC" \\',
+        '  "${MUSIC_ARGS[@]}" \\',
         '  "${_sfx_inputs[@]}" \\',
         '  -filter_complex "[1:a]volume=1.0[vo];[2:a]volume=0.15[music]${_sfx_filters};[vo][music]${_sfx_labels}amix=inputs=${_n_audio}:duration=first:normalize=0[aout]" \\',
         '  -map 0:v -map "[aout]" \\',
