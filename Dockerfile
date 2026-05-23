@@ -13,4 +13,6 @@ COPY . .
 
 EXPOSE 8000
 
-CMD uvicorn src.main:app --host 0.0.0.0 --port $PORT
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
