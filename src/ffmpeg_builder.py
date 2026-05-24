@@ -78,7 +78,7 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
             )
 
     total_s = storyboard.summary.total_duration_s
-    n_scenes = storyboard.summary.total_scenes
+    n_scenes = len(manifest.entries)
 
     parts = [
         _header(run_id, n_scenes, total_s),

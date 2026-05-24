@@ -827,6 +827,20 @@ class TestFilterComplexConcat:
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert '-map "[vout]"' in script
 
+    def test_filter_complex_count_matches_manifest_entries_not_storyboard_total(self):
+        # Storyboard summary claims 3 scenes but manifest has 2 entries.
+        # concat=n= must reflect the 2 manifest entries, not the stale summary value.
+        scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "hard_cut", 3.0)]
+        sb = Storyboard(**{
+            "global": StoryboardGlobal(subtitle_style="bold", bg_music="lo-fi", visual_style="doc"),
+            "scenes": scenes,
+            "summary": StoryboardSummary(total_scenes=3, total_duration_s=6.0, rhythm="steady"),
+        })
+        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "concat=n=2" in script
+        assert "concat=n=3" not in script
+
 
 # ── Route: voiceover pacing calibration ──────────────────────────────────────
 
