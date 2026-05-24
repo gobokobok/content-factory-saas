@@ -77,6 +77,18 @@ class TestBuildAss:
         result = build_ass([_scene("01")])
         assert "Style: Default,Open Sans,72" in result
 
+    def test_alignment_is_center_screen(self):
+        # Alignment=5 (middle-center), MarginV=0
+        result = build_ass([_scene("01")])
+        assert ",5," in result
+
+    def test_margin_v_is_zero_for_center_alignment(self):
+        result = build_ass([_scene("01")])
+        # Last three comma-separated Style values are MarginL,MarginR,MarginV
+        style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
+        fields = style_line.split(",")
+        assert fields[-2] == "0"  # MarginV
+
     def test_events_section_header_present(self):
         result = build_ass([_scene("01")])
         assert "[Events]" in result
@@ -145,3 +157,22 @@ class TestBuildAss:
         # Ensures heredoc terminator lands on its own line
         assert build_ass([_scene("01")]).endswith("\n")
         assert build_ass([_scene("01", on_screen_text="hi")]).endswith("\n")
+
+    def test_straight_double_quotes_stripped(self):
+        result = build_ass([_scene("01", on_screen_text='"A clear room. A clear mind."')])
+        assert "A CLEAR ROOM. A CLEAR MIND." in result
+        assert '"' not in result.split("Dialogue")[1]
+
+    def test_curly_double_quotes_stripped(self):
+        result = build_ass([_scene("01", on_screen_text='“Housing crisis”')])
+        assert "HOUSING CRISIS" in result
+        assert "“" not in result
+        assert "”" not in result
+
+    def test_whitespace_trimmed_after_quote_strip(self):
+        result = build_ass([_scene("01", on_screen_text='  "  spaced  "  ')])
+        assert "SPACED" in result
+
+    def test_no_quotes_text_unchanged_except_uppercase(self):
+        result = build_ass([_scene("01", on_screen_text="PRICES UP")])
+        assert "PRICES UP" in result

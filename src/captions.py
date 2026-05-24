@@ -13,7 +13,7 @@ _ASS_HEADER = (
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
     "Style: Default,Open Sans,72,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-    "-1,0,0,0,100,100,0,0,1,2,2,2,10,10,120,1\n"
+    "-1,0,0,0,100,100,0,0,1,2,2,5,10,10,0,1\n"
     "\n"
     "[Events]\n"
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
@@ -32,6 +32,12 @@ def format_ass_time(seconds: float) -> str:
     return f"{h}:{m:02d}:{s:02d}.{cs:02d}"
 
 
+def _clean_on_screen_text(text: str) -> str:
+    """Strip surrounding quotes and whitespace, then uppercase."""
+    stripped = text.strip().strip('"“”').strip()
+    return stripped.upper()
+
+
 def build_ass(scenes: list[StoryboardScene]) -> str:
     """
     Generate a complete ASS subtitle file string from storyboard scenes.
@@ -46,7 +52,7 @@ def build_ass(scenes: list[StoryboardScene]) -> str:
         start = offset
         end = offset + scene.duration_s
         if scene.on_screen_text is not None:
-            text = scene.on_screen_text.upper()
+            text = _clean_on_screen_text(scene.on_screen_text)
             events.append(
                 f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},"
                 f"Default,,0,0,0,,{text}"

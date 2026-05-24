@@ -53,7 +53,7 @@ SCENE FIELDS (every scene)
     FALLBACK: STK `alternative stock keyword string`
     AI_GENERATE if no stock: `detailed AI image generation prompt`
 - motion_effect: zoom-in | zoom-out | pan-left | pan-right | ken-burns | null
-- on_screen_text: exact text string or null
+- on_screen_text: 1–4 keyword words or short phrase, no quotes, no full sentences — or null. Example: CLEAR ROOM CLEAR MIND not "A clear room. A clear mind."
 - sfx: specific sound description — never null; if no sound write "silence"
 - sfx_timing: on cut | Xs after cut | on spoken word "[word]"
 
@@ -112,7 +112,7 @@ When the VO contains a comma-separated list of items, each item becomes its own 
 - Label sub-scenes: 03a, 03b, 03c
 - Duration per item scaled by word count (see table above)
 - SFX must be item-specific — never generic
-- on_screen_text only if item is 2+ words and adds value
+- on_screen_text only if item is 2+ words and adds value — keywords only, no quotes
 
 ═══════════════════════════════════════
 VISUAL PROMPTS RULE
