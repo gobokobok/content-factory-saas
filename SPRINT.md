@@ -53,12 +53,13 @@
 | E5-S3 | Visual-semantic matching improvement | 4 | ready |
 | E4-S2 | Captions and on-screen text overlay | 5 | done |
 | E4-S3 | Ken Burns zoompan effect on static images | 3 | done |
+| E4-S5 | Real-time captions from voiceover_line | 5 | ready |
 
-**Sprint 2 total:** 17 pts remaining (10 pts done, 17 pts in ready)
+**Sprint 2 total:** 22 pts remaining (10 pts done, 22 pts in ready)
 
-**Dependency order:** E1-S4 → E6-S2 → E6-S3 (done). E5-S2, E5-S3, E4-S2, E4-S3 are independent of each other.
+**Dependency order:** E1-S4 → E6-S2 → E6-S3 (done). E5-S2, E5-S3, E4-S2, E4-S3 are independent of each other. E4-S5 depends on E4-S2 (done).
 
-**Note:** Technical research (Gemini deep research) incorporated — E5-S2 expanded to include concat→filter_complex migration; E4-S3 added for zoompan; E4-S4 added to backlog as deferred. E5-S2 repointed 3→5; E5-S3 repointed 3→4 and promoted from backlog to ready.
+**Note:** Technical research (Gemini deep research) incorporated — E5-S2 expanded to include concat→filter_complex migration; E4-S3 added for zoompan; E4-S4 added to backlog as deferred. E5-S2 repointed 3→5; E5-S3 repointed 3→4 and promoted from backlog to ready. E4-S5 added for voiceover-line captions (second ASS track, scene-boundary timing).
 
 ---
 

@@ -5,6 +5,14 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D031 — Scene-boundary caption timing as interim solution
+**Date:** 2026-05-24
+**Decision:** Voiceover-line captions (E4-S5) use scene boundaries for timing — each `voiceover_line` is shown for the full duration of its scene. Word-level timing is deferred to E5-S4 (WhisperX forced alignment).
+**Rationale:** Word-level timing requires the rendered voiceover audio and a forced-aligner pass (WhisperX, E5-S4). Scene-boundary timing requires only the storyboard, which is already available at ffmpeg-script build time. For POC validation, scene-boundary captions are sufficient to confirm readability and placement. The WhisperX upgrade path (D030) replaces them with ms-precise word boundaries once the audio is in R2.
+**On_screen_text vs captions distinction:** Two separate ASS tracks with different purposes — `on_screen_text` (center screen, 72pt Bold, keyword callouts) vs voiceover captions (bottom, 42pt Regular, full sentence). They are burned in as separate ffmpeg passes so their styles never conflict.
+
+---
+
 ## D030 — WhisperX forced alignment as upgrade path for scene timing
 **Date:** 2026-05-24
 **Decision:** WhisperX (faster-whisper + phoneme aligner) chosen as the ms-precise scene timing upgrade path, implemented as a separate optional pipeline step (`POST /runs/{run_id}/align`) that writes `alignment.json` to R2. The ffmpeg-script step reads `alignment.json` if present and falls back to proportional redistribution (E5-S2) if not.

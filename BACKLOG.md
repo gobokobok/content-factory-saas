@@ -684,6 +684,49 @@ _filled on completion_
 
 ---
 
+## [E4-S5] Real-time captions from voiceover_line
+**Epic:** E4 — FFmpeg Script Generation
+**Sprint:** 2
+**Status:** ready
+**Points:** 5
+**Priority:** medium
+**Depends on:** E4-S2
+**Upgraded by:** E5-S4 (WhisperX word-level timing)
+
+### Goal
+Add a second ASS subtitle track with full voiceover text as captions, displayed at the bottom of the screen in small font, timed to scene boundaries. Separate from the on_screen_text keyword overlay.
+
+### Acceptance Criteria
+- [ ] Second ASS file generated from storyboard voiceover_line per scene
+- [ ] Style: Open Sans Regular (not Bold), 42pt, white with black outline, bottom of screen, MarginV=80
+- [ ] No quotation marks, no uppercasing — natural sentence case
+- [ ] Each scene's full voiceover_line shown for the duration of that scene
+- [ ] Burned into video as a second subtitle pass after on_screen_text overlay
+- [ ] on_screen_text overlay remains unchanged (center, large, keywords)
+- [ ] null/empty voiceover_line scenes: skip gracefully
+- [ ] All existing tests pass; new tests for caption ASS generation
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Implementation notes
+- New `build_captions_ass(scenes)` function in `src/captions.py` (separate from `build_ass`)
+- Separate style: `CaptionStyle` (42pt, Regular, MarginV=80, bottom) vs existing `Default` (72pt, Bold, center)
+- Two-pass burn in `ffmpeg_builder.py`: first on_screen_text (`video_captioned.mp4`), then captions (`video_captioned2.mp4`)
+  - Or: single pass chaining two ass filters: `-vf "ass=onscreen.ass,ass=captions.ass"` — evaluate at implementation time
+- Timing: scene boundaries only (not word-level) — WhisperX (E5-S4) will upgrade this later
+- DECISIONS.md D031: scene-boundary caption timing chosen over word-level as interim solution
+
+### Handover
+_filled on completion_
+
+---
+
 ## EPIC 5 — FFmpeg Execution + Drive Upload (Pipeline Step 6)
 Execute `ffmpeg_script.sh` on Railway, upload final video to Drive `/output`
 
