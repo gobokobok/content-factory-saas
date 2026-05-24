@@ -6,6 +6,19 @@ Format:
 
 ---
 
+## [E4-S2] Captions and on-screen text overlay
+**Completed:** 2026-05-24
+**Sprint:** 2
+**Handover:**
+- `src/captions.py`: `format_ass_time(seconds: float) -> str` — converts seconds to ASS `H:MM:SS.cc`. `build_ass(scenes: list[StoryboardScene]) -> str` — generates complete ASS file from storyboard scenes; accumulates `duration_s` offsets; skips scenes where `on_screen_text=None`; uppercases all text.
+- `src/ffmpeg_builder.py`: `_write_captions_ass(ass_content)` embeds ASS content via quoted heredoc (`'__ASS_EOF__'`) — prevents bash from expanding `$`-vars or ASS override-tag braces inside the heredoc body. `_burn_captions()` runs `ffmpeg -vf "ass=$WORK/captions.ass"` producing `$WORK/video_captioned.mp4`. `_audio_section` now reads `video_captioned.mp4` (was `video_only.mp4`). `build_ffmpeg_script` calls both new builders between `_filter_complex_concat` and `_audio_section`.
+- `Dockerfile`: `fonts-open-sans` added to the apt install layer so Open Sans is available to FFmpeg's libass inside the Railway container.
+- 341 total tests passing (30 new). No new ENV vars. No new pip dependencies.
+- Smoke test deferred: POST `/runs/{run_id}/ffmpeg-script` on DEV with a run that has completed assets + voiceover; verify `captions.ass` heredoc in generated script and captions visible in rendered video.
+**Promoted to backlog:** none
+
+---
+
 ## [E4-S3] Ken Burns zoompan effect on static images
 **Completed:** 2026-05-24
 **Sprint:** 2

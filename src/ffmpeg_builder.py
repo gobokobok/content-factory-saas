@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from src.captions import build_ass
 from src.exceptions import FFmpegBuildError
 from src.models import AssetManifest, ManifestEntry, Storyboard, StoryboardScene
 
@@ -77,6 +78,7 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
 
     total_s = storyboard.summary.total_duration_s
     n_scenes = len(manifest.entries)
+    ass_content = build_ass(storyboard.scenes)
 
     parts = [
         _header(run_id, n_scenes, total_s),
@@ -86,6 +88,8 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
         _debug_section(),
         _scene_section(storyboard, entries, run_id),
         _filter_complex_concat(n_scenes),
+        _write_captions_ass(ass_content),
+        _burn_captions(),
         _audio_section(storyboard),
         f'echo "Done: /tmp/{run_id}/output/final.mp4"',
     ]
@@ -286,6 +290,35 @@ def _filter_complex_concat(n_scenes: int) -> str:
     )
 
 
+def _write_captions_ass(ass_content: str) -> str:
+    """
+    Embed the ASS subtitle file into the script via a quoted heredoc.
+
+    The single-quoted delimiter ('__ASS_EOF__') prevents bash from expanding
+    $-variables, backticks, or ASS override-tag braces (e.g. {\\an8}) inside
+    the heredoc body. The redirect target ("$WORK/captions.ass") is outside
+    the heredoc and is still expanded correctly.
+    """
+    return (
+        "# ── Write captions.ass ────────────────────────────────────\n"
+        "cat << '__ASS_EOF__' > \"$WORK/captions.ass\"\n"
+        + ass_content
+        + "__ASS_EOF__"
+    )
+
+
+def _burn_captions() -> str:
+    """Burn ASS subtitles into the concatenated video using the vf ass= filter."""
+    return (
+        "# ── Burn captions ─────────────────────────────────────────\n"
+        "ffmpeg -y \\\n"
+        "  -i \"$WORK/video_only.mp4\" \\\n"
+        "  -vf \"ass=$WORK/captions.ass\" \\\n"
+        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        "  \"$WORK/video_captioned.mp4\""
+    )
+
+
 def _audio_section(storyboard: Storyboard) -> str:
     """
     Build the audio assembly ffmpeg command.
@@ -327,7 +360,7 @@ def _audio_section(storyboard: Storyboard) -> str:
 
     lines.extend([
         'ffmpeg -y \\',
-        '  -i "$WORK/video_only.mp4" \\',
+        '  -i "$WORK/video_captioned.mp4" \\',
         '  -i "$VO" \\',
         '  "${MUSIC_ARGS[@]}" \\',
         '  "${_sfx_inputs[@]}" \\',

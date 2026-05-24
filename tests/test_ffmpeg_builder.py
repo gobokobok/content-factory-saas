@@ -918,3 +918,58 @@ class TestFfmpegScriptRouteVoiceover:
         mock_dur.assert_not_called()
         uploaded_script = mock_storage.upload_text.call_args[0][1]
         assert "-t 3.0" in uploaded_script  # original storyboard duration unchanged
+
+
+# ── Unit: captions integration in build_ffmpeg_script ────────────────────────
+
+
+class TestCaptionsInScript:
+    """Verify the captions.ass write and burn steps are wired into the generated script."""
+
+    def test_script_contains_captions_ass_write(self):
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
+        assert "captions.ass" in script
+
+    def test_script_contains_quoted_heredoc_delimiter(self):
+        # Single-quoted '__ASS_EOF__' prevents bash expanding $-vars or ASS braces inside
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
+        assert "'__ASS_EOF__'" in script
+
+    def test_script_contains_burn_captions_step(self):
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
+        assert "video_captioned.mp4" in script
+        assert 'vf "ass=' in script
+
+    def test_audio_section_reads_from_captioned_video(self):
+        # The final audio-mix step must use video_captioned.mp4, not video_only.mp4
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
+        # Find the last ffmpeg command block — it is the audio assembly
+        audio_block_start = script.rfind("# ── Audio assembly")
+        assert audio_block_start != -1
+        audio_block = script[audio_block_start:]
+        assert "video_captioned.mp4" in audio_block
+        assert "video_only.mp4" not in audio_block
+
+    def test_captions_written_before_burn_step(self):
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
+        write_pos = script.index("__ASS_EOF__")
+        burn_pos = script.index("video_captioned.mp4")
+        assert write_pos < burn_pos
+
+    def test_on_screen_text_uppercased_in_script(self):
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        scenes[0] = scenes[0].model_copy(update={"on_screen_text": "hello world"})
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
+        assert "HELLO WORLD" in script
+        assert "hello world" not in script
+
+    def test_null_on_screen_text_produces_no_dialogue_in_script(self):
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        # on_screen_text defaults to None in _scene helper
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
+        assert "Dialogue:" not in script
