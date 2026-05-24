@@ -5,6 +5,21 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D030 — WhisperX forced alignment as upgrade path for scene timing
+**Date:** 2026-05-24
+**Decision:** WhisperX (faster-whisper + phoneme aligner) chosen as the ms-precise scene timing upgrade path, implemented as a separate optional pipeline step (`POST /runs/{run_id}/align`) that writes `alignment.json` to R2. The ffmpeg-script step reads `alignment.json` if present and falls back to proportional redistribution (E5-S2) if not.
+**Rationale:** Proportional redistribution (E5-S2) is a good-enough approximation for average pacing but breaks on scenes with long pauses, fast delivery, or repeated words. WhisperX forced alignment produces word-level timestamps from the actual recording, giving true ms-precise scene cut points that match what the operator recorded — not what a model predicted.
+**Why WhisperX over alternatives:**
+- Whisper alone: word-level timestamps are approximate (beam search, not forced alignment). WhisperX adds CTC phoneme alignment on top for frame-accurate word boundaries.
+- AssemblyAI / Deepgram: paid APIs, incompatible with free-tier-only POC constraint (see CLAUDE.md hard constraints).
+- Montreal Forced Aligner: requires separate language model install, complex setup on Railway.
+**Trade-offs:** ~2min Docker build time increase (torch CPU + faster-whisper); alignment step adds ~1-3min processing per 60s VO on Railway CPU. Both are acceptable given this is an optional enhancement step.
+**Backward compatibility:** Proportional redistribution (E5-S2) remains as fallback. Absence of `alignment.json` produces no error — pipeline degrades gracefully.
+**Implementation deferred** until E4-S2 (captions) and E4-S3 (zoompan) are validated on real renders. Query decomposition (E5-S3) should also be confirmed sufficient or insufficient before adding alignment complexity.
+**Dependency added (when implemented):** `whisperx` (pulls `faster-whisper`, `torch` CPU build) — must have DECISIONS.md entry before adding to requirements.txt.
+
+---
+
 ## D029 — concat demuxer replaced with filter_complex trim+setpts
 **Date:** 2026-05-24
 **Decision:** FFmpeg script generation switches from concat demuxer to filter_complex with trim+setpts per scene.

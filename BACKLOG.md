@@ -809,6 +809,55 @@ _filled on completion_
 
 ---
 
+## [E5-S4] WhisperX forced alignment for ms-precise scene timing
+**Epic:** E5 — FFmpeg Execution + Drive Upload
+**Sprint:** unassigned
+**Status:** backlog
+**Points:** 8
+**Priority:** medium
+**Depends on:** E5-S2
+
+### Goal
+Replace proportional word-count redistribution with millisecond-precise scene boundaries derived from forced alignment of the actual voiceover recording.
+
+### How it works
+- New pipeline step: `POST /runs/{run_id}/align`
+- Downloads voiceover from R2 to /tmp
+- Runs WhisperX (faster-whisper + phoneme aligner) on the audio
+- Returns word-level timestamps: `[{word, start, end}]`
+- Maps words to scenes based on storyboard voiceover_line text matching
+- Writes `alignment.json` to R2: `[{scene_id, start_s, end_s, duration_s}]`
+- ffmpeg-script step reads `alignment.json` if present; falls back to proportional redistribution if not
+
+### Acceptance Criteria
+- [ ] `POST /runs/{run_id}/align` endpoint processes voiceover and writes `alignment.json` to R2
+- [ ] Word-to-scene mapping handles minor transcription differences (fuzzy match)
+- [ ] ffmpeg_script route reads `alignment.json` from R2 before building script
+- [ ] Scene durations from `alignment.json` used instead of proportional weights when present
+- [ ] Graceful fallback: if `alignment.json` missing, proportional redistribution used (no breaking change)
+- [ ] Processing time logged — target <3min for 60s VO on Railway CPU
+- [ ] All existing tests pass; new tests for alignment parsing and scene mapping
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Implementation notes
+- WhisperX: `pip install whisperx` (pulls faster-whisper, torch CPU)
+- Railway: add to requirements.txt; Docker build time increases ~2min
+- Run async or with extended timeout (FFMPEG_TIMEOUT_SECONDS pattern)
+- Word-to-scene mapping: split storyboard voiceover_line into words, find matching span in WhisperX output, take start of first word and end of last word as scene boundaries
+- DECISIONS.md D030: WhisperX chosen over proportional redistribution for ms-precise alignment; deferred until captions and zoom validated
+
+### Handover
+_filled on completion_
+
+---
+
 ## EPIC 6 — Operator UI (Pipeline Step 7)
 HTML/JS web UI: create runs, trigger steps, upload voiceover, monitor status, view logs
 
