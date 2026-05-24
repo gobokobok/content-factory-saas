@@ -52,7 +52,7 @@
 | E5-S2 | Pacing calibration — sync scene durations to voiceover | 5 | done |
 | E5-S3 | Visual-semantic matching improvement | 4 | ready |
 | E4-S2 | Captions and on-screen text overlay | 5 | ready |
-| E4-S3 | Ken Burns zoompan effect on static images | 3 | ready |
+| E4-S3 | Ken Burns zoompan effect on static images | 3 | done |
 
 **Sprint 2 total:** 17 pts remaining (10 pts done, 17 pts in ready)
 

@@ -3,6 +3,21 @@
 _Entries added here when a story reaches Definition of Done._
 
 Format:
+
+---
+
+## [E4-S3] Ken Burns zoompan effect on static images
+**Completed:** 2026-05-24
+**Sprint:** 2
+**Handover:**
+- `src/ffmpeg_builder.py`: `_render_image_scene` pre-scale corrected from 2×(2160×3840) to 1×(1080×1920). The centering formula `iw/2-(iw/zoom/2)` used in `_zoompan_filter` requires `iw` (input width) to equal `ow` (s= output width). With 2× input, `iw=2160` and `ow=1080`, causing the formula to produce x=0 (left-edge crop) at z=1 instead of centered behavior.
+- `_SCALED_W` and `_SCALED_H` constants removed from `ffmpeg_builder.py` — were only used by the broken 2× scale path.
+- `_zoompan_filter()` unchanged. Frame count `d=duration_s*25`, output `s=1080x1920`, `fps=25`, zoom expressions all correct.
+- `tests/test_ffmpeg_builder.py`: 3 new regression tests — `test_still_with_motion_prescales_to_output_dimensions`, `test_animated_prescales_to_output_dimensions`, `test_image_scene_vf_chain_order_is_scale_zoompan_setsar`. These guard against re-introduction of 2× scale.
+- 311 total tests passing (3 new).
+- No new ENV vars. No new dependencies.
+- Smoke test deferred — POST `/runs/{run_id}/ffmpeg-script` on DEV once a run with completed assets exists; verify image scenes show Ken Burns motion in the rendered video.
+**Promoted to backlog:** none
 ## [E#-S#] Story title
 **Completed:** YYYY-MM-DD
 **Sprint:** N

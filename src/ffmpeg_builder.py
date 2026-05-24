@@ -12,8 +12,6 @@ from src.models import AssetManifest, ManifestEntry, Storyboard, StoryboardScene
 _FPS = 25
 _OUT_W = 1080
 _OUT_H = 1920
-_SCALED_W = _OUT_W * 2   # 2160 — upscaled source for zoompan headroom
-_SCALED_H = _OUT_H * 2   # 3840
 _MUSIC_VOL = 0.15
 
 
@@ -245,8 +243,8 @@ def _render_image_scene(
     if scene.motion_effect:
         clip_label += f" ({scene.motion_effect})"
     scale_vf = (
-        f"scale={_SCALED_W}:{_SCALED_H}:force_original_aspect_ratio=increase,"
-        f"crop={_SCALED_W}:{_SCALED_H}"
+        f"scale={_OUT_W}:{_OUT_H}:force_original_aspect_ratio=increase,"
+        f"crop={_OUT_W}:{_OUT_H}"
     )
     zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames)
     vf = f"{scale_vf},{zoompan_vf},setsar=1:1"

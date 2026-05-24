@@ -305,6 +305,40 @@ class TestBuildFfmpegScript:
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "(iw-iw/zoom)*on/" in script
 
+    def test_still_with_motion_prescales_to_output_dimensions(self):
+        """Pre-scale must match s= output size so the centering formula iw/2-(iw/zoom/2) is correct."""
+        scenes = [_scene("02", "still_with_motion", 4.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("02", "still_with_motion")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "scale=1080:1920" in script
+        assert "crop=1080:1920" in script
+        # Must NOT use the old 2× scale which broke centering
+        assert "scale=2160:3840" not in script
+        assert "crop=2160:3840" not in script
+
+    def test_animated_prescales_to_output_dimensions(self):
+        """Same pre-scale requirement applies to all animated clip types."""
+        scenes = [_scene("03", "animated", 3.0, motion_effect="pan_left")]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("03", "animated")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "scale=1080:1920" in script
+        assert "crop=1080:1920" in script
+        assert "scale=2160:3840" not in script
+
+    def test_image_scene_vf_chain_order_is_scale_zoompan_setsar(self):
+        """vf filter chain must be: scale+crop → zoompan → setsar=1:1."""
+        scenes = [_scene("02", "still_with_motion", 3.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("02", "still_with_motion")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        # Find the vf= argument for the image scene
+        vf_start = script.index("scale=1080:1920:force_original_aspect_ratio=increase")
+        vf_chunk = script[vf_start:vf_start + 200]
+        assert vf_chunk.index("scale=") < vf_chunk.index("zoompan=")
+        assert vf_chunk.index("zoompan=") < vf_chunk.index("setsar=1:1")
+
     def test_animated_zoom_out_uses_decreasing_expression(self):
         scenes = [_scene("03", "animated", 3.0, motion_effect="zoom_out")]
         sb = _storyboard(scenes)
