@@ -34,18 +34,34 @@
 
 ---
 
-# Sprint 2 — Asset Manifest & Acquisition
+# Sprint 2 — Operator UI + Polish
 
-**Goal:** Parse storyboard into asset manifest; acquire assets from Pexels with Replicate fallback.
+**Goal:** Operator can run the full pipeline start to finish from the browser UI without touching the terminal or R2 console.
 **Status:** planned
+**Points:** 21
+
+---
 
 ## Stories
 
-| ID | Title | Status |
-|----|-------|--------|
-| E2-S1 | Asset manifest generation | done |
-| E3-S1 | Pexels stock footage integration | done |
-| E3-S2 | Replicate/Flux AI image generation fallback | done |
-| E3-S3 | Asset acquisition orchestrator | done |
-| E4-S1 | FFmpeg script generator | done |
-| E5-S1 | FFmpeg execution and output upload | done |
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| E1-S4 | Run list and artifact retrieval endpoints | 3 | ready |
+| E6-S2 | Operator UI — run list and pipeline runner | 5 | ready |
+| E6-S3 | Voiceover upload via presigned R2 URL | 2 | ready |
+| E5-S2 | Pacing calibration — sync scene durations to voiceover | 3 | ready |
+| E5-S3 | Visual-semantic matching improvement | 3 | backlog |
+| E4-S2 | Captions and on-screen text overlay | 5 | backlog |
+
+**Dependency order:** E1-S4 → E6-S2 → E6-S3. E5-S2 and E5-S3 are independent. E4-S2 depends on E5-S2.
+
+---
+
+## Sprint 2 Definition of Done
+- [ ] Operator can list all past runs in the browser
+- [ ] Operator can trigger every pipeline step from the browser (no curl)
+- [ ] Operator can upload voiceover from the browser (no R2 console)
+- [ ] Operator can view all step artifacts inline (storyboard, manifest, script, video)
+- [ ] Scene durations match actual voiceover length (pacing calibration)
+- [ ] All stories have passing tests and green CI
+- [ ] **Human touchpoint:** full end-to-end pipeline run completed from browser UI only

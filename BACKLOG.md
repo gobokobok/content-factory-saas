@@ -252,6 +252,38 @@ POST a real VO script to `/runs/{run_id}/storyboard` on DEV. Verify `storyboard.
 
 ---
 
+## [E1-S4] Run list and artifact retrieval endpoints
+**Epic:** E1 — Script to Storyboard
+**Sprint:** 2
+**Status:** ready
+**Points:** 3
+**Priority:** high
+**Depends on:** E1-S2b
+**Blocks:** E6-S2
+
+### Goal
+Backend endpoints needed by the operator UI to list runs and view step artifacts.
+
+### Acceptance Criteria
+- [ ] `GET /runs` — lists all runs by scanning R2 for `run_log.json` files; returns `[{run_id, created_at, steps: {step: status}}]` sorted by date descending
+- [ ] `GET /runs/{run_id}/artifact/{step}` — fetches the artifact for that step from R2 and returns it; step values: `storyboard`, `manifest`, `ffmpeg_script`, `render`
+- [ ] Returns 404 if run or artifact not found
+- [ ] `render` step returns a presigned R2 URL (valid 1 hour) for direct video download/playback
+- [ ] All other steps return JSON or text content inline
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
 ## EPIC 2 — Storyboard to Asset Manifest (Pipeline Step 3)
 Parse `storyboard.json` scenes → `asset_manifest.json` with one asset spec per scene
 
@@ -595,39 +627,62 @@ Trigger render on a fully assembled test run on DEV. Wait for completion. Verify
 
 ---
 
-## [E5-S2] Pacing calibration — footage duration matching voiceover
+## [E5-S2] Pacing calibration — sync scene durations to voiceover
 **Epic:** E5 — FFmpeg Execution + Drive Upload
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 2
+**Status:** ready
 **Points:** 3
 **Priority:** medium
 **Depends on:** E5-S1
 
 ### Goal
-Scene clip durations currently don't match actual voiceover pacing. Measure actual voiceover duration via ffprobe, distribute scene durations proportionally before FFmpeg script generation.
+Scene clip durations currently don't match actual voiceover pacing. Measure actual voiceover duration via ffprobe, redistribute scene durations proportionally before FFmpeg script generation.
 
 ### Acceptance Criteria
-- [ ] ffprobe reads voiceover file duration from R2
-- [ ] Scene durations recalculated proportionally
+- [ ] ffprobe reads voiceover file duration from R2 before ffmpeg_script step
+- [ ] Scene durations recalculated proportionally to fit actual VO length
 - [ ] ffmpeg_script.sh uses corrected durations
+- [ ] Storyboard word-count durations used as relative weights only
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
 
 ---
 
 ## [E5-S3] Visual-semantic matching improvement
 **Epic:** E5 — FFmpeg Execution + Drive Upload
-**Sprint:** unassigned
+**Sprint:** 2
 **Status:** backlog
 **Points:** 3
 **Priority:** medium
-**Depends on:** E5-S1
+**Depends on:** E3-S3
 
 ### Goal
-Pexels queries currently return footage loosely related to VO content. Improve search query generation in storyboard prompt and manifest transformation.
+Pexels queries return footage loosely related to VO content. Improve search query generation in storyboard prompt and manifest transformation.
 
 ### Acceptance Criteria
 - [ ] Storyboard prompt updated with tighter visual query instructions
-- [ ] Manifest transformation produces more specific search terms
-- [ ] Smoke test: footage visually matches VO topic
+- [ ] Manifest transformation produces more specific, concrete search terms
+- [ ] Smoke test: footage visually matches VO topic better than baseline
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
 
 ---
 
@@ -775,104 +830,77 @@ _filled on completion_
 
 ---
 
-## [E6-S2] Run creation UI
+## [E6-S2] Operator UI — Run list and pipeline runner
 **Epic:** E6 — Operator UI
-**Sprint:** unassigned
-**Status:** backlog
-**Priority:** medium
-**Depends on:** E6-S1, E1-S2
-
-### Goal
-Let the operator create a new production run from the UI by entering a slug. The UI calls `POST /runs` and navigates to the new run's detail page.
-
-### Acceptance Criteria
-- [ ] "New Run" form accepts a slug string, validates no spaces or special chars
-- [ ] Submits to `POST /runs`, creates Drive folder, shows success with run ID
-- [ ] Navigates to run detail page after creation
-
-### Files to create or modify
-- `src/static/index.html`
-- `src/static/app.js`
-
-### Handover
-_filled on completion_
-
----
-
-## [E6-S3] Step trigger and status monitor
-**Epic:** E6 — Operator UI
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 2
+**Status:** ready
+**Points:** 5
 **Priority:** high
-**Depends on:** E6-S2
+**Depends on:** E1-S4, E6-S1
+**Blocks:** E6-S3
 
 ### Goal
-Display per-step pipeline status on the run detail page with trigger and retry buttons. Each step shows pass/fail and updates after being triggered.
+Replace curl-based workflow with a full operator UI. Two views: run list and run detail.
+
+### Run list view
+- Shows all previous runs sorted by date (calls `GET /runs`)
+- Each row: run_id, date, overall status (complete/in-progress/failed)
+- "+ New Run" button opens new run form (slug + VO script)
+
+### Run detail view
+- Shows all 5 pipeline steps with status indicator (pending/running/complete/failed)
+- Each complete step has [View] and [Rerun] buttons
+- Each pending/failed step has [Run] button
+- [View] fetches `GET /runs/{run_id}/artifact/{step}` and renders inline:
+  - storyboard → human-readable scene list (scene number, clip type, VO line, duration)
+  - manifest → table (scene, clip type, source, file key, status)
+  - ffmpeg_script → code block
+  - render → inline video player + download link (uses presigned URL)
+- [Rerun] or [Run] calls the appropriate POST endpoint, shows spinner, updates status on completion
+- Voiceover upload: file picker that uploads directly to R2 `runs/{run_id}/voiceover/` via presigned upload URL
+- Download final.mp4 button (only shown when render is complete)
 
 ### Acceptance Criteria
-- [ ] Run detail page shows all 6 pipeline steps with current status (pending/complete/failed)
-- [ ] Each step has a "Run" button (disabled if upstream step not complete)
-- [ ] Failed steps show a "Retry" button
-- [ ] Status refreshes automatically every 10 seconds
-- [ ] Triggering a step calls the appropriate API endpoint
+- [ ] No curl required for any pipeline operation
+- [ ] All steps triggerable and viewable from the UI
+- [ ] Voiceover uploadable without touching R2 console
+- [ ] Works on desktop browser
 
-### Files to create or modify
-- `src/static/run.html`
-- `src/static/run.js`
-- `src/routes/runs.py` — GET /runs/{run_id}/status
+### Definition of Done
+- [ ] All AC checked
+- [ ] Served from FastAPI
+- [ ] Manual smoke test: full pipeline run triggered and completed from browser only
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
 
 ### Handover
 _filled on completion_
 
 ---
 
-## [E6-S4] Voiceover upload
+## [E6-S3] Voiceover upload via presigned R2 URL
 **Epic:** E6 — Operator UI
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 2
+**Status:** ready
+**Points:** 2
 **Priority:** high
-**Depends on:** E6-S3
+**Depends on:** E1-S4
 
 ### Goal
-Let the operator upload a voiceover `.mp3` directly from the UI to the run's `/voiceover` Drive folder, enabling the FFmpeg step to proceed.
+Add backend support for direct voiceover upload from browser to R2 without proxying through Railway.
 
 ### Acceptance Criteria
-- [ ] File picker accepts `.mp3` only
-- [ ] Uploads via `POST /runs/{run_id}/voiceover`
-- [ ] Shows upload progress and confirms success
-- [ ] File appears in Drive `/voiceover` subfolder
-- [ ] UI marks voiceover step as complete
+- [ ] `POST /runs/{run_id}/voiceover-upload-url` — generates a presigned R2 PUT URL valid for 10 minutes
+- [ ] UI uses the presigned URL to PUT the file directly to R2 (no Railway bandwidth used)
+- [ ] On upload complete, UI shows "Voiceover ready" and enables the render step
 
-### Files to create or modify
-- `src/static/run.html`
-- `src/static/run.js`
-- `src/routes/runs.py` — POST /runs/{run_id}/voiceover
-
-### Handover
-_filled on completion_
-
----
-
-## [E6-S5] Inline log viewer
-**Epic:** E6 — Operator UI
-**Sprint:** unassigned
-**Status:** backlog
-**Priority:** medium
-**Depends on:** E6-S3
-
-### Goal
-Display `run_log.txt` content inline on the run detail page, collapsible per step, so the operator can see what failed and why without leaving the UI.
-
-### Acceptance Criteria
-- [ ] Each pipeline step has a collapsible log section
-- [ ] Log content fetched from `GET /runs/{run_id}/log`
-- [ ] Auto-expands the most recently failed step's log
-- [ ] Refreshes on status poll interval
-
-### Files to create or modify
-- `src/static/run.html`
-- `src/static/run.js`
-- `src/routes/runs.py` — GET /runs/{run_id}/log
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
 
 ### Handover
 _filled on completion_

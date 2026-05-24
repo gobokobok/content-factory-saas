@@ -5,6 +5,16 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D025 — R2 bucket versioning enabled at infrastructure level (not in code)
+**Date:** 2026-05-24
+**Decision:** Enable object versioning on the `content-factory-dev` (and `content-factory-prod`) R2 bucket via the Cloudflare dashboard. No code changes required.
+**Rationale:** R2 native versioning provides full artifact history (every storyboard, manifest, script, and video version is recoverable) with zero application code. Building step-level versioning in the pipeline would add complexity and storage management burden without meaningful benefit over what R2 provides natively.
+**Action required:** Operator enables versioning on both R2 buckets in Cloudflare dashboard → R2 → bucket → Settings → Object versioning → Enable. Takes ~30 seconds. One-time setup.
+**Deferred indefinitely:** In-code artifact versioning strategy.
+**No new dependencies. No new ENV vars.**
+
+---
+
 ## D023 — Custom Dockerfile for FFmpeg on Railway
 **Date:** 2026-05-23
 **Decision:** Replace the default Railway Nixpacks buildpack with a custom `Dockerfile` based on `python:3.11-slim` that installs FFmpeg via `apt-get`.
