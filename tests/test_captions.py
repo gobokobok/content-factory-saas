@@ -4,7 +4,7 @@ from typing import Optional
 
 import pytest
 
-from src.captions import build_ass, build_captions_ass, format_ass_time
+from src.captions import _chunk_text, build_ass, build_captions_ass, format_ass_time
 from src.models import StoryboardScene, VisualPrompts
 
 
@@ -190,7 +190,7 @@ class TestBuildCaptionsAss:
 
     def test_voicecaption_style_present(self):
         result = build_captions_ass([_scene("01")])
-        assert "Style: VoiceCaption,Open Sans,42" in result
+        assert "Style: VoiceCaption,Open Sans,64" in result
 
     def test_style_is_not_bold(self):
         result = build_captions_ass([_scene("01")])
@@ -209,11 +209,11 @@ class TestBuildCaptionsAss:
         # [18]=Alignment, [19]=MarginL, [20]=MarginR, [21]=MarginV, [22]=Encoding
         assert fields[18] == "2"  # 2 = bottom-center
 
-    def test_margin_v_is_80(self):
+    def test_margin_v_is_288(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        assert fields[-2] == "80"  # MarginV
+        assert fields[-2] == "288"  # MarginV = 15% of 1920px
 
     def test_voiceover_line_appears_verbatim(self):
         result = build_captions_ass([_scene("01", voiceover_line="Housing costs have tripled.")])
@@ -274,3 +274,49 @@ class TestBuildCaptionsAss:
         result = build_captions_ass(scenes)
         assert result.count("Dialogue") == 1
         assert "second scene text" in result
+
+    def test_long_voiceover_line_produces_multiple_dialogue_events(self):
+        # 10 words → 2 chunks of 5 → 2 Dialogue events
+        result = build_captions_ass([
+            _scene("01", duration_s=6.0, voiceover_line="one two three four five six seven eight nine ten")
+        ])
+        assert result.count("Dialogue:") == 2
+
+    def test_chunk_duration_is_even_split(self):
+        # 10 words, 6.0s → 2 chunks of 3.0s each
+        result = build_captions_ass([
+            _scene("01", duration_s=6.0, voiceover_line="one two three four five six seven eight nine ten")
+        ])
+        assert "0:00:00.00,0:00:03.00" in result
+        assert "0:00:03.00,0:00:06.00" in result
+
+
+# ── Unit: _chunk_text ─────────────────────────────────────────────────────────
+
+
+class TestChunkText:
+    def test_exact_multiple_splits_evenly(self):
+        assert _chunk_text("one two three four five six seven eight nine ten") == [
+            "one two three four five",
+            "six seven eight nine ten",
+        ]
+
+    def test_odd_word_count_last_chunk_is_smaller(self):
+        # 7 words → [5, 2]
+        result = _chunk_text("a b c d e f g")
+        assert result == ["a b c d e", "f g"]
+
+    def test_short_line_under_chunk_size_is_single_chunk(self):
+        assert _chunk_text("hello world") == ["hello world"]
+
+    def test_single_word_is_single_chunk(self):
+        assert _chunk_text("word") == ["word"]
+
+    def test_exactly_chunk_size_is_single_chunk(self):
+        assert _chunk_text("a b c d e") == ["a b c d e"]
+
+    def test_custom_chunk_size(self):
+        assert _chunk_text("a b c d e f", chunk_size=3) == ["a b c", "d e f"]
+
+    def test_empty_string_returns_empty_list(self):
+        assert _chunk_text("") == []

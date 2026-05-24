@@ -78,7 +78,8 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
 
     total_s = storyboard.summary.total_duration_s
     n_scenes = len(manifest.entries)
-    ass_content = build_ass(storyboard.scenes)
+    # on-screen text overlay (build_ass / _write_captions_ass / _burn_captions) is
+    # intentionally unwired — kept for future rewiring when revisited.
     captions_ass_content = build_captions_ass(storyboard.scenes)
 
     parts = [
@@ -89,8 +90,6 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
         _debug_section(),
         _scene_section(storyboard, entries, run_id),
         _filter_complex_concat(n_scenes),
-        _write_captions_ass(ass_content),
-        _burn_captions(),
         _write_voiceover_captions_ass(captions_ass_content),
         _burn_voiceover_captions(),
         _audio_section(storyboard),
@@ -338,14 +337,14 @@ def _write_voiceover_captions_ass(ass_content: str) -> str:
 
 
 def _burn_voiceover_captions() -> str:
-    """Burn voiceover captions ASS into video_captioned.mp4, producing video_captioned2.mp4."""
+    """Burn voiceover captions ASS into video_only.mp4, producing video_captioned.mp4."""
     return (
         "# ── Burn voiceover captions ────────────────────────────────\n"
         "ffmpeg -y \\\n"
-        "  -i \"$WORK/video_captioned.mp4\" \\\n"
+        "  -i \"$WORK/video_only.mp4\" \\\n"
         "  -vf \"ass=$WORK/voiceover_captions.ass\" \\\n"
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
-        "  \"$WORK/video_captioned2.mp4\""
+        "  \"$WORK/video_captioned.mp4\""
     )
 
 
@@ -390,7 +389,7 @@ def _audio_section(storyboard: Storyboard) -> str:
 
     lines.extend([
         'ffmpeg -y \\',
-        '  -i "$WORK/video_captioned2.mp4" \\',
+        '  -i "$WORK/video_captioned.mp4" \\',
         '  -i "$VO" \\',
         '  "${MUSIC_ARGS[@]}" \\',
         '  "${_sfx_inputs[@]}" \\',

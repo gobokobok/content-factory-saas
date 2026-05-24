@@ -924,59 +924,12 @@ class TestFfmpegScriptRouteVoiceover:
 
 
 class TestCaptionsInScript:
-    """Verify the captions.ass write and burn steps are wired into the generated script."""
+    """Verify voiceover captions write and burn steps are wired into the generated script.
 
-    def test_script_contains_captions_ass_write(self):
-        scenes = [_scene("01", "hard_cut", 3.0)]
-        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        assert "captions.ass" in script
-
-    def test_script_contains_quoted_heredoc_delimiter(self):
-        # Single-quoted '__ASS_EOF__' prevents bash expanding $-vars or ASS braces inside
-        scenes = [_scene("01", "hard_cut", 3.0)]
-        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        assert "'__ASS_EOF__'" in script
-
-    def test_script_contains_burn_captions_step(self):
-        scenes = [_scene("01", "hard_cut", 3.0)]
-        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        assert "video_captioned.mp4" in script
-        assert 'vf "ass=' in script
-
-    def test_audio_section_reads_from_captioned2_video(self):
-        # The final audio-mix step must use video_captioned2.mp4 (after both caption passes)
-        scenes = [_scene("01", "hard_cut", 3.0)]
-        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        audio_block_start = script.rfind("# ── Audio assembly")
-        assert audio_block_start != -1
-        audio_block = script[audio_block_start:]
-        assert "video_captioned2.mp4" in audio_block
-        assert "video_only.mp4" not in audio_block
-        assert "video_captioned.mp4" not in audio_block
-
-    def test_captions_written_before_burn_step(self):
-        scenes = [_scene("01", "hard_cut", 3.0)]
-        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        write_pos = script.index("__ASS_EOF__")
-        burn_pos = script.index("video_captioned.mp4")
-        assert write_pos < burn_pos
-
-    def test_on_screen_text_uppercased_in_script(self):
-        scenes = [_scene("01", "hard_cut", 3.0)]
-        scenes[0] = scenes[0].model_copy(update={"on_screen_text": "hello world"})
-        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        assert "HELLO WORLD" in script
-        assert "hello world" not in script
-
-    def test_null_on_screen_text_produces_no_dialogue_in_captions_ass(self):
-        scenes = [_scene("01", "hard_cut", 3.0)]
-        # on_screen_text defaults to None — captions.ass block must have no Dialogue event
-        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        captions_block_start = script.index("__ASS_EOF__")
-        vcap_block_start = script.index("__VCAP_EOF__")
-        captions_block = script[captions_block_start - 2000:captions_block_start]
-        # captions.ass (on-screen) block has no Dialogue; voiceover block may have one
-        assert "Dialogue:" not in captions_block
+    On-screen text overlay (_write_captions_ass / _burn_captions) is intentionally
+    unwired — __ASS_EOF__ and captions.ass are NOT expected in the generated script.
+    Chain: video_only.mp4 → voiceover captions → video_captioned.mp4 → audio → final.mp4
+    """
 
     def test_script_contains_voiceover_captions_ass_write(self):
         scenes = [_scene("01", "hard_cut", 3.0)]
@@ -984,30 +937,49 @@ class TestCaptionsInScript:
         assert "voiceover_captions.ass" in script
         assert "'__VCAP_EOF__'" in script
 
-    def test_script_contains_voiceover_captions_burn_step(self):
+    def test_on_screen_captions_ass_not_in_script(self):
+        # on-screen overlay is unwired — captions.ass and __ASS_EOF__ must not appear
         scenes = [_scene("01", "hard_cut", 3.0)]
         script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        assert "video_captioned2.mp4" in script
+        assert "__ASS_EOF__" not in script
+        # "captions.ass" must not appear standalone (voiceover_captions.ass is still present)
+        assert '"$WORK/captions.ass"' not in script
 
-    def test_voiceover_captions_burn_reads_from_captioned_not_only(self):
-        # The second burn pass must chain from video_captioned.mp4, not video_only.mp4
+    def test_script_contains_burn_voiceover_captions_step(self):
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
+        assert "video_captioned.mp4" in script
+        assert 'vf "ass=' in script
+
+    def test_voiceover_captions_burn_reads_from_video_only(self):
+        # Single caption pass: video_only.mp4 → video_captioned.mp4
         scenes = [_scene("01", "hard_cut", 3.0)]
         script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
         vcap_block_start = script.index("# ── Burn voiceover captions")
-        vcap_block_end = script.index("video_captioned2.mp4") + len("video_captioned2.mp4")
+        vcap_block_end = script.index("video_captioned.mp4") + len("video_captioned.mp4")
         vcap_block = script[vcap_block_start:vcap_block_end]
-        assert "video_captioned.mp4" in vcap_block
+        assert "video_only.mp4" in vcap_block
+        assert "video_captioned2.mp4" not in script
 
-    def test_caption_chain_ordering(self):
-        # on-screen write → on-screen burn → voiceover write → voiceover burn → audio
+    def test_audio_section_reads_from_captioned_video(self):
+        # Audio mix must read video_captioned.mp4 (only caption pass output)
         scenes = [_scene("01", "hard_cut", 3.0)]
         script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
-        pos_ass_write = script.index("__ASS_EOF__")
-        pos_captioned = script.index("video_captioned.mp4")
+        audio_block_start = script.rfind("# ── Audio assembly")
+        assert audio_block_start != -1
+        audio_block = script[audio_block_start:]
+        assert "video_captioned.mp4" in audio_block
+        assert "video_captioned2.mp4" not in audio_block
+        assert "video_only.mp4" not in audio_block
+
+    def test_caption_chain_ordering(self):
+        # voiceover write → voiceover burn → audio (no on-screen write/burn steps)
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
         pos_vcap_write = script.index("__VCAP_EOF__")
-        pos_captioned2 = script.index("video_captioned2.mp4")
+        pos_captioned = script.index("video_captioned.mp4")
         pos_audio = script.index("# ── Audio assembly")
-        assert pos_ass_write < pos_captioned < pos_vcap_write < pos_captioned2 < pos_audio
+        assert pos_vcap_write < pos_captioned < pos_audio
 
     def test_voiceover_line_not_uppercased_in_script(self):
         scenes = [_scene("01", "hard_cut", 3.0)]
