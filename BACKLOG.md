@@ -562,19 +562,111 @@ Generate script for a test run. Manually inspect `ffmpeg_script.sh` in Drive. Ve
 
 ## [E4-S2] Captions and on-screen text overlay
 **Epic:** E4 — FFmpeg Script Generation
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 2
+**Status:** ready
 **Points:** 5
 **Priority:** medium
 **Depends on:** E4-S1
 
 ### Goal
-Burn subtitles into video timed to voiceover. Key words/phrases from each scene's VO line displayed as bold, high-contrast, centered text overlay — YouTube Shorts style.
+Burn ASS subtitles into video using on_screen_text field already present in storyboard schema. ASS format chosen over drawtext for full control over font, position, and animation.
 
 ### Acceptance Criteria
-- [ ] FFmpeg drawtext or ASS subtitle burn-in
-- [ ] Text timed to scene boundaries
-- [ ] Style: bold, white text, black outline, centered, bottom third
+- [ ] ASS subtitle file generated from storyboard on_screen_text + scene timings
+- [ ] Text style: Montserrat Bold or Roboto Bold, 72pt, white, centered, bottom third (MarginV=120)
+- [ ] Text uppercased (Shorts style)
+- [ ] ASS burned into final.mp4 via FFmpeg vf ass= filter
+- [ ] Font embedded in Railway container (add to Dockerfile)
+- [ ] on_screen_text: null scenes produce no caption event (skip gracefully)
+- [ ] All existing tests pass; new tests for ASS generation
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Implementation notes
+- New src/captions.py: build_ass(scenes, timings) → ASS string
+- format_ass_time(seconds) helper
+- ffmpeg_builder.py: add ASS burn step after video concat, before audio mix
+- Dockerfile: apt-get install -y fonts-open-sans or download Montserrat via curl
+- DECISIONS.md D027: ASS over drawtext rationale
+
+### Handover
+_filled on completion_
+
+---
+
+## [E4-S3] Ken Burns zoompan effect on static images
+**Epic:** E4 — FFmpeg Script Generation
+**Sprint:** 2
+**Status:** ready
+**Points:** 3
+**Priority:** medium
+**Depends on:** E4-S1
+
+### Goal
+Static images from Pexels/Replicate currently show as frozen frames. Apply zoompan filter to simulate camera movement — dramatically improves perceived production quality.
+
+### Acceptance Criteria
+- [ ] still_with_motion scenes: gentle zoom in (z=1.0→1.05 over duration)
+- [ ] animated scenes: directional movement based on motion_effect field (zoom_in/zoom_out/pan_left/pan_right)
+- [ ] zoompan filter parameters: d=duration_frames, s=1080x1920, fps=25
+- [ ] Images pre-scaled and padded to 9:16 before zoompan (scale+pad filter)
+- [ ] All existing tests pass; new tests for zoompan filter string generation
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Implementation notes
+- ffmpeg_builder.py _zoompan_filter() already exists — verify it uses correct frame count (duration_s * 25) not hardcoded d=125
+- Add scale+pad normalization before zoompan for all image inputs
+- DECISIONS.md D028: zoompan parameters and rationale
+
+### Handover
+_filled on completion_
+
+---
+
+## [E4-S4] CLIP semantic reranking of Pexels results
+**Epic:** E4 — FFmpeg Script Generation
+**Sprint:** unassigned
+**Status:** backlog
+**Points:** 5
+**Priority:** low
+**Depends on:** E5-S3
+
+### Goal
+After fetching Pexels results, score each thumbnail against scene description using CLIP embeddings. Dramatically improves relevance at cost of ~200ms latency per scene.
+
+### Acceptance Criteria
+- [ ] CLIP model loaded once at startup (transformers + Pillow, no GPU)
+- [ ] Each Pexels result thumbnail scored against scene visual description
+- [ ] Top-scoring result selected instead of first result
+- [ ] Latency acceptable (<500ms per scene on Railway CPU)
+- [ ] Deferred until E5-S3 query improvements are validated first
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Note
+Do not implement until E5-S3 is shipped and smoke-tested. Query decomposition may be sufficient.
+
+### Handover
+_filled on completion_
 
 ---
 
@@ -637,18 +729,20 @@ Trigger render on a fully assembled test run on DEV. Wait for completion. Verify
 **Epic:** E5 — FFmpeg Execution + Drive Upload
 **Sprint:** 2
 **Status:** ready
-**Points:** 3
+**Points:** 5
 **Priority:** medium
 **Depends on:** E5-S1
 
 ### Goal
-Scene clip durations currently don't match actual voiceover pacing. Measure actual voiceover duration via ffprobe, redistribute scene durations proportionally before FFmpeg script generation.
+Fix two root causes of audio/video desync: (1) word-count heuristics don't match actual recorded VO pacing; (2) concat demuxer causes non-monotonic DTS and progressive audio drift at scale.
 
 ### Acceptance Criteria
-- [ ] ffprobe reads voiceover file duration from R2 before ffmpeg_script step
-- [ ] Scene durations recalculated proportionally to fit actual VO length
-- [ ] ffmpeg_script.sh uses corrected durations
-- [ ] Storyboard word-count durations used as relative weights only
+- [ ] ffprobe measures actual voiceover duration from R2 before ffmpeg_script step
+- [ ] Scene durations redistributed proportionally (word counts used as weights only)
+- [ ] ffmpeg_script.sh switches from concat demuxer to filter_complex with trim+setpts per scene
+- [ ] PTS reset after every trim (setpts=PTS-STARTPTS) to prevent timestamp carryover
+- [ ] All existing tests pass; new tests for duration redistribution logic
+- [ ] Smoke test: video cuts align with speech cadence
 
 ### Definition of Done
 - [ ] All AC checked
@@ -657,6 +751,13 @@ Scene clip durations currently don't match actual voiceover pacing. Measure actu
 - [ ] Smoke test passed
 - [ ] DONE.md updated
 - [ ] BACKLOG.md status updated to `done`
+
+### Implementation notes
+- `get_audio_duration(path)` via ffprobe subprocess → parse JSON format duration
+- `redistribute_scene_durations(scenes, audio_duration)` → proportional weights
+- ffmpeg_builder.py: replace concat demuxer with filter_complex trim+setpts concat
+- Download voiceover from R2 to /tmp before ffprobe measurement; runs before ffmpeg_script step
+- Add `POST /runs/{run_id}/ffmpeg-script` to accept optional voiceover key override or auto-detect from run_log.json
 
 ### Handover
 _filled on completion_
@@ -666,17 +767,20 @@ _filled on completion_
 ## [E5-S3] Visual-semantic matching improvement
 **Epic:** E5 — FFmpeg Execution + Drive Upload
 **Sprint:** 2
-**Status:** backlog
-**Points:** 3
+**Status:** ready
+**Points:** 4
 **Priority:** medium
 **Depends on:** E3-S3
 
 ### Goal
-Pexels queries return footage loosely related to VO content. Improve search query generation in storyboard prompt and manifest transformation.
+Fix Pexels keyword mismatch by rewriting query generation strategy in storyboard prompt. Concrete nouns only, no adjectives — what would a stock footage cameraman film?
 
 ### Acceptance Criteria
-- [ ] Storyboard prompt updated with tighter visual query instructions
-- [ ] Manifest transformation produces more specific, concrete search terms
+- [ ] Storyboard prompt updated with query decomposition instructions:
+  - primary_query: 3-4 concrete nouns only, no adjectives
+  - fallback_query: 1-2 words, core subject only
+  - Examples included in prompt (few-shot)
+- [ ] Flux/Replicate prompts updated to use cinematic direction terms (shallow depth of field, golden hour lighting, cinematic)
 - [ ] Smoke test: footage visually matches VO topic better than baseline
 
 ### Definition of Done
@@ -686,6 +790,11 @@ Pexels queries return footage loosely related to VO content. Improve search quer
 - [ ] Smoke test passed
 - [ ] DONE.md updated
 - [ ] BACKLOG.md status updated to `done`
+
+### Implementation notes
+- Edit docs/PROMPTS.md storyboard system prompt — query generation section only
+- No code changes to acquisition pipeline — queries flow through unchanged
+- Add DECISIONS.md D026: query decomposition strategy and rationale
 
 ### Handover
 _filled on completion_

@@ -49,11 +49,16 @@
 | E1-S4 | Run list and artifact retrieval endpoints | 3 | done |
 | E6-S2 | Operator UI — run list and pipeline runner | 5 | done |
 | E6-S3 | Voiceover upload via presigned R2 URL | 2 | done |
-| E5-S2 | Pacing calibration — sync scene durations to voiceover | 3 | ready |
-| E5-S3 | Visual-semantic matching improvement | 3 | backlog |
-| E4-S2 | Captions and on-screen text overlay | 5 | backlog |
+| E5-S2 | Pacing calibration — sync scene durations to voiceover | 5 | ready |
+| E5-S3 | Visual-semantic matching improvement | 4 | ready |
+| E4-S2 | Captions and on-screen text overlay | 5 | ready |
+| E4-S3 | Ken Burns zoompan effect on static images | 3 | ready |
 
-**Dependency order:** E1-S4 → E6-S2 → E6-S3. E5-S2 and E5-S3 are independent. E4-S2 depends on E5-S2.
+**Sprint 2 total:** 17 pts remaining (10 pts done, 17 pts in ready)
+
+**Dependency order:** E1-S4 → E6-S2 → E6-S3 (done). E5-S2, E5-S3, E4-S2, E4-S3 are independent of each other.
+
+**Note:** Technical research (Gemini deep research) incorporated — E5-S2 expanded to include concat→filter_complex migration; E4-S3 added for zoompan; E4-S4 added to backlog as deferred. E5-S2 repointed 3→5; E5-S3 repointed 3→4 and promoted from backlog to ready.
 
 ---
 
@@ -63,5 +68,9 @@
 - [ ] Operator can upload voiceover from the browser (no R2 console)
 - [ ] Operator can view all step artifacts inline (storyboard, manifest, script, video)
 - [ ] Scene durations match actual voiceover length (pacing calibration)
+- [ ] Video cuts use filter_complex with PTS reset (no concat demuxer)
+- [ ] Static images show Ken Burns motion effect
+- [ ] Captions burned in via ASS subtitles
+- [ ] Pexels queries use concrete nouns only (no adjectives)
 - [ ] All stories have passing tests and green CI
 - [ ] **Human touchpoint:** full end-to-end pipeline run completed from browser UI only

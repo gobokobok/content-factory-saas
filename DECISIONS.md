@@ -5,6 +5,43 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D029 — concat demuxer replaced with filter_complex trim+setpts
+**Date:** 2026-05-24
+**Decision:** FFmpeg script generation switches from concat demuxer to filter_complex with trim+setpts per scene.
+**Rationale:** concat demuxer causes non-monotonic DTS on mixed-framerate sources (e.g. Pexels videos at 24fps mixed with Replicate images padded to 25fps). Non-monotonic DTS causes progressive audio drift and occasional "DTS out of order" errors that silently corrupt the output. filter_complex with `setpts=PTS-STARTPTS` resets timestamps correctly after every trim, eliminating carryover from source container timestamps.
+**Implementation:** ffmpeg_builder.py — replace per-scene file list + `ffmpeg -f concat` with a single filter_complex graph: `[0:v]trim=...,setpts=PTS-STARTPTS[v0]; [1:v]trim=...,setpts=PTS-STARTPTS[v1]; ... [v0][v1]...concat=n=N:v=1:a=0[outv]`.
+**No new dependencies.**
+
+---
+
+## D028 — zoompan parameters: fps=25, d=duration_s×25, scale+pad required
+**Date:** 2026-05-24
+**Decision:** zoompan filter uses fps=25, d=duration_s*25, s=1080x1920. All image inputs must be pre-scaled and padded to 9:16 before zoompan.
+**Rationale:** zoompan `d` parameter is frame count, not seconds — using a hardcoded value (e.g. d=125 = 5s) causes incorrect duration on non-5s scenes. At fps=25, d=duration_s*25 is always correct. scale+pad normalization is required because zoompan `s` parameter only sets output size, not input size; a non-9:16 source will stretch rather than fill-and-crop without a preceding scale+pad filter.
+**Parameters:** still_with_motion: z=1.0→1.05 (gentle zoom in). animated: z varies by motion_effect (zoom_in/zoom_out/pan_left/pan_right).
+**No new dependencies.**
+
+---
+
+## D027 — ASS subtitles over FFmpeg drawtext
+**Date:** 2026-05-24
+**Decision:** Captions burned into video using ASS subtitle format via `vf ass=` filter, not FFmpeg drawtext.
+**Rationale:** ASS supports full typographic control (font family, size, bold, color, outline, shadow, alignment, margin), animation (fade in/out, karaoke), and word-level timing in a single file. drawtext requires one filter invocation per text event and has limited styling: no outline blur, no per-event positioning, no animation. Escaping special characters in drawtext filter strings is error-prone and fragile. ASS is the industry standard for styled subtitle burn-in.
+**Font:** Montserrat Bold or Roboto Bold, 72pt, white, MarginV=120 (bottom third). Text uppercased per YouTube Shorts style.
+**Dockerfile change required:** `apt-get install -y fonts-open-sans` (or Montserrat via curl) to embed font in Railway container.
+**No new Python dependencies.**
+
+---
+
+## D026 — Query decomposition strategy: concrete nouns only, two-tier primary/fallback
+**Date:** 2026-05-24
+**Decision:** Storyboard prompt updated to enforce query decomposition for Pexels search: primary_query uses 3-4 concrete nouns only (no adjectives); fallback_query uses 1-2 words (core subject only). Few-shot examples included in prompt.
+**Rationale:** Pexels is keyword-matched, not semantic. Adjectives reduce recall without improving precision — "rundown suburban neighborhood" matches fewer clips than "suburban street house". Concrete nouns represent what a cameraman would frame, which is how stock footage is tagged. Two-tier structure ensures a broad fallback when primary specificity returns zero results.
+**Flux/Replicate prompts** updated separately to use cinematic direction terms (shallow depth of field, golden hour lighting, cinematic) which do improve AI generation quality but are irrelevant for keyword search.
+**Scope:** docs/PROMPTS.md storyboard system prompt only. No code changes to acquisition pipeline — queries flow through unchanged.
+
+---
+
 ## D025 — R2 bucket versioning enabled at infrastructure level (not in code)
 **Date:** 2026-05-24
 **Decision:** Enable object versioning on the `content-factory-dev` (and `content-factory-prod`) R2 bucket via the Cloudflare dashboard. No code changes required.
