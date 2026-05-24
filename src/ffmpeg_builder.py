@@ -1,6 +1,9 @@
 """FFmpeg shell script generator — assembles storyboard assets into a 9:16 YouTube Short."""
 
+import json
+import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from src.exceptions import FFmpegBuildError
@@ -12,6 +15,51 @@ _OUT_H = 1920
 _SCALED_W = _OUT_W * 2   # 2160 — upscaled source for zoompan headroom
 _SCALED_H = _OUT_H * 2   # 3840
 _MUSIC_VOL = 0.15
+
+
+_MIN_SCENE_DURATION_S = 0.5
+
+
+def get_audio_duration(path: Path) -> float:
+    """
+    Measure audio file duration in seconds using ffprobe.
+
+    Raises FFmpegBuildError if ffprobe exits non-zero or the output cannot be parsed.
+    """
+    result = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", str(path)],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise FFmpegBuildError(f"ffprobe failed for {path}: {result.stderr.strip()}")
+    try:
+        data = json.loads(result.stdout)
+        return float(data["format"]["duration"])
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
+        raise FFmpegBuildError(f"Could not parse ffprobe output for {path}: {exc}") from exc
+
+
+def redistribute_scene_durations(
+    scenes: list[StoryboardScene], audio_duration: float
+) -> list[StoryboardScene]:
+    """
+    Return new StoryboardScene instances with duration_s scaled to match audio_duration.
+
+    Word count of voiceover_line is used as the proportional weight per scene.
+    Scenes with no words are assigned weight 1 so they still receive a slice.
+    Each resulting duration is floored at _MIN_SCENE_DURATION_S.
+    """
+    weights = [max(1, len(s.voiceover_line.split())) for s in scenes]
+    total_weight = sum(weights)
+    return [
+        scene.model_copy(
+            update={"duration_s": max(_MIN_SCENE_DURATION_S, round(audio_duration * w / total_weight, 2))}
+        )
+        for scene, w in zip(scenes, weights)
+    ]
 
 
 def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetManifest) -> str:
@@ -39,8 +87,7 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
         _music_check(),
         _debug_section(),
         _scene_section(storyboard, entries, run_id),
-        _concat_list(storyboard),
-        _concat_command(),
+        _filter_complex_concat(n_scenes),
         _audio_section(storyboard),
         f'echo "Done: /tmp/{run_id}/output/final.mp4"',
     ]
@@ -213,25 +260,30 @@ def _render_image_scene(
     )
 
 
-def _concat_list(storyboard: Storyboard) -> str:
-    """Write concat.txt with one entry per scene segment."""
-    file_lines = "\n".join(
-        f"file '$WORK/scene_{i:02d}.mp4'" for i in range(1, len(storyboard.scenes) + 1)
-    )
-    return (
-        "# ── Concat list ─────────────────────────────────────────────\n"
-        'cat > "$WORK/concat.txt" << CONCAT_EOF\n'
-        f"{file_lines}\n"
-        "CONCAT_EOF"
-    )
+def _filter_complex_concat(n_scenes: int) -> str:
+    """
+    Concatenate scene segments via filter_complex instead of the concat demuxer.
 
-
-def _concat_command() -> str:
-    """Concatenate all scene segments into a single silent video."""
+    The concat demuxer copies bitstreams without resetting PTS, which causes
+    non-monotonic DTS and progressive audio drift. Using the concat filter with
+    explicit setpts=PTS-STARTPTS per clip normalises timestamps before joining.
+    """
+    input_lines = "\n".join(
+        f'  -i "$WORK/scene_{i:02d}.mp4" \\'
+        for i in range(1, n_scenes + 1)
+    )
+    setpts_parts = ";".join(
+        f"[{i}:v]setpts=PTS-STARTPTS[v{i}]" for i in range(n_scenes)
+    )
+    concat_inputs = "".join(f"[v{i}]" for i in range(n_scenes))
+    filter_complex = f"{setpts_parts};{concat_inputs}concat=n={n_scenes}:v=1:a=0[vout]"
     return (
-        "# ── Concatenate scenes ─────────────────────────────────────\n"
-        "ffmpeg -y -f concat -safe 0 -i \"$WORK/concat.txt\" \\\n"
-        "  -c copy \\\n"
+        "# ── Concatenate scenes (filter_complex — no concat demuxer) ────\n"
+        "ffmpeg -y \\\n"
+        f"{input_lines}\n"
+        f'  -filter_complex "{filter_complex}" \\\n'
+        '  -map "[vout]" \\\n'
+        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
         '  "$WORK/video_only.mp4"'
     )
 

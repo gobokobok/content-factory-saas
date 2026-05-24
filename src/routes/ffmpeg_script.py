@@ -1,12 +1,14 @@
 """Route handler for POST /runs/{run_id}/ffmpeg-script."""
 
 import logging
+import tempfile
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.config import Settings, get_settings
 from src.exceptions import FFmpegBuildError, StorageError
-from src.ffmpeg_builder import build_ffmpeg_script
+from src.ffmpeg_builder import build_ffmpeg_script, get_audio_duration, redistribute_scene_durations
 from src.models import AssetManifest, FFmpegScriptResponse, Storyboard
 from src.storage import R2Client
 
@@ -46,6 +48,29 @@ def generate_ffmpeg_script(
 
     storyboard = Storyboard.model_validate(storyboard_data)
     manifest = AssetManifest.model_validate(manifest_data)
+
+    vo_prefix = f"runs/{run_id}/voiceover/"
+    try:
+        vo_keys = storage.list_keys(vo_prefix)
+        vo_key = next(
+            (k for k in vo_keys if k.lower().endswith((".mp3", ".wav", ".m4a"))),
+            None,
+        )
+        if vo_key:
+            filename = vo_key.split("/")[-1]
+            with tempfile.TemporaryDirectory() as tmpdir:
+                vo_local = Path(tmpdir) / filename
+                vo_local.write_bytes(storage.get_bytes(vo_key))
+                audio_duration = get_audio_duration(vo_local)
+            updated_scenes = redistribute_scene_durations(storyboard.scenes, audio_duration)
+            storyboard = storyboard.model_copy(update={"scenes": updated_scenes})
+            logger.info(
+                "Pacing calibrated: run=%s vo=%s duration=%.2fs", run_id, vo_key, audio_duration
+            )
+        else:
+            logger.warning("No voiceover found for run=%s — using storyboard durations unchanged", run_id)
+    except (StorageError, FFmpegBuildError) as exc:
+        logger.warning("Voiceover pacing skipped for run=%s: %s", run_id, exc)
 
     try:
         script = build_ffmpeg_script(run_id, storyboard, manifest)

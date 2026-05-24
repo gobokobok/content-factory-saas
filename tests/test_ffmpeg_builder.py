@@ -13,6 +13,8 @@ from src.ffmpeg_builder import (
     _parse_sfx_delay_ms,
     _zoompan_filter,
     build_ffmpeg_script,
+    get_audio_duration,
+    redistribute_scene_durations,
 )
 from src.main import app
 from src.models import (
@@ -666,3 +668,203 @@ class TestFfmpegScriptRoute:
             self.RUN, "ffmpeg_script", "failed",
             error=mock_storage.update_run_log.call_args[1]["error"],
         )
+
+
+# ── Unit: get_audio_duration ──────────────────────────────────────────────────
+
+
+class TestGetAudioDuration:
+    FFPROBE_OUTPUT = '{"format": {"duration": "45.123456", "filename": "test.mp3"}}'
+
+    def test_returns_float_duration(self, tmp_path):
+        fake_file = tmp_path / "test.mp3"
+        fake_file.write_bytes(b"fake")
+        with patch("src.ffmpeg_builder.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=self.FFPROBE_OUTPUT, stderr="")
+            result = get_audio_duration(fake_file)
+        assert result == pytest.approx(45.123456)
+
+    def test_raises_on_nonzero_returncode(self, tmp_path):
+        fake_file = tmp_path / "test.mp3"
+        fake_file.write_bytes(b"fake")
+        with patch("src.ffmpeg_builder.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="ffprobe: error")
+            with pytest.raises(FFmpegBuildError, match="ffprobe failed"):
+                get_audio_duration(fake_file)
+
+    def test_raises_on_missing_duration_key(self, tmp_path):
+        fake_file = tmp_path / "test.mp3"
+        fake_file.write_bytes(b"fake")
+        with patch("src.ffmpeg_builder.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout='{"format": {}}', stderr="")
+            with pytest.raises(FFmpegBuildError, match="Could not parse"):
+                get_audio_duration(fake_file)
+
+    def test_raises_on_invalid_json(self, tmp_path):
+        fake_file = tmp_path / "test.mp3"
+        fake_file.write_bytes(b"fake")
+        with patch("src.ffmpeg_builder.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout="not json", stderr="")
+            with pytest.raises(FFmpegBuildError, match="Could not parse"):
+                get_audio_duration(fake_file)
+
+    def test_passes_file_path_to_ffprobe(self, tmp_path):
+        fake_file = tmp_path / "voice.mp3"
+        fake_file.write_bytes(b"fake")
+        with patch("src.ffmpeg_builder.subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0, stdout=self.FFPROBE_OUTPUT, stderr="")
+            get_audio_duration(fake_file)
+        args = mock_run.call_args[0][0]
+        assert str(fake_file) in args
+        assert "ffprobe" in args[0]
+
+
+# ── Unit: redistribute_scene_durations ───────────────────────────────────────
+
+
+class TestRedistributeSceneDurations:
+    def test_total_duration_distributed_proportionally(self):
+        # Scene A: 3 words, Scene B: 6 words → 1:2 ratio over 30s → 10s, 20s
+        scenes = [
+            _scene("01", duration_s=5.0),  # voiceover_line = "Test voiceover line." (3 words)
+            _scene("02", duration_s=5.0),  # same default
+        ]
+        # Override voiceover_line lengths for deterministic test
+        scenes[0] = scenes[0].model_copy(update={"voiceover_line": "one two three"})
+        scenes[1] = scenes[1].model_copy(update={"voiceover_line": "one two three four five six"})
+        result = redistribute_scene_durations(scenes, 30.0)
+        assert result[0].duration_s == pytest.approx(10.0, abs=0.05)
+        assert result[1].duration_s == pytest.approx(20.0, abs=0.05)
+
+    def test_scene_ids_unchanged(self):
+        scenes = [_scene("01"), _scene("02")]
+        result = redistribute_scene_durations(scenes, 20.0)
+        assert result[0].scene == "01"
+        assert result[1].scene == "02"
+
+    def test_clip_type_unchanged(self):
+        scenes = [_scene("01", "still_with_motion"), _scene("02", "animated")]
+        result = redistribute_scene_durations(scenes, 20.0)
+        assert result[0].clip_type == "still_with_motion"
+        assert result[1].clip_type == "animated"
+
+    def test_returns_new_instances_not_mutations(self):
+        scenes = [_scene("01", duration_s=5.0)]
+        result = redistribute_scene_durations(scenes, 10.0)
+        assert result[0] is not scenes[0]
+        assert scenes[0].duration_s == 5.0  # original unchanged
+
+    def test_minimum_duration_enforced(self):
+        # Very short audio over many scenes — each gets at least 0.5s
+        scenes = [_scene(str(i)) for i in range(10)]
+        result = redistribute_scene_durations(scenes, 2.0)
+        for s in result:
+            assert s.duration_s >= 0.5
+
+    def test_empty_voiceover_line_gets_weight_one(self):
+        scenes = [
+            _scene("01"),
+            _scene("02"),
+        ]
+        scenes[0] = scenes[0].model_copy(update={"voiceover_line": ""})
+        scenes[1] = scenes[1].model_copy(update={"voiceover_line": "a b c"})
+        result = redistribute_scene_durations(scenes, 40.0)
+        # Empty line → weight 1, "a b c" → weight 3 → 10s and 30s
+        assert result[0].duration_s == pytest.approx(10.0, abs=0.05)
+        assert result[1].duration_s == pytest.approx(30.0, abs=0.05)
+
+    def test_single_scene_gets_full_audio_duration(self):
+        scenes = [_scene("01", duration_s=5.0)]
+        result = redistribute_scene_durations(scenes, 42.0)
+        assert result[0].duration_s == pytest.approx(42.0, abs=0.05)
+
+
+# ── Unit: filter_complex concat replaces concat demuxer ──────────────────────
+
+
+class TestFilterComplexConcat:
+    def test_no_concat_demuxer_in_script(self):
+        sb, mf = _simple_storyboard_and_manifest()
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "-f concat" not in script
+
+    def test_no_concat_txt_in_script(self):
+        sb, mf = _simple_storyboard_and_manifest()
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "concat.txt" not in script
+
+    def test_filter_complex_present(self):
+        sb, mf = _simple_storyboard_and_manifest()
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "-filter_complex" in script
+
+    def test_setpts_reset_per_scene(self):
+        scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "hard_cut", 4.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "[0:v]setpts=PTS-STARTPTS[v0]" in script
+        assert "[1:v]setpts=PTS-STARTPTS[v1]" in script
+
+    def test_concat_filter_uses_correct_scene_count(self):
+        scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "hard_cut", 4.0), _scene("03", "hard_cut", 2.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut"), _entry("03", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "concat=n=3" in script
+
+    def test_all_scene_files_are_inputs_to_concat(self):
+        scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "still_with_motion", 4.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "still_with_motion")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        concat_section = script[script.index("no concat demuxer"):]
+        assert "scene_01.mp4" in concat_section
+        assert "scene_02.mp4" in concat_section
+
+    def test_output_mapped_from_vout(self):
+        sb, mf = _simple_storyboard_and_manifest()
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert '-map "[vout]"' in script
+
+
+# ── Route: voiceover pacing calibration ──────────────────────────────────────
+
+
+class TestFfmpegScriptRouteVoiceover:
+    RUN = "2026-05-22_test-run"
+
+    def test_voiceover_found_redistributes_durations(self, client):
+        """When voiceover exists in R2, scene durations are redistributed before script generation."""
+        with (
+            patch("src.routes.ffmpeg_script.R2Client") as MockR2,
+            patch("src.routes.ffmpeg_script.get_audio_duration", return_value=20.0) as mock_dur,
+        ):
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = [_storyboard_data(), _manifest_data(self.RUN)]
+            mock_storage.list_keys.return_value = [f"runs/{self.RUN}/voiceover/voice.mp3"]
+            mock_storage.get_bytes.return_value = b"fake-audio"
+            resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
+
+        assert resp.status_code == 200
+        mock_dur.assert_called_once()
+        # Confirm redistributed duration appears in the uploaded script
+        uploaded_script = mock_storage.upload_text.call_args[0][1]
+        # Single scene with 3 words out of 3 total → full 20s
+        assert "-t 20.0" in uploaded_script
+
+    def test_no_voiceover_uses_storyboard_durations(self, client):
+        """When no voiceover is in R2, original storyboard durations are used unchanged."""
+        with (
+            patch("src.routes.ffmpeg_script.R2Client") as MockR2,
+            patch("src.routes.ffmpeg_script.get_audio_duration") as mock_dur,
+        ):
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = [_storyboard_data(), _manifest_data(self.RUN)]
+            mock_storage.list_keys.return_value = []
+            resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
+
+        assert resp.status_code == 200
+        mock_dur.assert_not_called()
+        uploaded_script = mock_storage.upload_text.call_args[0][1]
+        assert "-t 3.0" in uploaded_script  # original storyboard duration unchanged
