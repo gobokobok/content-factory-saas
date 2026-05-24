@@ -53,7 +53,7 @@
 | E5-S3 | Visual-semantic matching improvement | 4 | ready |
 | E4-S2 | Captions and on-screen text overlay | 5 | done |
 | E4-S3 | Ken Burns zoompan effect on static images | 3 | done |
-| E4-S5 | Real-time captions from voiceover_line | 5 | ready |
+| E4-S5 | Real-time captions from voiceover_line | 5 | done |
 
 **Sprint 2 total:** 22 pts remaining (10 pts done, 22 pts in ready)
 

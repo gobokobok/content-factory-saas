@@ -6,6 +6,21 @@ Format:
 
 ---
 
+## [E4-S5] Real-time captions from voiceover_line
+**Completed:** 2026-05-24
+**Sprint:** 2
+**Handover:**
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER` — new ASS header with `VoiceCaption` style (Open Sans Regular/Bold=0, 42pt, white + black outline, Alignment=2 bottom-center, MarginV=80). `build_captions_ass(scenes) -> str` — generates ASS from `voiceover_line` per scene; empty/whitespace-only lines produce no Dialogue event; text is displayed as-is (no quote stripping, no uppercasing). Timing accumulated from `duration_s` same as `build_ass`.
+- `src/ffmpeg_builder.py`: `_write_voiceover_captions_ass(ass_content)` — heredoc with `'__VCAP_EOF__'` delimiter → `$WORK/voiceover_captions.ass`. `_burn_voiceover_captions()` — burns into `video_captioned.mp4` → `video_captioned2.mp4`. `build_ffmpeg_script` wires both new calls after `_burn_captions()` and before `_audio_section()`. `_audio_section` updated to read `video_captioned2.mp4` (was `video_captioned.mp4`).
+- Render chain: `video_only.mp4` → on-screen overlay → `video_captioned.mp4` → voiceover captions → `video_captioned2.mp4` → audio mix → `final.mp4`.
+- `tests/test_captions.py`: 17 new tests in `TestBuildCaptionsAss`. `_scene` helper gains optional `voiceover_line` param.
+- `tests/test_ffmpeg_builder.py`: 2 existing tests updated (audio input reference + null-on-screen narrowed). 6 new tests in `TestCaptionsInScript` covering chain ordering, second-pass wiring, and no-uppercase assertion.
+- 369 total tests passing (28 new). No new ENV vars. No new pip dependencies.
+- Smoke test deferred.
+**Promoted to backlog:** none
+
+---
+
 ## [E4-S2] Captions and on-screen text overlay
 **Completed:** 2026-05-24
 **Sprint:** 2
