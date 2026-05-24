@@ -224,7 +224,7 @@ def _render_video_scene(
     """Trim and scale a video clip to the output portrait format."""
     vf = (
         f"scale={_OUT_W}:{_OUT_H}:force_original_aspect_ratio=increase,"
-        f"crop={_OUT_W}:{_OUT_H}"
+        f"crop={_OUT_W}:{_OUT_H},setsar=1:1"
     )
     return (
         f"# Scene {num:02d} — {scene.scene} — hard_cut — {scene.duration_s}s\n"
@@ -249,7 +249,7 @@ def _render_image_scene(
         f"crop={_SCALED_W}:{_SCALED_H}"
     )
     zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames)
-    vf = f"{scale_vf},{zoompan_vf}"
+    vf = f"{scale_vf},{zoompan_vf},setsar=1:1"
     return (
         f"# Scene {num:02d} — {scene.scene} — {clip_label} — {scene.duration_s}s\n"
         f"ffmpeg -y -loop 1 -framerate {_FPS} -i \"{local}\" \\\n"

@@ -273,6 +273,7 @@ class TestBuildFfmpegScript:
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "scale=1080:1920" in script
         assert "crop=1080:1920" in script
+        assert "setsar=1:1" in script
 
     def test_hard_cut_scene_sets_duration(self):
         scenes = [_scene("01", "hard_cut", 4.5)]
@@ -295,6 +296,7 @@ class TestBuildFfmpegScript:
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "zoompan" in script
         assert "0.05" in script  # gentle zoom factor
+        assert "setsar=1:1" in script
 
     def test_animated_pan_left_uses_pan_expression(self):
         scenes = [_scene("03", "animated", 3.0, motion_effect="pan_left")]
