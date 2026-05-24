@@ -18,8 +18,10 @@ Format:
 - `src/ffmpeg_builder.py`: `redistribute_scene_durations(scenes, audio_duration) -> list[StoryboardScene]` — pure function; uses word count of `voiceover_line` as weight (minimum 1 for empty lines); enforces minimum 0.5s per scene; returns new instances, originals unchanged.
 - `src/ffmpeg_builder.py`: `_filter_complex_concat(n_scenes)` replaces `_concat_list` + `_concat_command`. Produces a single ffmpeg call: all `$WORK/scene_XX.mp4` as inputs → filter_complex `[i:v]setpts=PTS-STARTPTS[vi]` per clip → `concat=n=N:v=1:a=0[vout]` → re-encode to `$WORK/video_only.mp4`. Fixes non-monotonic DTS from the old concat demuxer.
 - `src/routes/ffmpeg_script.py`: before calling `build_ffmpeg_script`, lists `runs/{run_id}/voiceover/` in R2, downloads the first `.mp3/.wav/.m4a` to a `TemporaryDirectory`, measures duration with ffprobe, redistributes scenes, passes updated storyboard to builder. If no voiceover or any error, logs a warning and continues with original durations.
+- **Bug fix:** `n_scenes` in `build_ffmpeg_script` now derived from `len(manifest.entries)` not `storyboard.summary.total_scenes`. Stale summary values caused dangling `scene_XX.mp4` references → ffmpeg exit 254.
+- **Bug fix:** `,setsar=1:1` appended to every `-vf` chain in `_render_video_scene` and `_render_image_scene`. Source images/videos carry varying SAR values (e.g. `6778880:6778343`) which caused `filter_complex` concat to fail with "Input link parameters do not match".
 - No new ENV vars. No new pip dependencies (ffprobe ships with ffmpeg, already required by E5-S1).
-- 307 total tests passing (26 new: `TestGetAudioDuration`, `TestRedistributeSceneDurations`, `TestFilterComplexConcat`, `TestFfmpegScriptRouteVoiceover`).
+- 308 total tests passing (28 new).
 - Smoke test deferred: POST `/runs/{run_id}/ffmpeg-script` on DEV with a run that has completed storyboard + manifest + assets + uploaded voiceover; verify video cuts align with speech cadence.
 **Promoted to backlog:** none
 
