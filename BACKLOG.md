@@ -255,7 +255,8 @@ POST a real VO script to `/runs/{run_id}/storyboard` on DEV. Verify `storyboard.
 ## [E1-S4] Run list and artifact retrieval endpoints
 **Epic:** E1 — Script to Storyboard
 **Sprint:** 2
-**Status:** ready
+**Status:** done
+**Completed:** 2026-05-24
 **Points:** 3
 **Priority:** high
 **Depends on:** E1-S2b
@@ -265,22 +266,27 @@ POST a real VO script to `/runs/{run_id}/storyboard` on DEV. Verify `storyboard.
 Backend endpoints needed by the operator UI to list runs and view step artifacts.
 
 ### Acceptance Criteria
-- [ ] `GET /runs` — lists all runs by scanning R2 for `run_log.json` files; returns `[{run_id, created_at, steps: {step: status}}]` sorted by date descending
-- [ ] `GET /runs/{run_id}/artifact/{step}` — fetches the artifact for that step from R2 and returns it; step values: `storyboard`, `manifest`, `ffmpeg_script`, `render`
-- [ ] Returns 404 if run or artifact not found
-- [ ] `render` step returns a presigned R2 URL (valid 1 hour) for direct video download/playback
-- [ ] All other steps return JSON or text content inline
+- [x] `GET /runs` — lists all runs by scanning R2 for `run_log.json` files; returns `[{run_id, created_at, steps: {step: status}}]` sorted by date descending
+- [x] `GET /runs/{run_id}/artifact/{step}` — fetches the artifact for that step from R2 and returns it; step values: `storyboard`, `manifest`, `ffmpeg_script`, `render`
+- [x] Returns 404 if run or artifact not found
+- [x] `render` step returns a presigned R2 URL (valid 1 hour) for direct video download/playback
+- [x] All other steps return JSON or text content inline
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
+- [x] All AC checked
+- [x] Tests written and passing — 35 new tests, 282 total
 - [ ] CI green, deployed to DEV
 - [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `src/storage.py`: `R2Client.list_runs() → list[dict]` — scans `runs/` prefix, filters keys ending in `/run_log.json`, fetches each, returns `[{run_id, created_at, steps: {step: status_string}}]` sorted by `created_at` descending. `R2Client.generate_presigned_url(key, expires_in=3600) → str` — delegates to boto3 `generate_presigned_url("get_object", ...)`.
+- `src/models.py`: `RunSummary(run_id, created_at, steps: dict[str, str])`, `RunListResponse(runs: list[RunSummary])`, `ArtifactResponse(step, content_type, content=None, url=None)` added.
+- `src/routes/runs.py`: `GET /runs` → `RunListResponse` (500 on storage failure). `GET /runs/{run_id}/artifact/{step}` → `ArtifactResponse` (404 if artifact missing, 422 for invalid step). `_STEP_ARTIFACT_KEYS` dict maps each step to its R2 key template and content type. `_make_r2_client(settings)` helper added to DRY up R2Client construction.
+- Step → R2 key mapping: `storyboard` → `storyboard.json` (JSON); `manifest` → `asset_manifest.json` (JSON); `ffmpeg_script` → `ffmpeg_script.sh` (text, decoded UTF-8); `render` → `output/final.mp4` (presigned URL, 1h TTL).
+- No new ENV vars. No new dependencies.
+- 282 total tests passing (35 new).
 
 ---
 

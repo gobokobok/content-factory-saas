@@ -2,7 +2,7 @@
 
 import re
 from enum import Enum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -63,6 +63,29 @@ class RunCreateResponse(BaseModel):
 
     run_id: str
     storage_prefix: str
+
+
+class RunSummary(BaseModel):
+    """Summary of a single run returned by GET /runs."""
+
+    run_id: str
+    created_at: str
+    steps: dict[str, str]
+
+
+class RunListResponse(BaseModel):
+    """Response body for GET /runs."""
+
+    runs: list[RunSummary]
+
+
+class ArtifactResponse(BaseModel):
+    """Response body for GET /runs/{run_id}/artifact/{step}."""
+
+    step: str
+    content_type: str
+    content: Optional[Any] = None
+    url: Optional[str] = None
 
 
 # ── Storyboard schemas ────────────────────────────────────────────────────────

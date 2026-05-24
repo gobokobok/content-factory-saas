@@ -155,6 +155,113 @@ class TestUpdateRunLog:
         assert uploaded["steps"]["storyboard"]["output_url"] == "r2://bucket/key"
 
 
+class TestListRuns:
+    def _make_run_log(self, run_id: str, created_at: str) -> dict:
+        """Return a minimal run_log dict."""
+        return {
+            "run_id": run_id,
+            "created_at": created_at,
+            "steps": {step: {"status": "pending"} for step in PIPELINE_STEPS},
+        }
+
+    def test_returns_empty_list_when_no_runs(self, client, mock_s3):
+        """list_runs returns [] when no run_log.json keys exist."""
+        mock_s3.list_objects_v2.return_value = {}
+        result = client.list_runs()
+        assert result == []
+
+    def test_returns_run_summary_for_each_run(self, client, mock_s3):
+        """list_runs returns one summary per discovered run_log.json."""
+        mock_s3.list_objects_v2.return_value = {
+            "Contents": [{"Key": f"runs/{FAKE_RUN_ID}/run_log.json"}]
+        }
+        log_data = self._make_run_log(FAKE_RUN_ID, "2026-05-22T10:00:00+00:00")
+        mock_s3.get_object.return_value = {"Body": io.BytesIO(json.dumps(log_data).encode())}
+        result = client.list_runs()
+        assert len(result) == 1
+        assert result[0]["run_id"] == FAKE_RUN_ID
+        assert result[0]["created_at"] == "2026-05-22T10:00:00+00:00"
+
+    def test_steps_flattened_to_status_strings(self, client, mock_s3):
+        """list_runs flattens steps to {step: status} strings."""
+        mock_s3.list_objects_v2.return_value = {
+            "Contents": [{"Key": f"runs/{FAKE_RUN_ID}/run_log.json"}]
+        }
+        log_data = self._make_run_log(FAKE_RUN_ID, "2026-05-22T10:00:00+00:00")
+        log_data["steps"]["storyboard"]["status"] = "complete"
+        mock_s3.get_object.return_value = {"Body": io.BytesIO(json.dumps(log_data).encode())}
+        result = client.list_runs()
+        assert result[0]["steps"]["storyboard"] == "complete"
+
+    def test_sorted_by_created_at_descending(self, client, mock_s3):
+        """list_runs returns runs sorted newest first."""
+        mock_s3.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": "runs/2026-05-21_older/run_log.json"},
+                {"Key": "runs/2026-05-22_newer/run_log.json"},
+            ]
+        }
+        older = self._make_run_log("2026-05-21_older", "2026-05-21T08:00:00+00:00")
+        newer = self._make_run_log("2026-05-22_newer", "2026-05-22T08:00:00+00:00")
+        mock_s3.get_object.side_effect = [
+            {"Body": io.BytesIO(json.dumps(older).encode())},
+            {"Body": io.BytesIO(json.dumps(newer).encode())},
+        ]
+        result = client.list_runs()
+        assert result[0]["run_id"] == "2026-05-22_newer"
+        assert result[1]["run_id"] == "2026-05-21_older"
+
+    def test_ignores_non_run_log_keys(self, client, mock_s3):
+        """list_runs skips R2 keys that don't match the run_log.json pattern."""
+        mock_s3.list_objects_v2.return_value = {
+            "Contents": [
+                {"Key": f"runs/{FAKE_RUN_ID}/storyboard.json"},
+                {"Key": f"runs/{FAKE_RUN_ID}/run_log.json"},
+            ]
+        }
+        log_data = self._make_run_log(FAKE_RUN_ID, "2026-05-22T10:00:00+00:00")
+        mock_s3.get_object.return_value = {"Body": io.BytesIO(json.dumps(log_data).encode())}
+        result = client.list_runs()
+        assert len(result) == 1
+
+    def test_list_failure_raises_storage_error(self, client, mock_s3):
+        """list_objects_v2 failure propagates as StorageError."""
+        mock_s3.list_objects_v2.side_effect = Exception("R2 unreachable")
+        with pytest.raises(StorageError, match="R2 list failed"):
+            client.list_runs()
+
+
+class TestGeneratePresignedUrl:
+    def test_returns_url_string(self, client, mock_s3):
+        """generate_presigned_url returns the URL from boto3."""
+        mock_s3.generate_presigned_url.return_value = "https://example.com/signed"
+        result = client.generate_presigned_url("runs/test/output/final.mp4")
+        assert result == "https://example.com/signed"
+
+    def test_calls_boto3_with_correct_params(self, client, mock_s3):
+        """boto3 generate_presigned_url is called with get_object and correct key."""
+        mock_s3.generate_presigned_url.return_value = "https://example.com/signed"
+        client.generate_presigned_url("runs/test/output/final.mp4", expires_in=3600)
+        mock_s3.generate_presigned_url.assert_called_once_with(
+            "get_object",
+            Params={"Bucket": FAKE_BUCKET, "Key": "runs/test/output/final.mp4"},
+            ExpiresIn=3600,
+        )
+
+    def test_default_expires_in_is_3600(self, client, mock_s3):
+        """Default expiry is 1 hour (3600 seconds)."""
+        mock_s3.generate_presigned_url.return_value = "https://example.com/signed"
+        client.generate_presigned_url("runs/test/output/final.mp4")
+        call_kwargs = mock_s3.generate_presigned_url.call_args.kwargs
+        assert call_kwargs["ExpiresIn"] == 3600
+
+    def test_failure_raises_storage_error(self, client, mock_s3):
+        """boto3 failure propagates as StorageError."""
+        mock_s3.generate_presigned_url.side_effect = Exception("credentials expired")
+        with pytest.raises(StorageError, match="Failed to generate presigned URL"):
+            client.generate_presigned_url("runs/test/output/final.mp4")
+
+
 class TestBuildRunLog:
     def test_all_steps_present(self):
         """run_log contains all five pipeline steps."""

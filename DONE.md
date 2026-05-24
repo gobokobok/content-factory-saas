@@ -10,6 +10,20 @@ Format:
 
 ---
 
+## [E1-S4] Run list and artifact retrieval endpoints
+**Completed:** 2026-05-24
+**Sprint:** 2
+**Handover:**
+- `src/storage.py`: `R2Client.list_runs() → list[dict]` — scans `runs/` prefix, filters keys ending in `/run_log.json`, fetches each log, returns `[{run_id, created_at, steps: {step: status_str}}]` sorted by `created_at` descending. Empty bucket returns `[]`. `R2Client.generate_presigned_url(key, expires_in=3600) → str` — wraps boto3 `generate_presigned_url("get_object", Params={Bucket, Key}, ExpiresIn=expires_in)`.
+- `src/models.py`: `RunSummary(run_id, created_at, steps: dict[str, str])`, `RunListResponse(runs: list[RunSummary])`, `ArtifactResponse(step, content_type, content=None, url=None)` added. `content` is `Optional[Any]` (JSON dict or text string depending on step).
+- `src/routes/runs.py`: `GET /runs` → `RunListResponse` (500 on `StorageError`). `GET /runs/{run_id}/artifact/{step}` → `ArtifactResponse` (404 on `StorageError`, 422 for unrecognised step). `_STEP_ARTIFACT_KEYS` module-level dict maps step name → `(key_template, content_type)`. `_make_r2_client(settings)` helper DRYs up construction. The three JSON/text steps call `get_json`/`get_bytes`; the `render` step calls `generate_presigned_url`.
+- Step → R2 key mapping: `storyboard` → `runs/{run_id}/storyboard.json`; `manifest` → `runs/{run_id}/asset_manifest.json`; `ffmpeg_script` → `runs/{run_id}/ffmpeg_script.sh`; `render` → `runs/{run_id}/output/final.mp4`.
+- No new ENV vars. No new dependencies.
+- 35 new tests (282 total passing). Smoke test deferred — GET /runs and GET /runs/{run_id}/artifact/{step} on DEV once a run with completed steps exists.
+**Promoted to backlog:** none
+
+---
+
 ## [E5-S1] FFmpeg execution and output upload
 **Completed:** 2026-05-22
 **Sprint:** unassigned

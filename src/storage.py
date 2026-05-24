@@ -100,6 +100,46 @@ class R2Client:
         except (BotoCoreError, ClientError, Exception) as exc:
             raise StorageError(f"R2 list failed for prefix '{prefix}': {exc}") from exc
 
+    def list_runs(self) -> list[dict]:
+        """
+        Scan R2 for all run_log.json files and return run summaries.
+
+        Returns a list of {run_id, created_at, steps} dicts sorted by created_at descending.
+        """
+        all_keys = self.list_keys("runs/")
+        log_keys = [k for k in all_keys if k.endswith("/run_log.json")]
+        runs = []
+        for key in log_keys:
+            # key pattern: runs/{run_id}/run_log.json
+            parts = key.split("/")
+            if len(parts) != 3:
+                continue
+            run_id = parts[1]
+            data = self.get_json(key)
+            runs.append(
+                {
+                    "run_id": run_id,
+                    "created_at": data.get("created_at", ""),
+                    "steps": {
+                        step: log.get("status", "pending")
+                        for step, log in data.get("steps", {}).items()
+                    },
+                }
+            )
+        runs.sort(key=lambda r: r["created_at"], reverse=True)
+        return runs
+
+    def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
+        """Generate a presigned GET URL for the given R2 key valid for expires_in seconds."""
+        try:
+            return self._client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self._bucket, "Key": key},
+                ExpiresIn=expires_in,
+            )
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise StorageError(f"Failed to generate presigned URL for '{key}': {exc}") from exc
+
     def create_run_folder(self, run_id: str) -> str:
         """
         Initialise a run prefix in R2 by uploading run_log.json.

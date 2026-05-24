@@ -1,4 +1,4 @@
-"""Tests for POST /runs endpoint."""
+"""Tests for /runs endpoints."""
 
 from datetime import date
 from unittest.mock import MagicMock, patch
@@ -94,6 +94,161 @@ class TestCreateRun:
         mock_r2.create_run_folder.side_effect = StorageError("bucket not found")
         response = client.post("/runs", json={"slug": "test-slug"})
         assert "bucket not found" in response.json()["detail"]
+
+
+class TestListRuns:
+    def test_returns_200_with_empty_list(self, client):
+        """GET /runs returns HTTP 200 with empty runs list when no runs exist."""
+        mock_instance = MagicMock()
+        mock_instance.list_runs.return_value = []
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs")
+        assert response.status_code == 200
+        assert response.json() == {"runs": []}
+
+    def test_returns_run_summaries(self, client):
+        """GET /runs returns RunSummary objects from list_runs."""
+        mock_instance = MagicMock()
+        mock_instance.list_runs.return_value = [
+            {
+                "run_id": "2026-05-24_housing-crisis",
+                "created_at": "2026-05-24T10:00:00+00:00",
+                "steps": {"storyboard": "complete", "asset_manifest": "pending"},
+            }
+        ]
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs")
+        assert response.status_code == 200
+        runs = response.json()["runs"]
+        assert len(runs) == 1
+        assert runs[0]["run_id"] == "2026-05-24_housing-crisis"
+        assert runs[0]["steps"]["storyboard"] == "complete"
+
+    def test_returns_multiple_runs_sorted(self, client):
+        """GET /runs returns multiple runs (order delegated to list_runs)."""
+        mock_instance = MagicMock()
+        mock_instance.list_runs.return_value = [
+            {
+                "run_id": "2026-05-24_run-b",
+                "created_at": "2026-05-24T12:00:00+00:00",
+                "steps": {"storyboard": "complete"},
+            },
+            {
+                "run_id": "2026-05-23_run-a",
+                "created_at": "2026-05-23T08:00:00+00:00",
+                "steps": {"storyboard": "pending"},
+            },
+        ]
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs")
+        assert response.status_code == 200
+        assert len(response.json()["runs"]) == 2
+
+    def test_storage_error_returns_500(self, client):
+        """StorageError from list_runs maps to HTTP 500."""
+        mock_instance = MagicMock()
+        mock_instance.list_runs.side_effect = StorageError("R2 unreachable")
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs")
+        assert response.status_code == 500
+        assert "R2 unreachable" in response.json()["detail"]
+
+
+class TestGetArtifact:
+    def _mock_r2(self, client, **method_returns):
+        """Patch R2Client and configure method return values."""
+        mock_instance = MagicMock()
+        for method, value in method_returns.items():
+            getattr(mock_instance, method).return_value = value
+        return patch("src.routes.runs.R2Client", return_value=mock_instance)
+
+    def test_storyboard_returns_json_content(self, client):
+        """storyboard artifact returns JSON content inline."""
+        payload = {"scenes": [], "summary": {}}
+        mock_instance = MagicMock()
+        mock_instance.get_json.return_value = payload
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs/2026-05-24_test/artifact/storyboard")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["step"] == "storyboard"
+        assert body["content_type"] == "application/json"
+        assert body["content"] == payload
+        assert body["url"] is None
+
+    def test_manifest_returns_json_content(self, client):
+        """manifest artifact returns JSON content inline."""
+        payload = {"run_id": "test", "entries": []}
+        mock_instance = MagicMock()
+        mock_instance.get_json.return_value = payload
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs/2026-05-24_test/artifact/manifest")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["step"] == "manifest"
+        assert body["content_type"] == "application/json"
+        assert body["content"] == payload
+
+    def test_ffmpeg_script_returns_text_content(self, client):
+        """ffmpeg_script artifact returns text content inline."""
+        script_text = "#!/bin/bash\nset -euo pipefail\n"
+        mock_instance = MagicMock()
+        mock_instance.get_bytes.return_value = script_text.encode("utf-8")
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs/2026-05-24_test/artifact/ffmpeg_script")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["step"] == "ffmpeg_script"
+        assert body["content_type"] == "text/plain"
+        assert body["content"] == script_text
+
+    def test_render_returns_presigned_url(self, client):
+        """render artifact returns a presigned URL and no inline content."""
+        presigned = "https://r2.example.com/signed?token=abc"
+        mock_instance = MagicMock()
+        mock_instance.generate_presigned_url.return_value = presigned
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs/2026-05-24_test/artifact/render")
+        assert response.status_code == 200
+        body = response.json()
+        assert body["step"] == "render"
+        assert body["content_type"] == "video/mp4"
+        assert body["url"] == presigned
+        assert body["content"] is None
+
+    def test_render_calls_correct_r2_key(self, client):
+        """render step generates presigned URL for runs/{run_id}/output/final.mp4."""
+        mock_instance = MagicMock()
+        mock_instance.generate_presigned_url.return_value = "https://example.com/signed"
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            client.get("/runs/2026-05-24_test/artifact/render")
+        mock_instance.generate_presigned_url.assert_called_once_with(
+            "runs/2026-05-24_test/output/final.mp4"
+        )
+
+    def test_storyboard_calls_correct_r2_key(self, client):
+        """storyboard step fetches runs/{run_id}/storyboard.json."""
+        mock_instance = MagicMock()
+        mock_instance.get_json.return_value = {}
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            client.get("/runs/2026-05-24_test/artifact/storyboard")
+        mock_instance.get_json.assert_called_once_with(
+            "runs/2026-05-24_test/storyboard.json"
+        )
+
+    def test_missing_artifact_returns_404(self, client):
+        """StorageError when fetching artifact maps to HTTP 404."""
+        mock_instance = MagicMock()
+        mock_instance.get_json.side_effect = StorageError("NoSuchKey")
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs/2026-05-24_test/artifact/storyboard")
+        assert response.status_code == 404
+
+    def test_invalid_step_returns_422(self, client):
+        """Unrecognised step name returns HTTP 422."""
+        response = client.get("/runs/2026-05-24_test/artifact/unknown-step")
+        assert response.status_code == 422
+        assert "unknown-step" in response.json()["detail"]
 
 
 class TestCreateRunSlugValidation:
