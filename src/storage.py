@@ -140,6 +140,17 @@ class R2Client:
         except (BotoCoreError, ClientError, Exception) as exc:
             raise StorageError(f"Failed to generate presigned URL for '{key}': {exc}") from exc
 
+    def generate_presigned_put_url(self, key: str, expires_in: int = 600) -> str:
+        """Generate a presigned PUT URL for the given R2 key valid for expires_in seconds."""
+        try:
+            return self._client.generate_presigned_url(
+                "put_object",
+                Params={"Bucket": self._bucket, "Key": key},
+                ExpiresIn=expires_in,
+            )
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise StorageError(f"Failed to generate presigned PUT URL for '{key}': {exc}") from exc
+
     def create_run_folder(self, run_id: str) -> str:
         """
         Initialise a run prefix in R2 by uploading run_log.json.

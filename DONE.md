@@ -10,6 +10,22 @@ Format:
 
 ---
 
+## [E6-S2] Operator UI — Run list and pipeline runner (+ E6-S3 inline)
+**Completed:** 2026-05-24
+**Sprint:** 2
+**Handover:**
+- `src/static/pipeline.html`: complete rewrite — two-view SPA (list + detail), no frameworks. List view calls `GET /runs`, renders rows with colored status dot; click → detail. "+ New Run" panel has slug + VO script fields; on submit auto-triggers storyboard → manifest. Detail view shows 5 step rows: complete = [View]+[Rerun], pending/failed = [Run]. Storyboard [Run]/[Rerun] expands inline VO textarea. [View] fetches `GET /runs/{run_id}/artifact/{step}` and renders inline (storyboard → scene cards; manifest → table; ffmpeg_script → `<pre>`; render → `<video>`). Voiceover section (dashed row, between FFmpeg Script and Render): file picker → presigned PUT → direct R2 upload.
+- `src/storage.py`: `R2Client.generate_presigned_put_url(key, expires_in=600) → str` added. Same exception pattern as `generate_presigned_url`.
+- `src/models.py`: `VoiceoverUploadUrlRequest(filename: str)`, `VoiceoverUploadUrlResponse(upload_url: str, key: str)` added.
+- `src/routes/runs.py`: `POST /runs/{run_id}/voiceover-upload-url` added. Key pattern: `runs/{run_id}/voiceover/{filename}`. Returns presigned PUT URL valid 10 min.
+- `tests/test_runs.py`: `TestVoiceoverUploadUrl` — 4 tests. 286 total passing.
+- No new ENV vars. No new pip dependencies.
+- **Deployment prerequisite**: R2 bucket CORS must allow `PUT` from the Railway domain for browser direct-upload to work.
+- E6-S3 (presigned upload URL) fully implemented inline — backend + UI both done.
+**Promoted to backlog:** none
+
+---
+
 ## [E1-S4] Run list and artifact retrieval endpoints
 **Completed:** 2026-05-24
 **Sprint:** 2

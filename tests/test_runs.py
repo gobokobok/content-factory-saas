@@ -251,6 +251,52 @@ class TestGetArtifact:
         assert "unknown-step" in response.json()["detail"]
 
 
+class TestVoiceoverUploadUrl:
+    def test_returns_upload_url_and_key(self, client):
+        """Endpoint returns presigned PUT URL and the R2 key for the voiceover file."""
+        mock_instance = MagicMock()
+        mock_instance.generate_presigned_put_url.return_value = "https://r2.example.com/upload?sig=abc"
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            res = client.post(
+                "/runs/2026-05-24_test/voiceover-upload-url",
+                json={"filename": "voiceover.mp3"},
+            )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["upload_url"] == "https://r2.example.com/upload?sig=abc"
+        assert body["key"] == "runs/2026-05-24_test/voiceover/voiceover.mp3"
+
+    def test_calls_correct_r2_key(self, client):
+        """R2Client receives the correct key composed from run_id and filename."""
+        mock_instance = MagicMock()
+        mock_instance.generate_presigned_put_url.return_value = "https://example.com/upload"
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            client.post(
+                "/runs/my-run/voiceover-upload-url",
+                json={"filename": "audio.mp3"},
+            )
+        mock_instance.generate_presigned_put_url.assert_called_once_with(
+            "runs/my-run/voiceover/audio.mp3"
+        )
+
+    def test_storage_error_returns_500(self, client):
+        """StorageError from R2 maps to HTTP 500."""
+        mock_instance = MagicMock()
+        mock_instance.generate_presigned_put_url.side_effect = StorageError("R2 unreachable")
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            res = client.post(
+                "/runs/2026-05-24_test/voiceover-upload-url",
+                json={"filename": "vo.mp3"},
+            )
+        assert res.status_code == 500
+        assert "R2 unreachable" in res.json()["detail"]
+
+    def test_missing_filename_returns_422(self, client):
+        """Request body without filename field returns HTTP 422."""
+        res = client.post("/runs/2026-05-24_test/voiceover-upload-url", json={})
+        assert res.status_code == 422
+
+
 class TestCreateRunSlugValidation:
     def test_valid_slug_with_hyphens(self, client, mock_r2):
         """Slugs with hyphens between words are accepted."""

@@ -47,8 +47,8 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | E1-S4 | Run list and artifact retrieval endpoints | 3 | done |
-| E6-S2 | Operator UI — run list and pipeline runner | 5 | ready |
-| E6-S3 | Voiceover upload via presigned R2 URL | 2 | ready |
+| E6-S2 | Operator UI — run list and pipeline runner | 5 | done |
+| E6-S3 | Voiceover upload via presigned R2 URL | 2 | done |
 | E5-S2 | Pacing calibration — sync scene durations to voiceover | 3 | ready |
 | E5-S3 | Visual-semantic matching improvement | 3 | backlog |
 | E4-S2 | Captions and on-screen text overlay | 5 | backlog |

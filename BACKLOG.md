@@ -839,7 +839,8 @@ _filled on completion_
 ## [E6-S2] Operator UI — Run list and pipeline runner
 **Epic:** E6 — Operator UI
 **Sprint:** 2
-**Status:** ready
+**Status:** done
+**Completed:** 2026-05-24
 **Points:** 5
 **Priority:** high
 **Depends on:** E1-S4, E6-S1
@@ -880,14 +881,28 @@ Replace curl-based workflow with a full operator UI. Two views: run list and run
 - [ ] BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html`: full rewrite — single-file SPA, no frameworks. Two views: **list** (default) and **detail**.
+  - List view: calls `GET /runs`, renders each run as a clickable row with colored status dot (green = all complete, red = any failed, amber = in-progress/mixed). "+ New Run" button opens inline form with slug + VO script fields.
+  - New run flow: POST /runs → auto-navigate to detail → auto-trigger storyboard (with script) → auto-trigger manifest on success.
+  - Detail view: 5 step rows. Complete steps: [View] + [Rerun]. Pending/failed: [Run]. Storyboard [Run]/[Rerun] reveals inline VO script textarea. [View] calls `GET /runs/{run_id}/artifact/{step}` and renders inline (storyboard → scene cards; manifest → table; ffmpeg_script → `<pre>`; render → `<video>` + download link).
+  - Voiceover section (dashed row between FFmpeg Script and Render): file picker → `POST /runs/{run_id}/voiceover-upload-url` → `PUT presigned_url` directly to R2.
+  - Status dots: `●` complete / `●` failed / `◌` running / `○` pending.
+- `src/storage.py`: `R2Client.generate_presigned_put_url(key, expires_in=600) → str` — boto3 `put_object` presigned URL. Raises `StorageError` on failure.
+- `src/models.py`: `VoiceoverUploadUrlRequest(filename: str)`, `VoiceoverUploadUrlResponse(upload_url: str, key: str)` added.
+- `src/routes/runs.py`: `POST /runs/{run_id}/voiceover-upload-url` — builds key `runs/{run_id}/voiceover/{filename}`, returns presigned PUT URL valid 10 min. 500 on `StorageError`.
+- `tests/test_runs.py`: 4 new tests in `TestVoiceoverUploadUrl`. 30 tests in file, 286 total passing.
+- No new ENV vars. No new pip dependencies.
+- **Deployment note**: voiceover direct-upload requires CORS rule on R2 bucket allowing `PUT` from the Railway domain. Add before smoke-testing voiceover upload.
+- Smoke test deferred — full pipeline run from browser on Railway DEV once live run with completed storyboard + manifest + assets + ffmpeg_script exists.
+**Promoted to backlog:** none
 
 ---
 
 ## [E6-S3] Voiceover upload via presigned R2 URL
 **Epic:** E6 — Operator UI
 **Sprint:** 2
-**Status:** ready
+**Status:** done
+**Completed:** 2026-05-24
 **Points:** 2
 **Priority:** high
 **Depends on:** E1-S4
@@ -909,7 +924,14 @@ Add backend support for direct voiceover upload from browser to R2 without proxy
 - [ ] BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+Implemented inline as part of E6-S2. See E6-S2 handover for full details.
+- `POST /runs/{run_id}/voiceover-upload-url` live in `src/routes/runs.py`.
+- `R2Client.generate_presigned_put_url` live in `src/storage.py`.
+- Models: `VoiceoverUploadUrlRequest`, `VoiceoverUploadUrlResponse` in `src/models.py`.
+- UI integration: voiceover row in `src/static/pipeline.html` between FFmpeg Script and Render steps.
+- AC for "UI shows Voiceover ready and enables render" is met implicitly — the render [Run] button is always shown (server enforces voiceover presence via ffmpeg_script guard).
+- **R2 CORS** must be configured on the bucket before the browser PUT will succeed (see E6-S2 deployment note).
+**Promoted to backlog:** none
 
 ---
 

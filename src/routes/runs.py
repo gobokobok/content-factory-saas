@@ -7,7 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from src.config import Settings, get_settings
 from src.exceptions import StorageError
-from src.models import ArtifactResponse, RunCreateRequest, RunCreateResponse, RunListResponse, RunSummary
+from src.models import (
+    ArtifactResponse,
+    RunCreateRequest,
+    RunCreateResponse,
+    RunListResponse,
+    RunSummary,
+    VoiceoverUploadUrlRequest,
+    VoiceoverUploadUrlResponse,
+)
 from src.storage import R2Client
 
 logger = logging.getLogger(__name__)
@@ -59,6 +67,23 @@ def list_runs(settings: Settings = Depends(get_settings)) -> RunListResponse:
         logger.error("Storage error listing runs: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return RunListResponse(runs=[RunSummary(**r) for r in runs])
+
+
+@router.post("/runs/{run_id}/voiceover-upload-url", response_model=VoiceoverUploadUrlResponse)
+def voiceover_upload_url(
+    run_id: str,
+    body: VoiceoverUploadUrlRequest,
+    settings: Settings = Depends(get_settings),
+) -> VoiceoverUploadUrlResponse:
+    """Generate a presigned R2 PUT URL for uploading a voiceover file directly from the browser."""
+    key = f"runs/{run_id}/voiceover/{body.filename}"
+    client = _make_r2_client(settings)
+    try:
+        url = client.generate_presigned_put_url(key)
+    except StorageError as exc:
+        logger.error("Storage error generating voiceover upload URL for '%s': %s", run_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return VoiceoverUploadUrlResponse(upload_url=url, key=key)
 
 
 @router.get("/runs/{run_id}/artifact/{step}", response_model=ArtifactResponse)

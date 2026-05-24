@@ -226,3 +226,16 @@ class RenderResponse(BaseModel):
     output_key: str
     duration_seconds: float
     exit_code: int
+
+
+class VoiceoverUploadUrlRequest(BaseModel):
+    """Request body for POST /runs/{run_id}/voiceover-upload-url."""
+
+    filename: str
+
+
+class VoiceoverUploadUrlResponse(BaseModel):
+    """Response body for POST /runs/{run_id}/voiceover-upload-url."""
+
+    upload_url: str
+    key: str
