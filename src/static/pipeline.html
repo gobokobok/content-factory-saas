@@ -586,11 +586,17 @@
     function renderStoryboard(content) {
       const scenes = content?.scenes;
       if (!scenes?.length) return '<span class="muted">no scenes found</span>';
-      const cards = scenes.map(s => `<div class="scene-card">
+      const cards = scenes.map(s => {
+        const vp = s.visual_prompts || {};
+        return `<div class="scene-card">
         <div class="scene-hdr">Scene ${esc(s.scene)} · ${esc(s.clip_type)} · ${esc(s.duration_s)}s</div>
         <div class="scene-vo">${esc(s.voiceover_line)}</div>
         <div class="scene-meta">motion: ${esc(s.motion_effect || '—')}  sfx: ${esc(s.sfx || '—')}</div>
-      </div>`).join('');
+        <div class="scene-meta">PRIMARY: ${esc(vp.primary_stk || '—')}</div>
+        <div class="scene-meta">FALLBACK: ${esc(vp.fallback_stk || '—')}</div>
+        <div class="scene-meta">AI: ${esc(vp.ai_generate || '—')}</div>
+      </div>`;
+      }).join('');
       return `<div class="scene-cards">${cards}</div>`;
     }
 
