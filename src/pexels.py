@@ -28,7 +28,8 @@ from urllib.parse import urlparse
 
 import requests
 
-from src.exceptions import PexelsError
+from src.clip_reranker import get_reranker
+from src.exceptions import CLIPError, PexelsError
 from src.models import ManifestEntry, PexelsAcquireResult
 from src.storage import R2Client
 
@@ -75,6 +76,22 @@ def _pick_best_photo(photos: list[dict]) -> Optional[dict]:
         return None
     target_area = _TARGET_WIDTH * _TARGET_HEIGHT
     return min(candidates, key=lambda p: p["width"] * p["height"] - target_area)
+
+
+def _pick_first_qualifying_photo(photos: list[dict]) -> Optional[dict]:
+    """Return the first photo meeting 1920×1080 minimum dimensions.
+
+    Used after CLIP reranking so the ordering already encodes relevance — we
+    just want the first result that satisfies the size floor. Returns None if
+    no photo meets the minimum dimensions.
+    """
+    for photo in photos:
+        if (
+            photo.get("width", 0) >= _TARGET_WIDTH
+            and photo.get("height", 0) >= _TARGET_HEIGHT
+        ):
+            return photo
+    return None
 
 
 def _ext_from_url(url: str) -> str:
@@ -182,11 +199,22 @@ class PexelsClient:
     ) -> Optional[PexelsAcquireResult]:
         """Search and download a video clip from Pexels.
 
-        Takes the most-relevant result that has an acceptable video file.
-        Returns None if the query returns no results or no file meets the
-        resolution criteria.
+        When CLIP reranking is enabled, reorders results by visual-semantic
+        similarity before iterating. Takes the first reranked result that has
+        an acceptable video file. Returns None if no file meets the resolution
+        criteria.
         """
         videos = self.search_videos(query)
+        reranker = get_reranker()
+        if reranker is not None:
+            try:
+                videos = reranker.rerank_videos(videos, query)
+            except CLIPError as exc:
+                logger.warning(
+                    "CLIP reranking failed for scene=%s, using Pexels order: %s",
+                    scene_id,
+                    exc,
+                )
         video_file = None
         for video in videos:
             video_file = _pick_best_video_file(video)
@@ -214,12 +242,26 @@ class PexelsClient:
     ) -> Optional[PexelsAcquireResult]:
         """Search and download a photo from Pexels.
 
-        Picks the photo closest to 1920×1080 without going under across all
-        results. Returns None if the query returns no photos meeting the
-        minimum dimensions.
+        When CLIP reranking is enabled, reorders results by visual-semantic
+        similarity and picks the first qualifying photo (>= 1920x1080). When
+        disabled, picks the photo with the minimum excess area across all
+        results. Returns None if no photo meets the minimum dimensions.
         """
         photos = self.search_photos(query)
-        photo = _pick_best_photo(photos)
+        reranker = get_reranker()
+        if reranker is not None:
+            try:
+                photos = reranker.rerank_photos(photos, query)
+                photo = _pick_first_qualifying_photo(photos)
+            except CLIPError as exc:
+                logger.warning(
+                    "CLIP reranking failed for scene=%s, using Pexels order: %s",
+                    scene_id,
+                    exc,
+                )
+                photo = _pick_best_photo(photos)
+        else:
+            photo = _pick_best_photo(photos)
         if photo is None:
             logger.debug(
                 "No suitable photo for scene=%s query='%s'", scene_id, query

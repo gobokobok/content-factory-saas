@@ -6,6 +6,24 @@ Format:
 
 ---
 
+## [E4-S4] CLIP semantic reranking of Pexels results
+**Completed:** 2026-05-25
+**Sprint:** unassigned
+**Handover:**
+- `src/clip_reranker.py`: new module. `CLIPReranker(model)` — `rerank_videos(videos, query)` and `rerank_photos(photos, query)` score Pexels thumbnails against query text using CLIP cosine similarity (numpy only, no torch in application code). Module-level singleton via `load_model()` (lazy-loads `clip-ViT-B-32` via `sentence-transformers`) and `get_reranker() → Optional[CLIPReranker]`. Unscoreable items (missing/unfetchable thumbnails) placed after scored items. Raises `CLIPError` on encoding failure, which callers catch and fall back from.
+- `src/pexels.py`: `_acquire_video` reranks video results by CLIP score before the `_pick_best_video_file` loop. `_acquire_photo` reranks photo results then picks via new `_pick_first_qualifying_photo` (first photo ≥ 1920×1080 in CLIP order); falls back to `_pick_best_photo` on `CLIPError` or when reranker is None (default).
+- `src/pexels.py`: `_pick_first_qualifying_photo(photos) → Optional[dict]` — new module-level helper; existing `_pick_best_photo` (min excess area) retained for non-CLIP path.
+- `src/main.py`: lifespan hook calls `clip_reranker.load_model()` when `CLIP_RERANK_ENABLED=True`.
+- `src/config.py`: `CLIP_RERANK_ENABLED: bool = False` added.
+- `src/exceptions.py`: `CLIPError` added.
+- `requirements.txt`: `sentence-transformers>=3.0.0`, `Pillow>=10.0.0` added (D032).
+- `ENV.md`: `CLIP_RERANK_ENABLED` documented.
+- `tests/test_clip_reranker.py`: 17 new tests. 390 total passing. Zero regressions.
+- Smoke test deferred: set `CLIP_RERANK_ENABLED=True` in Railway DEV, run full pipeline, confirm footage topics visually match VO better than Pexels-order baseline.
+**Promoted to backlog:** none
+
+---
+
 ## [E5-S3] Visual-semantic matching improvement
 **Completed:** 2026-05-25
 **Sprint:** 2

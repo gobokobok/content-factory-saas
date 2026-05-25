@@ -9,6 +9,7 @@ from fastapi import FastAPI, Depends
 from fastapi.responses import FileResponse
 from pydantic import ValidationError
 
+import src.clip_reranker as clip_reranker
 from src.config import Settings, get_settings
 from src.routes import assets as assets_router
 from src.routes import ffmpeg_script as ffmpeg_script_router
@@ -37,6 +38,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logging.getLogger(__name__).info(
             "Startup OK — environment=%s", settings.ENVIRONMENT
         )
+        if settings.CLIP_RERANK_ENABLED:
+            clip_reranker.load_model()
     except ValidationError as exc:
         logging.basicConfig(level=logging.ERROR)
         logging.getLogger(__name__).error("Startup failed — missing or invalid ENV vars:\n%s", exc)

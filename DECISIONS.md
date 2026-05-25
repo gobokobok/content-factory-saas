@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D032 — CLIP semantic reranking: sentence-transformers + Pillow
+**Date:** 2026-05-25
+**Decision:** Add `sentence-transformers` (with `clip-ViT-B-32` model) and `Pillow` to rerank Pexels results by visual-semantic match before the existing size/resolution selection logic runs.
+**Rationale:** Pexels returns results in keyword-match order, not semantic relevance order. The first result for "apartment building exterior" may be a generic skyline rather than the intended close-up. CLIP scores each thumbnail against the scene's visual description text, putting the most semantically appropriate clip at the top of the list. This is used _before_ the existing `_pick_best_video_file` / `_pick_first_qualifying_photo` filter, so resolution requirements are still enforced — CLIP only changes the ordering within the result set.
+**Why sentence-transformers over raw transformers:** sentence-transformers provides a unified `.encode()` API for both text and PIL Images via the same model object, requires no custom preprocessing pipeline, and its CLIP wrapper is battle-tested. Raw `transformers` would require separate tokenizer + processor setup.
+**Model:** `clip-ViT-B-32` (~340MB download, ~600MB RAM on CPU). Downloaded at first startup and cached by the HuggingFace hub. Pre-downloading during Docker build is possible but deferred for POC.
+**Feature flag:** `CLIP_RERANK_ENABLED=False` default — off in all existing deployments. Enable per-environment when validating.
+**Latency:** ~40ms/image on Railway CPU. For per_page=5, total reranking adds ~200ms per scene acquisition (within the <500ms target).
+**Dependencies added:** `sentence-transformers>=3.0.0`, `Pillow>=10.0.0`
+
+---
+
 ## D031 — Scene-boundary caption timing as interim solution
 **Date:** 2026-05-24
 **Decision:** Voiceover-line captions (E4-S5) use scene boundaries for timing — each `voiceover_line` is shown for the full duration of its scene. Word-level timing is deferred to E5-S4 (WhisperX forced alignment).

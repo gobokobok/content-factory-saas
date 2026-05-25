@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # FFmpeg
     FFMPEG_TIMEOUT_SECONDS: int = 300
 
+    # CLIP reranking (E4-S4)
+    CLIP_RERANK_ENABLED: bool = False
+
     @field_validator("LOG_LEVEL")
     @classmethod
     def validate_log_level(cls, v: str) -> str:

@@ -31,3 +31,7 @@ class FFmpegBuildError(Exception):
 
 class RenderError(Exception):
     """Raised when FFmpeg execution fails or output cannot be uploaded."""
+
+
+class CLIPError(Exception):
+    """Raised when CLIP model encoding fails during Pexels result reranking."""
