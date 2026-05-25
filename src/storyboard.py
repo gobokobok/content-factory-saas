@@ -276,9 +276,18 @@ def _parse_storyboard_response(text: str) -> Storyboard:
 
 def _get_field(text: str, field: str, required: bool = True) -> Optional[str]:
     """Extract a single-line field value; returns None for literal 'null' values."""
-    match = re.search(rf"^[-\s]*{re.escape(field)}:\s*(.+)$", text, re.MULTILINE)
+    match = re.search(
+        rf"^[-\s]*{re.escape(field)}:\s*(.+)$",
+        text,
+        re.MULTILINE | re.IGNORECASE,
+    )
     if not match:
         if required:
+            logger.error(
+                "Missing field '%s' in block (first 300 chars): %s",
+                field,
+                text[:300],
+            )
             raise StoryboardParseError(f"Missing required field '{field}'")
         return None
     value = match.group(1).strip()
