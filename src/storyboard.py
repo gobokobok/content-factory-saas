@@ -232,13 +232,18 @@ def _parse_storyboard_response(text: str) -> Storyboard:
     """
     Parse the Claude text response into a validated Storyboard model.
 
-    Expects sections separated by '---'. First section is GLOBAL, last is SUMMARY,
-    all middle sections are SCENE blocks. Raises StoryboardParseError on any failure.
+    Expects sections separated by '---' on its own line. First section is GLOBAL,
+    last is SUMMARY, all middle sections are SCENE blocks.
+    Raises StoryboardParseError on any failure.
     """
-    parts = re.split(r"\n\s*---\s*\n", text.strip())
+    parts = re.split(r"(?m)^\s*---\s*$", text.strip())
     parts = [p.strip() for p in parts if p.strip()]
 
     if len(parts) < 3:
+        logger.error(
+            "Storyboard parse failed — raw response (first 500 chars): %s",
+            text[:500],
+        )
         raise StoryboardParseError(
             f"Expected GLOBAL + at least 1 SCENE + SUMMARY sections, got {len(parts)}"
         )
