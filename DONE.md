@@ -6,6 +6,19 @@ Format:
 
 ---
 
+## [E5-S3] Visual-semantic matching improvement
+**Completed:** 2026-05-25
+**Sprint:** 2
+**Handover:**
+- `docs/PROMPTS.md` v0.5: VISUAL PROMPTS RULE rewritten — PRIMARY = 3–4 concrete nouns only (no adjectives); FALLBACK = 1–2 words (core subject); AI_GENERATE = cinematic direction terms (shallow depth of field, golden hour lighting, cinematic, 9:16 vertical). Four housing-economics few-shot examples added. No code changes to acquisition pipeline — queries flow through unchanged.
+- `src/storyboard.py`: `SYSTEM_PROMPT` updated to v0.5. Parser hardened: section split now uses `(?m)^\s*---\s*$` (line-anchor, handles any surrounding blank-line count); `_get_field` is now case-insensitive and tolerates leading `- ` bullets; both log diagnostic content on failure.
+- `src/static/pipeline.html`: storyboard scene cards now show PRIMARY / FALLBACK / AI fields for visual QA.
+- No new ENV vars. No new dependencies.
+- Smoke test passed on DEV: `2026-05-25_mind-drain-video-temp` — concrete nouns in PRIMARY, cinematic direction in AI_GENERATE confirmed.
+**Promoted to backlog:** none
+
+---
+
 ## [E4-S5] Real-time captions from voiceover_line
 **Completed:** 2026-05-24
 **Sprint:** 2

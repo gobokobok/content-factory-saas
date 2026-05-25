@@ -839,7 +839,8 @@ Fix two root causes of audio/video desync: (1) word-count heuristics don't match
 ## [E5-S3] Visual-semantic matching improvement
 **Epic:** E5 — FFmpeg Execution + Drive Upload
 **Sprint:** 2
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-05-25
 **Points:** 4
 **Priority:** medium
 **Depends on:** E3-S3
@@ -869,7 +870,12 @@ Fix Pexels keyword mismatch by rewriting query generation strategy in storyboard
 - Add DECISIONS.md D026: query decomposition strategy and rationale
 
 ### Handover
-_filled on completion_
+- `docs/PROMPTS.md`: bumped to v0.5. VISUAL PROMPTS RULE section rewritten with explicit query decomposition rules: PRIMARY = 3–4 concrete nouns only (no adjectives); FALLBACK = 1–2 words (core subject only); AI_GENERATE = cinematic direction (shallow depth of field, golden hour lighting, cinematic, 9:16 vertical). Four housing-economics few-shot examples added.
+- `src/storyboard.py`: `SYSTEM_PROMPT` constant updated to match v0.5. Version references in module docstring and function docstrings updated.
+- `src/storyboard.py` (parser hardening): `_parse_storyboard_response` split regex changed from `\n\s*---\s*\n` to `(?m)^\s*---\s*$` — matches `---` as a standalone line regardless of surrounding blank-line count. `_get_field` now uses `re.IGNORECASE` and tolerates leading `- ` bullets. Both functions log diagnostic context (raw response / block content) on parse failure.
+- `src/static/pipeline.html`: storyboard scene cards now show `PRIMARY`, `FALLBACK`, and `AI` fields for visual QA.
+- No new ENV vars. No new dependencies.
+- Smoke test passed on DEV: `2026-05-25_mind-drain-video-temp`, Scene 1 — PRIMARY: `human brain anatomy model`, FALLBACK: `brain`, AI includes shallow DoF + cinematic direction terms.
 
 ---
 
