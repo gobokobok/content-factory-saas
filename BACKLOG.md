@@ -1178,6 +1178,49 @@ Implemented inline as part of E6-S2. See E6-S2 handover for full details.
 
 ---
 
+## [E6-S4] End-to-end production smoke test
+**Epic:** E6 — Operator UI
+**Sprint:** 3
+**Status:** backlog
+**Points:** 2
+**Priority:** high
+**Depends on:** E6-S2, E5-S1, E4-S5
+
+### Goal
+Run a complete pipeline from browser UI on Railway DEV: create run → storyboard → manifest → assets → ffmpeg-script → upload voiceover → render. Validate all 7 deferred smoke tests in one session. Document and fix any bugs found inline or promote to backlog.
+
+### Acceptance Criteria
+- [ ] Full pipeline triggered and completed from browser UI only (no curl)
+- [ ] `final.mp4` appears in R2 `runs/{run_id}/output/` and is watchable
+- [ ] Both caption tracks visible: on-screen keywords (large, centered) + voiceover captions (small, bottom)
+- [ ] Video cuts align with speech cadence (pacing calibration)
+- [ ] Static image scenes show Ken Burns motion
+- [ ] `run_log.json` shows all steps `complete`
+- [ ] Any bugs found during the run either fixed inline or promoted to backlog as new stories
+- [ ] R2 CORS configured for voiceover direct upload (required for browser PUT)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Bugs found: zero blocking bugs, or all blockers promoted to new backlog stories
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+This story IS the smoke test. The AC above are the verification criteria.
+
+### Files to read
+- CLAUDE.md
+- DONE.md — handover notes for E5-S1, E4-S2, E4-S3, E4-S5, E5-S2, E6-S2
+- ENV.md — R2 CORS setup note in E6-S2
+
+### Files to create or modify
+- None expected — this is a validation story. Bug fixes may touch any file.
+
+### Handover
+_filled on completion_
+
+---
+
 ## EPIC 8 — Cost Optimization: Model Routing
 Route pipeline tasks to the appropriate model (Haiku / Sonnet / Opus) based on task complexity to minimize API costs without sacrificing quality.
 

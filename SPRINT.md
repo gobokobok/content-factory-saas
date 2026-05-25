@@ -1,7 +1,7 @@
 # Sprint 1 — Railway Foundation & Drive Integration
 
 **Goal:** Deployable FastAPI service on Railway with Google Drive integration and storyboard generation via Claude API.
-**Status:** In progress
+**Status:** done
 
 ---
 
@@ -18,27 +18,11 @@
 
 ---
 
-## Sprint 1 Definition of Done
-- [ ] FastAPI service deploys to Railway DEV and health check passes
-- [ ] Run folders created in Google Drive with correct structure
-- [ ] `run_log.json` initialized with all steps `pending`
-- [ ] Storyboard generated from plain-text VO script and uploaded to Drive
-- [ ] All stories have passing tests and green CI
-- [ ] **Human touchpoint:** non-technical user can create a run via browser form (E6-S0)
-
----
-
-## Notes
-- Framework decision: FastAPI (over Flask) — async support for concurrent API calls, Pydantic validation, auto-generated docs. Logged in DECISIONS.md.
-- Start with E1-S1. Do not begin E1-S2 until E1-S1 smoke test passes on Railway DEV.
-
----
-
 # Sprint 2 — Operator UI + Polish
 
 **Goal:** Operator can run the full pipeline start to finish from the browser UI without touching the terminal or R2 console.
-**Status:** planned
-**Points:** 21
+**Status:** done
+**Velocity:** 8/8 planned + 1 bonus (E4-S4) = 37 pts
 
 ---
 
@@ -54,24 +38,43 @@
 | E4-S2 | Captions and on-screen text overlay | 5 | done |
 | E4-S3 | Ken Burns zoompan effect on static images | 3 | done |
 | E4-S5 | Real-time captions from voiceover_line | 5 | done |
-
-**Sprint 2 total:** 22 pts remaining (10 pts done, 22 pts in ready)
-
-**Dependency order:** E1-S4 → E6-S2 → E6-S3 (done). E5-S2, E5-S3, E4-S2, E4-S3 are independent of each other. E4-S5 depends on E4-S2 (done).
-
-**Note:** Technical research (Gemini deep research) incorporated — E5-S2 expanded to include concat→filter_complex migration; E4-S3 added for zoompan; E4-S4 added to backlog as deferred. E5-S2 repointed 3→5; E5-S3 repointed 3→4 and promoted from backlog to ready. E4-S5 added for voiceover-line captions (second ASS track, scene-boundary timing).
+| E4-S4 | CLIP semantic reranking of Pexels results *(bonus)* | 5 | done |
 
 ---
 
-## Sprint 2 Definition of Done
-- [ ] Operator can list all past runs in the browser
-- [ ] Operator can trigger every pipeline step from the browser (no curl)
-- [ ] Operator can upload voiceover from the browser (no R2 console)
-- [ ] Operator can view all step artifacts inline (storyboard, manifest, script, video)
-- [ ] Scene durations match actual voiceover length (pacing calibration)
-- [ ] Video cuts use filter_complex with PTS reset (no concat demuxer)
-- [ ] Static images show Ken Burns motion effect
-- [ ] Captions burned in via ASS subtitles
-- [ ] Pexels queries use concrete nouns only (no adjectives)
+# Sprint 3 — First Real Video + Audio Sync + Cost Foundation
+
+**Goal:** Watch a complete rendered video produced entirely from the browser UI. Add ms-precise audio sync and start model cost routing.
+**Status:** planned
+**Points:** 16
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| E6-S4 | End-to-end production smoke test | 2 | backlog |
+| E5-S4 | WhisperX forced alignment for ms-precise scene timing | 8 | backlog |
+| E8-S1 | Haiku schema validator — storyboard.json | 3 | backlog |
+| E8-S3 | Haiku run log summarizer | 3 | backlog |
+
+**Dependency order:** E6-S4 first (validates DEV is healthy before building on it). E5-S4 and E8-S1 independent (run in parallel). E8-S3 independent of all. E8-S2 and E8-S4 deferred to Sprint 4 (E8-S2 needs E8-S1; E8-S4 needs E8-S1 + E8-S2 + E8-S3).
+
+---
+
+## Sprint 3 Definition of Done
+- [ ] Full pipeline run completed from browser UI — `final.mp4` watchable in browser
+- [ ] Video cuts are ms-precise (WhisperX alignment replaces proportional redistribution)
+- [ ] Storyboard JSON validated by Haiku before downstream steps run
+- [ ] Operator UI shows human-readable step summaries (Haiku run log summarizer)
 - [ ] All stories have passing tests and green CI
-- [ ] **Human touchpoint:** full end-to-end pipeline run completed from browser UI only
+- [ ] **Human touchpoint:** operator watches a complete rendered Short in the browser player
+
+---
+
+## Notes
+- E6-S4 is a validation story, not a feature — it has no code deliverable unless bugs are found.
+- E5-S4 (WhisperX) requires `whisperx` + `torch` CPU — significant Docker build time increase (~2min). Log in DECISIONS.md before adding to requirements.txt.
+- R2 CORS must be configured for voiceover direct-upload before E6-S4 smoke test can complete (see E6-S2 deployment note).
+- CLIP_RERANK_ENABLED can be toggled to True in Railway DEV during E6-S4 to validate E4-S4 smoke test at the same time.
