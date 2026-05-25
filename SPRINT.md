@@ -50,7 +50,7 @@
 | E6-S2 | Operator UI — run list and pipeline runner | 5 | done |
 | E6-S3 | Voiceover upload via presigned R2 URL | 2 | done |
 | E5-S2 | Pacing calibration — sync scene durations to voiceover | 5 | done |
-| E5-S3 | Visual-semantic matching improvement | 4 | ready |
+| E5-S3 | Visual-semantic matching improvement | 4 | in-progress |
 | E4-S2 | Captions and on-screen text overlay | 5 | done |
 | E4-S3 | Ken Burns zoompan effect on static images | 3 | done |
 | E4-S5 | Real-time captions from voiceover_line | 5 | done |

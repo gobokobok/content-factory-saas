@@ -1,4 +1,4 @@
-"""Claude API storyboard generation — calls v0.4 prompt and parses response into storyboard.json."""
+"""Claude API storyboard generation — calls v0.5 prompt and parses response into storyboard.json."""
 
 import logging
 import re
@@ -42,9 +42,9 @@ SCENE FIELDS (every scene)
 - duration_s: derived from VO word count (see rules below)
 - voiceover_line: exact portion of VO spoken over this scene
 - visual_prompts:
-    PRIMARY: STK `stock footage keyword string`
-    FALLBACK: STK `alternative stock keyword string`
-    AI_GENERATE if no stock: `detailed AI image generation prompt`
+    PRIMARY: STK `3–4 concrete nouns only — no adjectives`
+    FALLBACK: STK `1–2 words, core subject only`
+    AI_GENERATE if no stock: `cinematic image generation prompt — include shallow depth of field, golden hour lighting or equivalent, cinematic`
 - motion_effect: zoom-in | zoom-out | pan-left | pan-right | ken-burns | null
 - on_screen_text: exact text string or null
 - sfx: specific sound description — never null; if no sound write "silence"
@@ -112,11 +112,46 @@ VISUAL PROMPTS RULE
 ═══════════════════════════════════════
 
 Every scene gets exactly three prompts in a decision hierarchy:
-1. PRIMARY: STK — best stock footage search string, specific and concrete
-2. FALLBACK: STK — alternative stock search if primary unavailable
-3. AI_GENERATE if no stock — detailed generative image prompt, cinematic, specific lighting/mood/composition
+1. PRIMARY: STK — Pexels search string
+2. FALLBACK: STK — broader Pexels search if primary returns nothing
+3. AI_GENERATE if no stock — Flux/Replicate image generation prompt
 
-The downstream AI or editor tries PRIMARY first, then FALLBACK, then generates if neither works.
+The downstream pipeline tries PRIMARY first, then FALLBACK, then generates if neither works.
+
+PRIMARY query rules:
+- 3–4 concrete nouns only. No adjectives. No verbs.
+- Ask yourself: what physical object would a cameraman point a lens at?
+- Pexels is keyword-matched, not semantic. Adjectives reduce recall without improving precision.
+
+FALLBACK query rules:
+- 1–2 words. Core subject only. Broadest noun that still covers the scene.
+
+AI_GENERATE rules:
+- Describe the subject, composition, and lighting as a camera direction.
+- Always include: shallow depth of field, golden hour lighting (or equivalent for the scene mood), cinematic, 9:16 vertical.
+- Never use abstract concepts — describe what the camera sees.
+
+Few-shot examples:
+
+  VO: "Homeowners across the country are watching their equity disappear"
+  PRIMARY: STK `house equity document calculator`
+  FALLBACK: STK `homeowner`
+  AI_GENERATE: `Close-up of a homeowner's hands holding house keys over a blurred suburban street, shallow depth of field, golden hour lighting, cinematic 9:16 vertical, photorealistic`
+
+  VO: "Mortgage rates hit a 20-year high last October"
+  PRIMARY: STK `mortgage document interest rate`
+  FALLBACK: STK `mortgage`
+  AI_GENERATE: `Bank document with interest rate figures on a desk, shallow depth of field, warm indoor lighting, cinematic 9:16 vertical, photorealistic`
+
+  VO: "Rents in major cities rose 30% in three years"
+  PRIMARY: STK `apartment building city street`
+  FALLBACK: STK `apartment`
+  AI_GENERATE: `Exterior of a multi-storey apartment building at dusk, urban street, shallow depth of field, golden hour lighting, cinematic 9:16 vertical, photorealistic`
+
+  VO: "First-time buyers are getting squeezed out"
+  PRIMARY: STK `young couple house keys`
+  FALLBACK: STK `house keys`
+  AI_GENERATE: `Young couple standing in front of a suburban house holding keys, shallow depth of field, soft golden hour lighting, cinematic 9:16 vertical, photorealistic`
 
 ═══════════════════════════════════════
 RHYTHM RULE
@@ -167,7 +202,7 @@ Rhythm: [SM / HC / HC / AN / SM ...]
 
 
 async def generate_storyboard(script: str, settings: Settings) -> Storyboard:
-    """Call Claude API with v0.4 prompt, parse and validate into a Storyboard."""
+    """Call Claude API with v0.5 prompt, parse and validate into a Storyboard."""
     raw_text = await _call_claude_api(script, settings.ANTHROPIC_API_KEY, settings.CLAUDE_MODEL)
     return _parse_storyboard_response(raw_text)
 
@@ -236,7 +271,7 @@ def _parse_storyboard_response(text: str) -> Storyboard:
 
 def _get_field(text: str, field: str, required: bool = True) -> Optional[str]:
     """Extract a single-line field value; returns None for literal 'null' values."""
-    match = re.search(rf"^{re.escape(field)}:\s*(.+)$", text, re.MULTILINE)
+    match = re.search(rf"^[-\s]*{re.escape(field)}:\s*(.+)$", text, re.MULTILINE)
     if not match:
         if required:
             raise StoryboardParseError(f"Missing required field '{field}'")

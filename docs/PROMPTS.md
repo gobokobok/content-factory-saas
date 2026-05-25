@@ -1,6 +1,6 @@
 # AI Prompts — Content Factory
 
-## Storyboard Generator — v0.4
+## Storyboard Generator — v0.5
 **Used in:** E1-S3 (Step 2b — Script to Storyboard)
 **Input:** Plain-text voiceover script
 **Output:** `storyboard.json`
@@ -12,8 +12,9 @@
 | v0.2 | — | Added SFX rules |
 | v0.3 | — | Added fallback query logic |
 | v0.4 | — | Duration from VO word count; comma-list = hard_cut; SFX never null |
+| v0.5 | 2026-05-25 | Query decomposition: concrete nouns only; cinematic direction terms for AI_GENERATE |
 
-### Key rules (v0.4)
+### Key rules (v0.5)
 - **Duration** derived from VO word count per lookup table — never from clip type ceiling
 - **Clip type ceilings** are hard limits: `hard_cut` ≤1s, `still_with_motion` ≤3s, `animated` ≤4s
 - **Comma-separated lists** in VO = one `hard_cut` sub-scene per item, labelled `03a / 03b / 03c`
@@ -23,7 +24,7 @@
 - **Global fields:** `subtitle_style`, `bg_music`, `visual_style`
 - **Never same clip_type more than twice in a row** (except deliberate list sequences)
 
-### Full system prompt (v0.4)
+### Full system prompt (v0.5)
 
 ```
 You are a production storyboard generator for a faceless, voiceover-driven YouTube Shorts channel.
@@ -49,9 +50,9 @@ SCENE FIELDS (every scene)
 - duration_s: derived from VO word count (see rules below)
 - voiceover_line: exact portion of VO spoken over this scene
 - visual_prompts:
-    PRIMARY: STK `stock footage keyword string`
-    FALLBACK: STK `alternative stock keyword string`
-    AI_GENERATE if no stock: `detailed AI image generation prompt`
+    PRIMARY: STK `3–4 concrete nouns only — no adjectives`
+    FALLBACK: STK `1–2 words, core subject only`
+    AI_GENERATE if no stock: `cinematic image generation prompt — include shallow depth of field, golden hour lighting or equivalent, cinematic`
 - motion_effect: zoom-in | zoom-out | pan-left | pan-right | ken-burns | null
 - on_screen_text: 1–4 keyword words or short phrase, no quotes, no full sentences — or null. Example: CLEAR ROOM CLEAR MIND not "A clear room. A clear mind."
 - sfx: specific sound description — never null; if no sound write "silence"
@@ -119,11 +120,46 @@ VISUAL PROMPTS RULE
 ═══════════════════════════════════════
 
 Every scene gets exactly three prompts in a decision hierarchy:
-1. PRIMARY: STK — best stock footage search string, specific and concrete
-2. FALLBACK: STK — alternative stock search if primary unavailable
-3. AI_GENERATE if no stock — detailed generative image prompt, cinematic, specific lighting/mood/composition
+1. PRIMARY: STK — Pexels search string
+2. FALLBACK: STK — broader Pexels search if primary returns nothing
+3. AI_GENERATE if no stock — Flux/Replicate image generation prompt
 
-The downstream AI or editor tries PRIMARY first, then FALLBACK, then generates if neither works.
+The downstream pipeline tries PRIMARY first, then FALLBACK, then generates if neither works.
+
+PRIMARY query rules:
+- 3–4 concrete nouns only. No adjectives. No verbs.
+- Ask yourself: what physical object would a cameraman point a lens at?
+- Pexels is keyword-matched, not semantic. Adjectives reduce recall without improving precision.
+
+FALLBACK query rules:
+- 1–2 words. Core subject only. Broadest noun that still covers the scene.
+
+AI_GENERATE rules:
+- Describe the subject, composition, and lighting as a camera direction.
+- Always include: shallow depth of field, golden hour lighting (or equivalent for the scene mood), cinematic, 9:16 vertical.
+- Never use abstract concepts — describe what the camera sees.
+
+Few-shot examples:
+
+  VO: "Homeowners across the country are watching their equity disappear"
+  PRIMARY: STK `house equity document calculator`
+  FALLBACK: STK `homeowner`
+  AI_GENERATE: `Close-up of a homeowner's hands holding house keys over a blurred suburban street, shallow depth of field, golden hour lighting, cinematic 9:16 vertical, photorealistic`
+
+  VO: "Mortgage rates hit a 20-year high last October"
+  PRIMARY: STK `mortgage document interest rate`
+  FALLBACK: STK `mortgage`
+  AI_GENERATE: `Bank document with interest rate figures on a desk, shallow depth of field, warm indoor lighting, cinematic 9:16 vertical, photorealistic`
+
+  VO: "Rents in major cities rose 30% in three years"
+  PRIMARY: STK `apartment building city street`
+  FALLBACK: STK `apartment`
+  AI_GENERATE: `Exterior of a multi-storey apartment building at dusk, urban street, shallow depth of field, golden hour lighting, cinematic 9:16 vertical, photorealistic`
+
+  VO: "First-time buyers are getting squeezed out"
+  PRIMARY: STK `young couple house keys`
+  FALLBACK: STK `house keys`
+  AI_GENERATE: `Young couple standing in front of a suburban house holding keys, shallow depth of field, soft golden hour lighting, cinematic 9:16 vertical, photorealistic`
 
 ═══════════════════════════════════════
 RHYTHM RULE

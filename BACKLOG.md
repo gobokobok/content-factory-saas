@@ -839,7 +839,7 @@ Fix two root causes of audio/video desync: (1) word-count heuristics don't match
 ## [E5-S3] Visual-semantic matching improvement
 **Epic:** E5 — FFmpeg Execution + Drive Upload
 **Sprint:** 2
-**Status:** ready
+**Status:** in-progress
 **Points:** 4
 **Priority:** medium
 **Depends on:** E3-S3
