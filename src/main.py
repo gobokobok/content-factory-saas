@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 import src.clip_reranker as clip_reranker
 from src.config import Settings, get_settings
+from src.routes import alignment as alignment_router
 from src.routes import assets as assets_router
 from src.routes import ffmpeg_script as ffmpeg_script_router
 from src.routes import manifest as manifest_router
@@ -53,6 +54,7 @@ app.include_router(runs_router.router)
 app.include_router(storyboard_router.router)
 app.include_router(manifest_router.router)
 app.include_router(assets_router.router)
+app.include_router(alignment_router.router)
 app.include_router(ffmpeg_script_router.router)
 app.include_router(render_router.router)
 

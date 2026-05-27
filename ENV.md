@@ -66,6 +66,7 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | `REPLICATE_MAX_POLL_ATTEMPTS` | No | Max polling attempts before timeout. Default: `60`. |
 | `FFMPEG_TIMEOUT_SECONDS` | No | Max seconds to wait for FFmpeg subprocess to complete. Default: `300`. |
 | `CLIP_RERANK_ENABLED` | No | Enable CLIP semantic reranking of Pexels results (E4-S4). Loads a ~340MB model at startup. Default: `False`. |
+| `DEEPGRAM_API_KEY` | No* | Deepgram API key for word-level timestamp extraction (E5-S4). If unset, alignment step falls back to proportional distribution. |
 
 ---
 

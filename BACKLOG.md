@@ -995,7 +995,8 @@ Fix Pexels keyword mismatch by rewriting query generation strategy in storyboard
 ## [E5-S4] Word-level timestamp extraction via Deepgram
 **Epic:** E5 — FFmpeg Execution + Drive Upload
 **Sprint:** 3
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-05-27
 **Points:** 5
 **Priority:** medium
 **Depends on:** E5-S2

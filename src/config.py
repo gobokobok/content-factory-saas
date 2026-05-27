@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     # CLIP reranking (E4-S4)
     CLIP_RERANK_ENABLED: bool = False
 
+    # Deepgram alignment (E5-S4)
+    DEEPGRAM_API_KEY: str = ""
+
     @field_validator("LOG_LEVEL")
     @classmethod
     def validate_log_level(cls, v: str) -> str:

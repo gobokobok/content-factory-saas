@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [E5-S4] Word-level timestamp extraction via Deepgram
+**Completed:** 2026-05-27
+**Sprint:** 3
+**Handover:**
+- `src/alignment.py`: `align_audio(audio_url, api_key) → list[WordTimestamp]` — async; `POST` to `https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true` with `{"url": audio_url}`; raises `AlignmentError` on non-200 or network error. `_normalize_word(raw)` converts float seconds → int ms, strips punctuation via `[^\w\s]` regex. `proportional_fallback(text, total_duration_s)` distributes total_ms by char count per word; confidence=0.0 flags estimates.
+- `src/routes/alignment.py`: `POST /runs/{run_id}/alignment` — discovers voiceover in R2 via `list_keys(runs/{run_id}/voiceover/)` filtering `.mp3/.wav/.m4a`; generates 5-min presigned GET URL for Deepgram; falls back to `_proportional_from_storyboard` (reads `storyboard.json`) if key absent or API fails. Stores `alignment.json`: `{run_id, word_count, used_fallback, words: [...]}`. `update_run_log` wrapped in broad try/except — non-fatal for old runs without the "alignment" step key.
+- `src/models.py`: `WordTimestamp(word, start_ms, end_ms, confidence)` and `AlignmentResponse(status, alignment_key, word_count, used_fallback)` added. `PIPELINE_STEPS` gains `"alignment"` between `"asset_acquisition"` and `"ffmpeg_script"`.
+- `src/config.py`: `DEEPGRAM_API_KEY: str = ""` — empty default triggers proportional fallback path.
+- `src/exceptions.py`: `AlignmentError` added.
+- `ENV.md`: `DEEPGRAM_API_KEY` documented.
+- R2 key: `runs/{run_id}/alignment.json`. No new pip dependencies. D034 was pre-existing in DECISIONS.md.
+- `tests/test_alignment.py`: 37 new tests — unit for `_normalize_word`, `_extract_words`, `proportional_fallback`, `align_audio` (httpx mocked), 13 route integration tests. 431 total passing.
+- **Pipeline position:** Standalone step, not yet wired into UI or auto-triggered. E5-S5 will integrate.
+**Smoke test:** DEFERRED — requires Railway DEV with `DEEPGRAM_API_KEY` set + a run that has a voiceover file uploaded. Call `POST /runs/{run_id}/alignment`, confirm `alignment.json` appears in R2 with `used_fallback: false` and populated word-level entries.
+**Promoted to backlog:** none
+
+---
+
 ## [E4-S6] Subtitle style revision (Poppins Bold, TikTok-style) — Iteration 2
 **Completed:** 2026-05-27
 **Sprint:** 3

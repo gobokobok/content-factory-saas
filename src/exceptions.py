@@ -35,3 +35,7 @@ class RenderError(Exception):
 
 class CLIPError(Exception):
     """Raised when CLIP model encoding fails during Pexels result reranking."""
+
+
+class AlignmentError(Exception):
+    """Raised when Deepgram API call fails or returns an unexpected response."""

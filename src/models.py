@@ -11,6 +11,7 @@ PIPELINE_STEPS = (
     "storyboard",
     "asset_manifest",
     "asset_acquisition",
+    "alignment",
     "ffmpeg_script",
     "render",
 )
@@ -226,6 +227,24 @@ class RenderResponse(BaseModel):
     output_key: str
     duration_seconds: float
     exit_code: int
+
+
+class WordTimestamp(BaseModel):
+    """Word-level timestamp entry produced by Deepgram alignment or proportional fallback."""
+
+    word: str
+    start_ms: int
+    end_ms: int
+    confidence: float
+
+
+class AlignmentResponse(BaseModel):
+    """Response body for POST /runs/{run_id}/alignment."""
+
+    status: str
+    alignment_key: str
+    word_count: int
+    used_fallback: bool
 
 
 class VoiceoverUploadUrlRequest(BaseModel):
