@@ -46,7 +46,7 @@
 
 **Goal:** Watch a complete rendered video produced entirely from the browser UI. Add ms-precise audio sync and start model cost routing.
 **Status:** planned
-**Points:** 16
+**Points:** 19
 
 ---
 
@@ -55,11 +55,17 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | E6-S4 | End-to-end production smoke test | 2 | done |
+| E4-S6 | Subtitle style overhaul + voiceover line shortening | 3 | ready |
 | E5-S4 | WhisperX forced alignment for ms-precise scene timing | 8 | backlog |
 | E8-S1 | Haiku schema validator — storyboard.json | 3 | backlog |
 | E8-S3 | Haiku run log summarizer | 3 | backlog |
 
-**Dependency order:** E6-S4 first (validates DEV is healthy before building on it). E5-S4 and E8-S1 independent (run in parallel). E8-S3 independent of all. E8-S2 and E8-S4 deferred to Sprint 4 (E8-S2 needs E8-S1; E8-S4 needs E8-S1 + E8-S2 + E8-S3).
+**Dependency order:**
+1. E6-S4 ✅ DONE — validated DEV is healthy.
+2. E4-S6 — subtitle style overhaul; must complete before E5-S4 so WhisperX lands on the correct visual style.
+3. E5-S4 + E8-S1 — independent, run in parallel after E4-S6.
+4. E8-S3 — independent of all, can run any time.
+5. E4-S7 — backlog, not in this sprint; depends on E5-S4 word-level timestamps.
 
 ---
 

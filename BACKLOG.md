@@ -741,6 +741,94 @@ Add a second ASS subtitle track with full voiceover text as captions, displayed 
 
 ---
 
+## [E4-S6] Subtitle style overhaul + voiceover line shortening
+**Epic:** E4 — FFmpeg Script Generation
+**Sprint:** 3
+**Status:** ready
+**Points:** 3
+**Priority:** high
+**Depends on:** E4-S5
+
+### Goal
+Update ASS subtitle styling to mobile-first vertical short format, and enforce shorter voiceover_line output from the storyboard prompt so captions are readable at mobile screen size.
+
+### Acceptance Criteria
+- [ ] Voiceover captions: font Montserrat ExtraBold (fallback Arial Bold), 72pt, white text, black outline 6-8px, MarginV=250
+- [ ] Voiceover captions: max 2 lines, 4-6 words per line enforced at prompt level
+- [ ] On-screen keyword track: yellow color for keywords, slightly reduced size to avoid competing with voiceover captions
+- [ ] `src/storyboard.py` SYSTEM_PROMPT updated: `voiceover_line` must be 4-6 words max, not a full sentence
+- [ ] `docs/PROMPTS.md` synced to match `storyboard.py` changes, bumped to v0.6
+- [ ] Smoke test: render a short and confirm captions are readable at mobile screen size
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to read
+- `src/captions.py`
+- `src/storyboard.py`
+- `docs/PROMPTS.md`
+- DECISIONS.md
+
+### Files to modify
+- `src/captions.py` — ASS style block for `VoiceCaption` style
+- `src/storyboard.py` — SYSTEM_PROMPT `voiceover_line` field instruction
+- `docs/PROMPTS.md` — sync with storyboard.py changes, bump to v0.6
+
+### Notes
+- Montserrat ExtraBold must be available on Railway. If not, fall back to Arial Bold. Add a DECISIONS.md entry if a font download step is needed.
+- Do NOT chunk `voiceover_line` at render time — enforce short lines at generation time via prompt.
+- Must complete before E5-S4 so WhisperX lands on the correct visual style.
+
+### Handover
+_filled on completion_
+
+---
+
+## [E4-S7] Word-synced captions using WhisperX timestamps
+**Epic:** E4 — FFmpeg Script Generation
+**Sprint:** unassigned
+**Status:** backlog
+**Points:** 5
+**Priority:** normal
+**Depends on:** E5-S4
+
+### Goal
+Use word-level timestamps from WhisperX to display caption chunks exactly when spoken, with the active word highlighted in yellow. Implements the current high-retention short-form caption pattern.
+
+### Acceptance Criteria
+- [ ] Caption chunks advance word-by-word or phrase-by-phrase in sync with audio
+- [ ] Active word highlighted in yellow (ASS karaoke tag or per-word Dialogue events)
+- [ ] 4-6 words per caption chunk maximum
+- [ ] Replaces current proportional `voiceover_line` display
+- [ ] Smoke test: watch rendered video and confirm captions track speech accurately
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify (expected)
+- `src/captions.py` — new build function using WhisperX word timestamps
+- `src/ffmpeg_builder.py` — wire new caption builder into render chain
+
+### Notes
+- Depends on WhisperX word-level output format from E5-S4. Read E5-S4 DONE.md entry before starting.
+- ASS karaoke tags (`\k`) are one approach; per-word Dialogue events are simpler and more robust — evaluate during implementation.
+- E5-S4 must write `whisperx_alignment.json` to R2 with word-level timestamps for this story to consume.
+
+### Handover
+_filled on completion_
+
+---
+
 ## EPIC 5 — FFmpeg Execution + Drive Upload (Pipeline Step 6)
 Execute `ffmpeg_script.sh` on Railway, upload final video to Drive `/output`
 
@@ -929,6 +1017,8 @@ Replace proportional word-count redistribution with millisecond-precise scene bo
 - Run async or with extended timeout (FFMPEG_TIMEOUT_SECONDS pattern)
 - Word-to-scene mapping: split storyboard voiceover_line into words, find matching span in WhisperX output, take start of first word and end of last word as scene boundaries
 - DECISIONS.md D030: WhisperX chosen over proportional redistribution for ms-precise alignment; deferred until captions and zoom validated
+- Word-level timestamp output must be preserved in the run artifact (e.g. `whisperx_alignment.json` in R2) so E4-S7 can consume it without re-running alignment.
+- Output format decision (word timestamps schema) must be documented in DECISIONS.md as part of E5-S4 closure.
 
 ### Handover
 _filled on completion_

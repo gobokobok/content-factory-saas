@@ -7,14 +7,17 @@ _Entries added here when a story reaches Definition of Done._
 ## [E6-S4] End-to-end production smoke test
 **Completed:** 2026-05-27
 **Sprint:** 3
+**Points:** 2
 **Handover:**
 - Full pipeline validated on Railway DEV from browser UI: create run → storyboard → manifest → assets → ffmpeg-script → voiceover upload → render → watchable `final.mp4` in R2.
 - R2 CORS configured on `content-factory-dev` bucket — browser PUT for voiceover direct-upload confirmed working.
 - All deferred smoke tests from Sprint 1 and Sprint 2 validated in a single session.
-- No code changes. No bugs found.
-- DEV is confirmed healthy. E5-S4 (WhisperX alignment) and E8-S1 (Haiku schema validator) can proceed in parallel.
-**Smoke test:** PASSED — complete pipeline run from browser on Railway DEV; `final.mp4` watchable with both caption tracks and Ken Burns motion on static image scenes.
-**Promoted to backlog:** none
+**Bugs found:**
+- Pacing: visuals rush/lag behind VO — expected; deferred to E5-S4 (WhisperX forced alignment).
+- Subtitle size too small for mobile (42pt) — promoted to E4-S6 (style overhaul).
+- Voiceover lines too long for larger font — promoted to E4-S6 (prompt fix, enforce 4-6 words).
+**Smoke test:** PASSED — full pipeline ran end-to-end from browser UI; `final.mp4` rendered and watchable.
+**Promoted to backlog:** E4-S6 (subtitle style overhaul + voiceover line shortening)
 
 ---
 
