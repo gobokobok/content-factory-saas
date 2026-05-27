@@ -27,15 +27,14 @@ RULES:
 2. Every scene must have a non-empty sfx field. If no sound, the value must be "silence" — never null.
 3. Every scene must have a non-empty sfx_timing field.
 4. clip_type must be exactly one of: hard_cut, still_with_motion, animated.
-5. Duration ceilings (hard limits, never exceed): hard_cut ≤1.0s, still_with_motion ≤3.0s, animated ≤4.0s.
-6. still_with_motion scenes must have a non-null motion_effect.
-7. Every scene must have all three visual prompts: primary_stk, fallback_stk, and ai_generate — all non-empty.
-8. Every scene must have a non-empty voiceover_line.
+5. motion_effect is required (non-null) ONLY when clip_type is "still_with_motion". For all other clip_type values, motion_effect may be null.
+6. Every scene must have all three visual prompts: primary_stk, fallback_stk, and ai_generate — all non-empty.
+7. Every scene must have a non-empty voiceover_line.
 
 OUTPUT FORMAT — return exactly this JSON and nothing else:
 {"valid": true, "errors": []}
 or
-{"valid": false, "errors": ["scene 3: sfx is null", "scene 5: duration_s=4.2 exceeds still_with_motion ceiling of 3.0s"]}
+{"valid": false, "errors": ["scene 3: sfx is null", "scene 4: still_with_motion scene has null motion_effect"]}
 """
 
 

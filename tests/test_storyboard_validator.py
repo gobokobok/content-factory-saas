@@ -82,7 +82,7 @@ class TestValidateStoryboard:
     @pytest.mark.asyncio
     async def test_invalid_storyboard_returns_valid_false_with_errors(self):
         storyboard = _make_storyboard()
-        errors = ["scene 1: sfx is null", "scene 2: duration_s=4.5 exceeds hard_cut ceiling"]
+        errors = ["scene 1: sfx is null", "scene 2: still_with_motion scene has null motion_effect"]
         mock_message = _make_message({"valid": False, "errors": errors})
 
         with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
