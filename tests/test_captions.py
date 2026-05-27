@@ -359,31 +359,37 @@ def _word(word: str, start_ms: int, end_ms: int, confidence: float = 0.99) -> Wo
 
 
 class TestBuildWordSyncedCaptionsAss:
-    def test_empty_words_returns_header_only(self):
+    """build_word_synced_captions_ass takes list[list[WordTimestamp]] — one list per scene."""
+
+    def test_empty_scene_list_returns_header_only(self):
         result = build_word_synced_captions_ass([])
         assert "[Script Info]" in result
         assert "Dialogue" not in result
 
+    def test_scene_with_no_words_produces_no_dialogue(self):
+        result = build_word_synced_captions_ass([[]])
+        assert "Dialogue" not in result
+
     def test_uses_voicecaption_style(self):
-        result = build_word_synced_captions_ass([_word("hello", 0, 500)])
+        result = build_word_synced_captions_ass([[_word("hello", 0, 500)]])
         assert "Style: VoiceCaption" in result
 
     def test_single_word_produces_one_dialogue(self):
-        result = build_word_synced_captions_ass([_word("hello", 0, 500)])
+        result = build_word_synced_captions_ass([[_word("hello", 0, 500)]])
         assert result.count("Dialogue:") == 1
 
     def test_timing_derived_from_word_ms(self):
         # word at 1500ms → 2000ms → 0:00:01.50 → 0:00:02.00
-        result = build_word_synced_captions_ass([_word("rents", 1500, 2000)])
+        result = build_word_synced_captions_ass([[_word("rents", 1500, 2000)]])
         assert "0:00:01.50" in result
         assert "0:00:02.00" in result
 
     def test_active_word_highlighted_in_yellow(self):
-        result = build_word_synced_captions_ass([_word("crisis", 0, 600)])
+        result = build_word_synced_captions_ass([[_word("crisis", 0, 600)]])
         assert "{\\c&H0000FFFF&}crisis" in result
 
     def test_color_reset_to_white_after_active_word(self):
-        result = build_word_synced_captions_ass([_word("crisis", 0, 600)])
+        result = build_word_synced_captions_ass([[_word("crisis", 0, 600)]])
         assert "{\\c&H00FFFFFF&}" in result
 
     def test_5_word_chunk_produces_5_dialogue_events(self):
@@ -394,10 +400,10 @@ class TestBuildWordSyncedCaptionsAss:
             _word("four", 900, 1100),
             _word("five", 1200, 1400),
         ]
-        result = build_word_synced_captions_ass(words)
+        result = build_word_synced_captions_ass([words])
         assert result.count("Dialogue:") == 5
 
-    def test_6th_word_starts_new_chunk(self):
+    def test_6th_word_within_same_scene_starts_new_chunk(self):
         words = [
             _word("one", 0, 200),
             _word("two", 300, 500),
@@ -406,45 +412,59 @@ class TestBuildWordSyncedCaptionsAss:
             _word("five", 1200, 1400),
             _word("six", 1500, 1700),
         ]
-        result = build_word_synced_captions_ass(words)
-        # 6 words → 2 chunks: [one..five] and [six]
-        # "six" event should show only "six" (single-word chunk, active = yellow)
+        result = build_word_synced_captions_ass([words])
+        # 6 words in one scene → 2 chunks: [one..five] and [six]
         lines = [l for l in result.splitlines() if l.startswith("Dialogue:") and "six" in l]
         assert len(lines) == 1
         assert "one" not in lines[0]  # six is in its own chunk
 
-    def test_10_words_produce_10_dialogue_events(self):
+    def test_10_words_in_one_scene_produce_10_dialogue_events(self):
         words = [_word(str(i), i * 200, i * 200 + 150) for i in range(10)]
-        result = build_word_synced_captions_ass(words)
+        result = build_word_synced_captions_ass([words])
         assert result.count("Dialogue:") == 10
 
+    def test_words_from_different_scenes_never_share_a_chunk(self):
+        # Scene 1: 2 words, Scene 2: 3 words.
+        # Without scene grouping they'd merge into one 5-word chunk.
+        scene1 = [_word("one", 0, 200), _word("interruption", 250, 780)]
+        scene2 = [_word("23", 900, 1100), _word("minutes", 1200, 1500), _word("focus", 1600, 2000)]
+        result = build_word_synced_captions_ass([scene1, scene2])
+        # Event where "one" is highlighted must NOT contain "23"
+        one_events = [
+            l for l in result.splitlines()
+            if "Dialogue:" in l and "{\\c&H0000FFFF&}one" in l
+        ]
+        assert len(one_events) == 1
+        assert "23" not in one_events[0]
+
+    def test_two_scenes_produce_independent_event_sets(self):
+        scene1 = [_word("housing", 0, 500), _word("costs", 600, 900)]
+        scene2 = [_word("tripled", 1000, 1500)]
+        result = build_word_synced_captions_ass([scene1, scene2])
+        # 2 events from scene1 + 1 event from scene2 = 3 total
+        assert result.count("Dialogue:") == 3
+
     def test_first_word_in_chunk_has_no_white_prefix(self):
-        # First word in chunk has nothing before it; active tag should be at text start
         words = [_word("housing", 0, 500), _word("costs", 600, 900)]
-        result = build_word_synced_captions_ass(words)
+        result = build_word_synced_captions_ass([words])
         first_event = [l for l in result.splitlines() if "housing" in l and "Dialogue:" in l][0]
         # Dialogue format has two ",," separators; last split segment is the text
         text_part = first_event.split(",,")[-1]
         assert text_part.startswith("{\\c&H0000FFFF&}housing")
 
     def test_surrounding_words_appear_without_color_tags_before_active(self):
-        words = [
-            _word("one", 0, 200),
-            _word("two", 300, 500),
-            _word("three", 600, 800),
-        ]
-        result = build_word_synced_captions_ass(words)
-        # When "two" is active (second event), "one" precedes it without color tags
+        words = [_word("one", 0, 200), _word("two", 300, 500), _word("three", 600, 800)]
+        result = build_word_synced_captions_ass([words])
         two_event = [l for l in result.splitlines() if "Dialogue:" in l][1]
         text_part = two_event.split(",,")[-1]
         assert text_part.startswith("one {\\c&H0000FFFF&}two")
 
     def test_result_ends_with_newline(self):
-        result = build_word_synced_captions_ass([_word("x", 0, 100)])
+        result = build_word_synced_captions_ass([[_word("x", 0, 100)]])
         assert result.endswith("\n")
 
     def test_each_event_uses_voicecaption_style(self):
         words = [_word("a", 0, 200), _word("b", 300, 500)]
-        result = build_word_synced_captions_ass(words)
+        result = build_word_synced_captions_ass([words])
         dialogue_lines = [l for l in result.splitlines() if l.startswith("Dialogue:")]
         assert all("VoiceCaption" in l for l in dialogue_lines)

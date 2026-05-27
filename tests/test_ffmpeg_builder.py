@@ -12,7 +12,9 @@ from src.ffmpeg_builder import (
     _local_path,
     _parse_sfx_delay_ms,
     _zoompan_filter,
+    assign_words_to_scenes,
     build_ffmpeg_script,
+    compute_scene_durations_from_alignment,
     get_audio_duration,
     redistribute_scene_durations,
 )
@@ -822,6 +824,146 @@ class TestRedistributeSceneDurations:
         assert result[0].duration_s == pytest.approx(42.0, abs=0.05)
 
 
+# ── Unit: assign_words_to_scenes ─────────────────────────────────────────────
+
+
+def _wts(word: str, start_ms: int, end_ms: int) -> WordTimestamp:
+    return WordTimestamp(word=word, start_ms=start_ms, end_ms=end_ms, confidence=0.99)
+
+
+def _scene_with_vo(scene_id: str, voiceover_line: str, duration_s: float = 3.0) -> StoryboardScene:
+    s = _scene(scene_id, duration_s=duration_s)
+    return s.model_copy(update={"voiceover_line": voiceover_line})
+
+
+class TestAssignWordsToScenes:
+    def test_single_scene_all_words_match(self):
+        scenes = [_scene_with_vo("01", "housing costs tripled")]
+        words = [_wts("housing", 0, 500), _wts("costs", 600, 900), _wts("tripled", 1000, 1500)]
+        result = assign_words_to_scenes(scenes, words)
+        assert len(result) == 1
+        assert [w.word for w in result[0]] == ["housing", "costs", "tripled"]
+
+    def test_two_scenes_words_partitioned_correctly(self):
+        scenes = [
+            _scene_with_vo("01", "one interruption"),
+            _scene_with_vo("02", "twenty three minutes"),
+        ]
+        words = [
+            _wts("one", 0, 180), _wts("interruption", 250, 780),
+            _wts("twenty", 900, 1100), _wts("three", 1150, 1350), _wts("minutes", 1400, 1700),
+        ]
+        result = assign_words_to_scenes(scenes, words)
+        assert [w.word for w in result[0]] == ["one", "interruption"]
+        assert [w.word for w in result[1]] == ["twenty", "three", "minutes"]
+
+    def test_punctuation_stripped_for_matching(self):
+        scenes = [_scene_with_vo("01", "costs.")]
+        words = [_wts("costs", 0, 400)]
+        result = assign_words_to_scenes(scenes, words)
+        assert len(result[0]) == 1
+        assert result[0][0].word == "costs"
+
+    def test_case_insensitive_matching(self):
+        scenes = [_scene_with_vo("01", "Housing")]
+        words = [_wts("housing", 0, 500)]
+        result = assign_words_to_scenes(scenes, words)
+        assert len(result[0]) == 1
+
+    def test_unmatched_deepgram_words_skipped(self):
+        # Deepgram inserts a filler "um" not in the storyboard
+        scenes = [_scene_with_vo("01", "rents rising")]
+        words = [_wts("um", 0, 100), _wts("rents", 200, 600), _wts("rising", 700, 1100)]
+        result = assign_words_to_scenes(scenes, words)
+        assert [w.word for w in result[0]] == ["rents", "rising"]
+
+    def test_scene_with_no_matching_words_returns_empty_list(self):
+        scenes = [_scene_with_vo("01", "xyz abc")]
+        words = [_wts("housing", 0, 500), _wts("costs", 600, 900)]
+        result = assign_words_to_scenes(scenes, words)
+        assert result[0] == []
+
+    def test_empty_word_list_returns_empty_lists(self):
+        scenes = [_scene_with_vo("01", "housing costs")]
+        result = assign_words_to_scenes(scenes, [])
+        assert result == [[]]
+
+    def test_empty_scene_list_returns_empty_result(self):
+        words = [_wts("housing", 0, 500)]
+        result = assign_words_to_scenes([], words)
+        assert result == []
+
+    def test_result_length_equals_scene_count(self):
+        scenes = [_scene_with_vo("01", "a b"), _scene_with_vo("02", "c d"), _scene_with_vo("03", "e")]
+        words = [_wts("a", 0, 100), _wts("b", 200, 300), _wts("c", 400, 500),
+                 _wts("d", 600, 700), _wts("e", 800, 900)]
+        result = assign_words_to_scenes(scenes, words)
+        assert len(result) == 3
+
+    def test_word_objects_are_original_instances(self):
+        scenes = [_scene_with_vo("01", "housing")]
+        w = _wts("housing", 0, 500)
+        result = assign_words_to_scenes(scenes, [w])
+        assert result[0][0] is w
+
+
+# ── Unit: compute_scene_durations_from_alignment ─────────────────────────────
+
+
+class TestComputeSceneDurationsFromAlignment:
+    def test_mid_scene_duration_uses_next_scene_start(self):
+        # Scene 1 words start at 0ms; Scene 2 words start at 900ms (includes 120ms pause)
+        # Scene 1 duration should be 0.9s, not 0.78s (words-only span)
+        scenes = [_scene_with_vo("01", "one interruption", 3.0), _scene_with_vo("02", "next", 3.0)]
+        scene_words = [
+            [_wts("one", 0, 180), _wts("interruption", 250, 780)],
+            [_wts("next", 900, 1200)],
+        ]
+        result = compute_scene_durations_from_alignment(scenes, scene_words)
+        assert result[0].duration_s == pytest.approx(0.9, abs=0.001)
+
+    def test_last_scene_duration_uses_word_span(self):
+        # Last scene: words 1000ms–1500ms → duration = 0.5s
+        scenes = [_scene_with_vo("01", "final words", 3.0)]
+        scene_words = [[_wts("final", 1000, 1250), _wts("words", 1300, 1500)]]
+        result = compute_scene_durations_from_alignment(scenes, scene_words)
+        assert result[0].duration_s == pytest.approx(0.5, abs=0.001)
+
+    def test_pause_absorbed_into_preceding_scene(self):
+        # Scene 1 ends at 780ms but Scene 2 starts at 900ms — 120ms pause goes to Scene 1
+        scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]
+        scene_words = [[_wts("a", 0, 780)], [_wts("b", 900, 1200)]]
+        result = compute_scene_durations_from_alignment(scenes, scene_words)
+        assert result[0].duration_s == pytest.approx(0.9, abs=0.001)
+        # Last scene: word span = 300ms → floored to _MIN_SCENE_DURATION_S (0.5s)
+        assert result[1].duration_s == pytest.approx(0.5, abs=0.001)
+
+    def test_scene_with_no_matched_words_keeps_original_duration(self):
+        scenes = [_scene_with_vo("01", "unmatched xyz", 5.0)]
+        result = compute_scene_durations_from_alignment(scenes, [[]])
+        assert result[0].duration_s == 5.0
+
+    def test_minimum_duration_enforced(self):
+        # Two scenes very close together → gap rounds to < _MIN_SCENE_DURATION_S
+        scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]
+        scene_words = [[_wts("a", 0, 50)], [_wts("b", 100, 200)]]
+        result = compute_scene_durations_from_alignment(scenes, scene_words)
+        assert result[0].duration_s >= 0.5
+
+    def test_scene_ids_unchanged(self):
+        scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]
+        scene_words = [[_wts("a", 0, 400)], [_wts("b", 500, 900)]]
+        result = compute_scene_durations_from_alignment(scenes, scene_words)
+        assert result[0].scene == "01"
+        assert result[1].scene == "02"
+
+    def test_returns_new_instances_not_mutations(self):
+        scenes = [_scene_with_vo("01", "a", 5.0)]
+        result = compute_scene_durations_from_alignment(scenes, [[_wts("a", 0, 300)]])
+        assert result[0] is not scenes[0]
+        assert scenes[0].duration_s == 5.0
+
+
 # ── Unit: filter_complex concat replaces concat demuxer ──────────────────────
 
 
@@ -954,7 +1096,12 @@ class TestFfmpegScriptRouteVoiceover:
         assert "-t 3.0" in uploaded_script
 
     def test_alignment_words_produce_word_synced_captions(self, client):
-        """When alignment.json has words, uploaded script contains word-synced caption text."""
+        """When alignment.json has words matching voiceover_line, script has word-synced captions."""
+        # Storyboard voiceover_line must contain words that match the alignment data.
+        # _storyboard_data() has voiceover_line="Line one." which won't match "housing" etc.
+        # Use a variant where the voiceover matches the alignment words.
+        storyboard = _storyboard_data()
+        storyboard["scenes"][0]["voiceover_line"] = "housing costs tripled"
         alignment = {
             "run_id": self.RUN,
             "word_count": 3,
@@ -967,11 +1114,7 @@ class TestFfmpegScriptRouteVoiceover:
         }
         with patch("src.routes.ffmpeg_script.R2Client") as MockR2:
             mock_storage = MockR2.return_value
-            mock_storage.get_json.side_effect = [
-                _storyboard_data(),
-                _manifest_data(self.RUN),
-                alignment,
-            ]
+            mock_storage.get_json.side_effect = [storyboard, _manifest_data(self.RUN), alignment]
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
         assert resp.status_code == 200
@@ -1050,31 +1193,29 @@ class TestCaptionsInScript:
         assert "rents are rising fast" in script
         assert "RENTS ARE RISING FAST" not in script
 
-    def test_word_timestamps_produce_word_synced_captions(self):
-        """When word_timestamps supplied, caption text comes from word list not voiceover_line."""
+    def test_word_synced_captions_used_when_scene_words_provided(self):
+        """When scene_words supplied, caption text comes from word list not voiceover_line."""
         sb, mf = _simple_storyboard_and_manifest()
-        words = [WordTimestamp(word="crisis", start_ms=0, end_ms=600, confidence=0.99)]
-        script = build_ffmpeg_script(RUN_ID, sb, mf, word_timestamps=words)
+        sw = [[WordTimestamp(word="crisis", start_ms=0, end_ms=600, confidence=0.99)]]
+        script = build_ffmpeg_script(RUN_ID, sb, mf, scene_words=sw)
         assert "crisis" in script
-        # Yellow highlight tag present
         assert "{\\c&H0000FFFF&}crisis" in script
 
-    def test_no_word_timestamps_falls_back_to_scene_boundary_captions(self):
-        """Without word_timestamps, captions use voiceover_line from scenes."""
+    def test_no_scene_words_falls_back_to_scene_boundary_captions(self):
+        """Without scene_words, captions use voiceover_line from scenes."""
         scenes = [_scene("01", "hard_cut", 3.0)]
         scenes[0] = scenes[0].model_copy(update={"voiceover_line": "rents are soaring high"})
         sb = _storyboard(scenes)
         mf = _manifest([_entry("01", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "rents are soaring high" in script
-        # No yellow highlight tags in the fallback path
         assert "{\\c&H0000FFFF&}" not in script
 
-    def test_empty_word_timestamps_falls_back_to_scene_boundary_captions(self):
-        """Empty list treated as no alignment data — uses scene-boundary captions."""
+    def test_none_scene_words_falls_back_to_scene_boundary_captions(self):
+        """Explicit None uses scene-boundary captions."""
         scenes = [_scene("01", "hard_cut", 3.0)]
         scenes[0] = scenes[0].model_copy(update={"voiceover_line": "unique fallback line"})
         sb = _storyboard(scenes)
         mf = _manifest([_entry("01", "hard_cut")])
-        script = build_ffmpeg_script(RUN_ID, sb, mf, word_timestamps=[])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, scene_words=None)
         assert "unique fallback line" in script

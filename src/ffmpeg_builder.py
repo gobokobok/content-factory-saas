@@ -1,6 +1,7 @@
 """FFmpeg shell script generator — assembles storyboard assets into a 9:16 YouTube Short."""
 
 import json
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -61,18 +62,94 @@ def redistribute_scene_durations(
     ]
 
 
+def assign_words_to_scenes(
+    scenes: list[StoryboardScene],
+    words: list[WordTimestamp],
+) -> list[list[WordTimestamp]]:
+    """
+    Match Deepgram words to storyboard scenes via greedy sequential text matching.
+
+    For each scene, normalises voiceover_line words and scans forward through the
+    Deepgram word list for each match.  Unmatched Deepgram words are skipped
+    (handles smart_format normalisations and minor disfluencies).
+    Returns one list of WordTimestamp per scene; empty list for unmatched scenes.
+    """
+    def _norm(w: str) -> str:
+        return re.sub(r"[^\w]", "", w).lower()
+
+    norm_dg = [_norm(w.word) for w in words]
+    result: list[list[WordTimestamp]] = []
+    pos = 0
+
+    for scene in scenes:
+        vo_words = [_norm(w) for w in scene.voiceover_line.split() if _norm(w)]
+        matched: list[WordTimestamp] = []
+        for sw in vo_words:
+            search_pos = pos
+            while search_pos < len(norm_dg) and norm_dg[search_pos] != sw:
+                search_pos += 1
+            if search_pos < len(norm_dg):
+                matched.append(words[search_pos])
+                pos = search_pos + 1
+        result.append(matched)
+
+    return result
+
+
+def compute_scene_durations_from_alignment(
+    scenes: list[StoryboardScene],
+    scene_words: list[list[WordTimestamp]],
+) -> list[StoryboardScene]:
+    """
+    Return new StoryboardScene instances with duration_s derived from alignment timestamps.
+
+    For all scenes except the last:
+        duration_s = (first_word_start_ms of scene N+1 - first_word_start_ms of scene N) / 1000
+    For the last scene:
+        duration_s = (last_matched_word.end_ms - first_matched_word.start_ms) / 1000
+    Scenes with no matched words retain their original duration_s.
+    Each duration is floored at _MIN_SCENE_DURATION_S.
+    """
+    n = len(scenes)
+    first_start_ms: list[Optional[int]] = [
+        (scene_words[i][0].start_ms if i < len(scene_words) and scene_words[i] else None)
+        for i in range(n)
+    ]
+
+    updated: list[StoryboardScene] = []
+    for i, scene in enumerate(scenes):
+        words_i = scene_words[i] if i < len(scene_words) else []
+        if not words_i:
+            updated.append(scene)
+            continue
+
+        if i + 1 < n and first_start_ms[i + 1] is not None:
+            duration_s = (first_start_ms[i + 1] - words_i[0].start_ms) / 1000.0
+        else:
+            duration_s = (words_i[-1].end_ms - words_i[0].start_ms) / 1000.0
+
+        updated.append(
+            scene.model_copy(
+                update={"duration_s": max(_MIN_SCENE_DURATION_S, round(duration_s, 3))}
+            )
+        )
+
+    return updated
+
+
 def build_ffmpeg_script(
     run_id: str,
     storyboard: Storyboard,
     manifest: AssetManifest,
-    word_timestamps: Optional[list[WordTimestamp]] = None,
+    scene_words: Optional[list[list[WordTimestamp]]] = None,
 ) -> str:
     """
     Build a self-contained bash script that assembles the run's assets into a 9:16 Short.
 
-    When word_timestamps is provided (Deepgram alignment data), captions use word-level
-    sync with the active word highlighted in yellow.  Falls back to scene-boundary
-    captions derived from voiceover_line when no alignment data is available.
+    When scene_words is provided (Deepgram words grouped per scene), captions use
+    word-level sync with the active word highlighted in yellow and chunks that never
+    cross scene boundaries.  Falls back to scene-boundary captions derived from
+    voiceover_line when no alignment data is available.
     Raises FFmpegBuildError if any scene lacks an acquired asset (file_key is None).
     """
     entries: dict[str, ManifestEntry] = {e.scene_id: e for e in manifest.entries}
@@ -88,8 +165,8 @@ def build_ffmpeg_script(
     n_scenes = len(manifest.entries)
     # on-screen text overlay (build_ass / _write_captions_ass / _burn_captions) is
     # intentionally unwired — kept for future rewiring when revisited.
-    if word_timestamps:
-        captions_ass_content = build_word_synced_captions_ass(word_timestamps)
+    if scene_words:
+        captions_ass_content = build_word_synced_captions_ass(scene_words)
     else:
         captions_ass_content = build_captions_ass(storyboard.scenes)
 

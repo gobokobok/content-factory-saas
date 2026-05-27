@@ -3,13 +3,20 @@
 import logging
 import tempfile
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from src import pipeline
 from src.config import Settings, get_settings
 from src.exceptions import FFmpegBuildError, StorageError
-from src.ffmpeg_builder import build_ffmpeg_script, get_audio_duration, redistribute_scene_durations
+from src.ffmpeg_builder import (
+    assign_words_to_scenes,
+    build_ffmpeg_script,
+    compute_scene_durations_from_alignment,
+    get_audio_duration,
+    redistribute_scene_durations,
+)
 from src.models import AssetManifest, FFmpegScriptResponse, Storyboard, WordTimestamp
 from src.storage import R2Client
 
@@ -50,21 +57,27 @@ def generate_ffmpeg_script(
     storyboard = Storyboard.model_validate(storyboard_data)
     manifest = AssetManifest.model_validate(manifest_data)
 
-    # When alignment.json is present, storyboard durations already reflect real speech timing
-    # (set by Claude using Deepgram timestamps). Skip ffprobe redistribution and use
-    # word-level timestamps for caption sync.
+    # When alignment.json is present, compute scene durations from real word timestamps
+    # (inter-phrase pauses are preserved) and use word-level captions.
     alignment_key = f"runs/{run_id}/alignment.json"
     has_alignment = False
-    word_timestamps: list[WordTimestamp] = []
+    scene_words: Optional[list[list[WordTimestamp]]] = None
     try:
         alignment_data = storage.get_json(alignment_key)
         has_alignment = True
         word_timestamps = [WordTimestamp(**w) for w in alignment_data.get("words", [])]
-        logger.info(
-            "alignment.json present — skipping ffprobe redistribution: run=%s words=%d",
-            run_id,
-            len(word_timestamps),
-        )
+        if word_timestamps:
+            sw = assign_words_to_scenes(storyboard.scenes, word_timestamps)
+            updated_scenes = compute_scene_durations_from_alignment(storyboard.scenes, sw)
+            storyboard = storyboard.model_copy(update={"scenes": updated_scenes})
+            scene_words = sw
+            logger.info(
+                "Scene durations corrected from alignment: run=%s words=%d",
+                run_id,
+                len(word_timestamps),
+            )
+        else:
+            logger.info("alignment.json present but empty — skipping redistribution: run=%s", run_id)
     except StorageError:
         pass
 
@@ -95,7 +108,7 @@ def generate_ffmpeg_script(
             logger.warning("Voiceover pacing skipped for run=%s: %s", run_id, exc)
 
     try:
-        script = build_ffmpeg_script(run_id, storyboard, manifest, word_timestamps or None)
+        script = build_ffmpeg_script(run_id, storyboard, manifest, scene_words)
     except FFmpegBuildError as exc:
         logger.error("FFmpeg script build failed for run=%s: %s", run_id, exc)
         storage.update_run_log(run_id, "ffmpeg_script", "failed", error=str(exc))
