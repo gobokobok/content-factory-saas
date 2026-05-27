@@ -741,25 +741,29 @@ Add a second ASS subtitle track with full voiceover text as captions, displayed 
 
 ---
 
-## [E4-S6] Subtitle style overhaul + voiceover line shortening
+## [E4-S6] Subtitle style revision (Poppins Bold, TikTok-style)
 **Epic:** E4 — FFmpeg Script Generation
 **Sprint:** 3
-**Status:** done
-**Completed:** 2026-05-27
-**Points:** 3
+**Status:** ready
+**Points:** 2
 **Priority:** high
 **Depends on:** E4-S5
 
 ### Goal
-Update ASS subtitle styling to mobile-first vertical short format, and enforce shorter voiceover_line output from the storyboard prompt so captions are readable at mobile screen size.
+Replace current VoiceCaption ASS style with Poppins Bold, larger size, thick black stroke, subtle shadow — matching TikTok/Reels subtitle aesthetic shown in SampleDis reference.
 
 ### Acceptance Criteria
-- [ ] Voiceover captions: font Montserrat ExtraBold (fallback Arial Bold), 72pt, white text, black outline 6-8px, MarginV=250
-- [ ] Voiceover captions: max 2 lines, 4-6 words per line enforced at prompt level
-- [ ] On-screen keyword track: yellow color for keywords, slightly reduced size to avoid competing with voiceover captions
-- [ ] `src/storyboard.py` SYSTEM_PROMPT updated: `voiceover_line` must be 4-6 words max, not a full sentence
-- [ ] `docs/PROMPTS.md` synced to match `storyboard.py` changes, bumped to v0.6
-- [ ] Smoke test: render a short and confirm captions are readable at mobile screen size
+- [ ] Font: Poppins Bold (`fonts-poppins` apt package if available, else download `Poppins-Bold.ttf` into Dockerfile via `assets/fonts/`)
+- [ ] Size: 92pt
+- [ ] White text, black outline 8px, shadow 1px at offset (1,1)
+- [ ] MarginV: 250 (lower-middle, clear of platform UI)
+- [ ] MarginL/R: ASS defaults (~20px)
+- [ ] Alignment: center (Alignment=2)
+- [ ] Max 2 lines, natural wrap — no hard truncation in code
+- [ ] On-screen keyword track: revert to white if yellow caused visual competition with captions
+- [ ] Dockerfile: Poppins Bold installed via apt or manual `.ttf` copy
+- [ ] `DECISIONS.md`: D035 documenting font choice
+- [ ] Smoke test: render a short, confirm captions match SampleDis reference visually
 
 ### Definition of Done
 - [ ] All AC checked
@@ -771,26 +775,28 @@ Update ASS subtitle styling to mobile-first vertical short format, and enforce s
 
 ### Files to read
 - `src/captions.py`
-- `src/storyboard.py`
-- `docs/PROMPTS.md`
-- DECISIONS.md
+- `Dockerfile`
+- `DECISIONS.md`
 
 ### Files to modify
-- `src/captions.py` — ASS style block for `VoiceCaption` style
-- `src/storyboard.py` — SYSTEM_PROMPT `voiceover_line` field instruction
-- `docs/PROMPTS.md` — sync with storyboard.py changes, bump to v0.6
+- `src/captions.py` — VoiceCaption ASS style block
+- `Dockerfile` — Poppins Bold font install
+- `DECISIONS.md` — D035
 
 ### Notes
-- Montserrat ExtraBold must be available on Railway. If not, fall back to Arial Bold. Add a DECISIONS.md entry if a font download step is needed.
-- Do NOT chunk `voiceover_line` at render time — enforce short lines at generation time via prompt.
-- Must complete before E5-S4 so WhisperX lands on the correct visual style.
+- Poppins is available via `fonts-recommended` or direct `.ttf` download from Google Fonts. Prefer apt if package exists, otherwise ADD the `.ttf` file to the repo under `assets/fonts/` and COPY in Dockerfile.
+- Do NOT change `voiceover_line` length constraint (4–6 words max) — that stays from previous E4-S6 iteration.
+- ASS style parameters: `BorderStyle=1`, `Outline=8`, `Shadow=1`.
+- Previous E4-S6 iteration shipped: Montserrat ExtraBold 72pt, yellow keyword track, v0.6 prompt. Those prompt changes remain; only the ASS style block changes here.
+
+### Iteration 1 handover (2026-05-27 — superseded by this story)
+- `src/captions.py`: VoiceCaption → Montserrat ExtraBold, 72pt, outline 6px, MarginV=250. Default → 56pt yellow.
+- `src/storyboard.py` + `docs/PROMPTS.md`: bumped to v0.6, `voiceover_line` capped at 4–6 words.
+- `Dockerfile`: `fonts-montserrat` added.
+- `DECISIONS.md`: D033 added.
 
 ### Handover
-- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style updated — `Montserrat ExtraBold`, 72pt, white, black outline 6px, shadow 0, MarginV=250. `_ASS_HEADER` Default style (on-screen keywords) updated — 56pt, yellow (`&H0000FFFF` in ASS BGR), outline 3px, shadow 0, alignment=5 (center-screen) unchanged.
-- `src/storyboard.py`: `SYSTEM_PROMPT` `voiceover_line` field description updated to "4–6 words maximum. Short phrase, not a full sentence. Split longer VO lines into separate scenes." Module docstring and `generate_storyboard` docstring bumped to v0.6.
-- `docs/PROMPTS.md`: Bumped to v0.6, changelog entry added (2026-05-27), prompt block `voiceover_line` field synced.
-- `Dockerfile`: `fonts-montserrat` added to apt-get install alongside `fonts-open-sans`.
-- `DECISIONS.md`: D033 added — documents Montserrat ExtraBold font choice, apt package, fallback plan.
+_filled on completion_
 - `tests/test_captions.py`: Updated 2 assertions (`test_style_definition_present`, `test_voicecaption_style_present`, `test_margin_v_is_250`); added 3 new tests (`test_default_style_is_yellow`, `test_default_style_outline_is_3`, `test_voicecaption_outline_is_6`). 393 total tests passing.
 - **Smoke test required:** render a Short on DEV and confirm captions are readable at mobile screen size.
 
@@ -1027,6 +1033,65 @@ Call Deepgram Nova-2 API to extract word-level timestamps from the uploaded voic
 - Proportional fallback must use character-count weighting, not equal distribution
 - Word-level output must be stored in R2 so E4-S7 can consume without re-calling API
 - See D034 in DECISIONS.md for provider rationale
+- Pipeline order change (E5-S5) must be completed before E5-S4 is wired into the main pipeline. E5-S4 can be built and tested in isolation first, then integrated by E5-S5.
+
+### Handover
+_filled on completion_
+
+---
+
+## [E5-S5] Pipeline reorder: VO-first with Deepgram-driven storyboard
+**Epic:** E5 — FFmpeg Execution + Drive Upload
+**Sprint:** unassigned
+**Status:** backlog
+**Points:** 8
+**Priority:** critical — eliminates the entire class of timing bugs
+**Depends on:** E5-S4
+
+### Goal
+Reorder the pipeline so voiceover upload and Deepgram word-level alignment happen BEFORE storyboard generation. Storyboard prompt receives actual word timestamps and builds scenes around real audio timing. Eliminates guessed scene durations permanently.
+
+### Current vs target pipeline order
+
+**Current:**
+`POST /runs → storyboard → manifest → assets → ffmpeg-script → [VO upload] → render`
+
+**Target:**
+`POST /runs → VO upload → alignment (Deepgram) → storyboard (timestamp-aware) → manifest → assets → ffmpeg-script → render`
+
+### Acceptance Criteria
+- [ ] Voiceover upload (presigned PUT) moved to step 1 immediately after run creation
+- [ ] `POST /runs/{id}/alignment` called before storyboard — stores `alignment.json` in R2
+- [ ] Storyboard system prompt updated: receives word timestamps, assigns each scene a real `start_ms` and `end_ms` from alignment data
+- [ ] `scene_duration_ms` in storyboard output derived from alignment, not Claude guess
+- [ ] Pacing calibration step (E5-S2 ffprobe redistribution) disabled or made no-op when alignment data is present
+- [ ] Operator UI step order updated to reflect new flow
+- [ ] Existing runs without `alignment.json` fall back to legacy proportional timing (backward compat)
+- [ ] End-to-end smoke test: 20-second VO produces a 20-second video with scenes that match speech timing
+- [ ] `run_log.json` shows all steps complete in new order
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify (expected)
+- `src/main.py` — reorder endpoints, add alignment step before storyboard
+- `src/storyboard.py` — SYSTEM_PROMPT updated to accept and use word timestamps
+- `src/ffmpeg_builder.py` — read `alignment.json` when present, skip proportional redistribution
+- `src/pacing.py` (or equivalent) — make proportional redistribution conditional
+- `docs/PROMPTS.md` — sync storyboard prompt, bump to v0.7
+- Operator UI — reorder step buttons to match new pipeline
+- `DECISIONS.md` — D036
+
+### Notes
+- This story makes E4-S7 (word-synced captions) straightforward — `alignment.json` is already in R2 at render time.
+- Backward compatibility for old runs is required — check for `alignment.json` presence before deciding timing strategy.
+- The storyboard prompt change is the highest-risk part — few-shot examples must show timestamp-aware scene construction.
+- See D036 in DECISIONS.md for rationale.
 
 ### Handover
 _filled on completion_

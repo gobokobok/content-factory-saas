@@ -5,6 +5,32 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D036 — VO-first pipeline: alignment before storyboard
+**Date:** 2026-05-27
+**Decision:** Reorder pipeline to run voiceover upload and Deepgram alignment before storyboard generation.
+**Rationale:**
+- Smoke test revealed 20s VO vs 16s storyboard mismatch — guessed scene durations are unreliable
+- Real word timestamps from Deepgram make scene timing deterministic
+- Eliminates the entire class of pacing bugs permanently
+- Proportional redistribution (E5-S2) becomes a fallback only, not the primary timing source
+**Impact:** Pipeline UX changes — users upload VO before seeing storyboard. This is the correct product flow.
+**Implemented by:** E5-S5
+
+---
+
+## D035 — Poppins Bold as subtitle font (replaces Montserrat ExtraBold)
+**Date:** 2026-05-27
+**Decision:** Use Poppins Bold for `VoiceCaption` ASS subtitle style.
+**Rationale:**
+- TikTok Sans not available outside TikTok ecosystem
+- Poppins Bold is the closest widely-available match: rounded, bold, high legibility on video
+- Available via Google Fonts; will be bundled in repo under `assets/fonts/` and COPYed in Dockerfile if apt package unavailable
+- Matches SampleDis reference visual target approved by product owner
+**Supersedes:** D033 (Montserrat ExtraBold)
+**Implemented by:** E4-S6 (iteration 2)
+
+---
+
 ## D034 — Deepgram Nova-2 over WhisperX for word-level timestamps
 **Date:** 2026-05-27
 **Decision:** Use Deepgram Nova-2 API for word-level timestamp extraction instead of WhisperX.

@@ -46,7 +46,7 @@
 
 **Goal:** Watch a complete rendered video produced entirely from the browser UI. Add ms-precise audio sync and start model cost routing.
 **Status:** planned
-**Points:** 19
+**Points:** 18
 
 ---
 
@@ -55,23 +55,25 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | E6-S4 | End-to-end production smoke test | 2 | done |
-| E4-S6 | Subtitle style overhaul + voiceover line shortening | 3 | done |
+| E4-S6 | Subtitle style revision (Poppins Bold, TikTok-style) | 2 | ready |
 | E5-S4 | Word-level timestamp extraction via Deepgram | 5 | ready |
 | E8-S1 | Haiku schema validator — storyboard.json | 3 | backlog |
 | E8-S3 | Haiku run log summarizer | 3 | backlog |
+| E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | backlog |
 
 **Dependency order:**
 1. E6-S4 ✅ DONE — validated DEV is healthy.
-2. E4-S6 ✅ DONE — subtitle style overhaul complete.
-3. E5-S4 + E8-S1 — independent, run in parallel after E4-S6.
-4. E8-S3 — independent of all, can run any time.
-5. E4-S7 — backlog, not in this sprint; depends on E5-S4 word-level timestamps.
+2. E4-S6 — subtitle style revision (Poppins Bold); ready now.
+3. E5-S4 — Deepgram alignment service (standalone, no pipeline integration yet); ready now, parallel with E4-S6.
+4. E8-S1 + E8-S3 — independent, can run any time.
+5. E5-S5 — pipeline reorder; depends on E5-S4 complete; likely Sprint 4.
+6. E4-S7 — word-synced captions; depends on E5-S5 complete; Sprint 4+.
 
 ---
 
 ## Sprint 3 Definition of Done
 - [ ] Full pipeline run completed from browser UI — `final.mp4` watchable in browser
-- [ ] Video cuts are ms-precise (WhisperX alignment replaces proportional redistribution)
+- [ ] Video cuts are ms-precise (Deepgram alignment replaces proportional redistribution)
 - [ ] Storyboard JSON validated by Haiku before downstream steps run
 - [ ] Operator UI shows human-readable step summaries (Haiku run log summarizer)
 - [ ] All stories have passing tests and green CI
