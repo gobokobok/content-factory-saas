@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from src import pipeline
 from src.acquisition import MIN_ACQUIRED_FOR_COMPLETE, run_acquisition
 from src.config import Settings, get_settings
 from src.exceptions import StorageError
@@ -62,6 +63,7 @@ def acquire_assets(
     except Exception as exc:
         logger.error("Acquisition loop failed unexpectedly: run=%s error=%s", run_id, exc)
         storage.update_run_log(run_id, "asset_acquisition", "failed", error=str(exc))
+        pipeline.summarize_step(run_id, storage, settings)
         raise HTTPException(status_code=500, detail=str(exc))
 
     try:
@@ -69,12 +71,14 @@ def acquire_assets(
     except StorageError as exc:
         logger.error("Failed to write updated manifest: run=%s error=%s", run_id, exc)
         storage.update_run_log(run_id, "asset_acquisition", "failed", error=str(exc))
+        pipeline.summarize_step(run_id, storage, settings)
         raise HTTPException(status_code=500, detail=str(exc))
 
     step_status = "complete" if summary["acquired"] >= MIN_ACQUIRED_FOR_COMPLETE else "failed"
     storage.update_run_log(
         run_id, "asset_acquisition", step_status, output_url=manifest_key
     )
+    pipeline.summarize_step(run_id, storage, settings)
 
     return AcquisitionResponse(
         status=step_status,

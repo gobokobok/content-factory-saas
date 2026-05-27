@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from src import pipeline
 from src.config import Settings, get_settings
 from src.exceptions import (
     StoryboardAPIError,
@@ -44,6 +45,7 @@ async def create_storyboard(
             logger.error(
                 "Failed to write run_log failure for run '%s': %s", run_id, storage_exc
             )
+        pipeline.summarize_step(run_id, storage, settings)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     storyboard_key = f"runs/{run_id}/storyboard.json"
@@ -64,5 +66,7 @@ async def create_storyboard(
     except StorageError as exc:
         logger.error("Storage error after storyboard generation for run '%s': %s", run_id, exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    pipeline.summarize_step(run_id, storage, settings)
 
     return StoryboardResponse(status="complete", storyboard_key=storyboard_key)

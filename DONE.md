@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [E8-S3] Haiku run log summarizer
+**Completed:** 2026-05-27
+**Sprint:** 3
+**Handover:**
+- `src/log_summarizer.py`: `generate_run_log_summary(run_log_data, api_key) → str` — calls Haiku (`claude-haiku-4-5-20251001`), max_tokens=512. `write_run_log_summary(run_id, storage, api_key) → None` — reads `run_log.json`, calls Haiku, writes `run_log.txt` to R2; catches all exceptions (never raises).
+- `src/pipeline.py`: `summarize_step(run_id, storage, settings) → None` — thin wrapper. All 6 pipeline routes import it and call it after every `update_run_log` (complete and failed paths).
+- `src/routes/runs.py`: new `GET /runs/{run_id}/run-log-txt` → `RunLogTxtResponse(content, available)`. Returns `available=False` if file not yet written.
+- `src/models.py`: `RunLogTxtResponse` added.
+- `src/static/pipeline.html`: Run Log collapsible section below step rows. Fetches on `showDetail` and after every step completion.
+- `tests/conftest.py`: autouse fixture patches `src.log_summarizer.Anthropic` globally — prevents real HTTP calls in all tests.
+- `tests/test_manifest.py` + `tests/test_alignment.py`: two `get_json.assert_called_once_with` → `assert_any_call` (summarizer adds a second `get_json` call).
+- R2 key: `runs/{run_id}/run_log.txt`. No new ENV vars. No new pip deps.
+- 462 total tests passing (18 new).
+**Smoke test:** POST a pipeline step on DEV — confirm `run_log.txt` appears in R2 with Haiku-generated step summary. Open run detail in UI and verify Run Log section appears and is collapsible.
+**Promoted to backlog:** none
+
+---
+
 ## [E8-S1] Haiku schema validator — storyboard.json
 **Completed:** 2026-05-27
 **Sprint:** 3

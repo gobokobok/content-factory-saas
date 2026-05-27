@@ -8,6 +8,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from src import pipeline
 from src.alignment import AlignmentError, align_audio, proportional_fallback
 from src.config import Settings, get_settings
 from src.exceptions import StorageError
@@ -101,6 +102,7 @@ async def create_alignment(
     except Exception as exc:
         # Non-fatal: run_log update may fail for runs created before alignment step was added
         logger.warning("Could not update run_log alignment step: run_id=%s error=%s", run_id, exc)
+    pipeline.summarize_step(run_id, storage, settings)
 
     return AlignmentResponse(
         status="complete",

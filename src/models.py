@@ -271,3 +271,10 @@ class VoiceoverUploadUrlResponse(BaseModel):
 
     upload_url: str
     key: str
+
+
+class RunLogTxtResponse(BaseModel):
+    """Response body for GET /runs/{run_id}/run-log-txt."""
+
+    content: str
+    available: bool

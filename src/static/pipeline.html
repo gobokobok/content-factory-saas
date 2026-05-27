@@ -176,6 +176,37 @@
     .script-panel-inner textarea { min-height: 80px; margin-bottom: 0.5rem; }
     .script-panel-inner .form-actions { margin-top: 0.3rem; }
 
+    /* ── Run Log section ─────────────────────────────────────────── */
+    .run-log-section {
+      border: 1px solid #222;
+      margin-top: 1rem;
+    }
+    .run-log-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.8rem;
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+    .run-log-header:hover { color: #e5e5e5; }
+    .run-log-toggle { font-size: 0.7rem; }
+    .run-log-body {
+      border-top: 1px solid #1e1e1e;
+      padding: 0.8rem;
+      display: none;
+    }
+    .run-log-body.open { display: block; }
+    pre.run-log-pre {
+      margin: 0;
+      font-size: 0.82rem;
+      color: #9ca3af;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
     /* ── Misc ────────────────────────────────────────────────────── */
     .muted      { color: #6b7280; font-size: 0.82rem; }
     .error-text { color: #ef4444; font-size: 0.82rem; }
@@ -223,6 +254,16 @@
       <h2 id="detail-run-id"></h2>
     </div>
     <div id="step-rows"></div>
+
+    <div class="run-log-section" id="run-log-section" style="display:none">
+      <div class="run-log-header" onclick="toggleRunLog()">
+        <span id="run-log-toggle">▶</span>
+        <span>Run Log</span>
+      </div>
+      <div class="run-log-body" id="run-log-body">
+        <pre class="run-log-pre" id="run-log-pre"></pre>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -348,6 +389,11 @@
       document.getElementById('view-detail').style.display = '';
       currentRunId = runId;
       stepRunning  = {};
+      // Reset run log panel for the new run
+      document.getElementById('run-log-section').style.display = 'none';
+      document.getElementById('run-log-body').classList.remove('open');
+      document.getElementById('run-log-toggle').textContent = '▶';
+      document.getElementById('run-log-pre').textContent = '';
 
       document.getElementById('detail-run-id').textContent = runId;
 
@@ -361,6 +407,7 @@
       }
 
       renderAllRows();
+      refreshRunLog();
     }
 
     // ─── Run List ─────────────────────────────────────────────────────────────
@@ -530,6 +577,7 @@
       } finally {
         stepRunning[stepKey] = false;
         updateStepRow(stepKey, currentSteps[stepKey], false);
+        refreshRunLog();
       }
     }
 
@@ -677,6 +725,26 @@
         statusEl.style.color = '#ef4444';
         btn.disabled = false;
       }
+    }
+
+    // ─── Run Log ──────────────────────────────────────────────────────────────
+    function toggleRunLog() {
+      const body   = document.getElementById('run-log-body');
+      const toggle = document.getElementById('run-log-toggle');
+      const open   = body.classList.toggle('open');
+      toggle.textContent = open ? '▼' : '▶';
+    }
+
+    async function refreshRunLog() {
+      if (!currentRunId) return;
+      try {
+        const res  = await fetch(`/runs/${currentRunId}/run-log-txt`);
+        const data = await res.json();
+        if (!data.available || !data.content) return;
+        const section = document.getElementById('run-log-section');
+        section.style.display = '';
+        document.getElementById('run-log-pre').textContent = data.content;
+      } catch (_) {}
     }
 
     // ─── Init ─────────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from src import pipeline
 from src.config import Settings, get_settings
 from src.exceptions import StorageError
 from src.models import AssetManifest, RenderResponse
@@ -48,5 +49,6 @@ def render(run_id: str, settings: Settings = Depends(get_settings)) -> RenderRes
         output_url=result["output_key"] or None,
         error=error,
     )
+    pipeline.summarize_step(run_id, storage, settings)
 
     return RenderResponse(**result)

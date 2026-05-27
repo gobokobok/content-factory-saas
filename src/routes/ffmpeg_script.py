@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from src import pipeline
 from src.config import Settings, get_settings
 from src.exceptions import FFmpegBuildError, StorageError
 from src.ffmpeg_builder import build_ffmpeg_script, get_audio_duration, redistribute_scene_durations
@@ -77,6 +78,7 @@ def generate_ffmpeg_script(
     except FFmpegBuildError as exc:
         logger.error("FFmpeg script build failed for run=%s: %s", run_id, exc)
         storage.update_run_log(run_id, "ffmpeg_script", "failed", error=str(exc))
+        pipeline.summarize_step(run_id, storage, settings)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     script_key = f"runs/{run_id}/ffmpeg_script.sh"
@@ -85,8 +87,10 @@ def generate_ffmpeg_script(
     except StorageError as exc:
         logger.error("Failed to upload ffmpeg_script.sh for run=%s: %s", run_id, exc)
         storage.update_run_log(run_id, "ffmpeg_script", "failed", error=str(exc))
+        pipeline.summarize_step(run_id, storage, settings)
         raise HTTPException(status_code=500, detail="Failed to upload ffmpeg_script.sh") from exc
 
     storage.update_run_log(run_id, "ffmpeg_script", "complete", output_url=script_key)
+    pipeline.summarize_step(run_id, storage, settings)
     logger.info("ffmpeg_script.sh generated: run=%s key=%s", run_id, script_key)
     return FFmpegScriptResponse(status="complete", script_key=script_key)

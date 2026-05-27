@@ -258,7 +258,7 @@ class TestCreateManifestRoute:
     def test_storyboard_read_from_correct_key(self, client, mock_r2):
         """R2Client.get_json is called with the run's storyboard.json key."""
         client.post(f"/runs/{RUN_ID}/manifest")
-        mock_r2.get_json.assert_called_once_with(STORYBOARD_KEY)
+        mock_r2.get_json.assert_any_call(STORYBOARD_KEY)
 
     def test_manifest_uploaded_to_correct_key(self, client, mock_r2):
         """R2Client.upload_json is called with the run's asset_manifest.json key."""

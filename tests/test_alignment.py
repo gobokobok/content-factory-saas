@@ -451,7 +451,7 @@ class TestAlignmentRouteFallback:
         ):
             client.post(f"/runs/{RUN_ID}/alignment")
 
-        mock_storage.get_json.assert_called_once_with(f"runs/{RUN_ID}/storyboard.json")
+        mock_storage.get_json.assert_any_call(f"runs/{RUN_ID}/storyboard.json")
 
 
 class TestAlignmentRouteErrors:

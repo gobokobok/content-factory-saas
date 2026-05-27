@@ -12,6 +12,7 @@ from src.models import (
     RunCreateRequest,
     RunCreateResponse,
     RunListResponse,
+    RunLogTxtResponse,
     RunSummary,
     VoiceoverUploadUrlRequest,
     VoiceoverUploadUrlResponse,
@@ -84,6 +85,20 @@ def voiceover_upload_url(
         logger.error("Storage error generating voiceover upload URL for '%s': %s", run_id, exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     return VoiceoverUploadUrlResponse(upload_url=url, key=key)
+
+
+@router.get("/runs/{run_id}/run-log-txt", response_model=RunLogTxtResponse)
+def get_run_log_txt(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> RunLogTxtResponse:
+    """Return the Haiku-generated run_log.txt for a run. Returns available=False if not yet written."""
+    client = _make_r2_client(settings)
+    try:
+        text = client.get_bytes(f"runs/{run_id}/run_log.txt").decode("utf-8")
+        return RunLogTxtResponse(content=text, available=True)
+    except StorageError:
+        return RunLogTxtResponse(content="", available=False)
 
 
 @router.get("/runs/{run_id}/artifact/{step}", response_model=ArtifactResponse)

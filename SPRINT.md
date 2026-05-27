@@ -58,7 +58,7 @@
 | E4-S6 | Subtitle style revision (Poppins Bold, TikTok-style) | 2 | done |
 | E5-S4 | Word-level timestamp extraction via Deepgram | 5 | done |
 | E8-S1 | Haiku schema validator — storyboard.json | 3 | done |
-| E8-S3 | Haiku run log summarizer | 3 | backlog |
+| E8-S3 | Haiku run log summarizer | 3 | done |
 | E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | backlog |
 
 **Dependency order:**

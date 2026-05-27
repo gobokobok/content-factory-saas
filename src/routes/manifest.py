@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from src import pipeline
 from src.config import Settings, get_settings
 from src.exceptions import ManifestError, StorageError
 from src.manifest import build_manifest, clip_type_breakdown
@@ -45,6 +46,7 @@ def create_manifest(
             logger.error(
                 "Failed to write run_log failure for run '%s': %s", run_id, storage_exc
             )
+        pipeline.summarize_step(run_id, storage, settings)
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     manifest_key = f"runs/{run_id}/asset_manifest.json"
@@ -56,6 +58,8 @@ def create_manifest(
     except StorageError as exc:
         logger.error("Storage error writing manifest for run '%s': %s", run_id, exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    pipeline.summarize_step(run_id, storage, settings)
 
     breakdown = clip_type_breakdown(manifest)
     return ManifestResponse(

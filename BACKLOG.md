@@ -1503,8 +1503,9 @@ _filled on completion_
 
 ## [E8-S3] Haiku run log summarizer
 **Epic:** E8 — Cost Optimization
-**Sprint:** unassigned
-**Status:** in-progress
+**Sprint:** 3
+**Status:** done
+**Completed:** 2026-05-27
 **Priority:** medium
 **Depends on:** E1-S2, E6-S1
 
@@ -1541,7 +1542,17 @@ Complete E1-S3 on DEV — verify `run_log.txt` appears in Drive with readable st
 - `src/pipeline.py` — call summarizer after each step
 
 ### Handover
-_filled on completion_
+- `src/log_summarizer.py`: `generate_run_log_summary(run_log_data, api_key) → str` — calls Haiku (`claude-haiku-4-5-20251001`), max_tokens=512, returns stripped summary text. `write_run_log_summary(run_id, storage, api_key) → None` — reads `run_log.json`, calls Haiku, writes `run_log.txt` to R2; catches all exceptions (both `StorageError` and generic) and logs warnings — never raises.
+- `src/pipeline.py`: `summarize_step(run_id, storage, settings) → None` — thin wrapper calling `write_run_log_summary`. Routes import and call this after every `storage.update_run_log(...)` (both complete and failed paths).
+- `src/routes/{storyboard,manifest,assets,ffmpeg_script,render,alignment}.py` — each imports `from src import pipeline` and calls `pipeline.summarize_step(run_id, storage, settings)` after every `update_run_log` call (including failure paths before `raise HTTPException`).
+- `src/routes/runs.py` — new `GET /runs/{run_id}/run-log-txt` endpoint returns `RunLogTxtResponse(content, available)`. Returns `available=False` and empty content if `run_log.txt` is not yet written (StorageError swallowed).
+- `src/models.py` — `RunLogTxtResponse(content: str, available: bool)` added.
+- `src/static/pipeline.html` — Run Log section added below step rows: collapsible panel showing `run_log.txt` content. Fetches `GET /runs/{run_id}/run-log-txt` on `showDetail` and after every `executeStep` completion. Panel hidden until first summary is available.
+- `tests/test_log_summarizer.py` — 18 new tests: `TestGenerateRunLogSummary` (6), `TestWriteRunLogSummary` (7), `TestSummarizeStep` (2), `TestGetRunLogTxt` (3).
+- `tests/conftest.py` — new autouse fixture `mock_anthropic_for_summarizer` patches `src.log_summarizer.Anthropic` globally to prevent real HTTP calls in all tests.
+- `tests/test_manifest.py` and `tests/test_alignment.py` — two `get_json.assert_called_once_with` assertions updated to `assert_any_call` (summarizer adds a second `get_json` call for `run_log.json`).
+- R2 key: `runs/{run_id}/run_log.txt`. No new ENV vars. No new pip dependencies (anthropic already present).
+- 462 total tests passing (18 new).
 
 ---
 
