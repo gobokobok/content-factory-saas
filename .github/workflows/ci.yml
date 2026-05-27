@@ -24,12 +24,14 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests
-        run: pytest tests/ -m "not integration" --tb=short -v
+        run: python -m pytest tests/ -m "not integration" --tb=short -v
         env:
-          ENVIRONMENT: test
+          ENVIRONMENT: dev
           ANTHROPIC_API_KEY: test-key
-          GOOGLE_SERVICE_ACCOUNT_JSON: dGVzdA==
-          GOOGLE_DRIVE_ROOT_ID: test-folder-id
+          R2_ACCOUNT_ID: test-account
+          R2_ACCESS_KEY_ID: test-key-id
+          R2_SECRET_ACCESS_KEY: test-secret
+          R2_BUCKET_NAME: test-bucket
           PEXELS_API_KEY: test-key
           REPLICATE_API_TOKEN: test-token
           FREESOUND_API_KEY: test-key
