@@ -243,3 +243,62 @@ class TestValidateStoryboard:
             result = await validate_storyboard(storyboard, "test-key")
 
         assert isinstance(result, ValidationResult)
+
+    @pytest.mark.asyncio
+    async def test_fenced_json_response_parsed_correctly(self):
+        """Haiku sometimes wraps its JSON reply in ```json ... ``` fences."""
+        storyboard = _make_storyboard()
+        fenced = '```json\n{"valid": true, "errors": []}\n```'
+        msg = MagicMock()
+        msg.content = [MagicMock(text=fenced)]
+        msg.usage.input_tokens = 100
+        msg.usage.output_tokens = 10
+
+        with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(return_value=msg)
+
+            result = await validate_storyboard(storyboard, "test-key")
+
+        assert result.valid is True
+        assert result.errors == []
+
+    @pytest.mark.asyncio
+    async def test_plain_fenced_response_parsed_correctly(self):
+        """Haiku sometimes uses ``` without a language tag."""
+        storyboard = _make_storyboard()
+        fenced = '```\n{"valid": false, "errors": ["scene 1: sfx is null"]}\n```'
+        msg = MagicMock()
+        msg.content = [MagicMock(text=fenced)]
+        msg.usage.input_tokens = 100
+        msg.usage.output_tokens = 10
+
+        with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(return_value=msg)
+
+            result = await validate_storyboard(storyboard, "test-key")
+
+        assert result.valid is False
+        assert result.errors == ["scene 1: sfx is null"]
+
+    @pytest.mark.asyncio
+    async def test_fenced_response_with_extra_whitespace_parsed_correctly(self):
+        """Fence stripping handles trailing newlines and spaces around the JSON."""
+        storyboard = _make_storyboard()
+        fenced = '```json\n  {"valid": true, "errors": []}  \n```'
+        msg = MagicMock()
+        msg.content = [MagicMock(text=fenced)]
+        msg.usage.input_tokens = 100
+        msg.usage.output_tokens = 10
+
+        with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(return_value=msg)
+
+            result = await validate_storyboard(storyboard, "test-key")
+
+        assert result.valid is True

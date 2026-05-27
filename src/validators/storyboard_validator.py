@@ -2,6 +2,7 @@
 
 import json
 import logging
+import re
 
 import anthropic
 
@@ -61,6 +62,10 @@ async def validate_storyboard(storyboard: Storyboard, api_key: str) -> Validatio
         raise StoryboardValidationError(f"Haiku validation API error: {exc}") from exc
 
     raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-zA-Z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+        raw = raw.strip()
     input_tokens = message.usage.input_tokens
     output_tokens = message.usage.output_tokens
     cost_usd = round(
