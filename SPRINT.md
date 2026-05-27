@@ -54,7 +54,7 @@
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| E6-S4 | End-to-end production smoke test | 2 | backlog |
+| E6-S4 | End-to-end production smoke test | 2 | done |
 | E5-S4 | WhisperX forced alignment for ms-precise scene timing | 8 | backlog |
 | E8-S1 | Haiku schema validator — storyboard.json | 3 | backlog |
 | E8-S3 | Haiku run log summarizer | 3 | backlog |

@@ -1181,7 +1181,8 @@ Implemented inline as part of E6-S2. See E6-S2 handover for full details.
 ## [E6-S4] End-to-end production smoke test
 **Epic:** E6 — Operator UI
 **Sprint:** 3
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-27
 **Points:** 2
 **Priority:** high
 **Depends on:** E6-S2, E5-S1, E4-S5
@@ -1190,20 +1191,20 @@ Implemented inline as part of E6-S2. See E6-S2 handover for full details.
 Run a complete pipeline from browser UI on Railway DEV: create run → storyboard → manifest → assets → ffmpeg-script → upload voiceover → render. Validate all 7 deferred smoke tests in one session. Document and fix any bugs found inline or promote to backlog.
 
 ### Acceptance Criteria
-- [ ] Full pipeline triggered and completed from browser UI only (no curl)
-- [ ] `final.mp4` appears in R2 `runs/{run_id}/output/` and is watchable
-- [ ] Both caption tracks visible: on-screen keywords (large, centered) + voiceover captions (small, bottom)
-- [ ] Video cuts align with speech cadence (pacing calibration)
-- [ ] Static image scenes show Ken Burns motion
-- [ ] `run_log.json` shows all steps `complete`
-- [ ] Any bugs found during the run either fixed inline or promoted to backlog as new stories
-- [ ] R2 CORS configured for voiceover direct upload (required for browser PUT)
+- [x] Full pipeline triggered and completed from browser UI only (no curl)
+- [x] `final.mp4` appears in R2 `runs/{run_id}/output/` and is watchable
+- [x] Both caption tracks visible: on-screen keywords (large, centered) + voiceover captions (small, bottom)
+- [x] Video cuts align with speech cadence (pacing calibration)
+- [x] Static image scenes show Ken Burns motion
+- [x] `run_log.json` shows all steps `complete`
+- [x] Any bugs found during the run either fixed inline or promoted to backlog as new stories
+- [x] R2 CORS configured for voiceover direct upload (required for browser PUT)
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Bugs found: zero blocking bugs, or all blockers promoted to new backlog stories
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Bugs found: zero blocking bugs
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Smoke test
 This story IS the smoke test. The AC above are the verification criteria.
@@ -1217,7 +1218,11 @@ This story IS the smoke test. The AC above are the verification criteria.
 - None expected — this is a validation story. Bug fixes may touch any file.
 
 ### Handover
-_filled on completion_
+- Full pipeline validated end-to-end on Railway DEV from browser UI: create run → storyboard → manifest → assets → ffmpeg-script → voiceover upload → render → watchable `final.mp4`.
+- R2 CORS configured on `content-factory-dev` bucket allowing PUT from Railway DEV domain — voiceover direct-upload from browser confirmed working.
+- All deferred smoke tests from Sprint 1 and Sprint 2 now validated in a single session.
+- No code changes required. No bugs found. No issues promoted to backlog.
+- Sprint 3 foundation confirmed healthy — E5-S4 (WhisperX) and E8-S1 (Haiku validator) can proceed.
 
 ---
 
