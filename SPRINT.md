@@ -45,8 +45,8 @@
 # Sprint 3 — First Real Video + Audio Sync + Cost Foundation
 
 **Goal:** Watch a complete rendered video produced entirely from the browser UI. Add ms-precise audio sync and start model cost routing.
-**Status:** planned
-**Points:** 18
+**Status:** done
+**Velocity:** 5/6 stories completed (15/18 pts = 83%). E5-S5 slipped to Sprint 4 (correctly anticipated in sprint notes).
 
 ---
 
@@ -59,30 +59,44 @@
 | E5-S4 | Word-level timestamp extraction via Deepgram | 5 | done |
 | E8-S1 | Haiku schema validator — storyboard.json | 3 | done |
 | E8-S3 | Haiku run log summarizer | 3 | done |
-| E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | backlog |
-
-**Dependency order:**
-1. E6-S4 ✅ DONE — validated DEV is healthy.
-2. E4-S6 — subtitle style revision (Poppins Bold); ready now.
-3. E5-S4 — Deepgram alignment service (standalone, no pipeline integration yet); ready now, parallel with E4-S6.
-4. E8-S1 + E8-S3 — independent, can run any time.
-5. E5-S5 — pipeline reorder; depends on E5-S4 complete; likely Sprint 4.
-6. E4-S7 — word-synced captions; depends on E5-S5 complete; Sprint 4+.
+| E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | slipped → Sprint 4 |
 
 ---
 
-## Sprint 3 Definition of Done
-- [ ] Full pipeline run completed from browser UI — `final.mp4` watchable in browser
-- [ ] Video cuts are ms-precise (Deepgram alignment replaces proportional redistribution)
-- [ ] Storyboard JSON validated by Haiku before downstream steps run
-- [ ] Operator UI shows human-readable step summaries (Haiku run log summarizer)
-- [ ] All stories have passing tests and green CI
-- [ ] **Human touchpoint:** operator watches a complete rendered Short in the browser player
+# Sprint 4 — Accurate Audio-Visual Sync
+
+**Goal:** Operator watches a video where scene cuts land exactly on word boundaries. Full VO-first pipeline flow live in the UI — upload voiceover, run alignment, generate storyboard from real timestamps, render.
+**Status:** active
+**Points:** 13
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | ready |
+| E4-S7 | Word-synced captions using Deepgram timestamps | 5 | ready (starts after E5-S5 merges) |
+
+**Dependency order:**
+1. E5-S5 — critical anchor. Full pipeline reorder (backend + UI rewrite). Smoke test: 20s VO → 20s video with on-beat cuts.
+2. E4-S7 — starts after E5-S5 merges. Smoke test: captions track speech word-by-word in rendered video.
+
+---
+
+## Sprint 4 Definition of Done
+- [ ] VO-first pipeline flow works end-to-end from browser UI: upload VO → alignment → storyboard → manifest → assets → ffmpeg-script → render
+- [ ] Scene cut timing derived from Deepgram word timestamps (not guessed durations)
+- [ ] Storyboard prompt updated to v0.7, receives word timestamps as input
+- [ ] Operator UI fully reordered to match new pipeline (Alignment step row present, VO upload at top)
+- [ ] Word-synced captions advance in sync with VO audio in rendered video
+- [ ] All stories have passing tests and CI green
+- [ ] **Human touchpoint:** operator watches a rendered Short with captions that track word-by-word
 
 ---
 
 ## Notes
-- E6-S4 is a validation story, not a feature — it has no code deliverable unless bugs are found.
-- E5-S4 (WhisperX) requires `whisperx` + `torch` CPU — significant Docker build time increase (~2min). Log in DECISIONS.md before adding to requirements.txt.
-- R2 CORS must be configured for voiceover direct-upload before E6-S4 smoke test can complete (see E6-S2 deployment note).
-- CLIP_RERANK_ENABLED can be toggled to True in Railway DEV during E6-S4 to validate E4-S4 smoke test at the same time.
+- E5-S5 is the highest-risk story: storyboard prompt change requires few-shot examples with timestamp-aware scene construction. Allocate most of the sprint time to it.
+- E4-S7 depends on E5-S5 being merged — do not start E4-S7 until E5-S5 smoke test passes.
+- E5-S5 UI work is a full rewrite of pipeline.html step order — do not patch incrementally (see backlog note).
+- Outstanding deferred smoke tests from Sprint 3: E5-S4 (needs DEEPGRAM_API_KEY on DEV), E8-S1, E8-S3 — these should be validated during E5-S5 smoke test session.
