@@ -77,12 +77,21 @@ def assign_words_to_scenes(
     def _norm(w: str) -> str:
         return re.sub(r"[^\w]", "", w).lower()
 
+    def _vo_tokens(text: str) -> list[str]:
+        tokens = []
+        for word in text.split():
+            for part in re.split(r"-", word):
+                n = _norm(part)
+                if n:
+                    tokens.append(n)
+        return tokens
+
     norm_dg = [_norm(w.word) for w in words]
     result: list[list[WordTimestamp]] = []
     pos = 0
 
     for scene in scenes:
-        vo_words = [_norm(w) for w in scene.voiceover_line.split() if _norm(w)]
+        vo_words = _vo_tokens(scene.voiceover_line)
         matched: list[WordTimestamp] = []
         for sw in vo_words:
             search_pos = pos

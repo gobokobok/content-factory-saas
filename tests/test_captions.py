@@ -459,6 +459,37 @@ class TestBuildWordSyncedCaptionsAss:
         text_part = two_event.split(",,")[-1]
         assert text_part.startswith("one {\\c&H0000FFFF&}two")
 
+    def test_word_event_extends_to_next_word_start_not_own_end(self):
+        # "one" ends at 200ms but "two" starts at 300ms — 100ms gap.
+        # Event for "one" must extend to 300ms so caption stays visible.
+        words = [_word("one", 0, 200), _word("two", 300, 500)]
+        result = build_word_synced_captions_ass([words])
+        one_event = [l for l in result.splitlines() if "{\\c&H0000FFFF&}one" in l][0]
+        # Dialogue: 0,START,END,...  — END is field index 2
+        end_field = one_event.split(",")[2]
+        assert end_field == "0:00:00.30"  # two's start_ms, not one's end_ms
+
+    def test_last_word_in_chunk_ends_at_next_chunk_start(self):
+        # 6-word scene → two chunks: [w0..w4] and [w5].
+        # Last word of first chunk (w4, end=1400ms) should extend to w5's start (1500ms).
+        words = [
+            _word("one", 0, 200), _word("two", 300, 500), _word("three", 600, 800),
+            _word("four", 900, 1100), _word("five", 1200, 1400), _word("six", 1500, 1700),
+        ]
+        result = build_word_synced_captions_ass([words])
+        five_events = [l for l in result.splitlines() if "{\\c&H0000FFFF&}five" in l]
+        assert len(five_events) == 1
+        end_field = five_events[0].split(",")[2]
+        assert end_field == "0:00:01.50"  # six's start_ms, not five's end_ms
+
+    def test_last_word_of_final_chunk_ends_at_own_end_ms(self):
+        # "three" is the last word of the only chunk — must end at its own end_ms.
+        words = [_word("one", 0, 200), _word("two", 300, 500), _word("three", 600, 800)]
+        result = build_word_synced_captions_ass([words])
+        three_events = [l for l in result.splitlines() if "{\\c&H0000FFFF&}three" in l]
+        end_field = three_events[0].split(",")[2]
+        assert end_field == "0:00:00.80"  # three's own end_ms
+
     def test_result_ends_with_newline(self):
         result = build_word_synced_captions_ass([[_word("x", 0, 100)]])
         assert result.endswith("\n")

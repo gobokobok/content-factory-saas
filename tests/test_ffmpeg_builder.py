@@ -906,6 +906,23 @@ class TestAssignWordsToScenes:
         result = assign_words_to_scenes(scenes, [w])
         assert result[0][0] is w
 
+    def test_hyphenated_voiceover_word_matched_as_two_tokens(self):
+        # "6-minute" in voiceover → split to "6" and "minute" for matching
+        scenes = [_scene_with_vo("01", "problems in 6-minute fragments")]
+        words = [
+            _wts("problems", 0, 400), _wts("in", 500, 600),
+            _wts("6", 700, 800), _wts("minute", 850, 1100),
+            _wts("fragments", 1200, 1600),
+        ]
+        result = assign_words_to_scenes(scenes, words)
+        assert len(result[0]) == 5  # all 5 Deepgram words matched
+
+    def test_hyphenated_word_preserves_order(self):
+        scenes = [_scene_with_vo("01", "six-figure income")]
+        words = [_wts("six", 0, 300), _wts("figure", 400, 700), _wts("income", 800, 1200)]
+        result = assign_words_to_scenes(scenes, words)
+        assert [w.word for w in result[0]] == ["six", "figure", "income"]
+
 
 # ── Unit: compute_scene_durations_from_alignment ─────────────────────────────
 

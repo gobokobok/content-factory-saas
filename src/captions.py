@@ -100,7 +100,8 @@ def build_word_synced_captions_ass(
         if not words:
             continue
         chunks = [words[i : i + chunk_size] for i in range(0, len(words), chunk_size)]
-        for chunk in chunks:
+        for j, chunk in enumerate(chunks):
+            next_chunk = chunks[j + 1] if j + 1 < len(chunks) else None
             chunk_texts = [w.word for w in chunk]
             for i, word_ts in enumerate(chunk):
                 before = chunk_texts[:i]
@@ -108,7 +109,15 @@ def build_word_synced_captions_ass(
                 after = chunk_texts[i + 1 :]
                 text = " ".join(before + [active] + after)
                 start_s = word_ts.start_ms / 1000.0
-                end_s = word_ts.end_ms / 1000.0
+                # Extend event to next word's start so the chunk stays on screen
+                # with no gap between words.  Last word of a chunk ends at its own
+                # end_ms; last word of a non-final chunk extends to the next chunk.
+                if i + 1 < len(chunk):
+                    end_s = chunk[i + 1].start_ms / 1000.0
+                elif next_chunk:
+                    end_s = next_chunk[0].start_ms / 1000.0
+                else:
+                    end_s = word_ts.end_ms / 1000.0
                 events.append(
                     f"Dialogue: 0,{format_ass_time(start_s)},{format_ass_time(end_s)},"
                     f"VoiceCaption,,0,0,0,,{text}"
