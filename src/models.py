@@ -8,10 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 PIPELINE_STEPS = (
+    "alignment",
     "storyboard",
     "asset_manifest",
     "asset_acquisition",
-    "alignment",
     "ffmpeg_script",
     "render",
 )

@@ -176,6 +176,15 @@
     .script-panel-inner textarea { min-height: 80px; margin-bottom: 0.5rem; }
     .script-panel-inner .form-actions { margin-top: 0.3rem; }
 
+    /* ── Gate warning ───────────────────────────────────────────── */
+    .gate-warning {
+      font-size: 0.78rem;
+      color: #f59e0b;
+      padding: 0.25rem 0.5rem;
+      border: 1px solid #78350f;
+      background: #1c1208;
+    }
+
     /* ── Run Log section ─────────────────────────────────────────── */
     .run-log-section {
       border: 1px solid #222;
@@ -231,10 +240,6 @@
         <input type="text" id="nr-slug" placeholder="housing-affordability-crisis" oninput="validateNewRunForm()">
         <p id="nr-slug-hint" class="hint">lowercase letters and hyphens only</p>
 
-        <label for="nr-script">Voiceover Script</label>
-        <textarea id="nr-script" placeholder="Paste your plain-text VO script here…" oninput="validateNewRunForm()"></textarea>
-        <p id="nr-script-hint" class="hint">required</p>
-
         <div class="form-actions">
           <button type="submit" id="nr-submit" disabled>Create Run</button>
           <button type="button" class="btn-sm" onclick="toggleNewRunPanel()">Cancel</button>
@@ -272,13 +277,16 @@
     let currentSteps = {};
     let stepRunning  = {};
 
-    // ─── Step configuration ───────────────────────────────────────────────────
+    // ─── Step configuration (VO-first order) ─────────────────────────────────
+    // alignment must complete before storyboard can run.
+    // artifact viewer: null means no artifact to view inline.
     const STEPS = [
-      { key: 'storyboard',        label: 'Storyboard',        artifactKey: 'storyboard',    postPath: id => `/runs/${id}/storyboard`,    needsScript: true  },
-      { key: 'asset_manifest',    label: 'Asset Manifest',    artifactKey: 'manifest',      postPath: id => `/runs/${id}/manifest`,      needsScript: false },
-      { key: 'asset_acquisition', label: 'Asset Acquisition', artifactKey: null,            postPath: id => `/runs/${id}/assets`,        needsScript: false },
-      { key: 'ffmpeg_script',     label: 'FFmpeg Script',      artifactKey: 'ffmpeg_script', postPath: id => `/runs/${id}/ffmpeg-script`, needsScript: false },
-      { key: 'render',            label: 'Render',            artifactKey: 'render',        postPath: id => `/runs/${id}/render`,        needsScript: false },
+      { key: 'alignment',       label: 'Alignment',       artifactKey: null,            postPath: id => `/runs/${id}/alignment`,    needsScript: false, needsAlignment: false },
+      { key: 'storyboard',      label: 'Storyboard',      artifactKey: 'storyboard',    postPath: id => `/runs/${id}/storyboard`,   needsScript: true,  needsAlignment: true  },
+      { key: 'asset_manifest',  label: 'Asset Manifest',  artifactKey: 'manifest',      postPath: id => `/runs/${id}/manifest`,     needsScript: false, needsAlignment: false },
+      { key: 'asset_acquisition',label:'Asset Acquisition',artifactKey: null,            postPath: id => `/runs/${id}/assets`,       needsScript: false, needsAlignment: false },
+      { key: 'ffmpeg_script',   label: 'FFmpeg Script',   artifactKey: 'ffmpeg_script', postPath: id => `/runs/${id}/ffmpeg-script`,needsScript: false, needsAlignment: false },
+      { key: 'render',          label: 'Render',          artifactKey: 'render',        postPath: id => `/runs/${id}/render`,       needsScript: false, needsAlignment: false },
     ];
 
     // ─── Utilities ────────────────────────────────────────────────────────────
@@ -301,6 +309,10 @@
       return 'in-progress';
     }
 
+    function alignmentComplete() {
+      return (currentSteps['alignment'] || 'pending') === 'complete';
+    }
+
     // ─── New Run Form ─────────────────────────────────────────────────────────
     const SLUG_RE = /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/;
 
@@ -312,9 +324,8 @@
     }
 
     function validateNewRunForm() {
-      const slug   = document.getElementById('nr-slug').value;
-      const script = document.getElementById('nr-script').value.trim();
-      const hint   = document.getElementById('nr-slug-hint');
+      const slug = document.getElementById('nr-slug').value;
+      const hint = document.getElementById('nr-slug-hint');
 
       if (slug === '') {
         hint.textContent = 'lowercase letters and hyphens only';
@@ -327,17 +338,13 @@
         hint.className   = 'hint hint-invalid';
       }
 
-      const scriptHint = document.getElementById('nr-script-hint');
-      scriptHint.textContent = script ? '' : 'required';
-
-      document.getElementById('nr-submit').disabled = !(SLUG_RE.test(slug) && script.length > 0);
+      document.getElementById('nr-submit').disabled = !SLUG_RE.test(slug);
     }
 
     async function submitNewRun(e) {
       e.preventDefault();
-      const slug   = document.getElementById('nr-slug').value;
-      const script = document.getElementById('nr-script').value.trim();
-      const btn    = document.getElementById('nr-submit');
+      const slug = document.getElementById('nr-slug').value;
+      const btn  = document.getElementById('nr-submit');
 
       btn.disabled    = true;
       btn.textContent = 'Creating…';
@@ -357,17 +364,13 @@
         }
         const { run_id } = await res.json();
 
-        // Reset form and hide panel
         document.getElementById('new-run-panel').classList.remove('visible');
-        document.getElementById('nr-slug').value   = '';
-        document.getElementById('nr-script').value = '';
+        document.getElementById('nr-slug').value = '';
         btn.disabled    = false;
         btn.textContent = 'Create Run';
         validateNewRunForm();
 
-        // Navigate to detail then auto-trigger storyboard + manifest
         await showDetail(run_id);
-        autoRunNewRun(script);
 
       } catch (err) {
         alert(`Network error: ${err.message}`);
@@ -466,6 +469,12 @@
 
     function buildActionsHtml(step, status, running) {
       if (running) return '<span class="step-spinner">running…</span>';
+
+      // Storyboard requires alignment to be complete first
+      if (step.needsAlignment && !alignmentComplete() && status !== 'complete') {
+        return `<span class="gate-warning">run Alignment first</span>`;
+      }
+
       if (status === 'complete') {
         const view = step.artifactKey
           ? `<button class="btn-sm" onclick="toggleArtifact('${step.key}')">View</button>`
@@ -478,7 +487,7 @@
     function buildVoSectionHtml() {
       return `<div class="vo-section">
         <span class="vo-label">Voiceover</span>
-        <span class="muted" style="font-size:0.75rem">upload before running Storyboard</span>
+        <span class="muted" style="font-size:0.75rem">upload before running Alignment</span>
         <input type="file" id="vo-file-input" accept=".mp3,audio/*" style="display:none" onchange="onVoFileSelected()">
         <button class="btn-sm" onclick="document.getElementById('vo-file-input').click()">Choose File</button>
         <span id="vo-filename" class="vo-filename">no file selected</span>
@@ -504,9 +513,27 @@
       document.getElementById(`actions-${stepKey}`).innerHTML = buildActionsHtml(step, status, running);
     }
 
+    function refreshAllActions() {
+      // Re-render action buttons for all steps (e.g. after alignment completes, unlock storyboard)
+      for (const step of STEPS) {
+        const status  = currentSteps[step.key] || 'pending';
+        const running = !!stepRunning[step.key];
+        const actionsEl = document.getElementById(`actions-${step.key}`);
+        if (actionsEl) {
+          actionsEl.innerHTML = buildActionsHtml(step, status, running);
+        }
+      }
+    }
+
     // ─── Step Execution ───────────────────────────────────────────────────────
     function showScriptOrRun(stepKey) {
       const step  = STEPS.find(s => s.key === stepKey);
+
+      // Gate check: storyboard requires alignment
+      if (step.needsAlignment && !alignmentComplete()) {
+        return;
+      }
+
       const panel = document.getElementById(`script-panel-${stepKey}`);
 
       if (!step.needsScript) {
@@ -537,6 +564,11 @@
 
     async function executeStep(stepKey, scriptOverride) {
       const step = STEPS.find(s => s.key === stepKey);
+
+      // Gate check: storyboard requires alignment
+      if (step.needsAlignment && !alignmentComplete()) {
+        return;
+      }
 
       let body = null;
       if (step.needsScript) {
@@ -577,6 +609,8 @@
       } finally {
         stepRunning[stepKey] = false;
         updateStepRow(stepKey, currentSteps[stepKey], false);
+        // After alignment completes, re-render all action buttons (may unlock Storyboard)
+        refreshAllActions();
         refreshRunLog();
       }
     }
@@ -586,13 +620,6 @@
       if (!div) return;
       div.innerHTML = `<span class="error-text">${esc(msg)}</span>`;
       div.classList.add('open');
-    }
-
-    async function autoRunNewRun(script) {
-      await executeStep('storyboard', script);
-      if (currentSteps['storyboard'] === 'complete') {
-        await executeStep('asset_manifest');
-      }
     }
 
     // ─── Artifact Viewer ──────────────────────────────────────────────────────

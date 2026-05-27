@@ -1,4 +1,4 @@
-"""Claude API storyboard generation — calls v0.7 prompt and parses response into storyboard.json."""
+"""Claude API storyboard generation — calls v0.8 prompt and parses response into storyboard.json."""
 
 import logging
 import re
@@ -15,6 +15,7 @@ from src.models import (
     StoryboardSummary,
     ValidationResult,
     VisualPrompts,
+    WordTimestamp,
 )
 from src.validators.storyboard_validator import validate_storyboard
 
@@ -76,6 +77,22 @@ Clip type ceilings (hard limits, never exceed):
 - hard_cut: ≤1s
 - still_with_motion: ≤3s
 - animated: ≤4s
+
+═══════════════════════════════════════
+TIMESTAMP ALIGNMENT (when word timestamps are provided)
+═══════════════════════════════════════
+
+If the user message contains a WORD TIMESTAMPS block, those timings are from the actual
+recorded voiceover (Deepgram Nova-2). They are authoritative — use them to set duration_s.
+
+For each scene:
+1. Locate the words of voiceover_line in the timestamp list (case-insensitive, ignore punctuation).
+2. duration_s = (end_ms of last matched word − start_ms of first matched word) / 1000
+3. Round to 2 decimal places. Add at most 0.3s of silence tail for natural phrasing.
+4. Never guess or use the word-count table when timestamps are present.
+5. If a word cannot be matched, use the word-count table as fallback for that scene only.
+
+The total_duration in SUMMARY must equal the sum of all scene duration_s values.
 
 ═══════════════════════════════════════
 CLIP TYPE RULES
@@ -205,16 +222,27 @@ Rhythm: [SM / HC / HC / AN / SM ...]
 """
 
 
+def _format_timestamps(words: list[WordTimestamp]) -> str:
+    """Format a word timestamp list as a compact one-line-per-word block for the Claude prompt."""
+    return "\n".join(f'[{w.start_ms}ms–{w.end_ms}ms] "{w.word}"' for w in words)
+
+
 async def generate_storyboard(
-    script: str, settings: Settings
+    script: str,
+    settings: Settings,
+    word_timestamps: Optional[list[WordTimestamp]] = None,
 ) -> tuple[Storyboard, ValidationResult]:
     """
-    Call Claude API with v0.7 prompt, parse, then validate with Haiku.
+    Call Claude API with v0.8 prompt, parse, then validate with Haiku.
 
+    When word_timestamps are provided (from Deepgram alignment), they are injected into
+    the user message so Claude can derive scene durations from actual speech timing.
     Returns (storyboard, validation_result). Raises StoryboardValidationError if
     Haiku finds schema violations in the generated storyboard.
     """
-    raw_text = await _call_claude_api(script, settings.ANTHROPIC_API_KEY, settings.CLAUDE_MODEL)
+    raw_text = await _call_claude_api(
+        script, settings.ANTHROPIC_API_KEY, settings.CLAUDE_MODEL, word_timestamps
+    )
     storyboard = _parse_storyboard_response(raw_text)
     validation = await validate_storyboard(storyboard, settings.ANTHROPIC_API_KEY)
     if not validation.valid:
@@ -223,8 +251,23 @@ async def generate_storyboard(
     return storyboard, validation
 
 
-async def _call_claude_api(script: str, api_key: str, model: str) -> str:
-    """Call Claude API with the v0.4 system prompt. Returns the raw text response."""
+async def _call_claude_api(
+    script: str,
+    api_key: str,
+    model: str,
+    word_timestamps: Optional[list[WordTimestamp]] = None,
+) -> str:
+    """Call Claude API with the v0.8 system prompt. Returns the raw text response."""
+    if word_timestamps:
+        ts_block = _format_timestamps(word_timestamps)
+        user_content = (
+            f"WORD TIMESTAMPS (Deepgram Nova-2 — use these for scene duration_s):\n"
+            f"{ts_block}\n\n"
+            f"VOICEOVER SCRIPT:\n{script}"
+        )
+    else:
+        user_content = script
+
     client = anthropic.AsyncAnthropic(api_key=api_key)
     try:
         message = await client.messages.create(
@@ -237,7 +280,7 @@ async def _call_claude_api(script: str, api_key: str, model: str) -> str:
                     "cache_control": {"type": "ephemeral"},
                 }
             ],
-            messages=[{"role": "user", "content": script}],
+            messages=[{"role": "user", "content": user_content}],
         )
         return message.content[0].text
     except anthropic.APIError as exc:

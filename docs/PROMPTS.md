@@ -1,8 +1,8 @@
 # AI Prompts — Content Factory
 
-## Storyboard Generator — v0.7
+## Storyboard Generator — v0.8
 **Used in:** E1-S3 (Step 2b — Script to Storyboard)
-**Input:** Plain-text voiceover script
+**Input:** Plain-text voiceover script (optionally with Deepgram word timestamps)
 **Output:** `storyboard.json`
 
 ### Changelog
@@ -15,9 +15,11 @@
 | v0.5 | 2026-05-25 | Query decomposition: concrete nouns only; cinematic direction terms for AI_GENERATE |
 | v0.6 | 2026-05-27 | voiceover_line capped at 4–6 words; short phrase, not a full sentence |
 | v0.7 | 2026-05-27 | Enforce motion_effect non-null when clip_type=still_with_motion; CRITICAL rule added |
+| v0.8 | 2026-05-27 | TIMESTAMP ALIGNMENT section: when Deepgram word timestamps provided, use them for duration_s; word-count table is fallback only |
 
-### Key rules (v0.7)
-- **Duration** derived from VO word count per lookup table — never from clip type ceiling
+### Key rules (v0.8)
+- **Duration (with timestamps):** when WORD TIMESTAMPS block is in input, derive `duration_s` from actual speech timing — `(end_ms − start_ms) / 1000`; word-count table is fallback only
+- **Duration (no timestamps):** derived from VO word count per lookup table — never from clip type ceiling
 - **Clip type ceilings** are hard limits: `hard_cut` ≤1s, `still_with_motion` ≤3s, `animated` ≤4s
 - **Comma-separated lists** in VO = one `hard_cut` sub-scene per item, labelled `03a / 03b / 03c`
 - **Clip types:** `hard_cut` / `still_with_motion` / `animated` — assigned by narrative logic, not visual variety
@@ -26,7 +28,7 @@
 - **Global fields:** `subtitle_style`, `bg_music`, `visual_style`
 - **Never same clip_type more than twice in a row** (except deliberate list sequences)
 
-### Full system prompt (v0.7)
+### Full system prompt (v0.8)
 
 ```
 You are a production storyboard generator for a faceless, voiceover-driven YouTube Shorts channel.
@@ -84,6 +86,22 @@ Clip type ceilings (hard limits, never exceed):
 - hard_cut: ≤1s
 - still_with_motion: ≤3s
 - animated: ≤4s
+
+═══════════════════════════════════════
+TIMESTAMP ALIGNMENT (when word timestamps are provided)
+═══════════════════════════════════════
+
+If the user message contains a WORD TIMESTAMPS block, those timings are from the actual
+recorded voiceover (Deepgram Nova-2). They are authoritative — use them to set duration_s.
+
+For each scene:
+1. Locate the words of voiceover_line in the timestamp list (case-insensitive, ignore punctuation).
+2. duration_s = (end_ms of last matched word − start_ms of first matched word) / 1000
+3. Round to 2 decimal places. Add at most 0.3s of silence tail for natural phrasing.
+4. Never guess or use the word-count table when timestamps are present.
+5. If a word cannot be matched, use the word-count table as fallback for that scene only.
+
+The total_duration in SUMMARY must equal the sum of all scene duration_s values.
 
 ═══════════════════════════════════════
 CLIP TYPE RULES

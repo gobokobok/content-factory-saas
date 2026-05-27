@@ -1,6 +1,7 @@
 """Route handlers for /runs/{run_id}/storyboard endpoints."""
 
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -12,7 +13,7 @@ from src.exceptions import (
     StoryboardValidationError,
     StorageError,
 )
-from src.models import StoryboardRequest, StoryboardResponse
+from src.models import StoryboardRequest, StoryboardResponse, WordTimestamp
 from src.storyboard import generate_storyboard
 from src.storage import R2Client
 
@@ -27,7 +28,11 @@ async def create_storyboard(
     body: StoryboardRequest,
     settings: Settings = Depends(get_settings),
 ) -> StoryboardResponse:
-    """Generate storyboard.json from a VO script, upload to R2, update run_log.json."""
+    """Generate storyboard.json from a VO script, upload to R2, update run_log.json.
+
+    When alignment.json is present in R2, word-level timestamps are injected into the
+    Claude prompt so scene durations are derived from real speech timing (VO-first flow).
+    """
     storage = R2Client(
         settings.R2_ACCOUNT_ID,
         settings.R2_ACCESS_KEY_ID,
@@ -35,8 +40,24 @@ async def create_storyboard(
         settings.R2_BUCKET_NAME,
     )
 
+    # Load alignment timestamps if available (VO-first flow)
+    word_timestamps: Optional[list[WordTimestamp]] = None
+    alignment_key = f"runs/{run_id}/alignment.json"
     try:
-        storyboard, validation = await generate_storyboard(body.script, settings)
+        alignment_data = storage.get_json(alignment_key)
+        words_raw = alignment_data.get("words", [])
+        if words_raw:
+            word_timestamps = [WordTimestamp.model_validate(w) for w in words_raw]
+            logger.info(
+                "Alignment data loaded for storyboard: run=%s words=%d", run_id, len(word_timestamps)
+            )
+    except StorageError:
+        logger.info(
+            "No alignment.json found — generating storyboard without timestamps: run=%s", run_id
+        )
+
+    try:
+        storyboard, validation = await generate_storyboard(body.script, settings, word_timestamps)
     except (StoryboardAPIError, StoryboardParseError, StoryboardValidationError) as exc:
         logger.error("Storyboard generation failed for run '%s': %s", run_id, exc)
         try:

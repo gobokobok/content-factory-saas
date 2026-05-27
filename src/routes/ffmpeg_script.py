@@ -50,28 +50,42 @@ def generate_ffmpeg_script(
     storyboard = Storyboard.model_validate(storyboard_data)
     manifest = AssetManifest.model_validate(manifest_data)
 
-    vo_prefix = f"runs/{run_id}/voiceover/"
+    # When alignment.json is present, storyboard durations already reflect real speech timing
+    # (set by Claude using Deepgram timestamps). Skip ffprobe redistribution.
+    alignment_key = f"runs/{run_id}/alignment.json"
+    has_alignment = False
     try:
-        vo_keys = storage.list_keys(vo_prefix)
-        vo_key = next(
-            (k for k in vo_keys if k.lower().endswith((".mp3", ".wav", ".m4a"))),
-            None,
-        )
-        if vo_key:
-            filename = vo_key.split("/")[-1]
-            with tempfile.TemporaryDirectory() as tmpdir:
-                vo_local = Path(tmpdir) / filename
-                vo_local.write_bytes(storage.get_bytes(vo_key))
-                audio_duration = get_audio_duration(vo_local)
-            updated_scenes = redistribute_scene_durations(storyboard.scenes, audio_duration)
-            storyboard = storyboard.model_copy(update={"scenes": updated_scenes})
-            logger.info(
-                "Pacing calibrated: run=%s vo=%s duration=%.2fs", run_id, vo_key, audio_duration
+        storage.get_json(alignment_key)
+        has_alignment = True
+        logger.info("alignment.json present — skipping ffprobe redistribution: run=%s", run_id)
+    except StorageError:
+        pass
+
+    if not has_alignment:
+        vo_prefix = f"runs/{run_id}/voiceover/"
+        try:
+            vo_keys = storage.list_keys(vo_prefix)
+            vo_key = next(
+                (k for k in vo_keys if k.lower().endswith((".mp3", ".wav", ".m4a"))),
+                None,
             )
-        else:
-            logger.warning("No voiceover found for run=%s — using storyboard durations unchanged", run_id)
-    except (StorageError, FFmpegBuildError) as exc:
-        logger.warning("Voiceover pacing skipped for run=%s: %s", run_id, exc)
+            if vo_key:
+                filename = vo_key.split("/")[-1]
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    vo_local = Path(tmpdir) / filename
+                    vo_local.write_bytes(storage.get_bytes(vo_key))
+                    audio_duration = get_audio_duration(vo_local)
+                updated_scenes = redistribute_scene_durations(storyboard.scenes, audio_duration)
+                storyboard = storyboard.model_copy(update={"scenes": updated_scenes})
+                logger.info(
+                    "Pacing calibrated: run=%s vo=%s duration=%.2fs", run_id, vo_key, audio_duration
+                )
+            else:
+                logger.warning(
+                    "No voiceover found for run=%s — using storyboard durations unchanged", run_id
+                )
+        except (StorageError, FFmpegBuildError) as exc:
+            logger.warning("Voiceover pacing skipped for run=%s: %s", run_id, exc)
 
     try:
         script = build_ffmpeg_script(run_id, storyboard, manifest)

@@ -6,9 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.config import Settings, get_settings
-from src.exceptions import StoryboardAPIError, StoryboardParseError, StoryboardValidationError
+from src.exceptions import StoryboardAPIError, StoryboardParseError, StoryboardValidationError, StorageError
 from src.main import app
-from src.models import ValidationResult
+from src.models import ValidationResult, WordTimestamp
 from src.storyboard import (
     _parse_global,
     _parse_scene,
@@ -220,9 +220,11 @@ _MOCK_VALIDATION = ValidationResult(
 
 class TestStoryboardRoute:
     def _mock_storage(self):
+        """Build a mock storage that raises StorageError for alignment.json (default: no alignment)."""
         mock = MagicMock()
         mock.upload_json.return_value = None
         mock.update_run_log.return_value = None
+        mock.get_json.side_effect = StorageError("alignment.json not found")
         return mock
 
     def test_success(self, client):
@@ -381,8 +383,6 @@ class TestStoryboardRoute:
         )
 
     def test_storage_error_on_upload_returns_500(self, client):
-        from src.exceptions import StorageError
-
         storyboard_data = _parse_storyboard_response(SAMPLE_FULL_RESPONSE)
         mock_storage = self._mock_storage()
         mock_storage.upload_json.side_effect = StorageError("R2 write failed")
@@ -401,3 +401,57 @@ class TestStoryboardRoute:
 
         assert response.status_code == 500
         assert "R2 write failed" in response.json()["detail"]
+
+    def test_alignment_timestamps_passed_to_generate_storyboard(self, client):
+        """When alignment.json is in R2, word_timestamps are passed to generate_storyboard."""
+        storyboard_data = _parse_storyboard_response(SAMPLE_FULL_RESPONSE)
+        mock_storage = self._mock_storage()
+        mock_storage.get_json.side_effect = None  # clear StorageError default
+        mock_storage.get_json.return_value = {
+            "run_id": RUN_ID,
+            "word_count": 3,
+            "used_fallback": False,
+            "words": [
+                {"word": "housing", "start_ms": 0, "end_ms": 500, "confidence": 0.99},
+                {"word": "market", "start_ms": 500, "end_ms": 900, "confidence": 0.98},
+                {"word": "crisis", "start_ms": 900, "end_ms": 1400, "confidence": 0.97},
+            ],
+        }
+
+        with (
+            patch("src.routes.storyboard.generate_storyboard", new_callable=AsyncMock) as mock_gen,
+            patch("src.routes.storyboard.R2Client") as mock_r2,
+        ):
+            mock_gen.return_value = (storyboard_data, _MOCK_VALIDATION)
+            mock_r2.return_value = mock_storage
+
+            response = client.post(
+                f"/runs/{RUN_ID}/storyboard",
+                json={"script": "housing market crisis"},
+            )
+
+        assert response.status_code == 200
+        _, call_kwargs = mock_gen.call_args
+        timestamps = call_kwargs.get("word_timestamps") or mock_gen.call_args[0][2]
+        assert timestamps is not None
+        assert len(timestamps) == 3
+        assert timestamps[0].word == "housing"
+        assert timestamps[0].start_ms == 0
+
+    def test_no_alignment_passes_none_to_generate_storyboard(self, client):
+        """When alignment.json is absent, word_timestamps=None is passed to generate_storyboard."""
+        storyboard_data = _parse_storyboard_response(SAMPLE_FULL_RESPONSE)
+        mock_storage = self._mock_storage()  # defaults to StorageError for get_json
+
+        with (
+            patch("src.routes.storyboard.generate_storyboard", new_callable=AsyncMock) as mock_gen,
+            patch("src.routes.storyboard.R2Client") as mock_r2,
+        ):
+            mock_gen.return_value = (storyboard_data, _MOCK_VALIDATION)
+            mock_r2.return_value = mock_storage
+
+            client.post(f"/runs/{RUN_ID}/storyboard", json={"script": "Test script."})
+
+        _, call_kwargs = mock_gen.call_args
+        timestamps = call_kwargs.get("word_timestamps") or (mock_gen.call_args[0][2] if len(mock_gen.call_args[0]) > 2 else None)
+        assert timestamps is None

@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [E5-S5] Pipeline reorder: VO-first with Deepgram-driven storyboard
+**Completed:** 2026-05-27
+**Sprint:** 4
+**Handover:**
+- `src/models.py`: `PIPELINE_STEPS` reordered — `"alignment"` is now first, before `"storyboard"`. New run initializations reflect the VO-first order.
+- `src/storyboard.py`: `generate_storyboard(script, settings, word_timestamps=None)` — new optional param. When `word_timestamps` is provided, `_call_claude_api` prepends a `WORD TIMESTAMPS (Deepgram Nova-2 — use these for scene duration_s):` block to the user message. `_format_timestamps(words) → str` helper added. Prompt bumped to v0.8.
+- `src/routes/storyboard.py`: Before calling Claude, attempts `storage.get_json(f"runs/{run_id}/alignment.json")`; builds `list[WordTimestamp]` and passes to `generate_storyboard`. Falls back to `word_timestamps=None` on `StorageError` (legacy runs unchanged).
+- `src/routes/ffmpeg_script.py`: After loading storyboard + manifest, checks for `alignment.json` via `storage.get_json`. If found → skips ffprobe redistribution block entirely. If `StorageError` → falls through to existing ffprobe redistribution (backward compat for runs without alignment).
+- `src/static/pipeline.html`: Full UI rewrite. New run panel: slug only (no script textarea). Step order: VO Upload → Alignment → Storyboard → Manifest → Assets → FFmpeg Script → Render. Storyboard shows amber `"run Alignment first"` gate until `currentSteps.alignment === 'complete'`. `refreshAllActions()` called after every step completion. `autoRunNewRun` removed — operator drives steps manually.
+- `docs/PROMPTS.md`: Bumped to v0.8. Changelog + TIMESTAMP ALIGNMENT section added.
+- `tests/test_storyboard.py`: `_mock_storage()` defaults `get_json` to `StorageError`; 2 new tests for alignment passthrough and no-alignment-passes-None.
+- `tests/test_ffmpeg_builder.py`: All route tests updated with 3rd `StorageError` for alignment check; `test_alignment_present_skips_redistribution` added.
+- 470 total tests passing (+8 net). No new ENV vars. No new pip dependencies.
+**Smoke test:** DEFERRED — requires Railway DEV with `DEEPGRAM_API_KEY` set + a voiceover file uploaded; run full VO-first flow (upload VO → Alignment → Storyboard → Manifest → Assets → FFmpeg Script → Render); confirm `final.mp4` scene cuts land on word boundaries from Deepgram timestamps.
+**Promoted to backlog:** none
+
+---
+
 ## [E8-S3] Haiku run log summarizer
 **Completed:** 2026-05-27
 **Sprint:** 3

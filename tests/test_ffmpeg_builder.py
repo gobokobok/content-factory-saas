@@ -605,6 +605,7 @@ class TestFfmpegScriptRoute:
             mock_storage.get_json.side_effect = [
                 _storyboard_data(),
                 _manifest_data(self.RUN),
+                StorageError("no alignment"),
             ]
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -619,6 +620,7 @@ class TestFfmpegScriptRoute:
             mock_storage.get_json.side_effect = [
                 _storyboard_data(),
                 _manifest_data(self.RUN),
+                StorageError("no alignment"),
             ]
             client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -633,6 +635,7 @@ class TestFfmpegScriptRoute:
             mock_storage.get_json.side_effect = [
                 _storyboard_data(),
                 _manifest_data(self.RUN),
+                StorageError("no alignment"),
             ]
             client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -680,7 +683,9 @@ class TestFfmpegScriptRoute:
         }
         with patch("src.routes.ffmpeg_script.R2Client") as MockR2:
             mock_storage = MockR2.return_value
-            mock_storage.get_json.side_effect = [_storyboard_data(), manifest]
+            mock_storage.get_json.side_effect = [
+                _storyboard_data(), manifest, StorageError("no alignment")
+            ]
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
         assert resp.status_code == 422
@@ -695,6 +700,7 @@ class TestFfmpegScriptRoute:
             mock_storage.get_json.side_effect = [
                 _storyboard_data(),
                 _manifest_data(self.RUN),
+                StorageError("no alignment"),
             ]
             mock_storage.upload_text.side_effect = StorageError("R2 down")
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
@@ -885,22 +891,25 @@ class TestFfmpegScriptRouteVoiceover:
     RUN = "2026-05-22_test-run"
 
     def test_voiceover_found_redistributes_durations(self, client):
-        """When voiceover exists in R2, scene durations are redistributed before script generation."""
+        """When voiceover exists and no alignment.json, scene durations are redistributed."""
         with (
             patch("src.routes.ffmpeg_script.R2Client") as MockR2,
             patch("src.routes.ffmpeg_script.get_audio_duration", return_value=20.0) as mock_dur,
         ):
             mock_storage = MockR2.return_value
-            mock_storage.get_json.side_effect = [_storyboard_data(), _manifest_data(self.RUN)]
+            mock_storage.get_json.side_effect = [
+                _storyboard_data(),
+                _manifest_data(self.RUN),
+                StorageError("no alignment"),
+            ]
             mock_storage.list_keys.return_value = [f"runs/{self.RUN}/voiceover/voice.mp3"]
             mock_storage.get_bytes.return_value = b"fake-audio"
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
         assert resp.status_code == 200
         mock_dur.assert_called_once()
-        # Confirm redistributed duration appears in the uploaded script
+        # Single scene → full 20s after redistribution
         uploaded_script = mock_storage.upload_text.call_args[0][1]
-        # Single scene with 3 words out of 3 total → full 20s
         assert "-t 20.0" in uploaded_script
 
     def test_no_voiceover_uses_storyboard_durations(self, client):
@@ -910,7 +919,11 @@ class TestFfmpegScriptRouteVoiceover:
             patch("src.routes.ffmpeg_script.get_audio_duration") as mock_dur,
         ):
             mock_storage = MockR2.return_value
-            mock_storage.get_json.side_effect = [_storyboard_data(), _manifest_data(self.RUN)]
+            mock_storage.get_json.side_effect = [
+                _storyboard_data(),
+                _manifest_data(self.RUN),
+                StorageError("no alignment"),
+            ]
             mock_storage.list_keys.return_value = []
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -918,6 +931,26 @@ class TestFfmpegScriptRouteVoiceover:
         mock_dur.assert_not_called()
         uploaded_script = mock_storage.upload_text.call_args[0][1]
         assert "-t 3.0" in uploaded_script  # original storyboard duration unchanged
+
+    def test_alignment_present_skips_redistribution(self, client):
+        """When alignment.json is in R2, ffprobe redistribution is skipped entirely."""
+        with (
+            patch("src.routes.ffmpeg_script.R2Client") as MockR2,
+            patch("src.routes.ffmpeg_script.get_audio_duration") as mock_dur,
+        ):
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = [
+                _storyboard_data(),
+                _manifest_data(self.RUN),
+                {"run_id": self.RUN, "word_count": 5, "used_fallback": False, "words": []},
+            ]
+            resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
+
+        assert resp.status_code == 200
+        mock_dur.assert_not_called()
+        # Original storyboard duration preserved (3.0s)
+        uploaded_script = mock_storage.upload_text.call_args[0][1]
+        assert "-t 3.0" in uploaded_script
 
 
 # ── Unit: captions integration in build_ffmpeg_script ────────────────────────

@@ -75,7 +75,7 @@
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | ready |
+| E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | done |
 | E4-S7 | Word-synced captions using Deepgram timestamps | 5 | ready (starts after E5-S5 merges) |
 
 **Dependency order:**
