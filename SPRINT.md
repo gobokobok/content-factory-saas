@@ -56,13 +56,13 @@
 |----|-------|--------|--------|
 | E6-S4 | End-to-end production smoke test | 2 | done |
 | E4-S6 | Subtitle style overhaul + voiceover line shortening | 3 | done |
-| E5-S4 | WhisperX forced alignment for ms-precise scene timing | 8 | backlog |
+| E5-S4 | Word-level timestamp extraction via Deepgram | 5 | ready |
 | E8-S1 | Haiku schema validator — storyboard.json | 3 | backlog |
 | E8-S3 | Haiku run log summarizer | 3 | backlog |
 
 **Dependency order:**
 1. E6-S4 ✅ DONE — validated DEV is healthy.
-2. E4-S6 — subtitle style overhaul; must complete before E5-S4 so WhisperX lands on the correct visual style.
+2. E4-S6 ✅ DONE — subtitle style overhaul complete.
 3. E5-S4 + E8-S1 — independent, run in parallel after E4-S6.
 4. E8-S3 — independent of all, can run any time.
 5. E4-S7 — backlog, not in this sprint; depends on E5-S4 word-level timestamps.

@@ -796,7 +796,7 @@ Update ASS subtitle styling to mobile-first vertical short format, and enforce s
 
 ---
 
-## [E4-S7] Word-synced captions using WhisperX timestamps
+## [E4-S7] Word-synced captions using Deepgram timestamps
 **Epic:** E4 — FFmpeg Script Generation
 **Sprint:** unassigned
 **Status:** backlog
@@ -805,7 +805,7 @@ Update ASS subtitle styling to mobile-first vertical short format, and enforce s
 **Depends on:** E5-S4
 
 ### Goal
-Use word-level timestamps from WhisperX to display caption chunks exactly when spoken, with the active word highlighted in yellow. Implements the current high-retention short-form caption pattern.
+Use word-level timestamps from Deepgram (via `alignment.json`) to display caption chunks exactly when spoken, with the active word highlighted in yellow. Implements the current high-retention short-form caption pattern.
 
 ### Acceptance Criteria
 - [ ] Caption chunks advance word-by-word or phrase-by-phrase in sync with audio
@@ -823,13 +823,13 @@ Use word-level timestamps from WhisperX to display caption chunks exactly when s
 - [ ] BACKLOG.md status updated to `done`
 
 ### Files to modify (expected)
-- `src/captions.py` — new build function using WhisperX word timestamps
+- `src/captions.py` — new build function using `WordTimestamp` list
 - `src/ffmpeg_builder.py` — wire new caption builder into render chain
 
 ### Notes
-- Depends on WhisperX word-level output format from E5-S4. Read E5-S4 DONE.md entry before starting.
+- Depends on E5-S4 `WordTimestamp` schema output (`alignment.json` in R2)
+- Read E5-S4 DONE.md before starting — confirm `alignment.json` schema
 - ASS karaoke tags (`\k`) are one approach; per-word Dialogue events are simpler and more robust — evaluate during implementation.
-- E5-S4 must write `whisperx_alignment.json` to R2 with word-level timestamps for this story to consume.
 
 ### Handover
 _filled on completion_
@@ -981,34 +981,28 @@ Fix Pexels keyword mismatch by rewriting query generation strategy in storyboard
 
 ---
 
-## [E5-S4] WhisperX forced alignment for ms-precise scene timing
+## [E5-S4] Word-level timestamp extraction via Deepgram
 **Epic:** E5 — FFmpeg Execution + Drive Upload
-**Sprint:** unassigned
-**Status:** backlog
-**Points:** 8
+**Sprint:** 3
+**Status:** ready
+**Points:** 5
 **Priority:** medium
 **Depends on:** E5-S2
 
 ### Goal
-Replace proportional word-count redistribution with millisecond-precise scene boundaries derived from forced alignment of the actual voiceover recording.
-
-### How it works
-- New pipeline step: `POST /runs/{run_id}/align`
-- Downloads voiceover from R2 to /tmp
-- Runs WhisperX (faster-whisper + phoneme aligner) on the audio
-- Returns word-level timestamps: `[{word, start, end}]`
-- Maps words to scenes based on storyboard voiceover_line text matching
-- Writes `alignment.json` to R2: `[{scene_id, start_s, end_s, duration_s}]`
-- ffmpeg-script step reads `alignment.json` if present; falls back to proportional redistribution if not
+Call Deepgram Nova-2 API to extract word-level timestamps from the uploaded voiceover MP3. Normalize output to internal schema. Store result as `alignment.json` in R2. Fallback to proportional timing if API fails.
 
 ### Acceptance Criteria
-- [ ] `POST /runs/{run_id}/align` endpoint processes voiceover and writes `alignment.json` to R2
-- [ ] Word-to-scene mapping handles minor transcription differences (fuzzy match)
-- [ ] ffmpeg_script route reads `alignment.json` from R2 before building script
-- [ ] Scene durations from `alignment.json` used instead of proportional weights when present
-- [ ] Graceful fallback: if `alignment.json` missing, proportional redistribution used (no breaking change)
-- [ ] Processing time logged — target <3min for 60s VO on Railway CPU
-- [ ] All existing tests pass; new tests for alignment parsing and scene mapping
+- [ ] New service `src/alignment.py`: `align_audio(run_id, audio_url) → list[WordTimestamp]`
+- [ ] `WordTimestamp` schema: `{word, start_ms, end_ms, confidence}`
+- [ ] Deepgram Nova-2 called via `httpx` (no SDK) — `model=nova-2`, `smart_format=true`
+- [ ] Timestamps converted from seconds (float) to milliseconds (int)
+- [ ] Punctuation stripped from `word` field
+- [ ] Fallback: if Deepgram fails, proportional distribution by character count
+- [ ] Result stored as `runs/{run_id}/alignment.json` in R2
+- [ ] New pipeline step: `POST /runs/{id}/alignment` (between assets and ffmpeg-script)
+- [ ] `DEEPGRAM_API_KEY` added to `config.py` and `ENV.md`
+- [ ] 0 new heavy dependencies — `httpx` already in `requirements.txt`
 
 ### Definition of Done
 - [ ] All AC checked
@@ -1018,14 +1012,21 @@ Replace proportional word-count redistribution with millisecond-precise scene bo
 - [ ] DONE.md updated
 - [ ] BACKLOG.md status updated to `done`
 
-### Implementation notes
-- WhisperX: `pip install whisperx` (pulls faster-whisper, torch CPU)
-- Railway: add to requirements.txt; Docker build time increases ~2min
-- Run async or with extended timeout (FFMPEG_TIMEOUT_SECONDS pattern)
-- Word-to-scene mapping: split storyboard voiceover_line into words, find matching span in WhisperX output, take start of first word and end of last word as scene boundaries
-- DECISIONS.md D030: WhisperX chosen over proportional redistribution for ms-precise alignment; deferred until captions and zoom validated
-- Word-level timestamp output must be preserved in the run artifact (e.g. `whisperx_alignment.json` in R2) so E4-S7 can consume it without re-running alignment.
-- Output format decision (word timestamps schema) must be documented in DECISIONS.md as part of E5-S4 closure.
+### Files to create/modify
+- `src/alignment.py` — new
+- `src/models.py` — `WordTimestamp` model
+- `src/config.py` — `DEEPGRAM_API_KEY`
+- `src/main.py` — new `/alignment` endpoint
+- `ENV.md` — document `DEEPGRAM_API_KEY`
+- `DECISIONS.md` — D034
+- `tests/test_alignment.py` — new
+
+### Notes
+- `httpx` is preferred over `requests` (already a dep, async-native)
+- Do NOT use the Deepgram Python SDK — plain HTTP call only, keeps deps clean
+- Proportional fallback must use character-count weighting, not equal distribution
+- Word-level output must be stored in R2 so E4-S7 can consume without re-calling API
+- See D034 in DECISIONS.md for provider rationale
 
 ### Handover
 _filled on completion_

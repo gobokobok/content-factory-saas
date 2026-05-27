@@ -5,6 +5,21 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D034 — Deepgram Nova-2 over WhisperX for word-level timestamps
+**Date:** 2026-05-27
+**Decision:** Use Deepgram Nova-2 API for word-level timestamp extraction instead of WhisperX.
+**Rationale:**
+- WhisperX requires `torch` + `torchaudio` (~1.5 GB Docker increase, 30–90s CPU inference per run)
+- Deepgram returns word timestamps in <1s via HTTP, zero Docker image impact
+- Cost: ~$0.0043/min — negligible for short-form VO (30–90s clips)
+- Built-in fallback to proportional timing if API call fails
+- Internal `WordTimestamp` schema abstracts the provider — swappable to OpenAI Whisper API if needed
+**Fallback provider:** OpenAI Whisper API (`verbose_json` + `timestamp_granularities[]=word`)
+**Implementation:** Plain `httpx` POST to `https://api.deepgram.com/v1/listen`, no SDK. `DEEPGRAM_API_KEY` added to config.
+**Supersedes:** Previous plan in E5-S4 (WhisperX forced alignment).
+
+---
+
 ## D033 — Montserrat ExtraBold font for voiceover captions
 **Date:** 2026-05-27
 **Decision:** Add `fonts-montserrat` apt package to the Dockerfile so libass can render the `VoiceCaption` ASS style using `Montserrat ExtraBold`.
