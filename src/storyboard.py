@@ -7,14 +7,16 @@ from typing import Optional
 import anthropic
 
 from src.config import Settings
-from src.exceptions import StoryboardAPIError, StoryboardParseError
+from src.exceptions import StoryboardAPIError, StoryboardParseError, StoryboardValidationError
 from src.models import (
     Storyboard,
     StoryboardGlobal,
     StoryboardScene,
     StoryboardSummary,
+    ValidationResult,
     VisualPrompts,
 )
+from src.validators.storyboard_validator import validate_storyboard
 
 logger = logging.getLogger(__name__)
 
@@ -201,10 +203,22 @@ Rhythm: [SM / HC / HC / AN / SM ...]
 """
 
 
-async def generate_storyboard(script: str, settings: Settings) -> Storyboard:
-    """Call Claude API with v0.6 prompt, parse and validate into a Storyboard."""
+async def generate_storyboard(
+    script: str, settings: Settings
+) -> tuple[Storyboard, ValidationResult]:
+    """
+    Call Claude API with v0.6 prompt, parse, then validate with Haiku.
+
+    Returns (storyboard, validation_result). Raises StoryboardValidationError if
+    Haiku finds schema violations in the generated storyboard.
+    """
     raw_text = await _call_claude_api(script, settings.ANTHROPIC_API_KEY, settings.CLAUDE_MODEL)
-    return _parse_storyboard_response(raw_text)
+    storyboard = _parse_storyboard_response(raw_text)
+    validation = await validate_storyboard(storyboard, settings.ANTHROPIC_API_KEY)
+    if not validation.valid:
+        error_summary = "; ".join(validation.errors)
+        raise StoryboardValidationError(f"Storyboard validation failed: {error_summary}")
+    return storyboard, validation
 
 
 async def _call_claude_api(script: str, api_key: str, model: str) -> str:

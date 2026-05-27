@@ -5,7 +5,12 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.config import Settings, get_settings
-from src.exceptions import StoryboardAPIError, StoryboardParseError, StorageError
+from src.exceptions import (
+    StoryboardAPIError,
+    StoryboardParseError,
+    StoryboardValidationError,
+    StorageError,
+)
 from src.models import StoryboardRequest, StoryboardResponse
 from src.storyboard import generate_storyboard
 from src.storage import R2Client
@@ -30,8 +35,8 @@ async def create_storyboard(
     )
 
     try:
-        storyboard = await generate_storyboard(body.script, settings)
-    except (StoryboardAPIError, StoryboardParseError) as exc:
+        storyboard, validation = await generate_storyboard(body.script, settings)
+    except (StoryboardAPIError, StoryboardParseError, StoryboardValidationError) as exc:
         logger.error("Storyboard generation failed for run '%s': %s", run_id, exc)
         try:
             storage.update_run_log(run_id, "storyboard", "failed", error=str(exc))
@@ -48,7 +53,13 @@ async def create_storyboard(
             storyboard.model_dump(by_alias=True, mode="json"),
         )
         storage.update_run_log(
-            run_id, "storyboard", "complete", output_url=storyboard_key
+            run_id,
+            "storyboard",
+            "complete",
+            output_url=storyboard_key,
+            input_tokens=validation.input_tokens,
+            output_tokens=validation.output_tokens,
+            cost_usd=validation.cost_usd,
         )
     except StorageError as exc:
         logger.error("Storage error after storyboard generation for run '%s': %s", run_id, exc)

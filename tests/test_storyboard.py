@@ -6,8 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.config import Settings, get_settings
-from src.exceptions import StoryboardAPIError, StoryboardParseError
+from src.exceptions import StoryboardAPIError, StoryboardParseError, StoryboardValidationError
 from src.main import app
+from src.models import ValidationResult
 from src.storyboard import (
     _parse_global,
     _parse_scene,
@@ -208,6 +209,14 @@ def client():
 
 RUN_ID = "2026-05-22_test-affordability"
 
+_MOCK_VALIDATION = ValidationResult(
+    valid=True,
+    errors=[],
+    input_tokens=50,
+    output_tokens=20,
+    cost_usd=round(50 * 0.80 / 1_000_000 + 20 * 4.00 / 1_000_000, 8),
+)
+
 
 class TestStoryboardRoute:
     def _mock_storage(self):
@@ -223,7 +232,7 @@ class TestStoryboardRoute:
             patch("src.routes.storyboard.generate_storyboard", new_callable=AsyncMock) as mock_gen,
             patch("src.routes.storyboard.R2Client") as mock_r2,
         ):
-            mock_gen.return_value = storyboard_data
+            mock_gen.return_value = (storyboard_data, _MOCK_VALIDATION)
             mock_r2.return_value = self._mock_storage()
 
             response = client.post(
@@ -236,7 +245,7 @@ class TestStoryboardRoute:
         assert body["status"] == "complete"
         assert body["storyboard_key"] == f"runs/{RUN_ID}/storyboard.json"
 
-    def test_success_uploads_and_updates_run_log(self, client):
+    def test_success_uploads_and_updates_run_log_with_cost(self, client):
         storyboard_data = _parse_storyboard_response(SAMPLE_FULL_RESPONSE)
         mock_storage = self._mock_storage()
 
@@ -244,7 +253,7 @@ class TestStoryboardRoute:
             patch("src.routes.storyboard.generate_storyboard", new_callable=AsyncMock) as mock_gen,
             patch("src.routes.storyboard.R2Client") as mock_r2,
         ):
-            mock_gen.return_value = storyboard_data
+            mock_gen.return_value = (storyboard_data, _MOCK_VALIDATION)
             mock_r2.return_value = mock_storage
 
             client.post(
@@ -261,6 +270,9 @@ class TestStoryboardRoute:
             "storyboard",
             "complete",
             output_url=f"runs/{RUN_ID}/storyboard.json",
+            input_tokens=_MOCK_VALIDATION.input_tokens,
+            output_tokens=_MOCK_VALIDATION.output_tokens,
+            cost_usd=_MOCK_VALIDATION.cost_usd,
         )
 
     def test_api_error_returns_500(self, client):
@@ -299,6 +311,26 @@ class TestStoryboardRoute:
         assert response.status_code == 500
         assert "Missing PRIMARY prompt" in response.json()["detail"]
 
+    def test_validation_error_returns_500(self, client):
+        with (
+            patch(
+                "src.routes.storyboard.generate_storyboard",
+                new_callable=AsyncMock,
+                side_effect=StoryboardValidationError(
+                    "Storyboard validation failed: scene 2: sfx is null"
+                ),
+            ),
+            patch("src.routes.storyboard.R2Client") as mock_r2,
+        ):
+            mock_r2.return_value = self._mock_storage()
+            response = client.post(
+                f"/runs/{RUN_ID}/storyboard",
+                json={"script": "Test script."},
+            )
+
+        assert response.status_code == 500
+        assert "validation failed" in response.json()["detail"]
+
     def test_failure_updates_run_log_as_failed(self, client):
         mock_storage = self._mock_storage()
 
@@ -323,6 +355,31 @@ class TestStoryboardRoute:
             error="timeout",
         )
 
+    def test_validation_failure_updates_run_log_as_failed(self, client):
+        mock_storage = self._mock_storage()
+        error_msg = "Storyboard validation failed: scene 1: sfx is null"
+
+        with (
+            patch(
+                "src.routes.storyboard.generate_storyboard",
+                new_callable=AsyncMock,
+                side_effect=StoryboardValidationError(error_msg),
+            ),
+            patch("src.routes.storyboard.R2Client") as mock_r2,
+        ):
+            mock_r2.return_value = mock_storage
+            client.post(
+                f"/runs/{RUN_ID}/storyboard",
+                json={"script": "Test script."},
+            )
+
+        mock_storage.update_run_log.assert_called_once_with(
+            RUN_ID,
+            "storyboard",
+            "failed",
+            error=error_msg,
+        )
+
     def test_storage_error_on_upload_returns_500(self, client):
         from src.exceptions import StorageError
 
@@ -334,7 +391,7 @@ class TestStoryboardRoute:
             patch("src.routes.storyboard.generate_storyboard", new_callable=AsyncMock) as mock_gen,
             patch("src.routes.storyboard.R2Client") as mock_r2,
         ):
-            mock_gen.return_value = storyboard_data
+            mock_gen.return_value = (storyboard_data, _MOCK_VALIDATION)
             mock_r2.return_value = mock_storage
 
             response = client.post(

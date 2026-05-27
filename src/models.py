@@ -32,6 +32,9 @@ class StepLog(BaseModel):
     completed_at: Optional[str] = None
     error: Optional[str] = None
     output_url: Optional[str] = None
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    cost_usd: Optional[float] = None
 
 
 class RunLog(BaseModel):
@@ -245,6 +248,16 @@ class AlignmentResponse(BaseModel):
     alignment_key: str
     word_count: int
     used_fallback: bool
+
+
+class ValidationResult(BaseModel):
+    """Result of Haiku schema validation for storyboard.json."""
+
+    valid: bool
+    errors: list[str]
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
 
 
 class VoiceoverUploadUrlRequest(BaseModel):

@@ -1410,8 +1410,9 @@ Route pipeline tasks to the appropriate model (Haiku / Sonnet / Opus) based on t
 
 ## [E8-S1] Haiku schema validator — storyboard.json
 **Epic:** E8 — Cost Optimization
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 3
+**Status:** done
+**Completed:** 2026-05-27
 **Priority:** high
 **Depends on:** E1-S3
 
@@ -1419,20 +1420,20 @@ Route pipeline tasks to the appropriate model (Haiku / Sonnet / Opus) based on t
 Validate `storyboard.json` against the v0.4 schema using Haiku before any downstream step runs.
 
 ### Acceptance Criteria
-- [ ] Haiku called with schema from `docs/PROMPTS.md` + generated `storyboard.json`
-- [ ] Returns `{valid: bool, errors: [list of field/rule violations]}`
-- [ ] If invalid: step halts, errors written to `run_log.json` and `run_log.txt`
-- [ ] If valid: pipeline proceeds to next step
-- [ ] Haiku model string: `claude-haiku-4-5-20251001`
-- [ ] Validation cost logged per run in `run_log.json`
+- [x] Haiku called with schema from `docs/PROMPTS.md` + generated `storyboard.json`
+- [x] Returns `{valid: bool, errors: [list of field/rule violations]}`
+- [x] If invalid: step halts, errors written to `run_log.json` (run_log.txt deferred to E8-S3)
+- [x] If valid: pipeline proceeds to next step
+- [x] Haiku model string: `claude-haiku-4-5-20251001`
+- [x] Validation cost logged per run in `run_log.json`
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
+- [x] All AC checked
+- [x] Tests written and passing (444 total, 13 new)
 - [ ] CI green, deployed to DEV
 - [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Smoke test
 Submit a valid storyboard — confirm pipeline proceeds. Submit a storyboard with a missing `sfx` field — confirm halt + error logged.
@@ -1448,7 +1449,13 @@ Submit a valid storyboard — confirm pipeline proceeds. Submit a storyboard wit
 - `src/storyboard.py` — add validation call after generation
 
 ### Handover
-_filled on completion_
+- `src/validators/storyboard_validator.py`: `validate_storyboard(storyboard, api_key) → ValidationResult` (async). Sends serialised `storyboard.json` to `claude-haiku-4-5-20251001` with an 8-rule validation system prompt. Parses `{"valid": bool, "errors": [...]}` JSON from Haiku response. `_INPUT_COST_PER_TOKEN = 0.80/1M`, `_OUTPUT_COST_PER_TOKEN = 4.00/1M`. Raises `StoryboardValidationError` on API failure or unparseable response.
+- `src/models.py`: `StepLog` gains `input_tokens: Optional[int]`, `output_tokens: Optional[int]`, `cost_usd: Optional[float]`. `ValidationResult(valid, errors, input_tokens, output_tokens, cost_usd)` model added.
+- `src/exceptions.py`: `StoryboardValidationError` added.
+- `src/storage.py`: `update_run_log` accepts `input_tokens`, `output_tokens`, `cost_usd` optional kwargs; writes them into the step dict when not None.
+- `src/storyboard.py`: `generate_storyboard` now returns `tuple[Storyboard, ValidationResult]`. Calls `validate_storyboard` after parse; raises `StoryboardValidationError` with joined error list when `valid=False`.
+- `src/routes/storyboard.py`: `StoryboardValidationError` added to caught exception tuple. On success, passes token/cost fields from `ValidationResult` to `update_run_log`.
+- 444 total tests passing (13 new). No new pip dependencies. No new ENV vars (reuses `ANTHROPIC_API_KEY`).
 
 ---
 
@@ -1497,7 +1504,7 @@ _filled on completion_
 ## [E8-S3] Haiku run log summarizer
 **Epic:** E8 — Cost Optimization
 **Sprint:** unassigned
-**Status:** backlog
+**Status:** in-progress
 **Priority:** medium
 **Depends on:** E1-S2, E6-S1
 

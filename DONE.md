@@ -4,6 +4,26 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [E8-S1] Haiku schema validator — storyboard.json
+**Completed:** 2026-05-27
+**Sprint:** 3
+**Handover:**
+- `src/validators/__init__.py` — new package.
+- `src/validators/storyboard_validator.py` — `validate_storyboard(storyboard, api_key) → ValidationResult` (async). Calls `claude-haiku-4-5-20251001` with an 8-rule validation system prompt + serialised storyboard JSON. Parses `{"valid": bool, "errors": [...]}` response. Raises `StoryboardValidationError` on API failure or unparseable Haiku response. `_INPUT_COST_PER_TOKEN = 0.80/1M`, `_OUTPUT_COST_PER_TOKEN = 4.00/1M` — cost calculated and returned in `ValidationResult`.
+- `src/models.py` — `StepLog` gains `input_tokens: Optional[int]`, `output_tokens: Optional[int]`, `cost_usd: Optional[float]` fields. `ValidationResult(valid, errors, input_tokens, output_tokens, cost_usd)` model added.
+- `src/exceptions.py` — `StoryboardValidationError` added.
+- `src/storage.py` — `update_run_log` gains `input_tokens`, `output_tokens`, `cost_usd` optional kwargs; writes them to the step dict when provided.
+- `src/storyboard.py` — `generate_storyboard` changed to `tuple[Storyboard, ValidationResult]` return type. Calls `validate_storyboard` after parsing; raises `StoryboardValidationError` with joined error list if `valid=False`.
+- `src/routes/storyboard.py` — `StoryboardValidationError` added to the caught exception tuple. On success, passes `input_tokens`, `output_tokens`, `cost_usd` from the `ValidationResult` to `update_run_log`.
+- `tests/test_storyboard_validator.py` — 11 new tests: valid/invalid paths, token recording, cost calculation formula, API error, unparseable JSON, missing `valid` key, model string assertion, storyboard serialisation check, errors list type.
+- `tests/test_storyboard.py` — all mocks updated to return `(storyboard, ValidationResult)` tuple. `test_success_uploads_and_updates_run_log` renamed to `test_success_uploads_and_updates_run_log_with_cost` with cost field assertions added. Two new tests: `test_validation_error_returns_500` and `test_validation_failure_updates_run_log_as_failed`.
+- 444 total tests passing (13 new).
+- No new pip dependencies. No new ENV vars (reuses `ANTHROPIC_API_KEY`).
+**Smoke test:** Submit a valid storyboard on DEV — confirm pipeline proceeds. Submit a storyboard with a missing `sfx` field — confirm halt + error in `run_log.json`.
+**Promoted to backlog:** none
+
+---
+
 ## [E5-S4] Word-level timestamp extraction via Deepgram
 **Completed:** 2026-05-27
 **Sprint:** 3
