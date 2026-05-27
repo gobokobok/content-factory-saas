@@ -302,3 +302,45 @@ class TestValidateStoryboard:
             result = await validate_storyboard(storyboard, "test-key")
 
         assert result.valid is True
+
+    @pytest.mark.asyncio
+    async def test_duration_errors_are_filtered(self):
+        """Haiku may hallucinate duration limits — they must be filtered out."""
+        storyboard = _make_storyboard()
+        mock_message = _make_message(
+            {"valid": False, "errors": ["scene 3: duration_s=1.5 exceeds hard_cut ceiling"]}
+        )
+
+        with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+            result = await validate_storyboard(storyboard, "test-key")
+
+        assert result.valid is True
+        assert result.errors == []
+
+    @pytest.mark.asyncio
+    async def test_duration_errors_filtered_preserves_real_errors(self):
+        """Real schema errors are kept when duration hallucination is also present."""
+        storyboard = _make_storyboard()
+        mock_message = _make_message(
+            {
+                "valid": False,
+                "errors": [
+                    "scene 3: duration_s=1.5 exceeds hard_cut ceiling",
+                    "scene 2: sfx is null",
+                ],
+            }
+        )
+
+        with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+            result = await validate_storyboard(storyboard, "test-key")
+
+        assert result.valid is False
+        assert result.errors == ["scene 2: sfx is null"]
