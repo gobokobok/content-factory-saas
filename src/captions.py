@@ -31,7 +31,7 @@ _CAPTIONS_ASS_HEADER = (
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
     "Style: VoiceCaption,Poppins,92,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-    "1,0,0,0,100,100,0,0,1,8,1,2,10,10,250,1\n"
+    "1,0,0,0,100,100,0,0,1,8,1,2,10,10,350,1\n"
     "\n"
     "[Events]\n"
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"

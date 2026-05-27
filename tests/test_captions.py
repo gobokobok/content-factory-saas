@@ -220,11 +220,11 @@ class TestBuildCaptionsAss:
         # [18]=Alignment, [19]=MarginL, [20]=MarginR, [21]=MarginV, [22]=Encoding
         assert fields[18] == "2"  # 2 = bottom-center
 
-    def test_margin_v_is_250(self):
+    def test_margin_v_is_350(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        assert fields[-2] == "250"  # MarginV
+        assert fields[-2] == "350"  # MarginV
 
     def test_voicecaption_outline_is_8(self):
         result = build_captions_ass([_scene("01")])
