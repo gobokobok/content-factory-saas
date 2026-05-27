@@ -443,12 +443,11 @@
     // ─── Run Detail — Rendering ───────────────────────────────────────────────
     function renderAllRows() {
       const container = document.getElementById('step-rows');
-      let html = '';
+      let html = buildVoSectionHtml();
       for (const step of STEPS) {
         const status  = currentSteps[step.key] || 'pending';
         const running = !!stepRunning[step.key];
         html += buildStepRowHtml(step, status, running);
-        if (step.key === 'ffmpeg_script') html += buildVoSectionHtml();
       }
       container.innerHTML = html;
     }
@@ -479,6 +478,7 @@
     function buildVoSectionHtml() {
       return `<div class="vo-section">
         <span class="vo-label">Voiceover</span>
+        <span class="muted" style="font-size:0.75rem">upload before running Storyboard</span>
         <input type="file" id="vo-file-input" accept=".mp3,audio/*" style="display:none" onchange="onVoFileSelected()">
         <button class="btn-sm" onclick="document.getElementById('vo-file-input').click()">Choose File</button>
         <span id="vo-filename" class="vo-filename">no file selected</span>
