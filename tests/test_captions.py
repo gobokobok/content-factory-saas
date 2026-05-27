@@ -76,7 +76,18 @@ class TestBuildAss:
 
     def test_style_definition_present(self):
         result = build_ass([_scene("01")])
-        assert "Style: Default,Open Sans,72" in result
+        assert "Style: Default,Open Sans,56" in result
+
+    def test_default_style_is_yellow(self):
+        result = build_ass([_scene("01")])
+        style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
+        assert "&H0000FFFF" in style_line  # yellow in ASS BGR
+
+    def test_default_style_outline_is_3(self):
+        result = build_ass([_scene("01")])
+        style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
+        fields = style_line.split(",")
+        assert fields[16] == "3"  # Outline field
 
     def test_alignment_is_center_screen(self):
         # Alignment=5 (middle-center), MarginV=0
@@ -190,7 +201,7 @@ class TestBuildCaptionsAss:
 
     def test_voicecaption_style_present(self):
         result = build_captions_ass([_scene("01")])
-        assert "Style: VoiceCaption,Open Sans,64" in result
+        assert "Style: VoiceCaption,Montserrat ExtraBold,72" in result
 
     def test_style_is_not_bold(self):
         result = build_captions_ass([_scene("01")])
@@ -209,11 +220,17 @@ class TestBuildCaptionsAss:
         # [18]=Alignment, [19]=MarginL, [20]=MarginR, [21]=MarginV, [22]=Encoding
         assert fields[18] == "2"  # 2 = bottom-center
 
-    def test_margin_v_is_288(self):
+    def test_margin_v_is_250(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        assert fields[-2] == "288"  # MarginV = 15% of 1920px
+        assert fields[-2] == "250"  # MarginV
+
+    def test_voicecaption_outline_is_6(self):
+        result = build_captions_ass([_scene("01")])
+        style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
+        fields = style_line.split(",")
+        assert fields[16] == "6"  # Outline field
 
     def test_voiceover_line_appears_verbatim(self):
         result = build_captions_ass([_scene("01", voiceover_line="Housing costs have tripled.")])

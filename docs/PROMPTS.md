@@ -1,6 +1,6 @@
 # AI Prompts — Content Factory
 
-## Storyboard Generator — v0.5
+## Storyboard Generator — v0.6
 **Used in:** E1-S3 (Step 2b — Script to Storyboard)
 **Input:** Plain-text voiceover script
 **Output:** `storyboard.json`
@@ -13,8 +13,9 @@
 | v0.3 | — | Added fallback query logic |
 | v0.4 | — | Duration from VO word count; comma-list = hard_cut; SFX never null |
 | v0.5 | 2026-05-25 | Query decomposition: concrete nouns only; cinematic direction terms for AI_GENERATE |
+| v0.6 | 2026-05-27 | voiceover_line capped at 4–6 words; short phrase, not a full sentence |
 
-### Key rules (v0.5)
+### Key rules (v0.6)
 - **Duration** derived from VO word count per lookup table — never from clip type ceiling
 - **Clip type ceilings** are hard limits: `hard_cut` ≤1s, `still_with_motion` ≤3s, `animated` ≤4s
 - **Comma-separated lists** in VO = one `hard_cut` sub-scene per item, labelled `03a / 03b / 03c`
@@ -48,7 +49,7 @@ SCENE FIELDS (every scene)
 - scene: sequential number (use 03a / 03b for list sub-scenes)
 - clip_type: hard_cut | still_with_motion | animated
 - duration_s: derived from VO word count (see rules below)
-- voiceover_line: exact portion of VO spoken over this scene
+- voiceover_line: exact portion of VO spoken over this scene — 4–6 words maximum. Short phrase, not a full sentence. Split longer VO lines into separate scenes.
 - visual_prompts:
     PRIMARY: STK `3–4 concrete nouns only — no adjectives`
     FALLBACK: STK `1–2 words, core subject only`

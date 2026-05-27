@@ -744,7 +744,8 @@ Add a second ASS subtitle track with full voiceover text as captions, displayed 
 ## [E4-S6] Subtitle style overhaul + voiceover line shortening
 **Epic:** E4 — FFmpeg Script Generation
 **Sprint:** 3
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-05-27
 **Points:** 3
 **Priority:** high
 **Depends on:** E4-S5
@@ -785,7 +786,13 @@ Update ASS subtitle styling to mobile-first vertical short format, and enforce s
 - Must complete before E5-S4 so WhisperX lands on the correct visual style.
 
 ### Handover
-_filled on completion_
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style updated — `Montserrat ExtraBold`, 72pt, white, black outline 6px, shadow 0, MarginV=250. `_ASS_HEADER` Default style (on-screen keywords) updated — 56pt, yellow (`&H0000FFFF` in ASS BGR), outline 3px, shadow 0, alignment=5 (center-screen) unchanged.
+- `src/storyboard.py`: `SYSTEM_PROMPT` `voiceover_line` field description updated to "4–6 words maximum. Short phrase, not a full sentence. Split longer VO lines into separate scenes." Module docstring and `generate_storyboard` docstring bumped to v0.6.
+- `docs/PROMPTS.md`: Bumped to v0.6, changelog entry added (2026-05-27), prompt block `voiceover_line` field synced.
+- `Dockerfile`: `fonts-montserrat` added to apt-get install alongside `fonts-open-sans`.
+- `DECISIONS.md`: D033 added — documents Montserrat ExtraBold font choice, apt package, fallback plan.
+- `tests/test_captions.py`: Updated 2 assertions (`test_style_definition_present`, `test_voicecaption_style_present`, `test_margin_v_is_250`); added 3 new tests (`test_default_style_is_yellow`, `test_default_style_outline_is_3`, `test_voicecaption_outline_is_6`). 393 total tests passing.
+- **Smoke test required:** render a Short on DEV and confirm captions are readable at mobile screen size.
 
 ---
 

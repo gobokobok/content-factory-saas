@@ -5,6 +5,15 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D033 — Montserrat ExtraBold font for voiceover captions
+**Date:** 2026-05-27
+**Decision:** Add `fonts-montserrat` apt package to the Dockerfile so libass can render the `VoiceCaption` ASS style using `Montserrat ExtraBold`.
+**Rationale:** Montserrat ExtraBold is the target caption font for mobile-first Shorts style (72pt, high-contrast, thick outline). It is not present in `python:3.11-slim` by default. The `fonts-montserrat` Debian package provides the full Montserrat family including ExtraBold. If the package is ever unavailable or the ASS style name does not resolve, libass will fall back to Arial Bold or the system default — captions remain legible but lose the brand typeface.
+**Fallback:** Change `Fontname` in `_CAPTIONS_ASS_HEADER` (src/captions.py) from `Montserrat ExtraBold` to `Arial Bold` if Railway build fails to resolve the font.
+**No requirements.txt change** — this is a system font, not a Python package.
+
+---
+
 ## D032 — CLIP semantic reranking: sentence-transformers + Pillow
 **Date:** 2026-05-25
 **Decision:** Add `sentence-transformers` (with `clip-ViT-B-32` model) and `Pillow` to rerank Pexels results by visual-semantic match before the existing size/resolution selection logic runs.

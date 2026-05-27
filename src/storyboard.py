@@ -1,4 +1,4 @@
-"""Claude API storyboard generation — calls v0.5 prompt and parses response into storyboard.json."""
+"""Claude API storyboard generation — calls v0.6 prompt and parses response into storyboard.json."""
 
 import logging
 import re
@@ -40,7 +40,7 @@ SCENE FIELDS (every scene)
 - scene: sequential number (use 03a / 03b for list sub-scenes)
 - clip_type: hard_cut | still_with_motion | animated
 - duration_s: derived from VO word count (see rules below)
-- voiceover_line: exact portion of VO spoken over this scene
+- voiceover_line: exact portion of VO spoken over this scene — 4–6 words maximum. Short phrase, not a full sentence. Split longer VO lines into separate scenes.
 - visual_prompts:
     PRIMARY: STK `3–4 concrete nouns only — no adjectives`
     FALLBACK: STK `1–2 words, core subject only`
@@ -202,7 +202,7 @@ Rhythm: [SM / HC / HC / AN / SM ...]
 
 
 async def generate_storyboard(script: str, settings: Settings) -> Storyboard:
-    """Call Claude API with v0.5 prompt, parse and validate into a Storyboard."""
+    """Call Claude API with v0.6 prompt, parse and validate into a Storyboard."""
     raw_text = await _call_claude_api(script, settings.ANTHROPIC_API_KEY, settings.CLAUDE_MODEL)
     return _parse_storyboard_response(raw_text)
 

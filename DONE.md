@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [E4-S6] Subtitle style overhaul + voiceover line shortening
+**Completed:** 2026-05-27
+**Sprint:** 3
+**Handover:**
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style — `Montserrat ExtraBold`, 72pt, white, black outline 6px, shadow 0, MarginV=250. `_ASS_HEADER` Default style (on-screen keywords) — 56pt, yellow (`&H0000FFFF` ASS BGR), outline 3px, shadow 0, center-screen alignment unchanged.
+- `src/storyboard.py`: `SYSTEM_PROMPT` `voiceover_line` field now reads "4–6 words maximum. Short phrase, not a full sentence. Split longer VO lines into separate scenes." Module docstring and `generate_storyboard` docstring bumped to v0.6.
+- `docs/PROMPTS.md`: Bumped to v0.6, changelog entry 2026-05-27, prompt block synced.
+- `Dockerfile`: `fonts-montserrat` added to apt-get install layer (provides Montserrat ExtraBold to libass).
+- `DECISIONS.md`: D033 — Montserrat ExtraBold font choice, apt package, Arial Bold fallback plan.
+- `tests/test_captions.py`: 3 assertions updated, 3 new tests added (`test_default_style_is_yellow`, `test_default_style_outline_is_3`, `test_voicecaption_outline_is_6`). 393 total tests passing.
+- No new Python dependencies. No new ENV vars.
+**Smoke test:** DEFERRED — requires DEV deploy of this commit + a full pipeline render. Confirm Montserrat ExtraBold renders correctly in the output video and captions are readable at mobile screen size.
+**Promoted to backlog:** none
+
+---
+
 ## [E6-S4] End-to-end production smoke test
 **Completed:** 2026-05-27
 **Sprint:** 3
