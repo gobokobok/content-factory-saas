@@ -26,14 +26,14 @@ _Entries added here when a story reaches Definition of Done._
 **Completed:** 2026-05-27
 **Sprint:** 3
 **Handover:**
-- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style — `Poppins` (fontname), Bold=1, 92pt, white, black outline 8px, shadow 1px, MarginV=250, Alignment=2 (bottom-center). Replaces Montserrat ExtraBold 72pt from Iteration 1. `_ASS_HEADER` Default style (on-screen keywords) — PrimaryColour reverted to white `&H00FFFFFF` (was yellow `&H0000FFFF`).
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style — `Poppins` (fontname), Bold=1, 92pt, white, black outline 8px, shadow 1px, MarginV=350, Alignment=2 (bottom-center). Replaces Montserrat ExtraBold 72pt from Iteration 1. `_ASS_HEADER` Default style (on-screen keywords) — PrimaryColour reverted to white `&H00FFFFFF` (was yellow `&H0000FFFF`).
 - `assets/fonts/Poppins-Bold.ttf` — bundled in repo (152 KB), sourced from Google Fonts. `fonts-poppins` does not exist as a Debian apt package (D035).
 - `Dockerfile` — `COPY assets/fonts/Poppins-Bold.ttf /usr/local/share/fonts/Poppins-Bold.ttf` + `RUN fc-cache -f /usr/local/share/fonts` added after the apt layer.
 - `DECISIONS.md` — D035 was pre-written; no new entry required.
 - `tests/test_captions.py` — 4 tests renamed/updated, 1 new test added (`test_voicecaption_shadow_is_1`). 394 total tests passing.
 - No new Python dependencies. No new ENV vars.
 - Prior Iteration 1 artifacts retained: Montserrat apt package (harmless), v0.6 prompt voiceover_line constraint (4–6 words), D033.
-**Smoke test:** DEFERRED — requires DEV deploy + a full pipeline render. Confirm Poppins Bold captions match SampleDis reference at mobile screen size.
+**Smoke test:** PASSED — Poppins Bold renders on Railway DEV; captions match SampleDis reference at mobile screen size. MarginV bumped 250→350 post-render for better bottom clearance (committed in `628474b`).
 **Promoted to backlog:** none
 
 ---

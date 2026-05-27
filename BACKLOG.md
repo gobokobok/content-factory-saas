@@ -754,25 +754,25 @@ Add a second ASS subtitle track with full voiceover text as captions, displayed 
 Replace current VoiceCaption ASS style with Poppins Bold, larger size, thick black stroke, subtle shadow — matching TikTok/Reels subtitle aesthetic shown in SampleDis reference.
 
 ### Acceptance Criteria
-- [ ] Font: Poppins Bold (`fonts-poppins` apt package if available, else download `Poppins-Bold.ttf` into Dockerfile via `assets/fonts/`)
-- [ ] Size: 92pt
-- [ ] White text, black outline 8px, shadow 1px at offset (1,1)
-- [ ] MarginV: 250 (lower-middle, clear of platform UI)
-- [ ] MarginL/R: ASS defaults (~20px)
-- [ ] Alignment: center (Alignment=2)
-- [ ] Max 2 lines, natural wrap — no hard truncation in code
-- [ ] On-screen keyword track: revert to white if yellow caused visual competition with captions
-- [ ] Dockerfile: Poppins Bold installed via apt or manual `.ttf` copy
-- [ ] `DECISIONS.md`: D035 documenting font choice
-- [ ] Smoke test: render a short, confirm captions match SampleDis reference visually
+- [x] Font: Poppins Bold (`fonts-poppins` apt package if available, else download `Poppins-Bold.ttf` into Dockerfile via `assets/fonts/`)
+- [x] Size: 92pt
+- [x] White text, black outline 8px, shadow 1px at offset (1,1)
+- [x] MarginV: 350 (bumped from 250 post-smoke-test for better bottom clearance)
+- [x] MarginL/R: ASS defaults (~20px)
+- [x] Alignment: center (Alignment=2)
+- [x] Max 2 lines, natural wrap — no hard truncation in code
+- [x] On-screen keyword track: reverted to white
+- [x] Dockerfile: Poppins Bold installed via `.ttf` copy + fc-cache
+- [x] `DECISIONS.md`: D035 documenting font choice
+- [x] Smoke test: render a short, confirm captions match SampleDis reference visually
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Tests written and passing
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Files to read
 - `src/captions.py`
@@ -797,7 +797,7 @@ Replace current VoiceCaption ASS style with Poppins Bold, larger size, thick bla
 - `DECISIONS.md`: D033 added.
 
 ### Handover
-- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style — `Poppins` (fontname), Bold=1, 92pt, white (`&H00FFFFFF`), black outline 8px, shadow 1px, MarginV=250, Alignment=2 (bottom-center). `_ASS_HEADER` Default style (on-screen keywords) — PrimaryColour reverted to white `&H00FFFFFF` (was yellow `&H0000FFFF`). No other field changes.
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style — `Poppins` (fontname), Bold=1, 92pt, white (`&H00FFFFFF`), black outline 8px, shadow 1px, MarginV=350, Alignment=2 (bottom-center). `_ASS_HEADER` Default style (on-screen keywords) — PrimaryColour reverted to white `&H00FFFFFF` (was yellow `&H0000FFFF`). No other field changes.
 - `assets/fonts/Poppins-Bold.ttf` — bundled in repo (152 KB); sourced from Google Fonts (github.com/google/fonts). See D035.
 - `Dockerfile` — `COPY assets/fonts/Poppins-Bold.ttf /usr/local/share/fonts/Poppins-Bold.ttf` + `RUN fc-cache -f /usr/local/share/fonts` added after the apt layer. `fonts-montserrat` left in apt (not removed — belt-and-suspenders, no harm).
 - `DECISIONS.md` — D035 was pre-written; no new entry required.
