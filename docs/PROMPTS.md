@@ -1,6 +1,6 @@
 # AI Prompts — Content Factory
 
-## Storyboard Generator — v0.6
+## Storyboard Generator — v0.7
 **Used in:** E1-S3 (Step 2b — Script to Storyboard)
 **Input:** Plain-text voiceover script
 **Output:** `storyboard.json`
@@ -14,8 +14,9 @@
 | v0.4 | — | Duration from VO word count; comma-list = hard_cut; SFX never null |
 | v0.5 | 2026-05-25 | Query decomposition: concrete nouns only; cinematic direction terms for AI_GENERATE |
 | v0.6 | 2026-05-27 | voiceover_line capped at 4–6 words; short phrase, not a full sentence |
+| v0.7 | 2026-05-27 | Enforce motion_effect non-null when clip_type=still_with_motion; CRITICAL rule added |
 
-### Key rules (v0.6)
+### Key rules (v0.7)
 - **Duration** derived from VO word count per lookup table — never from clip type ceiling
 - **Clip type ceilings** are hard limits: `hard_cut` ≤1s, `still_with_motion` ≤3s, `animated` ≤4s
 - **Comma-separated lists** in VO = one `hard_cut` sub-scene per item, labelled `03a / 03b / 03c`
@@ -25,7 +26,7 @@
 - **Global fields:** `subtitle_style`, `bg_music`, `visual_style`
 - **Never same clip_type more than twice in a row** (except deliberate list sequences)
 
-### Full system prompt (v0.5)
+### Full system prompt (v0.7)
 
 ```
 You are a production storyboard generator for a faceless, voiceover-driven YouTube Shorts channel.
@@ -98,6 +99,8 @@ STILL_WITH_MOTION
 - A photograph could tell the story
 - Single mood, place, person, emotion, or establishing shot
 - motion_effect is mandatory: zoom-in | zoom-out | pan-left | pan-right | ken-burns
+
+CRITICAL: If clip_type is "still_with_motion", motion_effect MUST be one of: "ken_burns_in", "ken_burns_out", "pan_left", "pan_right". It must never be null. If you have no preference, default to "ken_burns_in".
 
 ANIMATED
 - Use only when the concept requires change, transition, or sequence to land

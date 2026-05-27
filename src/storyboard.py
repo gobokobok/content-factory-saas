@@ -1,4 +1,4 @@
-"""Claude API storyboard generation — calls v0.6 prompt and parses response into storyboard.json."""
+"""Claude API storyboard generation — calls v0.7 prompt and parses response into storyboard.json."""
 
 import logging
 import re
@@ -91,6 +91,8 @@ STILL_WITH_MOTION
 - A photograph could tell the story
 - Single mood, place, person, emotion, or establishing shot
 - motion_effect is mandatory: zoom-in | zoom-out | pan-left | pan-right | ken-burns
+
+CRITICAL: If clip_type is "still_with_motion", motion_effect MUST be one of: "ken_burns_in", "ken_burns_out", "pan_left", "pan_right". It must never be null. If you have no preference, default to "ken_burns_in".
 
 ANIMATED
 - Use only when the concept requires change, transition, or sequence to land
@@ -207,7 +209,7 @@ async def generate_storyboard(
     script: str, settings: Settings
 ) -> tuple[Storyboard, ValidationResult]:
     """
-    Call Claude API with v0.6 prompt, parse, then validate with Haiku.
+    Call Claude API with v0.7 prompt, parse, then validate with Haiku.
 
     Returns (storyboard, validation_result). Raises StoryboardValidationError if
     Haiku finds schema violations in the generated storyboard.
