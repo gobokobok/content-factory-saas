@@ -10,7 +10,7 @@ from src import pipeline
 from src.config import Settings, get_settings
 from src.exceptions import FFmpegBuildError, StorageError
 from src.ffmpeg_builder import build_ffmpeg_script, get_audio_duration, redistribute_scene_durations
-from src.models import AssetManifest, FFmpegScriptResponse, Storyboard
+from src.models import AssetManifest, FFmpegScriptResponse, Storyboard, WordTimestamp
 from src.storage import R2Client
 
 logger = logging.getLogger(__name__)
@@ -51,13 +51,20 @@ def generate_ffmpeg_script(
     manifest = AssetManifest.model_validate(manifest_data)
 
     # When alignment.json is present, storyboard durations already reflect real speech timing
-    # (set by Claude using Deepgram timestamps). Skip ffprobe redistribution.
+    # (set by Claude using Deepgram timestamps). Skip ffprobe redistribution and use
+    # word-level timestamps for caption sync.
     alignment_key = f"runs/{run_id}/alignment.json"
     has_alignment = False
+    word_timestamps: list[WordTimestamp] = []
     try:
-        storage.get_json(alignment_key)
+        alignment_data = storage.get_json(alignment_key)
         has_alignment = True
-        logger.info("alignment.json present — skipping ffprobe redistribution: run=%s", run_id)
+        word_timestamps = [WordTimestamp(**w) for w in alignment_data.get("words", [])]
+        logger.info(
+            "alignment.json present — skipping ffprobe redistribution: run=%s words=%d",
+            run_id,
+            len(word_timestamps),
+        )
     except StorageError:
         pass
 
@@ -88,7 +95,7 @@ def generate_ffmpeg_script(
             logger.warning("Voiceover pacing skipped for run=%s: %s", run_id, exc)
 
     try:
-        script = build_ffmpeg_script(run_id, storyboard, manifest)
+        script = build_ffmpeg_script(run_id, storyboard, manifest, word_timestamps or None)
     except FFmpegBuildError as exc:
         logger.error("FFmpeg script build failed for run=%s: %s", run_id, exc)
         storage.update_run_log(run_id, "ffmpeg_script", "failed", error=str(exc))

@@ -76,7 +76,7 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | done |
-| E4-S7 | Word-synced captions using Deepgram timestamps | 5 | ready (starts after E5-S5 merges) |
+| E4-S7 | Word-synced captions using Deepgram timestamps | 5 | in-progress |
 
 **Dependency order:**
 1. E5-S5 — critical anchor. Full pipeline reorder (backend + UI rewrite). Smoke test: 20s VO → 20s video with on-beat cuts.

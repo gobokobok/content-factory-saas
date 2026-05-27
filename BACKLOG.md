@@ -809,8 +809,8 @@ Replace current VoiceCaption ASS style with Poppins Bold, larger size, thick bla
 
 ## [E4-S7] Word-synced captions using Deepgram timestamps
 **Epic:** E4 — FFmpeg Script Generation
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 4
+**Status:** in-progress
 **Points:** 5
 **Priority:** normal
 **Depends on:** E5-S4

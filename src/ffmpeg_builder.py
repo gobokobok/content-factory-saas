@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from src.captions import build_ass, build_captions_ass
+from src.captions import build_ass, build_captions_ass, build_word_synced_captions_ass
 from src.exceptions import FFmpegBuildError
-from src.models import AssetManifest, ManifestEntry, Storyboard, StoryboardScene
+from src.models import AssetManifest, ManifestEntry, Storyboard, StoryboardScene, WordTimestamp
 
 _FPS = 25
 _OUT_W = 1080
@@ -61,10 +61,18 @@ def redistribute_scene_durations(
     ]
 
 
-def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetManifest) -> str:
+def build_ffmpeg_script(
+    run_id: str,
+    storyboard: Storyboard,
+    manifest: AssetManifest,
+    word_timestamps: Optional[list[WordTimestamp]] = None,
+) -> str:
     """
     Build a self-contained bash script that assembles the run's assets into a 9:16 Short.
 
+    When word_timestamps is provided (Deepgram alignment data), captions use word-level
+    sync with the active word highlighted in yellow.  Falls back to scene-boundary
+    captions derived from voiceover_line when no alignment data is available.
     Raises FFmpegBuildError if any scene lacks an acquired asset (file_key is None).
     """
     entries: dict[str, ManifestEntry] = {e.scene_id: e for e in manifest.entries}
@@ -80,7 +88,10 @@ def build_ffmpeg_script(run_id: str, storyboard: Storyboard, manifest: AssetMani
     n_scenes = len(manifest.entries)
     # on-screen text overlay (build_ass / _write_captions_ass / _burn_captions) is
     # intentionally unwired — kept for future rewiring when revisited.
-    captions_ass_content = build_captions_ass(storyboard.scenes)
+    if word_timestamps:
+        captions_ass_content = build_word_synced_captions_ass(word_timestamps)
+    else:
+        captions_ass_content = build_captions_ass(storyboard.scenes)
 
     parts = [
         _header(run_id, n_scenes, total_s),

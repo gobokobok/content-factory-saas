@@ -25,6 +25,7 @@ from src.models import (
     StoryboardScene,
     StoryboardSummary,
     VisualPrompts,
+    WordTimestamp,
 )
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -952,6 +953,34 @@ class TestFfmpegScriptRouteVoiceover:
         uploaded_script = mock_storage.upload_text.call_args[0][1]
         assert "-t 3.0" in uploaded_script
 
+    def test_alignment_words_produce_word_synced_captions(self, client):
+        """When alignment.json has words, uploaded script contains word-synced caption text."""
+        alignment = {
+            "run_id": self.RUN,
+            "word_count": 3,
+            "used_fallback": False,
+            "words": [
+                {"word": "housing", "start_ms": 0, "end_ms": 500, "confidence": 0.99},
+                {"word": "costs", "start_ms": 600, "end_ms": 900, "confidence": 0.99},
+                {"word": "tripled", "start_ms": 1000, "end_ms": 1500, "confidence": 0.99},
+            ],
+        }
+        with patch("src.routes.ffmpeg_script.R2Client") as MockR2:
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = [
+                _storyboard_data(),
+                _manifest_data(self.RUN),
+                alignment,
+            ]
+            resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
+
+        assert resp.status_code == 200
+        uploaded_script = mock_storage.upload_text.call_args[0][1]
+        assert "housing" in uploaded_script
+        assert "costs" in uploaded_script
+        assert "tripled" in uploaded_script
+        assert "{\\c&H0000FFFF&}" in uploaded_script
+
 
 # ── Unit: captions integration in build_ffmpeg_script ────────────────────────
 
@@ -1020,3 +1049,32 @@ class TestCaptionsInScript:
         script = build_ffmpeg_script(RUN_ID, _storyboard(scenes), _manifest([_entry("01", "hard_cut")]))
         assert "rents are rising fast" in script
         assert "RENTS ARE RISING FAST" not in script
+
+    def test_word_timestamps_produce_word_synced_captions(self):
+        """When word_timestamps supplied, caption text comes from word list not voiceover_line."""
+        sb, mf = _simple_storyboard_and_manifest()
+        words = [WordTimestamp(word="crisis", start_ms=0, end_ms=600, confidence=0.99)]
+        script = build_ffmpeg_script(RUN_ID, sb, mf, word_timestamps=words)
+        assert "crisis" in script
+        # Yellow highlight tag present
+        assert "{\\c&H0000FFFF&}crisis" in script
+
+    def test_no_word_timestamps_falls_back_to_scene_boundary_captions(self):
+        """Without word_timestamps, captions use voiceover_line from scenes."""
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        scenes[0] = scenes[0].model_copy(update={"voiceover_line": "rents are soaring high"})
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "rents are soaring high" in script
+        # No yellow highlight tags in the fallback path
+        assert "{\\c&H0000FFFF&}" not in script
+
+    def test_empty_word_timestamps_falls_back_to_scene_boundary_captions(self):
+        """Empty list treated as no alignment data — uses scene-boundary captions."""
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        scenes[0] = scenes[0].model_copy(update={"voiceover_line": "unique fallback line"})
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, word_timestamps=[])
+        assert "unique fallback line" in script

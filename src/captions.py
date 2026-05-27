@@ -1,6 +1,6 @@
 """ASS subtitle file generator for on-screen text and voiceover captions."""
 
-from src.models import StoryboardScene
+from src.models import StoryboardScene, WordTimestamp
 
 _ASS_HEADER = (
     "[Script Info]\n"
@@ -80,6 +80,40 @@ def build_ass(scenes: list[StoryboardScene]) -> str:
     if events:
         return _ASS_HEADER + "\n".join(events) + "\n"
     return _ASS_HEADER
+
+
+def build_word_synced_captions_ass(
+    words: list[WordTimestamp], chunk_size: int = 5
+) -> str:
+    """
+    Build ASS captions with word-level sync from Deepgram timestamps.
+
+    Words are grouped into chunks of chunk_size. For each word in a chunk one
+    Dialogue event is emitted spanning that word's start_ms → end_ms.  The
+    event text shows the full chunk with the active word highlighted in yellow
+    via an ASS inline colour override; surrounding words remain white.
+    """
+    if not words:
+        return _CAPTIONS_ASS_HEADER
+
+    events: list[str] = []
+    chunks = [words[i : i + chunk_size] for i in range(0, len(words), chunk_size)]
+
+    for chunk in chunks:
+        chunk_texts = [w.word for w in chunk]
+        for i, word_ts in enumerate(chunk):
+            before = chunk_texts[:i]
+            active = "{\\c&H0000FFFF&}" + word_ts.word + "{\\c&H00FFFFFF&}"
+            after = chunk_texts[i + 1 :]
+            text = " ".join(before + [active] + after)
+            start_s = word_ts.start_ms / 1000.0
+            end_s = word_ts.end_ms / 1000.0
+            events.append(
+                f"Dialogue: 0,{format_ass_time(start_s)},{format_ass_time(end_s)},"
+                f"VoiceCaption,,0,0,0,,{text}"
+            )
+
+    return _CAPTIONS_ASS_HEADER + "\n".join(events) + "\n"
 
 
 def _chunk_text(text: str, chunk_size: int = 5) -> list[str]:
