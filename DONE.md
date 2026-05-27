@@ -4,18 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
-## [E4-S6] Subtitle style overhaul + voiceover line shortening
+## [E4-S6] Subtitle style revision (Poppins Bold, TikTok-style) — Iteration 2
 **Completed:** 2026-05-27
 **Sprint:** 3
 **Handover:**
-- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style — `Montserrat ExtraBold`, 72pt, white, black outline 6px, shadow 0, MarginV=250. `_ASS_HEADER` Default style (on-screen keywords) — 56pt, yellow (`&H0000FFFF` ASS BGR), outline 3px, shadow 0, center-screen alignment unchanged.
-- `src/storyboard.py`: `SYSTEM_PROMPT` `voiceover_line` field now reads "4–6 words maximum. Short phrase, not a full sentence. Split longer VO lines into separate scenes." Module docstring and `generate_storyboard` docstring bumped to v0.6.
-- `docs/PROMPTS.md`: Bumped to v0.6, changelog entry 2026-05-27, prompt block synced.
-- `Dockerfile`: `fonts-montserrat` added to apt-get install layer (provides Montserrat ExtraBold to libass).
-- `DECISIONS.md`: D033 — Montserrat ExtraBold font choice, apt package, Arial Bold fallback plan.
-- `tests/test_captions.py`: 3 assertions updated, 3 new tests added (`test_default_style_is_yellow`, `test_default_style_outline_is_3`, `test_voicecaption_outline_is_6`). 393 total tests passing.
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style — `Poppins` (fontname), Bold=1, 92pt, white, black outline 8px, shadow 1px, MarginV=250, Alignment=2 (bottom-center). Replaces Montserrat ExtraBold 72pt from Iteration 1. `_ASS_HEADER` Default style (on-screen keywords) — PrimaryColour reverted to white `&H00FFFFFF` (was yellow `&H0000FFFF`).
+- `assets/fonts/Poppins-Bold.ttf` — bundled in repo (152 KB), sourced from Google Fonts. `fonts-poppins` does not exist as a Debian apt package (D035).
+- `Dockerfile` — `COPY assets/fonts/Poppins-Bold.ttf /usr/local/share/fonts/Poppins-Bold.ttf` + `RUN fc-cache -f /usr/local/share/fonts` added after the apt layer.
+- `DECISIONS.md` — D035 was pre-written; no new entry required.
+- `tests/test_captions.py` — 4 tests renamed/updated, 1 new test added (`test_voicecaption_shadow_is_1`). 394 total tests passing.
 - No new Python dependencies. No new ENV vars.
-**Smoke test:** DEFERRED — requires DEV deploy of this commit + a full pipeline render. Confirm Montserrat ExtraBold renders correctly in the output video and captions are readable at mobile screen size.
+- Prior Iteration 1 artifacts retained: Montserrat apt package (harmless), v0.6 prompt voiceover_line constraint (4–6 words), D033.
+**Smoke test:** DEFERRED — requires DEV deploy + a full pipeline render. Confirm Poppins Bold captions match SampleDis reference at mobile screen size.
 **Promoted to backlog:** none
 
 ---

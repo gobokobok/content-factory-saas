@@ -744,7 +744,8 @@ Add a second ASS subtitle track with full voiceover text as captions, displayed 
 ## [E4-S6] Subtitle style revision (Poppins Bold, TikTok-style)
 **Epic:** E4 — FFmpeg Script Generation
 **Sprint:** 3
-**Status:** ready
+**Status:** done
+**Completed:** 2026-05-27
 **Points:** 2
 **Priority:** high
 **Depends on:** E4-S5
@@ -796,9 +797,13 @@ Replace current VoiceCaption ASS style with Poppins Bold, larger size, thick bla
 - `DECISIONS.md`: D033 added.
 
 ### Handover
-_filled on completion_
-- `tests/test_captions.py`: Updated 2 assertions (`test_style_definition_present`, `test_voicecaption_style_present`, `test_margin_v_is_250`); added 3 new tests (`test_default_style_is_yellow`, `test_default_style_outline_is_3`, `test_voicecaption_outline_is_6`). 393 total tests passing.
-- **Smoke test required:** render a Short on DEV and confirm captions are readable at mobile screen size.
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER` VoiceCaption style — `Poppins` (fontname), Bold=1, 92pt, white (`&H00FFFFFF`), black outline 8px, shadow 1px, MarginV=250, Alignment=2 (bottom-center). `_ASS_HEADER` Default style (on-screen keywords) — PrimaryColour reverted to white `&H00FFFFFF` (was yellow `&H0000FFFF`). No other field changes.
+- `assets/fonts/Poppins-Bold.ttf` — bundled in repo (152 KB); sourced from Google Fonts (github.com/google/fonts). See D035.
+- `Dockerfile` — `COPY assets/fonts/Poppins-Bold.ttf /usr/local/share/fonts/Poppins-Bold.ttf` + `RUN fc-cache -f /usr/local/share/fonts` added after the apt layer. `fonts-montserrat` left in apt (not removed — belt-and-suspenders, no harm).
+- `DECISIONS.md` — D035 was pre-written; no new entry required.
+- `tests/test_captions.py` — `test_voicecaption_style_present` updated to `Poppins,92`; `test_voicecaption_outline_is_6` renamed to `test_voicecaption_outline_is_8` (assert 8); `test_style_is_not_bold` renamed to `test_voicecaption_bold_field_is_1` (assert 1); `test_default_style_is_yellow` renamed to `test_default_style_is_white` (assert `&H00FFFFFF`); `test_voicecaption_shadow_is_1` added. 394 total tests passing.
+- No new Python dependencies. No new ENV vars.
+- **Smoke test required:** render a Short on DEV and confirm Poppins Bold captions match SampleDis reference at mobile screen size.
 
 ---
 
@@ -990,7 +995,7 @@ Fix Pexels keyword mismatch by rewriting query generation strategy in storyboard
 ## [E5-S4] Word-level timestamp extraction via Deepgram
 **Epic:** E5 — FFmpeg Execution + Drive Upload
 **Sprint:** 3
-**Status:** ready
+**Status:** in-progress
 **Points:** 5
 **Priority:** medium
 **Depends on:** E5-S2
@@ -1036,7 +1041,15 @@ Call Deepgram Nova-2 API to extract word-level timestamps from the uploaded voic
 - Pipeline order change (E5-S5) must be completed before E5-S4 is wired into the main pipeline. E5-S4 can be built and tested in isolation first, then integrated by E5-S5.
 
 ### Handover
-_filled on completion_
+- `src/alignment.py`: `align_audio(audio_url, api_key) → list[WordTimestamp]` — async; calls `POST https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true` with `{"url": audio_url}` JSON body; raises `AlignmentError` on non-200 or network error. `_normalize_word(raw)` converts float seconds → int ms, strips punctuation via `[^\w\s]` regex. `proportional_fallback(text, total_duration_s)` — distributes total_ms proportionally by char count per word; confidence=0.0 flags estimates.
+- `src/routes/alignment.py`: `POST /runs/{run_id}/alignment` — discovers voiceover file via `storage.list_keys(voiceover_prefix)` filtering `.mp3/.wav/.m4a`; generates presigned GET URL (5min TTL) for Deepgram to fetch; attempts Deepgram, falls back to `_proportional_from_storyboard` (reads `storyboard.json`) if key absent or API fails. Stores `alignment.json` dict: `{run_id, word_count, used_fallback, words: [...]}`. `update_run_log` call wrapped in broad try/except — non-fatal for runs created before "alignment" was added to PIPELINE_STEPS.
+- `src/models.py`: `WordTimestamp(word, start_ms, end_ms, confidence)` and `AlignmentResponse(status, alignment_key, word_count, used_fallback)` added. `PIPELINE_STEPS` gains `"alignment"` between `"asset_acquisition"` and `"ffmpeg_script"`.
+- `src/config.py`: `DEEPGRAM_API_KEY: str = ""` — optional with empty default; absence triggers proportional fallback.
+- `src/exceptions.py`: `AlignmentError` added.
+- `ENV.md`: `DEEPGRAM_API_KEY` documented.
+- R2 key: `runs/{run_id}/alignment.json`. No new pip dependencies (httpx already present). D034 was pre-existing in DECISIONS.md.
+- `tests/test_alignment.py`: 37 new tests — `_normalize_word`, `_extract_words`, `proportional_fallback`, `align_audio` (mocked httpx), and 13 route integration tests. 431 total passing.
+- **Note:** This step is standalone — NOT yet wired into the pipeline UI or auto-triggered. Integration deferred to E5-S5 (pipeline reorder).
 
 ---
 

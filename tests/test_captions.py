@@ -78,10 +78,10 @@ class TestBuildAss:
         result = build_ass([_scene("01")])
         assert "Style: Default,Open Sans,56" in result
 
-    def test_default_style_is_yellow(self):
+    def test_default_style_is_white(self):
         result = build_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
-        assert "&H0000FFFF" in style_line  # yellow in ASS BGR
+        assert "&H00FFFFFF" in style_line  # white in ASS BGR
 
     def test_default_style_outline_is_3(self):
         result = build_ass([_scene("01")])
@@ -201,14 +201,14 @@ class TestBuildCaptionsAss:
 
     def test_voicecaption_style_present(self):
         result = build_captions_ass([_scene("01")])
-        assert "Style: VoiceCaption,Montserrat ExtraBold,72" in result
+        assert "Style: VoiceCaption,Poppins,92" in result
 
-    def test_style_is_not_bold(self):
+    def test_voicecaption_bold_field_is_1(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        # fields[7] = Bold; 0 = not bold (existing Default style uses -1 for bold)
-        assert fields[7] == "0"
+        # Bold=1 requests the Bold weight of Poppins from fontconfig
+        assert fields[7] == "1"
 
     def test_alignment_is_bottom_center(self):
         result = build_captions_ass([_scene("01")])
@@ -226,11 +226,17 @@ class TestBuildCaptionsAss:
         fields = style_line.split(",")
         assert fields[-2] == "250"  # MarginV
 
-    def test_voicecaption_outline_is_6(self):
+    def test_voicecaption_outline_is_8(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        assert fields[16] == "6"  # Outline field
+        assert fields[16] == "8"  # Outline field
+
+    def test_voicecaption_shadow_is_1(self):
+        result = build_captions_ass([_scene("01")])
+        style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
+        fields = style_line.split(",")
+        assert fields[17] == "1"  # Shadow field
 
     def test_voiceover_line_appears_verbatim(self):
         result = build_captions_ass([_scene("01", voiceover_line="Housing costs have tripled.")])
