@@ -744,7 +744,7 @@ Add a second ASS subtitle track with full voiceover text as captions, displayed 
 ## [E4-S6] Subtitle style overhaul + voiceover line shortening
 **Epic:** E4 — FFmpeg Script Generation
 **Sprint:** 3
-**Status:** ready
+**Status:** in-progress
 **Points:** 3
 **Priority:** high
 **Depends on:** E4-S5
