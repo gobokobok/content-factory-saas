@@ -146,7 +146,7 @@ class R2Client:
                 },
             }
 
-        with ThreadPoolExecutor(max_workers=32) as executor:
+        with ThreadPoolExecutor() as executor:
             results = list(executor.map(_fetch, prefixes))
 
         runs = [r for r in results if r is not None]
