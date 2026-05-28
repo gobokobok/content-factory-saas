@@ -12,7 +12,7 @@ _Entries added here when a story reaches Definition of Done._
 - Implementation detail: used `history.pushState` rather than `window.location.hash =` to avoid double-execution — `pushState` does not fire `hashchange`, so `showDetail`/`showList` won't be called twice.
 - No backend changes. No new ENV vars. No new pip dependencies.
 - 512 tests passing (no regressions).
-**Smoke test:** DEFERRED — requires DEV deploy; open browser, navigate into any run, refresh the page and confirm the run detail view loads (not the list); paste a `/#run/{run_id}` deep link and confirm it navigates directly to that run.
+**Smoke test:** PASSED — deep link `/#run/2026-05-27_st-finetune` landed directly on detail view; reload stayed in detail; "← Runs" cleared hash and returned to list; browser back restored detail. Verified live on Railway DEV with Claude in Chrome.
 **Promoted to backlog:** none
 
 ---
