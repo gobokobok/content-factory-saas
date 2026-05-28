@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     # Deepgram alignment (E5-S4)
     DEEPGRAM_API_KEY: str = ""
 
+    # Auth (S5-S5)
+    OPERATOR_PASSWORD: str
+    SESSION_SECRET_KEY: str
+
     @field_validator("LOG_LEVEL")
     @classmethod
     def validate_log_level(cls, v: str) -> str:

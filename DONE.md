@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S5-S5] Single-operator password gate
+**Completed:** 2026-05-28
+**Sprint:** 5
+**Handover:**
+- `src/auth.py`: `AUTH_COOKIE_NAME = "cf_session"`. `sign_cookie(secret_key) → str` — HMAC-SHA256 hex digest. `verify_cookie(value, secret_key) → bool` — constant-time compare.
+- `src/routes/auth.py`: `POST /auth/login` — validates password, sets httponly cookie (`secure=True` in prod); `POST /auth/logout` — deletes cookie. Both exempt from middleware.
+- `src/main.py`: auth middleware added — exempt paths: `/health`, `/login`, `/auth/login`, `/auth/logout`. Browser (Accept: text/html) → 302; API fetch → 401. Uses `request.app.dependency_overrides.get(get_settings, get_settings)()` to honour test DI. `GET /login` route added.
+- `src/config.py`: `OPERATOR_PASSWORD: str` and `SESSION_SECRET_KEY: str` added (both required, no defaults).
+- `src/static/login.html`: new light-mode login page; `POST /auth/login` on form submit; 200 → `/`; 401 → inline error.
+- `src/static/pipeline.html`: `logOut()` wired to `POST /auth/logout` + redirect; global `window.fetch` wrapper redirects to `/login` on any 401.
+- `tests/conftest.py`: `bypass_auth_middleware` autouse fixture patches `src.main.verify_cookie → True` for all non-auth tests.
+- All VALID_ENV dicts updated with `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY`.
+- 535 total tests passing (20 new). No new pip dependencies. D037 in DECISIONS.md.
+**Smoke test:** DEFERRED — requires `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` set in Railway DEV Variables, then: visit app URL unauthenticated → confirm redirect to `/login`; submit correct password → confirm access to pipeline; click Log out → confirm redirect back to `/login`; submit wrong password → confirm inline error without page reload.
+**Promoted to backlog:** none
+
+---
+
 ## [S5-S4] UI redesign: 5-step collapsed pipeline + new visual design
 **Completed:** 2026-05-28
 **Sprint:** 5

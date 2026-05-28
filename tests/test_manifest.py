@@ -27,6 +27,8 @@ VALID_ENV = {
     "PEXELS_API_KEY": "fake-pexels-key",
     "REPLICATE_API_TOKEN": "fake-replicate-token",
     "FREESOUND_API_KEY": "fake-freesound-key",
+    "OPERATOR_PASSWORD": "testpass",
+    "SESSION_SECRET_KEY": "test-secret-key",
 }
 
 RUN_ID = "2026-05-22_test-run"

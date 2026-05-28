@@ -19,6 +19,8 @@ VALID_ENV = {
     "PEXELS_API_KEY": "fake-pexels-key",
     "REPLICATE_API_TOKEN": "fake-replicate-token",
     "FREESOUND_API_KEY": "fake-freesound-key",
+    "OPERATOR_PASSWORD": "testpass",
+    "SESSION_SECRET_KEY": "test-secret-key",
 }
 
 
@@ -73,6 +75,8 @@ class TestENVValidation:
         "PEXELS_API_KEY",
         "REPLICATE_API_TOKEN",
         "FREESOUND_API_KEY",
+        "OPERATOR_PASSWORD",
+        "SESSION_SECRET_KEY",
     ])
     def test_missing_required_var_raises(self, missing_var: str, monkeypatch):
         """Each required ENV var, when absent, causes a ValidationError.

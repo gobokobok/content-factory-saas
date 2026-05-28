@@ -524,10 +524,19 @@
       return 'in-progress';
     }
 
-    // ─── Auth stub ────────────────────────────────────────────────────────────
-    function logOut() {
-      // TODO: S5-S3 — POST /auth/logout then redirect to /login
+    // ─── Auth ─────────────────────────────────────────────────────────────────
+    async function logOut() {
+      await fetch('/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
     }
+
+    // Redirect to /login on any 401 (session expired or cookie cleared)
+    const _originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+      const res = await _originalFetch(...args);
+      if (res.status === 401) { window.location.href = '/login'; }
+      return res;
+    };
 
     // ─── New run form ─────────────────────────────────────────────────────────
     function toggleNewRunPanel() {

@@ -5,6 +5,19 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D037 — Stdlib HMAC cookie for single-operator auth (no new dependency)
+**Date:** 2026-05-28
+**Decision:** Use stdlib `hmac` + `hashlib` for session cookie signing. Cookie value is a constant HMAC-SHA256 digest of the string `"authenticated"` keyed on `SESSION_SECRET_KEY`. No session ID, no server-side session store.
+**Rationale:**
+- POC scope: one operator, one password. No user management required.
+- Avoids adding `itsdangerous` or any other signing library.
+- `hmac.compare_digest` prevents timing attacks on cookie verification.
+- Session invalidation is enforced by deleting the cookie (logout), not by expiry or server-side state.
+**Trade-offs:** Changing `SESSION_SECRET_KEY` invalidates all active sessions. Acceptable for single-operator POC; would need server-side session store for multi-user.
+**Implemented by:** S5-S5
+
+---
+
 ## D036 — VO-first pipeline: alignment before storyboard
 **Date:** 2026-05-27
 **Decision:** Reorder pipeline to run voiceover upload and Deepgram alignment before storyboard generation.

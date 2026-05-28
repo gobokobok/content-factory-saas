@@ -6,6 +6,20 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def bypass_auth_middleware(request):
+    """Bypass the auth middleware for all tests except test_auth.py.
+
+    test_auth.py tests the middleware and cookie behaviour directly.
+    All other test files only care about route logic, not auth gating.
+    """
+    if "test_auth" in request.fspath.basename:
+        yield
+        return
+    with patch("src.main.verify_cookie", return_value=True):
+        yield
+
+
+@pytest.fixture(autouse=True)
 def mock_anthropic_for_summarizer():
     """Intercept Anthropic client instantiation in log_summarizer for all tests.
 

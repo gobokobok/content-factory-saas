@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Factory — Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f9fafb;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 40px;
+      width: 360px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    }
+
+    .card h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -.3px;
+      margin-bottom: 4px;
+    }
+
+    .card p {
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 28px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    input[type="password"] {
+      width: 100%;
+      padding: 9px 12px;
+      font-size: 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      outline: none;
+      background: #fff;
+      color: #111827;
+      transition: border-color .15s;
+    }
+
+    input[type="password"]:focus {
+      border-color: #1d4ed8;
+    }
+
+    .error {
+      font-size: 13px;
+      color: #dc2626;
+      margin-top: 10px;
+      min-height: 18px;
+    }
+
+    button[type="submit"] {
+      width: 100%;
+      margin-top: 20px;
+      padding: 10px;
+      background: #1d4ed8;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .15s;
+    }
+
+    button[type="submit"]:hover:not(:disabled) { background: #1e40af; }
+    button[type="submit"]:disabled { opacity: .6; cursor: default; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Content Factory</h1>
+    <p>Enter your operator password to continue.</p>
+    <form id="loginForm">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" autofocus required>
+      <div class="error" id="errorMsg"></div>
+      <button type="submit" id="submitBtn">Sign in</button>
+    </form>
+  </div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('submitBtn');
+      const err = document.getElementById('errorMsg');
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+      err.textContent = '';
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          err.textContent = 'Incorrect password. Please try again.';
+          document.getElementById('password').value = '';
+          document.getElementById('password').focus();
+        }
+      } catch {
+        err.textContent = 'Network error. Please try again.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
+    });
+  </script>
+</body>
+</html>

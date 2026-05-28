@@ -21,6 +21,8 @@ VALID_ENV = {
     "PEXELS_API_KEY": "fake-pexels-key",
     "REPLICATE_API_TOKEN": "fake-replicate-token",
     "FREESOUND_API_KEY": "fake-freesound-key",
+    "OPERATOR_PASSWORD": "testpass",
+    "SESSION_SECRET_KEY": "test-secret-key",
 }
 
 FAKE_RUN_ID = f"{date.today().isoformat()}_test-slug"

@@ -28,6 +28,8 @@ VALID_ENV = {
     "PEXELS_API_KEY": "test-pexels",
     "REPLICATE_API_TOKEN": "test-replicate",
     "FREESOUND_API_KEY": "test-freesound",
+    "OPERATOR_PASSWORD": "testpass",
+    "SESSION_SECRET_KEY": "test-secret-key",
 }
 
 SAMPLE_SCENE_BLOCK = """\

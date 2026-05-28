@@ -119,10 +119,10 @@
 | S5-S1 | URL-based run navigation (fix refresh bug) | 2 | done |
 | S5-S2 | Page load performance diagnosis + fixes | 3 | done |
 | S5-S4 | UI redesign: 5-step collapsed pipeline + new visual design | 8 | done |
-| S5-S5 | Single-operator password gate | 3 | backlog |
+| S5-S5 | Single-operator password gate | 3 | done |
 | S5-S3 | Multi-user auth + per-user run isolation | 8 | deferred |
 
-**Execution order:** S5-S1 ✓, S5-S2 ✓, S5-S4 ✓ done. Next: S5-S5 — fills `logOut()` stub and auth middleware; no UI redesign needed. S5-S3 deferred indefinitely (requires per-user R2 isolation; out of scope for POC).
+**Execution order:** S5-S1 ✓, S5-S2 ✓, S5-S4 ✓, S5-S5 ✓ — Sprint 5 complete. S5-S3 deferred indefinitely (requires per-user R2 isolation; out of scope for POC).
 
 ---
 
@@ -130,7 +130,7 @@
 - [x] S5-S1: Refresh inside a run stays in the run. Deep link works.
 - [x] S5-S2: `docs/PERF.md` written. At least 2 fixes applied. Load time measurably improved.
 - [x] S5-S4: Three-panel UI, 4-section flow, light design, all CTAs functional end-to-end.
-- [ ] S5-S5: Login/logout working. All pipeline routes return 302 when unauthenticated. Tests cover login success/failure and auth gating.
-- [ ] All existing tests pass (515 baseline after S5-S4). New tests added for S5-S5.
+- [x] S5-S5: Login/logout working. All pipeline routes return 302 when unauthenticated. Tests cover login success/failure and auth gating.
+- [x] All existing tests pass (535 total: 515 baseline + 20 new for S5-S5).
 - [ ] CI green on merge.
 - [ ] **Human touchpoint:** operator logs in, creates a run, completes full pipeline from Input to Download in the new UI.
