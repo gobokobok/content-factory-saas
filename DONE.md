@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S6-S1] Design system: color palette, typography, panel spacing
+**Completed:** 2026-05-29
+**Handover:**
+- `src/static/pipeline.html` — CSS + HTML + JS only; no backend changes. Full design system applied.
+- Color tokens in use: `#FBF9F8` bg (body, panels, inputs, tables), `#2D2D2D` primary text, `#9A9A9A` muted, `#EFECEB` hover/secondary, `#E8E5E4` card borders, `#F0EDEC` table row dividers.
+- Font: `Inter, system-ui, sans-serif`. Weights: 400 body, 500 section labels, 600 CTAs.
+- Layout: full-width `.app-header` (flex row, `padding: 40px 20px 28px`). `+ New Project` (`.btn-outline`) inline next to title. Left↔mid gap 32px, mid↔right 16px. All three panels start content at the same vertical baseline.
+- Middle panel: `nav-run-id` and `← Projects` back nav removed. Clicking the active project in the left panel toggles `deselectRun()`.
+- Nav items: triple-chevron SVG connector injected between steps via `renderNavItems()` join.
+- Active state: `font-weight: 600` only — no border decoration, no blue.
+- Dot logic: `○` pending, `●` complete/failed/in-progress; consistent across both panels.
+- New `.btn-outline` class (transparent bg, `#d1d5db` border). Logout button has inline SVG icon.
+- 535 tests passing, no regressions.
+**Smoke test:** PASSED — layout verified in static preview at 800px; all three panels aligned at top baseline; active states, dot colours, chevron connectors, and header layout confirmed visually.
+**Promoted to backlog:** none
+
+---
+
 ## [S5-S5] Single-operator password gate
 **Completed:** 2026-05-28
 **Sprint:** 5

@@ -149,7 +149,7 @@
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| S6-S1 | Design system: color palette, typography, panel spacing | 3 | backlog |
+| S6-S1 | Design system: color palette, typography, panel spacing | 3 | done |
 | S6-S2 | Project Name as primary identifier (auto-slug, backend + UI) | 3 | backlog |
 | S6-S3 | Input stage: Save Draft + Create Storyboard (lock mechanic) | 5 | backlog |
 | S6-S4 | Storyboard stage: full-data table view (all scene fields) + permanent lock | 3 | backlog |

@@ -1903,7 +1903,8 @@ Add a single-password login wall. One operator, one `OPERATOR_PASSWORD` env var.
 ## [S6-S1] Design system: color palette, typography, panel spacing
 **Epic:** E6 — Operator UI
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-29
 **Priority:** high
 **Points:** 3
 **Depends on:** S5-S4 ✓
@@ -1912,22 +1913,24 @@ Add a single-password login wall. One operator, one `OPERATOR_PASSWORD` env var.
 Apply the product design system across the entire operator UI — consistent background colour, single font family, defined text weights, and spacing-only panel separation. No borders or dividers anywhere.
 
 ### Acceptance Criteria
-- [ ] Background `#FBF9F8` applied to `body`, all three panels, table cells, and input elements (no white or grey overrides)
-- [ ] Primary text `#2D2D2D`; secondary/muted text `#9A9A9A` (timestamps, labels, placeholders)
-- [ ] Pill/tag backgrounds `#EFECEB` (used for IDs, step labels)
-- [ ] Single font family: `Inter, system-ui, sans-serif` (no external CDN fetch; system stack only)
-- [ ] Font weights defined: Regular (400) for body, Medium (500) for section labels, Semi-bold (600) for CTAs
-- [ ] Header row contains ONLY "Content Factory" text, left-aligned; no buttons, version numbers, or status badges
-- [ ] All panel borders and grey dividers removed; left ↔ middle ↔ right panels separated by spacing only
-- [ ] Tables inherit page background (no `background: white` or `background: #f…` overrides)
-- [ ] No external font or icon dependencies added
+- [x] Background `#FBF9F8` applied to `body`, all three panels, table cells, and input elements (no white or grey overrides)
+- [x] Primary text `#2D2D2D`; secondary/muted text `#9A9A9A` (timestamps, labels, placeholders)
+- [x] Pill/tag backgrounds `#EFECEB` (used for IDs, step labels)
+- [x] Single font family: `Inter, system-ui, sans-serif` (no external CDN fetch; system stack only)
+- [x] Font weights defined: Regular (400) for body, Medium (500) for section labels, Semi-bold (600) for CTAs
+- [x] Header row contains ONLY "Content Factory" text, left-aligned; no buttons, version numbers, or status badges
+- [x] All panel borders and grey dividers removed; left ↔ middle ↔ right panels separated by spacing only
+- [x] Tables inherit page background (no `background: white` or `background: #f…` overrides)
+- [x] No external font or icon dependencies added
+- [x] Selected project in left panel: `font-weight: 600`; no blue background, no border decoration
+- [x] Selected section tab in middle panel: `font-weight: 600`; no blue background, no border decoration
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Visual smoke test: three-panel layout looks consistent at 1280px; no hard edges between panels
-- [ ] No regressions in existing route tests (backend unchanged)
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Visual smoke test: three-panel layout looks consistent at 1280px; no hard edges between panels
+- [x] No regressions in existing route tests (backend unchanged)
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Smoke test
 Open `pipeline.html` at 1280px. Verify: single warm-cream background across all three panels and table rows; header shows only "Content Factory"; no visible dividers between panels; muted text on secondary labels.
@@ -1936,7 +1939,18 @@ Open `pipeline.html` at 1280px. Verify: single warm-cream background across all 
 - `src/static/pipeline.html` — CSS only (colour tokens, font stack, spacing tweaks)
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html`: CSS + HTML + JS changes (no backend touched). Design tokens: `#FBF9F8` page/panel/input bg; `#2D2D2D` primary text; `#9A9A9A` muted/secondary; `#EFECEB` hover bg and secondary button; `#E8E5E4` card/table borders; `#F0EDEC` table row dividers.
+- Font stack `Inter, system-ui, sans-serif`. Weights: body 400; section labels 500; CTAs 600.
+- All panel borders/dividers removed. Left↔mid gap 32px (`margin-right` on `.panel-runs`); mid↔right gap 16px (`margin-right` on `.panel-nav`).
+- Full-width `.app-header` (flex row) replaces scoped panel header. `+ New Project` button (`.btn-outline` — transparent bg, light grey border) sits inline next to title. `padding: 40px 20px 28px` gives tall header.
+- `nav-run-id` div removed; `← Projects` back nav removed. Clicking the active project in left panel calls `deselectRun()` to collapse the middle panel (toggle).
+- `.panel-nav { padding: 6px 4px }` and `.panel-content { padding: 6px 40px 32px }` — all three panels now start content at the same vertical baseline.
+- Triple-chevron connector (`<svg>` with 3 polylines) injected between nav items via `renderNavItems()` join. `.nav-connector { padding: 1px 0 1px 9px }`.
+- Active state (`.run-item.active`, `.nav-item.active`): `font-weight: 600` only — no border, no blue bg. Hover blocked on active items via `:not(.active):hover`.
+- Dot logic fixed in `renderRunList()`: `○` for pending, `●` for complete/failed/in-progress; consistent `font-size: 10px` across both panels.
+- `.btn-outline` added: transparent bg, `border-color: #d1d5db`. Used on `+ New Project` only; other secondary buttons keep `.btn-secondary` (`#EFECEB`).
+- Logout button gains inline SVG arrow-out-of-box icon (13×13, `currentColor`).
+- 535 tests passing, no regressions.
 
 ---
 
