@@ -66,7 +66,8 @@
 # Sprint 4 — Accurate Audio-Visual Sync
 
 **Goal:** Operator watches a video where scene cuts land exactly on word boundaries. Full VO-first pipeline flow live in the UI — upload voiceover, run alignment, generate storyboard from real timestamps, render.
-**Status:** active
+**Status:** done
+**Velocity:** 13/13 pts (100%)
 **Points:** 13
 
 ---
@@ -76,7 +77,7 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | E5-S5 | Pipeline reorder: VO-first with Deepgram-driven storyboard | 8 | done |
-| E4-S7 | Word-synced captions using Deepgram timestamps | 5 | in-progress |
+| E4-S7 | Word-synced captions using Deepgram timestamps | 5 | done |
 
 **Dependency order:**
 1. E5-S5 — critical anchor. Full pipeline reorder (backend + UI rewrite). Smoke test: 20s VO → 20s video with on-beat cuts.
@@ -85,13 +86,13 @@
 ---
 
 ## Sprint 4 Definition of Done
-- [ ] VO-first pipeline flow works end-to-end from browser UI: upload VO → alignment → storyboard → manifest → assets → ffmpeg-script → render
-- [ ] Scene cut timing derived from Deepgram word timestamps (not guessed durations)
-- [ ] Storyboard prompt updated to v0.7, receives word timestamps as input
-- [ ] Operator UI fully reordered to match new pipeline (Alignment step row present, VO upload at top)
-- [ ] Word-synced captions advance in sync with VO audio in rendered video
-- [ ] All stories have passing tests and CI green
-- [ ] **Human touchpoint:** operator watches a rendered Short with captions that track word-by-word
+- [x] VO-first pipeline flow works end-to-end from browser UI: upload VO → alignment → storyboard → manifest → assets → ffmpeg-script → render
+- [x] Scene cut timing derived from Deepgram word timestamps (not guessed durations)
+- [x] Storyboard prompt updated to v0.8 (not v0.7 — bumped further during E5-S5), receives word timestamps as input
+- [x] Operator UI fully reordered to match new pipeline (Alignment step row present, VO upload at top)
+- [x] Word-synced captions advance in sync with VO audio in rendered video
+- [x] All stories have passing tests and CI green (512 passing)
+- [x] **Human touchpoint:** operator watches a rendered Short with captions that track word-by-word
 
 ---
 

@@ -810,7 +810,8 @@ Replace current VoiceCaption ASS style with Poppins Bold, larger size, thick bla
 ## [E4-S7] Word-synced captions using Deepgram timestamps
 **Epic:** E4 — FFmpeg Script Generation
 **Sprint:** 4
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-05-28
 **Points:** 5
 **Priority:** normal
 **Depends on:** E5-S4
@@ -819,31 +820,30 @@ Replace current VoiceCaption ASS style with Poppins Bold, larger size, thick bla
 Use word-level timestamps from Deepgram (via `alignment.json`) to display caption chunks exactly when spoken, with the active word highlighted in yellow. Implements the current high-retention short-form caption pattern.
 
 ### Acceptance Criteria
-- [ ] Caption chunks advance word-by-word or phrase-by-phrase in sync with audio
-- [ ] Active word highlighted in yellow (ASS karaoke tag or per-word Dialogue events)
-- [ ] 4-6 words per caption chunk maximum
-- [ ] Replaces current proportional `voiceover_line` display
-- [ ] Smoke test: watch rendered video and confirm captions track speech accurately
+- [x] Caption chunks advance word-by-word or phrase-by-phrase in sync with audio
+- [x] Active word highlighted in yellow (per-word Dialogue events)
+- [x] 4-6 words per caption chunk maximum
+- [x] Replaces current proportional `voiceover_line` display
+- [x] Smoke test: watch rendered video and confirm captions track speech accurately
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests written and passing
-- [ ] CI green, deployed to DEV
-- [ ] Smoke test passed
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Tests written and passing (512 total)
+- [x] CI green, deployed to DEV
+- [x] Smoke test passed
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
-### Files to modify (expected)
-- `src/captions.py` — new build function using `WordTimestamp` list
-- `src/ffmpeg_builder.py` — wire new caption builder into render chain
-
-### Notes
-- Depends on E5-S4 `WordTimestamp` schema output (`alignment.json` in R2)
-- Read E5-S4 DONE.md before starting — confirm `alignment.json` schema
-- ASS karaoke tags (`\k`) are one approach; per-word Dialogue events are simpler and more robust — evaluate during implementation.
+### Files modified
+- `src/captions.py` — `build_word_synced_captions_ass(scene_words)`
+- `src/ffmpeg_builder.py` — `assign_words_to_scenes`, `compute_scene_durations_from_alignment`, `build_ffmpeg_script` updated
+- `src/routes/ffmpeg_script.py` — wired new helpers
 
 ### Handover
-_filled on completion_
+- `src/captions.py`: `build_word_synced_captions_ass(scene_words: list[list[WordTimestamp]], chunk_size=5) -> str` — per-word Dialogue events; active word highlighted via `{\c&H0000FFFF&}`/`{\c&H00FFFFFF&}` ASS inline colour override; events extend to next word's `start_ms` (no intra-chunk gaps); chunks never cross scene boundaries; scene-grouped input prevents cross-scene merging.
+- `src/ffmpeg_builder.py`: `assign_words_to_scenes(scenes, words) -> list[list[WordTimestamp]]` — sequential greedy text matching; normalises with `re.sub(r"[^\w]","",w).lower()`; splits voiceover tokens on hyphens first so "6-minute" matches Deepgram words "6" + "minute". `compute_scene_durations_from_alignment(scenes, scene_words) -> list[StoryboardScene]` — scene N duration = `(next_scene.first_word.start_ms - this_scene.first_word.start_ms) / 1000`; last scene uses its own word span; unmatched scenes keep original `duration_s`; floor at `_MIN_SCENE_DURATION_S`. `build_ffmpeg_script` gains optional `scene_words: Optional[list[list[WordTimestamp]]] = None` param.
+- `src/routes/ffmpeg_script.py`: when `alignment.json` present with words → calls `assign_words_to_scenes` + `compute_scene_durations_from_alignment`; storyboard scene durations corrected before script generation; `scene_words` passed to `build_ffmpeg_script` for word-synced captions.
+- 512 total tests passing. No new ENV vars. No new pip dependencies.
 
 ---
 

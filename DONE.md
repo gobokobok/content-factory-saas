@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [E4-S7] Word-synced captions using Deepgram timestamps
+**Completed:** 2026-05-28
+**Sprint:** 4
+**Handover:**
+- `src/captions.py`: `build_word_synced_captions_ass(scene_words: list[list[WordTimestamp]], chunk_size=5) -> str` — accepts Deepgram words grouped per scene. For each word, emits one Dialogue event: active word in yellow `{\c&H0000FFFF&}`, rest white `{\c&H00FFFFFF&}`. Event end time = next word's `start_ms` (fills inter-word gaps; caption stays visible continuously). Last word of a non-final chunk extends to next chunk's first word start. Last word of final chunk ends at its own `end_ms`. Chunks never cross scene boundaries.
+- `src/ffmpeg_builder.py`: `assign_words_to_scenes(scenes, words) -> list[list[WordTimestamp]]` — greedy sequential text matching; normalises via `re.sub(r"[^\w]","",w).lower()`; splits voiceover tokens on hyphens so "6-minute" → ["6","minute"] and both Deepgram words are matched. `compute_scene_durations_from_alignment(scenes, scene_words) -> list[StoryboardScene]` — scene N duration = `(next_scene_first_word.start_ms - this_scene_first_word.start_ms)/1000` (inter-phrase pauses absorbed into preceding scene, eliminating video-shorter-than-VO bug); last scene uses own word span; unmatched scenes keep original `duration_s`; all durations floored at `_MIN_SCENE_DURATION_S`. `build_ffmpeg_script` gains `scene_words: Optional[list[list[WordTimestamp]]] = None`; falls back to `build_captions_ass` when None.
+- `src/routes/ffmpeg_script.py`: when `alignment.json` present with words → calls `assign_words_to_scenes` + `compute_scene_durations_from_alignment` to correct scene durations deterministically; passes `scene_words` to `build_ffmpeg_script`.
+- 512 total tests passing (+42 new). No new ENV vars. No new pip dependencies.
+**Smoke test:** PASSED — operator watched rendered Short on Railway DEV; visuals sync with VO; captions advance word-by-word with yellow highlights; no intra-scene jumping; cross-scene caption merging fixed; "6-minute" style hyphenated words display correctly.
+**Promoted to backlog:** none
+
+---
+
 ## [E5-S5] Pipeline reorder: VO-first with Deepgram-driven storyboard
 **Completed:** 2026-05-27
 **Sprint:** 4
