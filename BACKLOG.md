@@ -1894,6 +1894,256 @@ Add a single-password login wall. One operator, one `OPERATOR_PASSWORD` env var.
 
 ---
 
+---
+
+# Sprint 6 — Product UX: Design System, Project Identity & Stage Polish
+
+---
+
+## [S6-S1] Design system: color palette, typography, panel spacing
+**Epic:** E6 — Operator UI
+**Sprint:** 6
+**Status:** backlog
+**Priority:** high
+**Points:** 3
+**Depends on:** S5-S4 ✓
+
+### Goal
+Apply the product design system across the entire operator UI — consistent background colour, single font family, defined text weights, and spacing-only panel separation. No borders or dividers anywhere.
+
+### Acceptance Criteria
+- [ ] Background `#FBF9F8` applied to `body`, all three panels, table cells, and input elements (no white or grey overrides)
+- [ ] Primary text `#2D2D2D`; secondary/muted text `#9A9A9A` (timestamps, labels, placeholders)
+- [ ] Pill/tag backgrounds `#EFECEB` (used for IDs, step labels)
+- [ ] Single font family: `Inter, system-ui, sans-serif` (no external CDN fetch; system stack only)
+- [ ] Font weights defined: Regular (400) for body, Medium (500) for section labels, Semi-bold (600) for CTAs
+- [ ] Header row contains ONLY "Content Factory" text, left-aligned; no buttons, version numbers, or status badges
+- [ ] All panel borders and grey dividers removed; left ↔ middle ↔ right panels separated by spacing only
+- [ ] Tables inherit page background (no `background: white` or `background: #f…` overrides)
+- [ ] No external font or icon dependencies added
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Visual smoke test: three-panel layout looks consistent at 1280px; no hard edges between panels
+- [ ] No regressions in existing route tests (backend unchanged)
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open `pipeline.html` at 1280px. Verify: single warm-cream background across all three panels and table rows; header shows only "Content Factory"; no visible dividers between panels; muted text on secondary labels.
+
+### Files to modify
+- `src/static/pipeline.html` — CSS only (colour tokens, font stack, spacing tweaks)
+
+### Handover
+_filled on completion_
+
+---
+
+## [S6-S2] Project Name as primary identifier (auto-slug, backend + UI)
+**Epic:** E6 — Operator UI
+**Sprint:** 6
+**Status:** backlog
+**Priority:** high
+**Points:** 3
+**Depends on:** S6-S1
+
+### Goal
+Replace the raw slug input with a human-readable "Project Name" field. The backend auto-generates the URL-safe slug from the name — the operator never sees or types a slug.
+
+### Acceptance Criteria
+- [ ] `POST /runs` accepts `project_name: str` (required, max 120 chars); auto-generates slug via `re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")` (or equivalent); returns `{run_id, project_name, storage_prefix}`
+- [ ] `project_name` written into `run_log.json` at key `project_name`
+- [ ] `GET /runs` returns `project_name` in each run summary (falls back to `run_id` when field absent for legacy runs)
+- [ ] Left panel project list renders `project_name`; falls back to `run_id` for old runs
+- [ ] "New Project" button label (was "New Run")
+- [ ] Input field label "Project Name" with placeholder "e.g. Housing Crisis Explained"
+- [ ] Slug not shown anywhere in the UI (it remains the internal `run_id` key)
+- [ ] All existing tests updated to pass `project_name` where `slug` was used; no test regressions
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: `POST /runs` with `project_name` returns expected slug; `GET /runs` returns `project_name`; legacy run without field returns `run_id` as display name
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Click "New Project", type "Housing Crisis Explained", click Save Draft (or Create Storyboard). Verify left panel shows "Housing Crisis Explained". Check R2 `run_log.json` contains `"project_name": "Housing Crisis Explained"` and the run folder uses a slug like `2026-05-29_housing-crisis-explained`.
+
+### Files to modify
+- `src/routes/runs.py` — `POST /runs` accept `project_name`, slugify, write to run_log
+- `src/models.py` — `RunCreateRequest(project_name)`, `RunCreateResponse` + `RunSummary` gain `project_name`
+- `src/storage.py` — `_build_run_log` stores `project_name`
+- `src/static/pipeline.html` — label + button text; left panel display name logic
+- `tests/test_runs.py` — update fixtures and assertions
+
+### Handover
+_filled on completion_
+
+---
+
+## [S6-S3] Input stage: Save Draft + Create Storyboard (lock mechanic)
+**Epic:** E6 — Operator UI
+**Sprint:** 6
+**Status:** backlog
+**Priority:** high
+**Points:** 5
+**Depends on:** S6-S2
+
+### Goal
+Give the operator two actions in the Input stage: **Save Draft** (non-destructive, editable) and **Create Storyboard** (locks Input permanently and triggers pipeline). Input fields: Project Name, Script, Voiceover upload.
+
+### Acceptance Criteria
+- [ ] Input stage renders three fields: Project Name (text), Script (textarea), Voiceover (file upload, `.mp3`)
+- [ ] "Save Draft" button: calls `POST /runs/{run_id}/draft` — saves `project_name` + script text to R2 as `script.txt`; Input remains editable; run appears in left panel with Input indicator unfilled
+- [ ] "Create Storyboard" button: triggers `POST /runs/{run_id}/alignment` then `POST /runs/{run_id}/storyboard` in sequence; on success, Input stage indicator turns green and inputs become read-only permanently
+- [ ] After "Create Storyboard" completes, auto-navigate to Storyboard section
+- [ ] If the run already has a completed storyboard (page reload), Input section shows read-only values from `script.txt` + displays existing VO filename; "Create Storyboard" button replaced by locked indicator
+- [ ] No "Regenerate" option on Input section in MVP
+- [ ] Backend: `POST /runs/{run_id}/draft` saves `{"project_name": "…", "script": "…"}` to `runs/{run_id}/script.txt`; idempotent (overwrite allowed in draft state only — rejected if `storyboard` step is `complete`)
+- [ ] `POST /runs/{run_id}/storyboard` reads script from request body (unchanged) OR from `script.txt` in R2 if body empty
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: Save Draft stores script.txt; rejected after storyboard complete; Create Storyboard sequence runs and locks
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open new project. Fill name + script + upload VO. Click "Save Draft". Refresh — project in left panel list, fields still editable. Click "Create Storyboard". Confirm Input section goes read-only and green; Storyboard section becomes active.
+
+### Files to create or modify
+- `src/routes/runs.py` — new `POST /runs/{run_id}/draft`
+- `src/models.py` — `DraftRequest(project_name, script)`, `DraftResponse(status)`
+- `src/storage.py` — (uses existing `upload_text`)
+- `src/static/pipeline.html` — Input section redesign: two buttons, lock-on-complete, read-only state
+
+### Handover
+_filled on completion_
+
+---
+
+## [S6-S4] Storyboard stage: table view + permanent lock
+**Epic:** E6 — Operator UI
+**Sprint:** 6
+**Status:** backlog
+**Priority:** high
+**Points:** 3
+**Depends on:** S6-S1
+
+### Goal
+Replace the storyboard scene cards with a dense table view and rename the CTA. Stage locks permanently after generation — no regenerate in MVP.
+
+### Acceptance Criteria
+- [ ] Storyboard section renders a TABLE (not cards) with columns: Scene #, Voiceover Text, Scene Type, Duration
+- [ ] Table rows sourced from `GET /runs/{run_id}/artifact/storyboard` — one row per scene
+- [ ] "Scene Type" shows raw `clip_type` value (e.g. `still_with_motion`, `hard_cut`, `animated`) — no mapping needed
+- [ ] "Duration" shows `duration_s` formatted as `Xs` (e.g. `3s`)
+- [ ] CTA button reads "Run Asset Acquisition" (was "Approve & Get Assets")
+- [ ] "Run Asset Acquisition" triggers `POST /manifest` then `POST /assets` in sequence
+- [ ] After completion: Storyboard section indicator turns green; no "Regenerate" option
+- [ ] Table background: `#FBF9F8` (inherits from S6-S1 design system)
+- [ ] No changes to backend storyboard generation logic
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Visual smoke test: storyboard table renders correctly for a 10-scene run
+- [ ] No backend test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open a run with a completed storyboard. Navigate to Storyboard section. Verify table shows one row per scene with correct Scene #, Voiceover Text, Scene Type, Duration. Click "Run Asset Acquisition". Confirm both manifest and asset steps complete and Storyboard section turns green.
+
+### Files to modify
+- `src/static/pipeline.html` — Storyboard section: replace card rendering with table; rename CTA; remove regenerate logic
+
+### Handover
+_filled on completion_
+
+---
+
+## [S6-S5] Assets stage: Description column + media link column
+**Epic:** E6 — Operator UI
+**Sprint:** 6
+**Status:** backlog
+**Priority:** medium
+**Points:** 2
+**Depends on:** S6-S1
+
+### Goal
+Add a Description column to the asset table and replace the static File field with a clickable Link that opens the actual media asset from R2 storage.
+
+### Acceptance Criteria
+- [ ] Assets table columns: Scene #, Type, Description, Source, Status, Link
+- [ ] Description: populated from manifest entry `primary_query` (the stock-footage search query — best available proxy for scene description in MVP)
+- [ ] Link: clickable element that fetches a presigned GET URL and opens it in a new tab; calls new `GET /runs/{run_id}/asset-link?key={file_key}` endpoint which returns `{url: presigned_url, expires_in: 3600}`
+- [ ] Link shows text "Open" (or icon); disabled/hidden when `file_key` is null
+- [ ] No "Regenerate" button on this section; no re-processing controls of any kind
+- [ ] Table background `#FBF9F8` (from S6-S1)
+- [ ] Backend: `GET /runs/{run_id}/asset-link?key={encoded_key}` — validates key starts with `runs/{run_id}/` (prevent key traversal), generates 1h presigned GET URL, returns `{url, expires_in}`
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: asset-link endpoint returns presigned URL; rejects keys outside run prefix
+- [ ] Manual smoke test: click "Open" on an acquired asset — correct image or video opens in new tab
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open a run with completed assets. Navigate to Assets section. Verify Description column shows search query text. Click "Open" on a scene with `status: acquired`. Confirm correct media file opens (image or video) in new tab.
+
+### Files to create or modify
+- `src/routes/runs.py` — new `GET /runs/{run_id}/asset-link` endpoint
+- `src/models.py` — `AssetLinkResponse(url, expires_in)`
+- `src/static/pipeline.html` — Assets section: add Description + Link columns; remove regenerate
+
+### Handover
+_filled on completion_
+
+---
+
+## [S6-S6] Render Video: bounded player + modal + Download button
+**Epic:** E6 — Operator UI
+**Sprint:** 6
+**Status:** backlog
+**Priority:** medium
+**Points:** 2
+**Depends on:** S6-S1
+
+### Goal
+Fix the render video section so the player is always bounded within the right panel (never fullscreen by default) and gives the operator a proper modal for focused viewing plus a clear Download button.
+
+### Acceptance Criteria
+- [ ] `<video>` element rendered in a fixed-height bounded container (max 360px tall) within the right panel; `controls` attribute present but no `autoplay`
+- [ ] Clicking the video (or an "Expand" button) opens a modal overlay with a larger player (max 80vh) and a close button (×)
+- [ ] Modal close button and click-outside-modal both dismiss the modal
+- [ ] "Download Video" button (below the player) downloads `final.mp4` directly — uses presigned R2 URL with `Content-Disposition: attachment` (backend already supports this via existing render artifact presigned URL)
+- [ ] No default fullscreen behaviour; `fullscreen` is only accessible via native browser controls inside the modal player
+- [ ] Render section indicator turns green when `render` step is `complete`
+- [ ] No backend changes required
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Visual smoke test: video renders in bounded container; clicking opens modal; × closes it; Download button downloads the file
+- [ ] No existing test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open a run with `render: complete`. Navigate to Render Video section. Confirm video is contained (not fullscreen). Click it — modal appears with larger player. Click × — modal closes. Click "Download Video" — browser downloads `final.mp4`.
+
+### Files to modify
+- `src/static/pipeline.html` — Render section: bounded `<video>`, modal overlay, Download button
+
+### Handover
+_filled on completion_
+
+---
+
 ## Ideas / Future Epics
 
 ### IDEA-001 — ElevenLabs TTS: script-only entry point

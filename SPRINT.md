@@ -134,3 +134,39 @@
 - [x] All existing tests pass (535 total: 515 baseline + 20 new for S5-S5).
 - [ ] CI green on merge.
 - [ ] **Human touchpoint:** operator logs in, creates a run, completes full pipeline from Input to Download in the new UI.
+
+---
+
+# Sprint 6 — Product UX: Design System, Project Identity & Stage Polish
+
+**Goal:** Implement the full product UX spec — consistent design system, human-readable project names, Save Draft / Create Storyboard input flow, table-based storyboard view, clickable asset media links, bounded video player with modal, and permanent stage locking (no regenerate in MVP).
+**Status:** planned
+**Points:** 18
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| S6-S1 | Design system: color palette, typography, panel spacing | 3 | backlog |
+| S6-S2 | Project Name as primary identifier (auto-slug, backend + UI) | 3 | backlog |
+| S6-S3 | Input stage: Save Draft + Create Storyboard (lock mechanic) | 5 | backlog |
+| S6-S4 | Storyboard stage: table view + permanent lock | 3 | backlog |
+| S6-S5 | Assets stage: Description column + media link column | 2 | backlog |
+| S6-S6 | Render Video: bounded player + modal + Download button | 2 | backlog |
+
+**Execution order:** S6-S1 → S6-S2 → S6-S3 → S6-S4 → S6-S5 → S6-S6
+S6-S2 and S6-S3 are a chain (project name persisted before input stage). S6-S4, S6-S5, S6-S6 are independent after S6-S1.
+
+---
+
+## Sprint 6 Definition of Done
+- [ ] S6-S1: #FBF9F8 BG applied to all panels and tables. Single font family. No panel borders. Header shows "Content Factory" only.
+- [ ] S6-S2: "Project Name" field in UI. Slug auto-generated. Left panel shows name. `POST /runs` + `GET /runs` support project_name.
+- [ ] S6-S3: Save Draft saves project_name + script to R2. Create Storyboard locks Input permanently and triggers pipeline. Input stage shows green after lock.
+- [ ] S6-S4: Storyboard renders as table (Scene#, Voiceover Text, Scene Type, Duration). CTA reads "Run Asset Acquisition". No regenerate.
+- [ ] S6-S5: Assets table has Description + Link (presigned URL). No regenerate. Link opens media asset.
+- [ ] S6-S6: Video renders in bounded container. Click → modal with close (X). "Download Video" button.
+- [ ] All existing tests pass + new tests for backend changes.
+- [ ] **Human touchpoint:** operator logs in, creates a project, saves draft, creates storyboard, reviews table, clicks an asset link to preview media, watches video in modal, downloads final.mp4.
