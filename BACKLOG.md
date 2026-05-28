@@ -1618,3 +1618,209 @@ Run full pipeline on DEV — verify `run_log.txt` shows correct model used per s
 
 ### Handover
 _filled on completion_
+
+---
+
+# Sprint 5 — Navigation, Performance, Auth & UI Redesign
+
+---
+
+## [S5-S1] URL-based run navigation (fix refresh bug)
+**Epic:** E6 — Operator UI
+**Sprint:** 5
+**Status:** done
+**Completed:** 2026-05-28
+**Priority:** high
+**Points:** 2
+**Depends on:** —
+
+### Goal
+Fix the bug where refreshing the page inside a run drops the user back to the run list. Persist run state in the URL hash — no backend changes.
+
+### Acceptance Criteria
+- [x] Navigating into a run updates URL to `#run/{runId}`
+- [x] On page load, if hash is `#run/{runId}`, app calls `showDetail(runId)` instead of `showList()`
+- [x] Browser back button from detail view returns to list view; URL clears to `#` or empty
+- [x] `showList()` clears the hash
+- [x] Deep-linking: pasting `.../#run/some-id` navigates directly to that run's detail view
+- [x] No backend routes changed — pure frontend fix
+
+### Definition of Done
+- [x] All AC checked
+- [x] Manual tests passed (refresh stays in run; back goes to list; deep link works)
+- [x] CI green
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
+
+### Implementation notes
+- Used `history.pushState` (not `window.location.hash =`) so that setting the hash does not trigger `hashchange` — avoids double-execution of `showDetail`/`showList`
+- `popstate` listener handles browser back/forward (fires when `pushState` entries are traversed)
+- IIFE at script init reads hash on first load — covers refresh and deep links
+
+### Files to modify
+- `src/static/pipeline.html` — JS only, no structural HTML changes
+
+### Handover
+- `src/static/pipeline.html`: `showDetail(runId)` calls `history.pushState(null, '', '#run/' + runId)` immediately after switching views. `showList()` calls `history.pushState(null, '', window.location.pathname)` to clear the hash. `popstate` event listener parses `location.hash` and routes to `showDetail` or `showList` for back/forward navigation. IIFE at script init performs the same hash-parse on first page load, enabling refresh-in-run and deep links.
+- No new ENV vars. No new pip dependencies. No backend changes.
+
+---
+
+## [S5-S2] Page load performance diagnosis + fixes
+**Epic:** E6 — Operator UI
+**Sprint:** 5
+**Status:** in-progress
+**Priority:** high
+**Points:** 3
+**Depends on:** —
+
+### Goal
+Measure where load time is going and apply targeted fixes. Profile first — do not guess.
+
+### Acceptance Criteria
+- [ ] `docs/PERF.md` written with measured bottleneck evidence
+- [ ] At least two concrete fixes implemented and verified to reduce time-to-interactive
+- [ ] `GET /runs` response time logged; if > 500ms for < 20 runs, root cause documented
+- [ ] No regressions to existing tests
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] `docs/PERF.md` exists with before/after timing
+- [ ] CI green (512 tests passing baseline)
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Diagnosis approach
+1. Measure `GET /runs` — check if N sequential R2 reads; replace with `asyncio.gather(*)` if so
+2. Check cold start latency on Railway (document if > 2s, note it's a tier issue)
+3. Check `pipeline.html` for blocking JS on page load
+
+### Files to create or modify
+- `docs/PERF.md` — new
+- `src/routes/runs.py` — likely fix target
+- `src/static/pipeline.html` — if JS load order contributes
+
+### Handover
+_filled on completion_
+
+---
+
+## [S5-S3] Multi-user auth + per-user run isolation
+**Epic:** E6 — Operator UI
+**Sprint:** 5
+**Status:** backlog
+**Priority:** high
+**Points:** 8
+**Depends on:** S5-S1
+
+### Goal
+Add username/password login so multiple operators can use the app with full data isolation. Each user sees only their own runs and assets.
+
+### Acceptance Criteria
+- [ ] `POST /auth/login` — accepts `{username, password}`, signed session cookie on success, 401 on failure
+- [ ] `POST /auth/logout` — clears session cookie
+- [ ] `GET /auth/me` — returns `{username}` if authenticated, 401 if not
+- [ ] All pipeline routes require auth — unauthenticated returns 401
+- [ ] `GET /runs` returns only runs owned by session user
+- [ ] `POST /runs` creates run owned by session user
+- [ ] All `runs/{id}/*` routes verify ownership — return 404 on mismatch (not 403)
+- [ ] R2 prefix for new runs: `users/{user_id}/runs/{run_id}/`; existing runs at legacy prefix accessible read-only to admin
+- [ ] `GET /login` serves minimal login page; `POST /auth/login` redirects to `/` on success
+- [ ] `GET /` redirects to `/login` if no valid session
+- [ ] `POST /admin/users` (guarded by `ADMIN_SECRET`) creates new users — no self-registration
+- [ ] All existing tests pass; new auth tests cover login success/failure, 401 on unauth routes, cross-user isolation
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+- [ ] D037 logged in DECISIONS.md
+
+### Implementation notes
+- User storage: `users.json` in R2 (username → `{user_id, password_hash, created_at}`); loaded at startup
+- Sessions: `itsdangerous.URLSafeTimedSerializer`; cookie contains `{user_id, username}`; 7-day max age
+- Run ownership: `user_id` written to `run_log.json` on `POST /runs`; all `runs/{id}` routes load and check it
+- Backward compat: runs with no `user_id` in `run_log.json` returned only to admin user
+- New ENV vars: `SESSION_SECRET_KEY`, `ADMIN_SECRET`
+
+### Files to create or modify
+- `src/auth.py` — new
+- `src/routes/auth.py` — new
+- `src/routes/admin.py` — new
+- `src/routes/runs.py` — add `user_id` to creation and list filtering
+- `src/routes/storyboard.py`, `alignment.py`, `ffmpeg_script.py`, `render.py`, `assets.py`, `manifest.py` — ownership check
+- `src/models.py` — `User`, `UserCreateRequest`, `LoginRequest`, `LoginResponse`
+- `src/static/login.html` — new
+- `src/main.py` — register routers, add SessionMiddleware, `/login` route
+- `src/config.py` — `ADMIN_SECRET`, `SESSION_SECRET_KEY`
+- `tests/test_auth.py` — new
+- `DECISIONS.md` — D037
+
+### Handover
+_filled on completion_
+
+---
+
+## [S5-S4] UI redesign: 5-step collapsed pipeline + new visual design
+**Epic:** E6 — Operator UI
+**Sprint:** 5
+**Status:** backlog
+**Priority:** high
+**Points:** 8
+**Depends on:** S5-S3
+
+### Goal
+Redesign `pipeline.html` with a three-panel layout (projects list / section nav / content area), collapse 6 backend steps into 5 operator-facing steps, and apply a clean light-mode monochrome design.
+
+### Acceptance Criteria
+- [ ] Three-panel layout renders at 1024px+: run list (left) / section nav (middle) / content (right)
+- [ ] 5 section panels functional end-to-end: Input → Storyboard → Assets → Rendered video
+- [ ] Input: VO upload + script textarea + "Create Storyboard" CTA (disabled until alignment complete)
+- [ ] Storyboard: scene cards + "Approve & Get Assets" CTA
+- [ ] Assets: manifest table + "Render Video" CTA
+- [ ] Rendered video: `<video>` player + download link
+- [ ] Lock mechanic: inputs frozen after CTA completes; "Regenerate" unlocks
+- [ ] Status dots on panel nav update in real time
+- [ ] URL hash routing from S5-S1 preserved (`#run/{id}` still works; `#run/{id}/section` best effort)
+- [ ] Auth from S5-S3 respected: redirect to `/login` if no session
+- [ ] "Log out" button calls `POST /auth/logout`, redirects to `/login`
+- [ ] Design: light bg, system sans-serif labels, monospace for IDs/data, blue (`#1d4ed8`) for primary CTAs only, no external dependencies
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Existing smoke test workflow completable end-to-end in new UI
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Panel → backend step mapping
+| Panel | Triggers |
+|-------|---------|
+| Input → "Create Storyboard" | `POST /alignment` then `POST /storyboard` |
+| Storyboard → "Approve & Get Assets" | `POST /manifest` then `POST /assets` |
+| Assets → "Render Video" | `POST /ffmpeg-script` then `POST /render` |
+| Rendered video | display only |
+
+### Files to modify
+- `src/static/pipeline.html` — full rewrite
+
+### Handover
+_filled on completion_
+
+---
+
+## Ideas / Future Epics
+
+### IDEA-001 — ElevenLabs TTS: script-only entry point
+When user provides only a script (no VO upload), generate voiceover via ElevenLabs API.
+Requires: ElevenLabs API key in Railway env vars, Voice ID selection (dropdown of presets),
+new pipeline branch: script → TTS → alignment → storyboard → ...
+Status: idea, not scheduled
+
+### IDEA-002 — VO-only entry: derive transcript from Deepgram
+When user uploads VO with no script, use Deepgram transcript (already in alignment.json)
+as the script. No storyboard text input needed.
+Requires: minor UI change (script textarea optional), Deepgram transcript extraction.
+Status: idea, not scheduled

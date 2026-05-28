@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S5-S1] URL-based run navigation (fix refresh bug)
+**Completed:** 2026-05-28
+**Sprint:** 5
+**Handover:**
+- `src/static/pipeline.html`: `showDetail(runId)` calls `history.pushState(null, '', '#run/' + runId)` to set the URL hash without triggering `hashchange`. `showList()` calls `history.pushState(null, '', window.location.pathname)` to clear the hash. A `popstate` listener routes back/forward button presses by parsing `location.hash` and calling the appropriate view function. An IIFE at script init reads the hash on first load, enabling refresh-in-run and deep links.
+- Implementation detail: used `history.pushState` rather than `window.location.hash =` to avoid double-execution — `pushState` does not fire `hashchange`, so `showDetail`/`showList` won't be called twice.
+- No backend changes. No new ENV vars. No new pip dependencies.
+- 512 tests passing (no regressions).
+**Smoke test:** DEFERRED — requires DEV deploy; open browser, navigate into any run, refresh the page and confirm the run detail view loads (not the list); paste a `/#run/{run_id}` deep link and confirm it navigates directly to that run.
+**Promoted to backlog:** none
+
+---
+
 ## [E4-S7] Word-synced captions using Deepgram timestamps
 **Completed:** 2026-05-28
 **Sprint:** 4

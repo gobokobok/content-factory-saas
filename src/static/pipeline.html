@@ -384,6 +384,7 @@
       document.getElementById('view-list').style.display   = '';
       document.getElementById('view-detail').style.display = 'none';
       currentRunId = null;
+      history.pushState(null, '', window.location.pathname);
       loadRunList();
     }
 
@@ -392,6 +393,7 @@
       document.getElementById('view-detail').style.display = '';
       currentRunId = runId;
       stepRunning  = {};
+      history.pushState(null, '', '#run/' + runId);
       // Reset run log panel for the new run
       document.getElementById('run-log-section').style.display = 'none';
       document.getElementById('run-log-body').classList.remove('open');
@@ -775,7 +777,14 @@
     }
 
     // ─── Init ─────────────────────────────────────────────────────────────────
-    showList();
+    window.addEventListener('popstate', () => {
+      const m = location.hash.match(/^#run\/(.+)$/);
+      if (m) { showDetail(decodeURIComponent(m[1])); } else { showList(); }
+    });
+    (function () {
+      const m = location.hash.match(/^#run\/(.+)$/);
+      if (m) { showDetail(decodeURIComponent(m[1])); } else { showList(); }
+    }());
   </script>
 </body>
 </html>

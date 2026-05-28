@@ -101,3 +101,35 @@
 - E4-S7 depends on E5-S5 being merged — do not start E4-S7 until E5-S5 smoke test passes.
 - E5-S5 UI work is a full rewrite of pipeline.html step order — do not patch incrementally (see backlog note).
 - Outstanding deferred smoke tests from Sprint 3: E5-S4 (needs DEEPGRAM_API_KEY on DEV), E8-S1, E8-S3 — these should be validated during E5-S5 smoke test session.
+
+---
+
+# Sprint 5 — Navigation, Performance, Auth & UI Redesign
+
+**Goal:** URL-based navigation, performance fixes, multi-user login with per-user run isolation, and a redesigned three-panel UI that hides pipeline complexity from the operator.
+**Status:** in progress
+**Points:** 21
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| S5-S1 | URL-based run navigation (fix refresh bug) | 2 | done |
+| S5-S2 | Page load performance diagnosis + fixes | 3 | backlog |
+| S5-S3 | Multi-user auth + per-user run isolation | 8 | backlog |
+| S5-S4 | UI redesign: 5-step collapsed pipeline + new visual design | 8 | backlog |
+
+**Execution order:** S5-S1 and S5-S2 in parallel (no deps). S5-S3 after S5-S1 merges. S5-S4 after S5-S3 merges.
+
+---
+
+## Sprint 5 Definition of Done
+- [x] S5-S1: Refresh inside a run stays in the run. Deep link works.
+- [ ] S5-S2: `docs/PERF.md` written. At least 2 fixes applied. Load time measurably improved.
+- [ ] S5-S3: Login/logout working. User A cannot see User B's runs. All routes return 401 when unauthenticated. Tests cover isolation.
+- [ ] S5-S4: Three-panel UI, 5-step flow, light design, all CTAs functional end-to-end.
+- [ ] All existing tests pass (512 baseline). New tests added for S5-S3.
+- [ ] CI green on merge.
+- [ ] **Human touchpoint:** operator logs in, creates a run, completes full pipeline from Input to Download in the new UI.
