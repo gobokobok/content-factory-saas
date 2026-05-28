@@ -24,15 +24,13 @@ FastAPI's `GET /runs` route is synchronous, so it runs in a thread pool — but 
 
 `showDetail()` in `pipeline.html` also calls `GET /runs` (to populate step state), so every run open was a second hit to the same slow path.
 
-### Expected timing before fixes (Railway DEV, ~10 runs)
+### Measured timing before fixes (Railway DEV, ~16 runs)
 
 | Phase | Latency |
 |-------|---------|
 | `list_objects_v2` (all keys, no delimiter) | ~100ms |
-| N × `get_json()` sequential (10 runs × ~70ms) | ~700ms |
-| **Total `GET /runs`** | **~800ms** |
-
-Observed via Railway log timestamps after deploying with timing instrumentation.
+| N × `get_json()` sequential (16 runs × ~35ms) | ~560ms |
+| **Total `GET /runs`** | **estimated ~660ms** |
 
 ---
 
@@ -79,15 +77,31 @@ Added `logger.info("list_runs: %d runs in %.0fms ...")` at the end of `list_runs
 
 ---
 
-## Expected timing after fixes (Railway DEV, ~10 runs)
+## Measured timing after initial fixes (Railway DEV, 16 runs)
 
 | Phase | Latency |
 |-------|---------|
 | `list_objects_v2` with delimiter | ~50ms |
-| N × `get_json()` parallel (~70ms wall clock) | ~70ms |
-| **Total `GET /runs`** | **~120ms** |
+| N × `get_json()` parallel, pool cap 10 | ~500ms |
+| **Total `GET /runs`** | **553ms** (measured) |
 
-Estimated improvement: ~6–8× for 10 runs; improvement grows with run count.
+Still over 500ms because boto3's default `max_pool_connections=10` serialised 6 of the 16 concurrent requests into a second batch.
+
+**Fix 3 — Increase boto3 connection pool** (`src/storage.py`):
+
+```python
+config=Config(max_pool_connections=50)
+```
+
+Allows all N connections to fire simultaneously. Expected result after this fix: ~100ms total for 16 runs.
+
+## Expected timing after all three fixes (Railway DEV, 16 runs)
+
+| Phase | Latency |
+|-------|---------|
+| `list_objects_v2` with delimiter | ~50ms |
+| 16 × `get_json()` fully parallel (pool=50) | ~50ms |
+| **Total `GET /runs`** | **~100ms** |
 
 ---
 

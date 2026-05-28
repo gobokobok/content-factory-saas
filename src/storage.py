@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import boto3
+from botocore.config import Config
 from botocore.exceptions import BotoCoreError, ClientError
 
 from src.exceptions import StorageError
@@ -42,6 +43,7 @@ class R2Client:
                 aws_access_key_id=access_key_id,
                 aws_secret_access_key=secret_access_key,
                 region_name=_R2_REGION,
+                config=Config(max_pool_connections=50),
             )
         except Exception as exc:
             raise StorageError(f"Failed to initialise R2 client: {exc}") from exc

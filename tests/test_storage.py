@@ -6,6 +6,7 @@ from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
+from botocore.config import Config
 
 from src.exceptions import StorageError
 from src.models import PIPELINE_STEPS, StepStatus
@@ -45,13 +46,20 @@ class TestR2ClientInit:
         with patch("src.storage.boto3.client") as mock_boto:
             mock_boto.return_value = MagicMock()
             R2Client(FAKE_ACCOUNT_ID, FAKE_ACCESS_KEY, FAKE_SECRET_KEY, FAKE_BUCKET)
-            mock_boto.assert_called_once_with(
-                "s3",
-                endpoint_url=f"https://{FAKE_ACCOUNT_ID}.r2.cloudflarestorage.com",
-                aws_access_key_id=FAKE_ACCESS_KEY,
-                aws_secret_access_key=FAKE_SECRET_KEY,
-                region_name="auto",
-            )
+            call_kwargs = mock_boto.call_args.kwargs
+            assert call_kwargs["endpoint_url"] == f"https://{FAKE_ACCOUNT_ID}.r2.cloudflarestorage.com"
+            assert call_kwargs["aws_access_key_id"] == FAKE_ACCESS_KEY
+            assert call_kwargs["aws_secret_access_key"] == FAKE_SECRET_KEY
+            assert call_kwargs["region_name"] == "auto"
+
+    def test_boto3_called_with_pool_size_50(self):
+        """boto3.client is configured with max_pool_connections=50 for parallel list_runs."""
+        with patch("src.storage.boto3.client") as mock_boto:
+            mock_boto.return_value = MagicMock()
+            R2Client(FAKE_ACCOUNT_ID, FAKE_ACCESS_KEY, FAKE_SECRET_KEY, FAKE_BUCKET)
+            config_arg = mock_boto.call_args.kwargs.get("config")
+            assert config_arg is not None
+            assert config_arg.max_pool_connections == 50
 
     def test_boto3_failure_raises_storage_error(self):
         """If boto3.client raises, StorageError is surfaced."""
