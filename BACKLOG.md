@@ -2025,7 +2025,7 @@ _filled on completion_
 
 ---
 
-## [S6-S4] Storyboard stage: table view + permanent lock
+## [S6-S4] Storyboard stage: full-data table view + permanent lock
 **Epic:** E6 — Operator UI
 **Sprint:** 6
 **Status:** backlog
@@ -2034,13 +2034,31 @@ _filled on completion_
 **Depends on:** S6-S1
 
 ### Goal
-Replace the storyboard scene cards with a dense table view and rename the CTA. Stage locks permanently after generation — no regenerate in MVP.
+Replace the storyboard scene cards with a dense table exposing every field defined for a scene. Stage locks permanently after generation — no regenerate in MVP.
+
+### Scene fields to render (from `StoryboardScene`)
+| Column | Source field | Notes |
+|--------|-------------|-------|
+| Scene | `scene` | Scene ID (e.g. "01") |
+| Type | `clip_type` | `hard_cut` / `still_with_motion` / `animated` |
+| Duration | `duration_s` | Formatted as `Xs` |
+| Voiceover | `voiceover_line` | Full VO text for scene |
+| On-Screen Text | `on_screen_text` | Keyword overlay; `—` when null |
+| Primary Query | `visual_prompts.primary_stk` | Pexels primary search |
+| Fallback Query | `visual_prompts.fallback_stk` | Pexels fallback search |
+| AI Prompt | `visual_prompts.ai_generate` | Replicate/Flux generation prompt |
+| Motion | `motion_effect` | `zoom_in` / `pan_left` / etc.; `—` when null |
+| SFX | `sfx` | Sound effect name |
+| SFX Timing | `sfx_timing` | e.g. `start`, `end`, `+1.5s` |
+
+Global storyboard metadata (`bg_music`, `visual_style`, `subtitle_style`, `rhythm`, `total_duration_s`) displayed as a compact summary row **above** the table — not repeated per scene.
 
 ### Acceptance Criteria
-- [ ] Storyboard section renders a TABLE (not cards) with columns: Scene #, Voiceover Text, Scene Type, Duration
-- [ ] Table rows sourced from `GET /runs/{run_id}/artifact/storyboard` — one row per scene
-- [ ] "Scene Type" shows raw `clip_type` value (e.g. `still_with_motion`, `hard_cut`, `animated`) — no mapping needed
-- [ ] "Duration" shows `duration_s` formatted as `Xs` (e.g. `3s`)
+- [ ] Storyboard section renders a horizontal-scrollable TABLE with all 11 scene columns listed above
+- [ ] Table is horizontally scrollable — columns never collapse or wrap; full data always visible
+- [ ] Global metadata row above table: BG Music, Visual Style, Subtitle Style, Rhythm, Total Duration
+- [ ] Table rows sourced from `GET /runs/{run_id}/artifact/storyboard` (artifact endpoint unchanged)
+- [ ] Null/optional fields (`on_screen_text`, `motion_effect`) render as `—`
 - [ ] CTA button reads "Run Asset Acquisition" (was "Approve & Get Assets")
 - [ ] "Run Asset Acquisition" triggers `POST /manifest` then `POST /assets` in sequence
 - [ ] After completion: Storyboard section indicator turns green; no "Regenerate" option
@@ -2049,16 +2067,16 @@ Replace the storyboard scene cards with a dense table view and rename the CTA. S
 
 ### Definition of Done
 - [ ] All AC checked
-- [ ] Visual smoke test: storyboard table renders correctly for a 10-scene run
+- [ ] Visual smoke test: all 11 columns visible and correct for a 10-scene run; global metadata row present
 - [ ] No backend test regressions
 - [ ] DONE.md updated
 - [ ] BACKLOG.md status updated to `done`
 
 ### Smoke test
-Open a run with a completed storyboard. Navigate to Storyboard section. Verify table shows one row per scene with correct Scene #, Voiceover Text, Scene Type, Duration. Click "Run Asset Acquisition". Confirm both manifest and asset steps complete and Storyboard section turns green.
+Open a run with a completed storyboard. Navigate to Storyboard section. Verify global metadata row shows BG music, visual style, rhythm. Scroll the table and confirm all 11 columns are populated for each scene (nulls show `—`). Click "Run Asset Acquisition". Confirm both manifest and asset steps complete; Storyboard section turns green.
 
 ### Files to modify
-- `src/static/pipeline.html` — Storyboard section: replace card rendering with table; rename CTA; remove regenerate logic
+- `src/static/pipeline.html` — Storyboard section: replace card rendering with full-data table; global metadata row; rename CTA; remove regenerate logic
 
 ### Handover
 _filled on completion_
