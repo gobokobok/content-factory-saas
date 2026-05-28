@@ -118,7 +118,7 @@
 |----|-------|--------|--------|
 | S5-S1 | URL-based run navigation (fix refresh bug) | 2 | done |
 | S5-S2 | Page load performance diagnosis + fixes | 3 | done |
-| S5-S4 | UI redesign: 5-step collapsed pipeline + new visual design | 8 | backlog |
+| S5-S4 | UI redesign: 5-step collapsed pipeline + new visual design | 8 | done |
 | S5-S3 | Multi-user auth + per-user run isolation | 8 | backlog |
 
 **Execution order:** S5-S1 ✓ and S5-S2 ✓ done. Next: S5-S4 (stub auth hooks with `// TODO: S5-S3` comments — logout button wired but no-op, no `/login` redirect guard). S5-S3 last — fills stubs, adds backend middleware, no UI rework needed.

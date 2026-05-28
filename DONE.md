@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S5-S4] UI redesign: 5-step collapsed pipeline + new visual design
+**Completed:** 2026-05-28
+**Sprint:** 5
+**Handover:**
+- `src/static/pipeline.html`: full rewrite. Three-panel layout (`body { display:flex }`): left 240px run list / middle 188px section nav / right `flex:1` content area.
+- Four operator sections replace six explicit backend steps: **Input** (alignment+storyboard), **Storyboard** (manifest+asset_acquisition), **Assets** (ffmpeg_script+render), **Rendered Video** (display only).
+- Each section has a single primary CTA that runs its backend steps in sequence via `runSequence()` — inline per-step progress rows with live dot updates, no page reload.
+- Lock mechanic: `sectionLocked={input,storyboard,assets}` initialised from `currentSteps` in `openRun()`. Set `true` on CTA success (shows green locked bar + "Regenerate"). `regenerateSection()` sets `false` — never re-derived from steps after init so Regenerate stays open.
+- Auto-navigation: each CTA navigates to the next section on success.
+- URL hash routing: `#run/{id}/section` (new depth) and `#run/{id}` (S5-S1, preserved). `popstate` covers browser back/forward.
+- Auth stubs: "Log out" button in left-panel footer calls `logOut()` which is a no-op with `// TODO: S5-S3`. No `/login` redirect guard.
+- Design: light bg `#f9fafb`, system sans-serif labels, monospace for IDs/data, `#1d4ed8` blue for primary CTAs only. No external dependencies.
+- No backend changes. No new ENV vars. No new pip dependencies. 515 tests passing.
+**Smoke test:** DEFERRED — requires Railway DEV deploy. Verify: three-panel layout renders at ≥1024px; open an existing completed run and confirm correct section lock states; open a fresh run and complete full Input→Storyboard→Assets→Render flow; confirm URL hash updates at each step; confirm "← Runs" and browser back both work.
+**Promoted to backlog:** none
+
+---
+
 ## [S5-S2] Page load performance diagnosis + fixes
 **Completed:** 2026-05-28
 **Sprint:** 5

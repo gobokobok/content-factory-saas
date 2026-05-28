@@ -1772,7 +1772,8 @@ _filled on completion_
 ## [S5-S4] UI redesign: 5-step collapsed pipeline + new visual design
 **Epic:** E6 — Operator UI
 **Sprint:** 5
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-28
 **Priority:** high
 **Points:** 8
 **Depends on:** S5-S1 ✓ (delivered before S5-S3; stub auth hooks — see implementation notes)
@@ -1813,7 +1814,18 @@ Redesign `pipeline.html` with a three-panel layout (projects list / section nav 
 - `src/static/pipeline.html` — full rewrite
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html`: full rewrite. Three-panel layout (`body { display:flex }`): left 240px run list / middle 188px section nav / right `flex:1` content. Four operator sections: Input, Storyboard, Assets, Rendered Video.
+- **Input**: VO upload widget (presigned PUT to R2) + script textarea + "Create Storyboard" CTA. CTA disabled until `voUploaded=true` (set on successful upload, or if `alignment !== 'pending'` from a previous session). Single click runs `POST /alignment` → `POST /storyboard` in sequence via `runSequence()`.
+- **Storyboard**: fetches and renders scene cards from `/artifact/storyboard`. "Approve & Get Assets" CTA runs `POST /manifest` → `POST /assets`. Shown only after storyboard=complete.
+- **Assets**: fetches and renders manifest table from `/artifact/manifest`. "Render Video" CTA runs `POST /ffmpeg-script` → `POST /render`. Shown only after asset_manifest=complete.
+- **Rendered Video**: fetches render artifact and shows `<video>` player + download link.
+- **Lock mechanic**: `sectionLocked = {input, storyboard, assets}`. Initialized from `currentSteps` in `openRun()`. Set to `true` by CTA success handlers. Set to `false` by `regenerateSection()`. Never re-derived from steps after init, so Regenerate stays unlocked.
+- **Inline step progress**: `runSequence()` renders per-step rows with live dot updates inside the section (no modal/alert).
+- **Auto-navigation**: each CTA auto-navigates to the next section on success (Input→Storyboard, Storyboard→Assets, Assets→Render).
+- **URL hash routing**: `#run/{id}` → opens run at Input; `#run/{id}/section` → opens run at named section. `popstate` handler covers browser back/forward. `openRun()` pushes `#run/{id}/{section}`.
+- **Auth stubs**: "Log out" button present in left panel footer; `logOut()` is a no-op with `// TODO: S5-S3` comment. No `/login` redirect guard.
+- **Section nav status dots**: `sectionStatus()` maps each section to its backend steps (`input→[alignment,storyboard]`, `storyboard→[asset_manifest,asset_acquisition]`, `assets→[ffmpeg_script,render]`, `render→[render]`).
+- No backend changes. No new ENV vars. No new dependencies. 515 tests passing.
 
 ---
 
