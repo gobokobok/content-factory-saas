@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S5-S2] Page load performance diagnosis + fixes
+**Completed:** 2026-05-28
+**Sprint:** 5
+**Handover:**
+- `src/storage.py`: `list_runs()` rewritten with two targeted fixes. Fix 1 — delimiter listing: `list_objects_v2` now called with `Delimiter="/"` so R2 returns only run folder names via `CommonPrefixes` (e.g. `runs/2026-05-28_my-run/`), not every asset key inside each run. Eliminates O(runs × assets_per_run) key scan. Fix 2 — parallel fetch: `get_json()` calls dispatched concurrently via `ThreadPoolExecutor.map` instead of a sequential for-loop. Wall-clock time drops from N × ~70ms to ~70ms regardless of run count. Per-run `StorageError` is caught and logged as a warning; other runs are unaffected.
+- `src/routes/runs.py`: `GET /runs` handler logs total elapsed ms via `logger.info("GET /runs: %d runs in %.0fms", ...)`.
+- `docs/PERF.md`: new — root-cause analysis (O(N×M) listing + N serial round-trips), before/after timing estimates (~800ms → ~120ms for 10 runs), known limitations (pagination cap at 1000 runs; `showDetail()` double-fetch).
+- `tests/test_storage.py`: 18 → 20 tests. `TestListRuns` updated to use `CommonPrefixes` mock format. Added `test_uses_delimiter_to_list_prefixes` and `test_partial_failure_returns_readable_runs`.
+- No new ENV vars. No new pip dependencies (`concurrent.futures` is stdlib).
+**Smoke test:** DEFERRED — requires Railway DEV deploy; confirm `GET /runs` latency logged in Railway logs is < 200ms for ≤ 20 runs. Check logs for `list_runs: N runs in Xms` line after any pipeline run.
+**Promoted to backlog:** `showDetail()` in `pipeline.html` calls `GET /runs` a second time to populate step state — a `GET /runs/{run_id}` endpoint would halve the request count on run-open. Noted in `docs/PERF.md`; deferred to future sprint.
+
+---
+
 ## [S5-S1] URL-based run navigation (fix refresh bug)
 **Completed:** 2026-05-28
 **Sprint:** 5

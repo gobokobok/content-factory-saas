@@ -164,17 +164,31 @@ class TestListRuns:
             "steps": {step: {"status": "pending"} for step in PIPELINE_STEPS},
         }
 
+    def _prefix_response(self, *run_ids: str) -> dict:
+        """Build a list_objects_v2 response with CommonPrefixes for the given run IDs."""
+        return {
+            "CommonPrefixes": [{"Prefix": f"runs/{rid}/"} for rid in run_ids]
+        }
+
     def test_returns_empty_list_when_no_runs(self, client, mock_s3):
-        """list_runs returns [] when no run_log.json keys exist."""
+        """list_runs returns [] when no run prefixes exist."""
         mock_s3.list_objects_v2.return_value = {}
         result = client.list_runs()
         assert result == []
 
+    def test_uses_delimiter_to_list_prefixes(self, client, mock_s3):
+        """list_objects_v2 is called with Delimiter='/' to avoid enumerating asset keys."""
+        mock_s3.list_objects_v2.return_value = {}
+        client.list_runs()
+        mock_s3.list_objects_v2.assert_called_once_with(
+            Bucket=FAKE_BUCKET,
+            Prefix="runs/",
+            Delimiter="/",
+        )
+
     def test_returns_run_summary_for_each_run(self, client, mock_s3):
-        """list_runs returns one summary per discovered run_log.json."""
-        mock_s3.list_objects_v2.return_value = {
-            "Contents": [{"Key": f"runs/{FAKE_RUN_ID}/run_log.json"}]
-        }
+        """list_runs returns one summary per discovered run prefix."""
+        mock_s3.list_objects_v2.return_value = self._prefix_response(FAKE_RUN_ID)
         log_data = self._make_run_log(FAKE_RUN_ID, "2026-05-22T10:00:00+00:00")
         mock_s3.get_object.return_value = {"Body": io.BytesIO(json.dumps(log_data).encode())}
         result = client.list_runs()
@@ -184,9 +198,7 @@ class TestListRuns:
 
     def test_steps_flattened_to_status_strings(self, client, mock_s3):
         """list_runs flattens steps to {step: status} strings."""
-        mock_s3.list_objects_v2.return_value = {
-            "Contents": [{"Key": f"runs/{FAKE_RUN_ID}/run_log.json"}]
-        }
+        mock_s3.list_objects_v2.return_value = self._prefix_response(FAKE_RUN_ID)
         log_data = self._make_run_log(FAKE_RUN_ID, "2026-05-22T10:00:00+00:00")
         log_data["steps"]["storyboard"]["status"] = "complete"
         mock_s3.get_object.return_value = {"Body": io.BytesIO(json.dumps(log_data).encode())}
@@ -194,35 +206,49 @@ class TestListRuns:
         assert result[0]["steps"]["storyboard"] == "complete"
 
     def test_sorted_by_created_at_descending(self, client, mock_s3):
-        """list_runs returns runs sorted newest first."""
-        mock_s3.list_objects_v2.return_value = {
-            "Contents": [
-                {"Key": "runs/2026-05-21_older/run_log.json"},
-                {"Key": "runs/2026-05-22_newer/run_log.json"},
-            ]
-        }
+        """list_runs returns runs sorted newest first regardless of listing order."""
+        mock_s3.list_objects_v2.return_value = self._prefix_response(
+            "2026-05-21_older", "2026-05-22_newer"
+        )
         older = self._make_run_log("2026-05-21_older", "2026-05-21T08:00:00+00:00")
         newer = self._make_run_log("2026-05-22_newer", "2026-05-22T08:00:00+00:00")
-        mock_s3.get_object.side_effect = [
-            {"Body": io.BytesIO(json.dumps(older).encode())},
-            {"Body": io.BytesIO(json.dumps(newer).encode())},
-        ]
+        logs = {
+            "runs/2026-05-21_older/run_log.json": older,
+            "runs/2026-05-22_newer/run_log.json": newer,
+        }
+
+        def fake_get_object(**kwargs):
+            data = logs[kwargs["Key"]]
+            return {"Body": io.BytesIO(json.dumps(data).encode())}
+
+        mock_s3.get_object.side_effect = fake_get_object
         result = client.list_runs()
         assert result[0]["run_id"] == "2026-05-22_newer"
         assert result[1]["run_id"] == "2026-05-21_older"
 
-    def test_ignores_non_run_log_keys(self, client, mock_s3):
-        """list_runs skips R2 keys that don't match the run_log.json pattern."""
-        mock_s3.list_objects_v2.return_value = {
-            "Contents": [
-                {"Key": f"runs/{FAKE_RUN_ID}/storyboard.json"},
-                {"Key": f"runs/{FAKE_RUN_ID}/run_log.json"},
-            ]
-        }
-        log_data = self._make_run_log(FAKE_RUN_ID, "2026-05-22T10:00:00+00:00")
-        mock_s3.get_object.return_value = {"Body": io.BytesIO(json.dumps(log_data).encode())}
+    def test_skips_run_with_unreadable_log(self, client, mock_s3):
+        """A run whose run_log.json raises StorageError is silently skipped."""
+        mock_s3.list_objects_v2.return_value = self._prefix_response(FAKE_RUN_ID)
+        mock_s3.get_object.side_effect = Exception("key not found")
+        result = client.list_runs()
+        assert result == []
+
+    def test_partial_failure_returns_readable_runs(self, client, mock_s3):
+        """A single unreadable run_log.json does not prevent other runs from being listed."""
+        mock_s3.list_objects_v2.return_value = self._prefix_response(
+            "2026-05-21_bad", "2026-05-22_good"
+        )
+        good_log = self._make_run_log("2026-05-22_good", "2026-05-22T08:00:00+00:00")
+
+        def fake_get_object(**kwargs):
+            if "bad" in kwargs["Key"]:
+                raise Exception("corrupted")
+            return {"Body": io.BytesIO(json.dumps(good_log).encode())}
+
+        mock_s3.get_object.side_effect = fake_get_object
         result = client.list_runs()
         assert len(result) == 1
+        assert result[0]["run_id"] == "2026-05-22_good"
 
     def test_list_failure_raises_storage_error(self, client, mock_s3):
         """list_objects_v2 failure propagates as StorageError."""

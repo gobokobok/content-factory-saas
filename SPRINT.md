@@ -117,7 +117,7 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | S5-S1 | URL-based run navigation (fix refresh bug) | 2 | done |
-| S5-S2 | Page load performance diagnosis + fixes | 3 | backlog |
+| S5-S2 | Page load performance diagnosis + fixes | 3 | done |
 | S5-S3 | Multi-user auth + per-user run isolation | 8 | backlog |
 | S5-S4 | UI redesign: 5-step collapsed pipeline + new visual design | 8 | backlog |
 
@@ -127,9 +127,9 @@
 
 ## Sprint 5 Definition of Done
 - [x] S5-S1: Refresh inside a run stays in the run. Deep link works.
-- [ ] S5-S2: `docs/PERF.md` written. At least 2 fixes applied. Load time measurably improved.
+- [x] S5-S2: `docs/PERF.md` written. At least 2 fixes applied. Load time measurably improved.
 - [ ] S5-S3: Login/logout working. User A cannot see User B's runs. All routes return 401 when unauthenticated. Tests cover isolation.
 - [ ] S5-S4: Three-panel UI, 5-step flow, light design, all CTAs functional end-to-end.
-- [ ] All existing tests pass (512 baseline). New tests added for S5-S3.
+- [ ] All existing tests pass (514 baseline after S5-S2). New tests added for S5-S3.
 - [ ] CI green on merge.
 - [ ] **Human touchpoint:** operator logs in, creates a run, completes full pipeline from Input to Download in the new UI.

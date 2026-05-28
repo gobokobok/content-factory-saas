@@ -7,6 +7,8 @@ implicitly creates the prefix structure in the R2 console view.
 
 import json
 import logging
+import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -102,31 +104,59 @@ class R2Client:
 
     def list_runs(self) -> list[dict]:
         """
-        Scan R2 for all run_log.json files and return run summaries.
+        Return run summaries for all runs in R2.
 
-        Returns a list of {run_id, created_at, steps} dicts sorted by created_at descending.
+        Uses delimiter-based listing to enumerate run prefixes without fetching
+        individual asset keys, then fetches each run_log.json in parallel via a
+        thread pool.  Runs whose run_log.json cannot be fetched are skipped.
+        Returns a list of {run_id, created_at, steps} dicts sorted by
+        created_at descending.
         """
-        all_keys = self.list_keys("runs/")
-        log_keys = [k for k in all_keys if k.endswith("/run_log.json")]
-        runs = []
-        for key in log_keys:
-            # key pattern: runs/{run_id}/run_log.json
-            parts = key.split("/")
-            if len(parts) != 3:
-                continue
-            run_id = parts[1]
-            data = self.get_json(key)
-            runs.append(
-                {
-                    "run_id": run_id,
-                    "created_at": data.get("created_at", ""),
-                    "steps": {
-                        step: log.get("status", "pending")
-                        for step, log in data.get("steps", {}).items()
-                    },
-                }
+        t_start = time.monotonic()
+
+        try:
+            response = self._client.list_objects_v2(
+                Bucket=self._bucket,
+                Prefix="runs/",
+                Delimiter="/",
             )
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise StorageError(f"R2 list failed for prefix 'runs/': {exc}") from exc
+
+        # CommonPrefixes contains entries like {"Prefix": "runs/{run_id}/"}
+        prefixes = [p["Prefix"] for p in response.get("CommonPrefixes", [])]
+
+        def _fetch(prefix: str) -> Optional[dict]:
+            """Fetch run_log.json for one run prefix; return None on failure."""
+            run_id = prefix.rstrip("/").split("/")[-1]
+            key = f"{prefix}run_log.json"
+            try:
+                data = self.get_json(key)
+            except StorageError:
+                logger.warning("Skipping run with unreadable log: %s", key)
+                return None
+            return {
+                "run_id": run_id,
+                "created_at": data.get("created_at", ""),
+                "steps": {
+                    step: log.get("status", "pending")
+                    for step, log in data.get("steps", {}).items()
+                },
+            }
+
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(_fetch, prefixes))
+
+        runs = [r for r in results if r is not None]
         runs.sort(key=lambda r: r["created_at"], reverse=True)
+
+        elapsed_ms = (time.monotonic() - t_start) * 1000
+        logger.info(
+            "list_runs: %d runs in %.0fms (parallelised across %d prefixes)",
+            len(runs),
+            elapsed_ms,
+            len(prefixes),
+        )
         return runs
 
     def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:

@@ -1,6 +1,7 @@
 """Route handlers for /runs endpoints."""
 
 import logging
+import time
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -61,12 +62,15 @@ def create_run(
 @router.get("/runs", response_model=RunListResponse)
 def list_runs(settings: Settings = Depends(get_settings)) -> RunListResponse:
     """List all runs sorted by date descending."""
+    t_start = time.monotonic()
     client = _make_r2_client(settings)
     try:
         runs = client.list_runs()
     except StorageError as exc:
         logger.error("Storage error listing runs: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+    elapsed_ms = (time.monotonic() - t_start) * 1000
+    logger.info("GET /runs: %d runs in %.0fms", len(runs), elapsed_ms)
     return RunListResponse(runs=[RunSummary(**r) for r in runs])
 
 
