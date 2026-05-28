@@ -106,9 +106,9 @@
 
 # Sprint 5 — Navigation, Performance, Auth & UI Redesign
 
-**Goal:** URL-based navigation, performance fixes, multi-user login with per-user run isolation, and a redesigned three-panel UI that hides pipeline complexity from the operator.
+**Goal:** URL-based navigation, performance fixes, single-operator login, and a redesigned three-panel UI that hides pipeline complexity from the operator.
 **Status:** in progress
-**Points:** 21
+**Points:** 16 (S5-S3 deferred; replaced by S5-S5)
 
 ---
 
@@ -119,17 +119,18 @@
 | S5-S1 | URL-based run navigation (fix refresh bug) | 2 | done |
 | S5-S2 | Page load performance diagnosis + fixes | 3 | done |
 | S5-S4 | UI redesign: 5-step collapsed pipeline + new visual design | 8 | done |
-| S5-S3 | Multi-user auth + per-user run isolation | 8 | backlog |
+| S5-S5 | Single-operator password gate | 3 | backlog |
+| S5-S3 | Multi-user auth + per-user run isolation | 8 | deferred |
 
-**Execution order:** S5-S1 ✓ and S5-S2 ✓ done. Next: S5-S4 (stub auth hooks with `// TODO: S5-S3` comments — logout button wired but no-op, no `/login` redirect guard). S5-S3 last — fills stubs, adds backend middleware, no UI rework needed.
+**Execution order:** S5-S1 ✓, S5-S2 ✓, S5-S4 ✓ done. Next: S5-S5 — fills `logOut()` stub and auth middleware; no UI redesign needed. S5-S3 deferred indefinitely (requires per-user R2 isolation; out of scope for POC).
 
 ---
 
 ## Sprint 5 Definition of Done
 - [x] S5-S1: Refresh inside a run stays in the run. Deep link works.
 - [x] S5-S2: `docs/PERF.md` written. At least 2 fixes applied. Load time measurably improved.
-- [ ] S5-S3: Login/logout working. User A cannot see User B's runs. All routes return 401 when unauthenticated. Tests cover isolation.
-- [ ] S5-S4: Three-panel UI, 5-step flow, light design, all CTAs functional end-to-end.
-- [ ] All existing tests pass (514 baseline after S5-S2). New tests added for S5-S3.
+- [x] S5-S4: Three-panel UI, 4-section flow, light design, all CTAs functional end-to-end.
+- [ ] S5-S5: Login/logout working. All pipeline routes return 302 when unauthenticated. Tests cover login success/failure and auth gating.
+- [ ] All existing tests pass (515 baseline after S5-S4). New tests added for S5-S5.
 - [ ] CI green on merge.
 - [ ] **Human touchpoint:** operator logs in, creates a run, completes full pipeline from Input to Download in the new UI.

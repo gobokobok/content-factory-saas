@@ -1714,8 +1714,8 @@ Measure where load time is going and apply targeted fixes. Profile first — do 
 ## [S5-S3] Multi-user auth + per-user run isolation
 **Epic:** E6 — Operator UI
 **Sprint:** 5
-**Status:** backlog
-**Priority:** high
+**Status:** deferred
+**Priority:** low
 **Points:** 8
 **Depends on:** S5-S4 (fills auth stubs left by S5-S4; no UI rework needed)
 
@@ -1826,6 +1826,60 @@ Redesign `pipeline.html` with a three-panel layout (projects list / section nav 
 - **Auth stubs**: "Log out" button present in left panel footer; `logOut()` is a no-op with `// TODO: S5-S3` comment. No `/login` redirect guard.
 - **Section nav status dots**: `sectionStatus()` maps each section to its backend steps (`input→[alignment,storyboard]`, `storyboard→[asset_manifest,asset_acquisition]`, `assets→[ffmpeg_script,render]`, `render→[render]`).
 - No backend changes. No new ENV vars. No new dependencies. 515 tests passing.
+
+---
+
+## [S5-S5] Single-operator password gate
+**Epic:** E6 — Operator UI
+**Sprint:** 5
+**Status:** backlog
+**Priority:** high
+**Points:** 3
+**Depends on:** S5-S4 ✓ (`logOut()` stub and `// TODO: S5-S3` already in pipeline.html)
+**Replaces:** S5-S3 deferred — no per-user isolation, no user management, single password
+
+### Goal
+Add a single-password login wall. One operator, one `OPERATOR_PASSWORD` env var. All pipeline routes return 302 → `/login` if the session cookie is missing or invalid. Session valid until logout (no expiry — POC scope). No per-user isolation, no user management.
+
+### Acceptance Criteria
+- [ ] `GET /login` serves `login.html` (light-mode, matches `pipeline.html` design)
+- [ ] `POST /auth/login` accepts `{password}`, validates against `OPERATOR_PASSWORD` env var, sets signed httponly cookie, returns `{ok: true}`; returns 401 on wrong password
+- [ ] `POST /auth/logout` clears cookie, returns `{ok: true}`
+- [ ] HTTP middleware in `main.py` gates all routes except `/health`, `/login`, `/auth/login` — unauthenticated requests get 302 → `/login`
+- [ ] `pipeline.html`: `logOut()` calls `POST /auth/logout` then redirects to `/login`
+- [ ] `pipeline.html`: any `fetch()` response that is 401 redirects to `/login`
+- [ ] `login.html`: JS posts to `POST /auth/login` (JSON); on 200 navigates to `/`; on 401 shows inline error (no page reload)
+- [ ] `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` added to `src/config.py` and Railway env vars
+- [ ] No new pip dependencies — cookie signing via stdlib `hmac` + `hashlib`
+- [ ] New tests: login success, login wrong password, logout clears cookie, unauthenticated request returns 302, health exempt from auth
+- [ ] CI green
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests passing
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+- [ ] D037 logged in DECISIONS.md
+
+### Implementation notes
+- Cookie value: `hmac.new(SESSION_SECRET_KEY.encode(), b"authenticated", hashlib.sha256).hexdigest()` — constant token, valid until cleared
+- Cookie flags: `httponly=True, samesite="lax"`, `secure=True` in prod (Railway serves HTTPS)
+- Middleware: `@app.middleware("http")` in `main.py` — ~10 lines; exempt paths: `/health`, `/login`, `/auth/login`
+- `login.html`: no framework, inline CSS matching light-mode design; JS fetch on form submit
+
+### Files to create or modify
+- `src/auth.py` — new: `AUTH_COOKIE_NAME`, `sign_cookie()`, `verify_cookie()`
+- `src/routes/auth.py` — new: `POST /auth/login`, `POST /auth/logout`
+- `src/main.py` — register auth router, `GET /login` route, add auth middleware
+- `src/config.py` — `OPERATOR_PASSWORD` (required), `SESSION_SECRET_KEY` (required)
+- `src/static/login.html` — new
+- `src/static/pipeline.html` — wire `logOut()`, add global 401 → `/login` redirect in `fetch` wrapper or per-call handlers
+- `tests/test_auth.py` — new
+- `DECISIONS.md` — D037: stdlib HMAC cookie chosen over `itsdangerous` (no new dep for POC)
+
+### Handover
+_filled on completion_
 
 ---
 
