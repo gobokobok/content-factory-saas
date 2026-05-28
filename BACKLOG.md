@@ -1717,7 +1717,7 @@ Measure where load time is going and apply targeted fixes. Profile first — do 
 **Status:** backlog
 **Priority:** high
 **Points:** 8
-**Depends on:** S5-S1
+**Depends on:** S5-S4 (fills auth stubs left by S5-S4; no UI rework needed)
 
 ### Goal
 Add username/password login so multiple operators can use the app with full data isolation. Each user sees only their own runs and assets.
@@ -1775,7 +1775,7 @@ _filled on completion_
 **Status:** backlog
 **Priority:** high
 **Points:** 8
-**Depends on:** S5-S3
+**Depends on:** S5-S1 ✓ (delivered before S5-S3; stub auth hooks — see implementation notes)
 
 ### Goal
 Redesign `pipeline.html` with a three-panel layout (projects list / section nav / content area), collapse 6 backend steps into 5 operator-facing steps, and apply a clean light-mode monochrome design.
