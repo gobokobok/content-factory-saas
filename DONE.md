@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S6-S4] Storyboard stage: full-data table view + permanent lock
+**Completed:** 2026-05-29
+**Handover:**
+- `src/static/pipeline.html`: CSS — `.scene-cards`/`.scene-card` styles replaced with `.sb-meta` (global metadata row) and updated `.data-table` (added `white-space: nowrap`, removed fixed `width: 100%` to let table scroll freely). `renderStoryboardHtml(content)` rewritten: renders a `.sb-meta` row with bg_music, visual_style, subtitle_style, rhythm, total_duration_s from `content.global`, followed by a horizontally-scrollable `.table-wrap` table with 11 columns — Scene, Type, Duration, Voiceover, On-Screen Text, Primary Query, Fallback Query, AI Prompt, Motion, SFX, SFX Timing. Null/optional fields render as `—` (muted grey). Long text cells use `.trunc` with `title` tooltip.
+- Storyboard CTA button: id `approve-assets-btn` → `run-acquisition-btn`; label "Approve & Get Assets" → "Run Asset Acquisition"; `onclick` → `runAssetAcquisition()`. Locked bar text updated to "✓ Asset acquisition complete".
+- `runApproveAssets()` renamed to `runAssetAcquisition()`; internal button reference updated. Logic unchanged — sequences `POST /manifest` then `POST /assets`.
+- `populateStoryboard()` updated to reference new button id and label.
+- No backend changes. No new ENV vars. No new dependencies.
+- 579 tests passing, no regressions.
+**Smoke test:** DEFERRED — open a run with a completed storyboard; verify global metadata row and all 11 columns populated; null fields show `—`; table horizontally scrollable; "Run Asset Acquisition" triggers manifest + assets sequence; section turns green on completion.
+**Promoted to backlog:** none
+
+---
+
 ## [S6-S3] Input stage: Save Draft + Create Storyboard (lock mechanic)
 **Completed:** 2026-05-29
 **Handover:**

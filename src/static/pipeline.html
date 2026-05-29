@@ -313,21 +313,21 @@
     /* ── CTA area ─────────────────────────────────────────────────────── */
     .cta-area { margin-top: 24px; }
 
-    /* ── Scene cards ──────────────────────────────────────────────────── */
-    .scene-cards { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-    .scene-card {
-      padding: 11px 13px;
-      border: 1px solid #E8E5E4;
-      border-radius: 4px;
-      background: #FBF9F8;
+    /* ── Storyboard global metadata row ──────────────────────────────── */
+    .sb-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 20px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: #9A9A9A;
     }
-    .scene-card-hdr { font-family: monospace; font-size: 11px; color: #9A9A9A; margin-bottom: 5px; }
-    .scene-card-vo  { font-size: 13px; color: #2D2D2D; margin-bottom: 5px; }
-    .scene-card-meta { font-family: monospace; font-size: 11px; color: #9A9A9A; }
+    .sb-meta-item { white-space: nowrap; }
+    .sb-meta-item strong { color: #2D2D2D; font-weight: 500; }
 
-    /* ── Manifest table ───────────────────────────────────────────────── */
+    /* ── Data tables (storyboard + manifest) ─────────────────────────── */
     .table-wrap { overflow-x: auto; margin-bottom: 8px; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table { border-collapse: collapse; font-size: 13px; white-space: nowrap; }
     .data-table th {
       text-align: left;
       font-size: 11px;
@@ -344,11 +344,11 @@
     }
     .data-table td.mono { font-family: monospace; font-size: 12px; }
     .data-table td.trunc {
-      max-width: 160px;
+      max-width: 220px;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
     }
+    .data-table td.muted { color: #9A9A9A; }
 
     /* ── Video player ─────────────────────────────────────────────────── */
     .render-video { max-width: 100%; display: block; border-radius: 4px; border: 1px solid #E8E5E4; }
@@ -447,7 +447,7 @@
       <div class="section-title">Storyboard</div>
 
       <div id="storyboard-locked-bar" class="locked-bar" style="display:none;">
-        <span>✓ Assets approved</span>
+        <span>✓ Asset acquisition complete</span>
       </div>
 
       <div id="storyboard-content">
@@ -457,8 +457,8 @@
       <div class="cta-area" id="storyboard-cta-area" style="display:none;">
         <div id="storyboard-step-progress" class="step-progress" style="display:none;"></div>
         <div id="storyboard-error"         class="error-bar"      style="display:none;"></div>
-        <button class="btn btn-primary" id="approve-assets-btn" onclick="runApproveAssets()">
-          Approve &amp; Get Assets
+        <button class="btn btn-primary" id="run-acquisition-btn" onclick="runAssetAcquisition()">
+          Run Asset Acquisition
         </button>
       </div>
     </div>
@@ -854,10 +854,10 @@
       document.getElementById('storyboard-locked-bar').style.display = locked ? '' : 'none';
       document.getElementById('storyboard-cta-area').style.display   = storyboardDone ? '' : 'none';
 
-      const approveBtn = document.getElementById('approve-assets-btn');
+      const approveBtn = document.getElementById('run-acquisition-btn');
       const running    = !!stepRunning['asset_manifest'] || !!stepRunning['asset_acquisition'];
       approveBtn.disabled    = locked || running;
-      approveBtn.textContent = running ? 'Running…' : 'Approve & Get Assets';
+      approveBtn.textContent = running ? 'Running…' : 'Run Asset Acquisition';
 
       const contentDiv = document.getElementById('storyboard-content');
       if (!storyboardDone) {
@@ -936,15 +936,44 @@
     function renderStoryboardHtml(content) {
       const scenes = content?.scenes;
       if (!scenes?.length) return '<div class="state-empty">No scenes found.</div>';
-      return `<div class="scene-cards">${scenes.map(s => {
+
+      const g = content?.global || {};
+      const metaFields = [
+        ['BG Music',       g.bg_music],
+        ['Visual Style',   g.visual_style],
+        ['Subtitle Style', g.subtitle_style],
+        ['Rhythm',         g.rhythm],
+        ['Total Duration', g.total_duration_s != null ? `${g.total_duration_s}s` : null],
+      ];
+      const metaHtml = `<div class="sb-meta">${metaFields.map(([label, val]) =>
+        `<span class="sb-meta-item">${esc(label)}: <strong>${esc(val || '—')}</strong></span>`
+      ).join('')}</div>`;
+
+      const rowsHtml = scenes.map(s => {
         const vp = s.visual_prompts || {};
-        return `<div class="scene-card">
-          <div class="scene-card-hdr">Scene ${esc(s.scene)} · ${esc(s.clip_type)} · ${esc(s.duration_s)}s</div>
-          <div class="scene-card-vo">${esc(s.voiceover_line)}</div>
-          <div class="scene-card-meta">motion: ${esc(s.motion_effect || '—')} · sfx: ${esc(s.sfx || '—')}</div>
-          <div class="scene-card-meta">STK: ${esc(vp.primary_stk || '—')} / FALLBACK: ${esc(vp.fallback_stk || '—')}</div>
-        </div>`;
-      }).join('')}</div>`;
+        return `<tr>
+          <td class="mono">${esc(s.scene)}</td>
+          <td>${esc(s.clip_type)}</td>
+          <td class="mono">${esc(s.duration_s)}s</td>
+          <td class="trunc" title="${esc(s.voiceover_line)}">${esc(s.voiceover_line)}</td>
+          <td class="${s.on_screen_text ? '' : 'muted'}">${esc(s.on_screen_text || '—')}</td>
+          <td class="trunc" title="${esc(vp.primary_stk || '')}">${esc(vp.primary_stk || '—')}</td>
+          <td class="trunc" title="${esc(vp.fallback_stk || '')}">${esc(vp.fallback_stk || '—')}</td>
+          <td class="trunc" title="${esc(vp.ai_generate || '')}">${esc(vp.ai_generate || '—')}</td>
+          <td class="${s.motion_effect ? '' : 'muted'}">${esc(s.motion_effect || '—')}</td>
+          <td>${esc(s.sfx || '—')}</td>
+          <td class="mono">${esc(s.sfx_timing || '—')}</td>
+        </tr>`;
+      }).join('');
+
+      return `${metaHtml}<div class="table-wrap"><table class="data-table">
+        <thead><tr>
+          <th>Scene</th><th>Type</th><th>Duration</th><th>Voiceover</th>
+          <th>On-Screen Text</th><th>Primary Query</th><th>Fallback Query</th>
+          <th>AI Prompt</th><th>Motion</th><th>SFX</th><th>SFX Timing</th>
+        </tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table></div>`;
     }
 
     function renderManifestHtml(content) {
@@ -1001,13 +1030,13 @@
       }
     }
 
-    // ─── CTA: Approve & Get Assets (manifest → asset_acquisition) ────────────
-    async function runApproveAssets() {
+    // ─── CTA: Run Asset Acquisition (manifest → asset_acquisition) ───────────
+    async function runAssetAcquisition() {
       const progressEl = document.getElementById('storyboard-step-progress');
       const errorEl    = document.getElementById('storyboard-error');
       errorEl.style.display = 'none';
 
-      document.getElementById('approve-assets-btn').disabled = true;
+      document.getElementById('run-acquisition-btn').disabled = true;
 
       const ok = await runSequence([
         { key: 'asset_manifest',    label: 'Asset Manifest',    path: `/runs/${currentRunId}/manifest`, body: null },

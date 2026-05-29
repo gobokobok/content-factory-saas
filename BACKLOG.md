@@ -2056,7 +2056,7 @@ Open new project. Fill name + script + upload VO. Click "Save Draft". Refresh â€
 ## [S6-S4] Storyboard stage: full-data table view + permanent lock
 **Epic:** E6 â€” Operator UI
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
 **Priority:** high
 **Points:** 3
 **Depends on:** S6-S1

@@ -152,7 +152,7 @@
 | S6-S1 | Design system: color palette, typography, panel spacing | 3 | done |
 | S6-S2 | Project Name as primary identifier (auto-slug, backend + UI) | 3 | done |
 | S6-S3 | Input stage: Save Draft + Create Storyboard (lock mechanic) | 5 | done |
-| S6-S4 | Storyboard stage: full-data table view (all scene fields) + permanent lock | 3 | backlog |
+| S6-S4 | Storyboard stage: full-data table view (all scene fields) + permanent lock | 3 | done |
 | S6-S5 | Assets stage: Description column + media link column | 2 | backlog |
 | S6-S6 | Render Video: bounded player + modal + Download button | 2 | backlog |
 
