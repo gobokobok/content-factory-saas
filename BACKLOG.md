@@ -1957,7 +1957,8 @@ Open `pipeline.html` at 1280px. Verify: single warm-cream background across all 
 ## [S6-S2] Project Name as primary identifier (auto-slug, backend + UI)
 **Epic:** E6 — Operator UI
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-29
 **Priority:** high
 **Points:** 3
 **Depends on:** S6-S1
@@ -1993,7 +1994,13 @@ Click "New Project", type "Housing Crisis Explained", click Save Draft (or Creat
 - `tests/test_runs.py` — update fixtures and assertions
 
 ### Handover
-_filled on completion_
+- `src/models.py`: `RunCreateRequest` now accepts `project_name: str` (stripped, 1–120 chars). `RunCreateResponse` gains `project_name: str`. `RunSummary` gains `project_name: Optional[str] = None`. `RunLog` gains `project_name: Optional[str] = None` (backward-compatible — legacy logs without the field deserialise cleanly).
+- `src/routes/runs.py`: `_slugify(name) → str` helper added (`re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")`). `POST /runs` slugifies `project_name` → `run_id`, passes `project_name` to storage, returns it in response.
+- `src/storage.py`: `_build_run_log(run_id, project_name=None)` and `create_run_folder(run_id, project_name=None)` accept optional `project_name`. `list_runs._fetch` reads `data.get("project_name")` and returns it alongside run_id/steps.
+- `src/static/pipeline.html`: Left-panel form removed. "+ New Project" calls `openNewProjectForm()` which shows the Input section with a blank form (no run created yet). Input section now shows: Project Name → Voiceover → VO Script → Create Storyboard. `_ensureRun()` lazily creates the run on first action (VO Upload or Create Storyboard). `openRun()` populates Project Name field (read-only) for existing runs. Left panel renders `project_name || run_id`.
+- `tests/test_runs.py`: Fully rewritten for `project_name`. `TestCreateRunNameValidation` replaces `TestCreateRunSlugValidation`. 8 net new tests.
+- `tests/test_storage.py`: 4 new tests for `project_name` in `_build_run_log` and `create_run_folder`.
+- No new ENV vars. No new pip dependencies. 543 total tests passing.
 
 ---
 

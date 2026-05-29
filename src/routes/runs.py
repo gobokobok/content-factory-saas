@@ -1,6 +1,7 @@
 """Route handlers for /runs endpoints."""
 
 import logging
+import re
 import time
 from datetime import date
 
@@ -42,6 +43,11 @@ def _make_r2_client(settings: Settings) -> R2Client:
     )
 
 
+def _slugify(name: str) -> str:
+    """Convert a project name to a URL-safe slug."""
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
 @router.post("/runs", response_model=RunCreateResponse, status_code=201)
 def create_run(
     body: RunCreateRequest,
@@ -49,14 +55,15 @@ def create_run(
 ) -> RunCreateResponse:
     """Create an R2 run prefix and initialise run_log.json."""
     client = _make_r2_client(settings)
-    run_id = f"{date.today().isoformat()}_{body.slug}"
+    slug = _slugify(body.project_name)
+    run_id = f"{date.today().isoformat()}_{slug}"
     try:
-        prefix = client.create_run_folder(run_id)
+        prefix = client.create_run_folder(run_id, project_name=body.project_name)
     except StorageError as exc:
         logger.error("Storage error creating run '%s': %s", run_id, exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    return RunCreateResponse(run_id=run_id, storage_prefix=prefix)
+    return RunCreateResponse(run_id=run_id, project_name=body.project_name, storage_prefix=prefix)
 
 
 @router.get("/runs", response_model=RunListResponse)

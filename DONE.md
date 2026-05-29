@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S6-S2] Project Name as primary identifier (auto-slug, backend + UI)
+**Completed:** 2026-05-29
+**Handover:**
+- `src/models.py`: `RunCreateRequest` now accepts `project_name: str` (stripped, 1–120 chars). `RunCreateResponse` gains `project_name: str`. `RunSummary` and `RunLog` gain `project_name: Optional[str] = None` (backward-compatible; legacy run_log.json without the field deserialises cleanly).
+- `src/routes/runs.py`: `_slugify(name) → str` helper (`re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")`). `POST /runs` accepts `project_name`, slugifies to build `run_id`, passes name to storage, returns it in response. Old `slug` field removed.
+- `src/storage.py`: `_build_run_log(run_id, project_name=None)` and `create_run_folder(run_id, project_name=None)` write `project_name` into `run_log.json`. `list_runs._fetch` reads and returns `project_name` (null for legacy runs).
+- `src/static/pipeline.html`: Left-panel new-project form removed entirely. "+ New Project" calls `openNewProjectForm()` — opens Input section with blank form, no run created yet. Input section field order: Project Name → Voiceover → VO Script → Create Storyboard button. `_ensureRun()` creates the run lazily on first VO Upload or Create Storyboard click. `openRun()` populates Project Name read-only for existing runs. Left panel list renders `project_name || run_id`.
+- `tests/test_runs.py`: Fully rewritten; `TestCreateRunNameValidation` replaces `TestCreateRunSlugValidation`; old `slug` field tests removed; 8 net new tests.
+- `tests/test_storage.py`: 4 new tests for `project_name` in `_build_run_log` and `create_run_folder`.
+- No new ENV vars. No new pip dependencies. 543 total tests passing.
+**Smoke test:** DEFERRED — requires Railway DEV deploy. Verify: click "+ New Project", type "Housing Crisis Explained", upload VO, paste script, click "Create Storyboard". Confirm left panel shows "Housing Crisis Explained", R2 `run_log.json` contains `"project_name": "Housing Crisis Explained"`, run folder slug is `YYYY-MM-DD_housing-crisis-explained`.
+**Promoted to backlog:** none
+
+---
+
 ## [S6-S1] Design system: color palette, typography, panel spacing
 **Completed:** 2026-05-29
 **Handover:**

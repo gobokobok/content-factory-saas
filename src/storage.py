@@ -140,6 +140,7 @@ class R2Client:
             return {
                 "run_id": run_id,
                 "created_at": data.get("created_at", ""),
+                "project_name": data.get("project_name"),
                 "steps": {
                     step: log.get("status", "pending")
                     for step, log in data.get("steps", {}).items()
@@ -183,7 +184,7 @@ class R2Client:
         except (BotoCoreError, ClientError, Exception) as exc:
             raise StorageError(f"Failed to generate presigned PUT URL for '{key}': {exc}") from exc
 
-    def create_run_folder(self, run_id: str) -> str:
+    def create_run_folder(self, run_id: str, project_name: Optional[str] = None) -> str:
         """
         Initialise a run prefix in R2 by uploading run_log.json.
 
@@ -191,7 +192,7 @@ class R2Client:
         once any key with that prefix is written. Returns the prefix string.
         """
         prefix = f"runs/{run_id}/"
-        run_log = _build_run_log(run_id)
+        run_log = _build_run_log(run_id, project_name=project_name)
         self.upload_json(f"{prefix}run_log.json", run_log.model_dump(mode="json"))
         logger.info("Run prefix initialised: %s", prefix)
         return prefix
@@ -227,10 +228,11 @@ class R2Client:
         logger.info("run_log updated: run=%s step=%s status=%s", run_id, step, status)
 
 
-def _build_run_log(run_id: str) -> RunLog:
+def _build_run_log(run_id: str, project_name: Optional[str] = None) -> RunLog:
     """Construct a RunLog with all pipeline steps initialised to pending."""
     return RunLog(
         run_id=run_id,
         created_at=datetime.now(timezone.utc).isoformat(),
+        project_name=project_name,
         steps={step: StepLog() for step in PIPELINE_STEPS},
     )

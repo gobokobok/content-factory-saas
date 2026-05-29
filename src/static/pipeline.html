@@ -368,7 +368,7 @@
   <!-- ── Full-width app header ─────────────────────────────────────────── -->
   <div class="app-header">
     <span>Content Factory</span>
-    <button class="btn btn-outline btn-sm" onclick="toggleNewRunPanel()">+ New Project</button>
+    <button class="btn btn-outline btn-sm" onclick="openNewProjectForm()">+ New Project</button>
   </div>
 
   <!-- ── Three-panel layout ────────────────────────────────────────────── -->
@@ -376,19 +376,7 @@
 
   <!-- ── Left panel: run list ─────────────────────────────────────────── -->
   <div class="panel-runs">
-    <div id="new-run-panel">
-      <form id="new-run-form" autocomplete="off" onsubmit="submitNewRun(event)">
-        <div class="field">
-          <label for="nr-slug">Slug</label>
-          <input type="text" id="nr-slug" placeholder="housing-crisis" oninput="validateNewRunSlug()">
-          <p id="nr-slug-hint" class="hint">lowercase letters and hyphens only</p>
-        </div>
-        <div style="display:flex; gap:6px;">
-          <button type="submit" id="nr-submit" class="btn btn-primary btn-sm" disabled>Create</button>
-          <button type="button" class="btn btn-ghost btn-sm" onclick="toggleNewRunPanel()">Cancel</button>
-        </div>
-      </form>
-    </div>
+    <div id="new-run-panel"></div>
 
     <div class="run-list-scroll" id="run-list-content">
       <span class="muted state-loading" style="padding:8px 10px; display:block;">loading…</span>
@@ -420,6 +408,11 @@
         <span>✓ Storyboard created</span>
         <span class="locked-bar-spacer"></span>
         <button class="btn btn-secondary btn-sm" onclick="regenerateSection('input')">Regenerate</button>
+      </div>
+
+      <div class="field">
+        <label for="project-name-input">Project Name</label>
+        <input type="text" id="project-name-input" placeholder="e.g. Housing Crisis Explained" oninput="onProjectNameInput()">
       </div>
 
       <div class="field">
@@ -512,8 +505,6 @@
     let voUploaded     = false;
     let sectionLocked  = { input: false, storyboard: false, assets: false };
 
-    const SLUG_RE = /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/;
-
     // ─── Helpers ──────────────────────────────────────────────────────────────
     function esc(v) {
       return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -565,58 +556,75 @@
       return res;
     };
 
-    // ─── New run form ─────────────────────────────────────────────────────────
-    function toggleNewRunPanel() {
-      const panel = document.getElementById('new-run-panel');
-      const opening = !panel.classList.contains('open');
-      panel.classList.toggle('open');
-      if (opening) document.getElementById('nr-slug').focus();
+    // ─── New project form (lives in Input section) ────────────────────────────
+    function openNewProjectForm() {
+      currentRunId  = null;
+      currentSteps  = {};
+      stepRunning   = {};
+      voUploaded    = false;
+      sectionLocked = { input: false, storyboard: false, assets: false };
+
+      const nameInput = document.getElementById('project-name-input');
+      if (nameInput) nameInput.value = '';
+      document.getElementById('script-input').value = '';
+      const voFileInput = document.getElementById('vo-file-input');
+      if (voFileInput) voFileInput.value = '';
+      document.getElementById('vo-filename').textContent      = 'no file selected';
+      document.getElementById('vo-upload-btn').disabled       = true;
+      document.getElementById('vo-upload-status').textContent = '';
+
+      const sb = document.getElementById('storyboard-content');
+      if (sb) { sb.innerHTML = '<div class="state-empty">No storyboard yet — create one in Input.</div>'; delete sb.dataset.loadedFor; }
+
+      document.getElementById('content-empty').style.display = 'none';
+      document.getElementById('panel-nav').classList.remove('hidden');
+      history.pushState(null, '', window.location.pathname + '#new');
+
+      currentSection = 'input';
+      document.querySelectorAll('.section-pane').forEach(p => p.classList.remove('active'));
+      document.getElementById('section-input').classList.add('active');
+
+      renderNavItems();
+      renderRunList();
+      populateInput();
+      if (nameInput) nameInput.focus();
     }
 
-    function validateNewRunSlug() {
-      const slug  = document.getElementById('nr-slug').value;
-      const hint  = document.getElementById('nr-slug-hint');
-      const valid = SLUG_RE.test(slug);
-      if (slug === '') {
-        hint.textContent = 'lowercase letters and hyphens only';
-        hint.className   = 'hint';
-      } else if (valid) {
-        hint.textContent = 'looks good';
-        hint.className   = 'hint';
-      } else {
-        hint.textContent = 'lowercase letters and hyphens only, no leading/trailing hyphens';
-        hint.className   = 'hint hint-error';
-      }
-      document.getElementById('nr-submit').disabled = !valid;
-    }
-
-    async function submitNewRun(e) {
-      e.preventDefault();
-      const slug = document.getElementById('nr-slug').value;
-      const btn  = document.getElementById('nr-submit');
-      btn.disabled = true; btn.textContent = 'Creating…';
+    async function _ensureRun() {
+      if (currentRunId) return true;
+      const name = document.getElementById('project-name-input')?.value.trim();
+      if (!name) { alert('Enter a Project Name first'); return false; }
       try {
         const res = await fetch('/runs', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug }),
+          body: JSON.stringify({ project_name: name }),
         });
         if (!res.ok) {
           const err = await res.json().catch(() => null);
-          alert(`Failed to create run: ${err?.detail || res.statusText}`);
-          btn.disabled = false; btn.textContent = 'Create';
-          return;
+          alert(`Failed to create project: ${err?.detail || res.statusText}`);
+          return false;
         }
         const { run_id } = await res.json();
-        document.getElementById('new-run-panel').classList.remove('open');
-        document.getElementById('nr-slug').value = '';
-        btn.disabled = false; btn.textContent = 'Create';
-        validateNewRunSlug();
-        await openRun(run_id, 'input');
+        currentRunId = run_id;
+        history.pushState(null, '', `#run/${encodeURIComponent(run_id)}/input`);
+        renderRunList();
+        return true;
       } catch (err) {
         alert(`Network error: ${err.message}`);
-        btn.disabled = false; btn.textContent = 'Create';
+        return false;
       }
+    }
+
+    function onProjectNameInput() {
+      _updateVoUploadBtn();
+      updateCreateStoryboardBtn();
+    }
+
+    function _updateVoUploadBtn() {
+      const file   = document.getElementById('vo-file-input')?.files?.[0];
+      const nameOk = currentRunId || document.getElementById('project-name-input')?.value.trim();
+      document.getElementById('vo-upload-btn').disabled = !file || !nameOk;
     }
 
     // ─── Navigation ───────────────────────────────────────────────────────────
@@ -637,14 +645,19 @@
       const targetSection = section || 'input';
       history.pushState(null, '', `#run/${encodeURIComponent(runId)}/${targetSection}`);
 
+      let run = null;
       try {
         const res  = await fetch('/runs');
         const data = await res.json();
-        const run  = (data.runs || []).find(r => r.run_id === runId);
+        run          = (data.runs || []).find(r => r.run_id === runId);
         currentSteps = run ? { ...run.steps } : {};
       } catch (_) {
         currentSteps = {};
       }
+
+      // Populate project name field (read-only for existing runs)
+      const nameInput = document.getElementById('project-name-input');
+      if (nameInput) nameInput.value = run?.project_name || '';
 
       // Initialize locked state based on completed steps
       sectionLocked = {
@@ -720,9 +733,10 @@
           const dotChar = (st === 'complete' || st === 'failed' || st === 'in-progress') ? '●' : '○';
           const isActive = run.run_id === currentRunId;
           const handler  = isActive ? 'deselectRun()' : `openRun('${esc(run.run_id)}')`;
+          const displayName = run.project_name || run.run_id;
           return `<div class="run-item${isActive ? ' active' : ''}" onclick="${handler}">
             <span class="dot ${dotCls}">${dotChar}</span>
-            <span class="run-item-id" title="${esc(run.run_id)}">${esc(run.run_id)}</span>
+            <span class="run-item-id" title="${esc(run.run_id)}">${esc(displayName)}</span>
           </div>`;
         }).join('');
       } catch (_) {
@@ -742,19 +756,25 @@
       const locked = sectionLocked.input;
       document.getElementById('input-locked-bar').style.display = locked ? '' : 'none';
 
+      const nameInput   = document.getElementById('project-name-input');
       const voPickBtn   = document.getElementById('vo-pick-btn');
       const scriptInput = document.getElementById('script-input');
+
+      // Project name is read-only once a run exists (name was set at creation time)
+      if (nameInput) nameInput.disabled = locked || !!currentRunId;
       voPickBtn.disabled   = locked;
       scriptInput.disabled = locked;
 
       updateCreateStoryboardBtn();
+      _updateVoUploadBtn();
     }
 
     function updateCreateStoryboardBtn() {
       const btn     = document.getElementById('create-storyboard-btn');
       const locked  = sectionLocked.input;
       const running = !!stepRunning['alignment'] || !!stepRunning['storyboard'];
-      btn.disabled    = locked || running || !voUploaded;
+      const nameOk  = currentRunId || document.getElementById('project-name-input')?.value.trim();
+      btn.disabled    = locked || running || !voUploaded || !nameOk;
       btn.textContent = running ? 'Running…' : 'Create Storyboard';
     }
 
@@ -887,6 +907,8 @@
       const script = document.getElementById('script-input').value.trim();
       if (!script) { alert('VO script is required'); return; }
 
+      if (!await _ensureRun()) return;
+
       const progressEl = document.getElementById('input-step-progress');
       const errorEl    = document.getElementById('input-error');
       errorEl.style.display = 'none';
@@ -1007,15 +1029,18 @@
     function onVoFileSelected() {
       const file = document.getElementById('vo-file-input')?.files?.[0];
       if (!file) return;
-      document.getElementById('vo-filename').textContent     = file.name;
-      document.getElementById('vo-upload-btn').disabled      = false;
+      document.getElementById('vo-filename').textContent      = file.name;
       document.getElementById('vo-upload-status').textContent = '';
       document.getElementById('vo-upload-status').style.color = '';
+      _updateVoUploadBtn();
     }
 
     async function uploadVoiceover() {
-      const file     = document.getElementById('vo-file-input')?.files?.[0];
+      const file = document.getElementById('vo-file-input')?.files?.[0];
       if (!file) return;
+
+      if (!await _ensureRun()) return;
+
       const btn      = document.getElementById('vo-upload-btn');
       const statusEl = document.getElementById('vo-upload-status');
       btn.disabled = true; statusEl.textContent = 'uploading…'; statusEl.style.color = '#6b7280';
@@ -1050,14 +1075,16 @@
     // ─── Init ─────────────────────────────────────────────────────────────────
     window.addEventListener('popstate', () => {
       const m = location.hash.match(/^#run\/([^/]+)(?:\/(.+))?$/);
-      if (m) { openRun(decodeURIComponent(m[1]), m[2] || 'input'); }
-      else   { deselectRun(); }
+      if (m)                          { openRun(decodeURIComponent(m[1]), m[2] || 'input'); }
+      else if (location.hash === '#new') { openNewProjectForm(); }
+      else                            { deselectRun(); }
     });
 
     (function init() {
       const m = location.hash.match(/^#run\/([^/]+)(?:\/(.+))?$/);
-      if (m) { openRun(decodeURIComponent(m[1]), m[2] || 'input'); }
-      else   { loadRunList(); }
+      if (m)                          { openRun(decodeURIComponent(m[1]), m[2] || 'input'); }
+      else if (location.hash === '#new') { openNewProjectForm(); }
+      else                            { loadRunList(); }
     }());
   </script>
 </body>

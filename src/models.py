@@ -42,23 +42,24 @@ class RunLog(BaseModel):
 
     run_id: str
     created_at: str
+    project_name: Optional[str] = None
     steps: dict[str, StepLog]
 
 
 class RunCreateRequest(BaseModel):
     """Request body for POST /runs."""
 
-    slug: str
+    project_name: str
 
-    @field_validator("slug")
+    @field_validator("project_name")
     @classmethod
-    def validate_slug(cls, v: str) -> str:
-        """Slug must be lowercase letters, digits, and hyphens with no leading/trailing hyphens."""
-        if not re.fullmatch(r"[a-z0-9]([a-z0-9-]*[a-z0-9])?", v):
-            raise ValueError(
-                "slug must contain only lowercase letters, digits, and hyphens, "
-                "and must not start or end with a hyphen"
-            )
+    def validate_project_name(cls, v: str) -> str:
+        """Project name must be non-empty and at most 120 characters."""
+        v = v.strip()
+        if not v:
+            raise ValueError("project_name must not be empty")
+        if len(v) > 120:
+            raise ValueError("project_name must be at most 120 characters")
         return v
 
 
@@ -66,6 +67,7 @@ class RunCreateResponse(BaseModel):
     """Response body for POST /runs."""
 
     run_id: str
+    project_name: str
     storage_prefix: str
 
 
@@ -74,6 +76,7 @@ class RunSummary(BaseModel):
 
     run_id: str
     created_at: str
+    project_name: Optional[str] = None
     steps: dict[str, str]
 
 

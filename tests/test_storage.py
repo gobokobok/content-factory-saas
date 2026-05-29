@@ -127,6 +127,22 @@ class TestCreateRunFolder:
         with pytest.raises(StorageError):
             client.create_run_folder(FAKE_RUN_ID)
 
+    def test_project_name_stored_in_run_log(self, client, mock_s3):
+        """project_name is written into run_log.json when provided."""
+        import json
+        client.create_run_folder(FAKE_RUN_ID, project_name="Housing Crisis")
+        body_bytes = mock_s3.put_object.call_args.kwargs["Body"]
+        data = json.loads(body_bytes.decode("utf-8"))
+        assert data["project_name"] == "Housing Crisis"
+
+    def test_project_name_none_when_omitted(self, client, mock_s3):
+        """project_name is null in run_log.json when not provided."""
+        import json
+        client.create_run_folder(FAKE_RUN_ID)
+        body_bytes = mock_s3.put_object.call_args.kwargs["Body"]
+        data = json.loads(body_bytes.decode("utf-8"))
+        assert data["project_name"] is None
+
 
 class TestUpdateRunLog:
     def _run_log_body(self, status: str = "pending") -> dict:
@@ -317,3 +333,13 @@ class TestBuildRunLog:
         """created_at is a non-empty ISO timestamp."""
         log = _build_run_log(FAKE_RUN_ID)
         assert log.created_at and "T" in log.created_at
+
+    def test_project_name_stored_when_provided(self):
+        """project_name is set when passed to _build_run_log."""
+        log = _build_run_log(FAKE_RUN_ID, project_name="Housing Crisis")
+        assert log.project_name == "Housing Crisis"
+
+    def test_project_name_none_by_default(self):
+        """project_name is None when not provided."""
+        log = _build_run_log(FAKE_RUN_ID)
+        assert log.project_name is None

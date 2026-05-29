@@ -25,6 +25,7 @@ VALID_ENV = {
     "SESSION_SECRET_KEY": "test-secret-key",
 }
 
+FAKE_PROJECT_NAME = "Test Slug"
 FAKE_RUN_ID = f"{date.today().isoformat()}_test-slug"
 FAKE_PREFIX = f"runs/{FAKE_RUN_ID}/"
 
@@ -54,33 +55,36 @@ def mock_r2(client):
 
 class TestCreateRun:
     def test_returns_201_on_success(self, client, mock_r2):
-        """POST /runs returns HTTP 201 for a valid slug."""
-        response = client.post("/runs", json={"slug": "test-slug"})
+        """POST /runs returns HTTP 201 for a valid project name."""
+        response = client.post("/runs", json={"project_name": FAKE_PROJECT_NAME})
         assert response.status_code == 201
 
     def test_returns_run_id_and_storage_prefix(self, client, mock_r2):
-        """Response body contains run_id and storage_prefix."""
-        response = client.post("/runs", json={"slug": "test-slug"})
+        """Response body contains run_id, project_name, and storage_prefix."""
+        response = client.post("/runs", json={"project_name": FAKE_PROJECT_NAME})
         body = response.json()
         assert body["run_id"] == FAKE_RUN_ID
+        assert body["project_name"] == FAKE_PROJECT_NAME
         assert body["storage_prefix"] == FAKE_PREFIX
 
     def test_no_drive_folder_id_in_response(self, client, mock_r2):
         """Response does not contain the old drive_folder_id field."""
-        response = client.post("/runs", json={"slug": "test-slug"})
+        response = client.post("/runs", json={"project_name": FAKE_PROJECT_NAME})
         assert "drive_folder_id" not in response.json()
 
-    def test_create_run_folder_called_with_run_id(self, client, mock_r2):
-        """R2Client.create_run_folder is called with the constructed run_id."""
-        client.post("/runs", json={"slug": "test-slug"})
-        mock_r2.create_run_folder.assert_called_once_with(FAKE_RUN_ID)
+    def test_create_run_folder_called_with_run_id_and_project_name(self, client, mock_r2):
+        """R2Client.create_run_folder is called with the constructed run_id and project_name."""
+        client.post("/runs", json={"project_name": FAKE_PROJECT_NAME})
+        mock_r2.create_run_folder.assert_called_once_with(
+            FAKE_RUN_ID, project_name=FAKE_PROJECT_NAME
+        )
 
     def test_r2_client_instantiated_with_settings(self, client):
         """R2Client is constructed with the four R2 ENV vars from settings."""
         mock_instance = MagicMock()
         mock_instance.create_run_folder.return_value = FAKE_PREFIX
         with patch("src.routes.runs.R2Client", return_value=mock_instance) as mock_cls:
-            client.post("/runs", json={"slug": "test-slug"})
+            client.post("/runs", json={"project_name": FAKE_PROJECT_NAME})
             mock_cls.assert_called_once_with(
                 "fake-account-id", "fake-access-key", "fake-secret-key", "content-factory-dev"
             )
@@ -88,14 +92,27 @@ class TestCreateRun:
     def test_storage_error_returns_500(self, client, mock_r2):
         """StorageError from R2Client maps to HTTP 500."""
         mock_r2.create_run_folder.side_effect = StorageError("bucket not found")
-        response = client.post("/runs", json={"slug": "test-slug"})
+        response = client.post("/runs", json={"project_name": FAKE_PROJECT_NAME})
         assert response.status_code == 500
 
     def test_storage_error_detail_in_response(self, client, mock_r2):
         """500 response body contains the StorageError message."""
         mock_r2.create_run_folder.side_effect = StorageError("bucket not found")
-        response = client.post("/runs", json={"slug": "test-slug"})
+        response = client.post("/runs", json={"project_name": FAKE_PROJECT_NAME})
         assert "bucket not found" in response.json()["detail"]
+
+    def test_slug_generated_from_project_name(self, client, mock_r2):
+        """run_id slug is derived from project_name (lowercased, non-alnum → hyphen)."""
+        response = client.post("/runs", json={"project_name": "Housing Crisis Explained!"})
+        assert response.status_code == 201
+        run_id = response.json()["run_id"]
+        assert run_id.endswith("_housing-crisis-explained")
+
+    def test_project_name_echoed_in_response(self, client, mock_r2):
+        """project_name in response matches what was submitted."""
+        name = "My Housing Video"
+        response = client.post("/runs", json={"project_name": name})
+        assert response.json()["project_name"] == name
 
 
 class TestListRuns:
@@ -115,6 +132,7 @@ class TestListRuns:
             {
                 "run_id": "2026-05-24_housing-crisis",
                 "created_at": "2026-05-24T10:00:00+00:00",
+                "project_name": "Housing Crisis",
                 "steps": {"storyboard": "complete", "asset_manifest": "pending"},
             }
         ]
@@ -124,7 +142,24 @@ class TestListRuns:
         runs = response.json()["runs"]
         assert len(runs) == 1
         assert runs[0]["run_id"] == "2026-05-24_housing-crisis"
+        assert runs[0]["project_name"] == "Housing Crisis"
         assert runs[0]["steps"]["storyboard"] == "complete"
+
+    def test_legacy_run_without_project_name_returns_none(self, client):
+        """GET /runs returns project_name=null for legacy runs that lack the field."""
+        mock_instance = MagicMock()
+        mock_instance.list_runs.return_value = [
+            {
+                "run_id": "2026-05-20_old-run",
+                "created_at": "2026-05-20T08:00:00+00:00",
+                "project_name": None,
+                "steps": {"storyboard": "complete"},
+            }
+        ]
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            response = client.get("/runs")
+        runs = response.json()["runs"]
+        assert runs[0]["project_name"] is None
 
     def test_returns_multiple_runs_sorted(self, client):
         """GET /runs returns multiple runs (order delegated to list_runs)."""
@@ -133,11 +168,13 @@ class TestListRuns:
             {
                 "run_id": "2026-05-24_run-b",
                 "created_at": "2026-05-24T12:00:00+00:00",
+                "project_name": "Run B",
                 "steps": {"storyboard": "complete"},
             },
             {
                 "run_id": "2026-05-23_run-a",
                 "created_at": "2026-05-23T08:00:00+00:00",
+                "project_name": None,
                 "steps": {"storyboard": "pending"},
             },
         ]
@@ -299,38 +336,43 @@ class TestVoiceoverUploadUrl:
         assert res.status_code == 422
 
 
-class TestCreateRunSlugValidation:
-    def test_valid_slug_with_hyphens(self, client, mock_r2):
-        """Slugs with hyphens between words are accepted."""
-        response = client.post("/runs", json={"slug": "housing-affordability-crisis"})
+class TestCreateRunNameValidation:
+    def test_valid_project_name_accepted(self, client, mock_r2):
+        """Normal project name with letters and spaces is accepted."""
+        response = client.post("/runs", json={"project_name": "Housing Affordability Crisis"})
         assert response.status_code == 201
 
-    def test_valid_single_word_slug(self, client, mock_r2):
-        """Single-word slugs are accepted."""
-        response = client.post("/runs", json={"slug": "housing"})
+    def test_project_name_with_special_chars_accepted(self, client, mock_r2):
+        """Project name with punctuation is accepted (slugified by backend)."""
+        response = client.post("/runs", json={"project_name": "Why Rents Are So High!"})
         assert response.status_code == 201
 
-    def test_invalid_slug_with_spaces_returns_422(self, client):
-        """Slug with spaces is rejected with HTTP 422."""
-        response = client.post("/runs", json={"slug": "my slug"})
+    def test_project_name_at_max_length_accepted(self, client, mock_r2):
+        """Project name exactly 120 chars is accepted."""
+        response = client.post("/runs", json={"project_name": "a" * 120})
+        assert response.status_code == 201
+
+    def test_project_name_too_long_returns_422(self, client):
+        """Project name over 120 chars is rejected with HTTP 422."""
+        response = client.post("/runs", json={"project_name": "a" * 121})
         assert response.status_code == 422
 
-    def test_invalid_slug_uppercase_returns_422(self, client):
-        """Uppercase slug is rejected with HTTP 422."""
-        response = client.post("/runs", json={"slug": "MySlug"})
+    def test_empty_project_name_returns_422(self, client):
+        """Empty project name is rejected with HTTP 422."""
+        response = client.post("/runs", json={"project_name": ""})
         assert response.status_code == 422
 
-    def test_invalid_slug_leading_hyphen_returns_422(self, client):
-        """Slug starting with a hyphen is rejected with HTTP 422."""
-        response = client.post("/runs", json={"slug": "-test-slug"})
+    def test_whitespace_only_project_name_returns_422(self, client):
+        """Whitespace-only project name is rejected after strip."""
+        response = client.post("/runs", json={"project_name": "   "})
         assert response.status_code == 422
 
-    def test_invalid_slug_trailing_hyphen_returns_422(self, client):
-        """Slug ending with a hyphen is rejected with HTTP 422."""
-        response = client.post("/runs", json={"slug": "test-slug-"})
-        assert response.status_code == 422
-
-    def test_missing_slug_returns_422(self, client):
-        """Request body without slug field returns HTTP 422."""
+    def test_missing_project_name_returns_422(self, client):
+        """Request body without project_name field returns HTTP 422."""
         response = client.post("/runs", json={})
+        assert response.status_code == 422
+
+    def test_old_slug_field_returns_422(self, client):
+        """Sending old 'slug' field (without project_name) returns HTTP 422."""
+        response = client.post("/runs", json={"slug": "housing-crisis"})
         assert response.status_code == 422
