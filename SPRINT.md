@@ -140,8 +140,8 @@
 # Sprint 6 — Product UX: Design System, Project Identity & Stage Polish
 
 **Goal:** Implement the full product UX spec — consistent design system, human-readable project names, Save Draft / Create Storyboard input flow, table-based storyboard view, clickable asset media links, bounded video player with modal, and permanent stage locking (no regenerate in MVP).
-**Status:** planned
-**Points:** 18
+**Status:** done
+**Velocity:** 18/18 pts (100%)
 
 ---
 
@@ -156,17 +156,41 @@
 | S6-S5 | Assets stage: Description column + media link column | 2 | done |
 | S6-S6 | Render Video: bounded player + modal + Download button | 2 | done |
 
-**Execution order:** S6-S1 → S6-S2 → S6-S3 → S6-S4 → S6-S5 → S6-S6
-S6-S2 and S6-S3 are a chain (project name persisted before input stage). S6-S4, S6-S5, S6-S6 are independent after S6-S1.
+---
+
+# Sprint 7 — Smoke Test + Cost Optimization Foundation
+
+**Goal:** Validate the full pipeline end-to-end on Railway DEV (clearing 10 deferred smoke tests), then establish the cost optimization layer with Haiku model routing.
+**Status:** planned
+**Points:** 8
 
 ---
 
-## Sprint 6 Definition of Done
-- [ ] S6-S1: #FBF9F8 BG applied to all panels and tables. Single font family. No panel borders. Header shows "Content Factory" only.
-- [ ] S6-S2: "Project Name" field in UI. Slug auto-generated. Left panel shows name. `POST /runs` + `GET /runs` support project_name.
-- [ ] S6-S3: Save Draft saves project_name + script to R2. Create Storyboard locks Input permanently and triggers pipeline. Input stage shows green after lock.
-- [ ] S6-S4: Storyboard renders as table (Scene#, Voiceover Text, Scene Type, Duration). CTA reads "Run Asset Acquisition". No regenerate.
-- [ ] S6-S5: Assets table has Description + Link (presigned URL). No regenerate. Link opens media asset.
-- [ ] S6-S6: Video renders in bounded container. Click → modal with close (X). "Download Video" button.
-- [ ] All existing tests pass + new tests for backend changes.
-- [ ] **Human touchpoint:** operator logs in, creates a project, saves draft, creates storyboard, reviews table, clicks an asset link to preview media, watches video in modal, downloads final.mp4.
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| S7-S1 | Full pipeline smoke test — validate all deferred smoke tests on Railway DEV | 3 | backlog |
+| S7-S2 | E8-S2: Haiku model for manifest generation | 2 | backlog |
+| S7-S3 | E8-S4: Model router utility — centralize all Claude API model selection | 3 | backlog |
+
+**Execution order:** S7-S1 → S7-S2 → S7-S3
+S7-S3 depends on S7-S2 (model router wraps all Claude calls including the new Haiku manifest call).
+
+---
+
+## Sprint 7 Definition of Done
+- [ ] S7-S1: Operator completes full pipeline from login → download on Railway DEV. All 10 deferred smoke tests signed off. Zero blocking bugs.
+- [ ] S7-S2: Manifest generation uses Haiku by default. Falls back to Sonnet on malformed JSON. Tests pass.
+- [ ] S7-S3: `ModelRouter` class centralizes all Claude model strings. Cost per call logged (model, tokens, USD estimate). All existing Claude API calls refactored through router. Tests pass.
+- [ ] All existing tests pass.
+- [ ] **Human touchpoint:** S7-S1 IS the human touchpoint — operator runs the full pipeline and signs off.
+
+---
+
+## Roadmap (approved)
+
+| Sprint | Theme | Key stories |
+|--------|-------|-------------|
+| Sprint 8 | UI/UX iteration — second pass | TBD at Sprint 7 review |
+| Sprint 9 | Pipeline step enhancements — additional selection options per step | TBD at Sprint 8 review |

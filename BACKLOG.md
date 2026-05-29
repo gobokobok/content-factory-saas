@@ -2196,6 +2196,47 @@ _filled on completion_
 
 ---
 
+## [S7-S1] Full pipeline smoke test — validate all deferred smoke tests on Railway DEV
+**Epic:** E6 — Operator UI
+**Sprint:** 7
+**Status:** backlog
+**Priority:** critical
+**Points:** 3
+**Depends on:** Railway DEV deploy live (auto-deploy from main ✓)
+
+### Goal
+Operator runs the complete pipeline end-to-end from the browser UI on Railway DEV. Every pipeline step is exercised. All 10 deferred smoke tests from Sprints 3–6 are validated in one session. Any blocking bugs found are fixed inline.
+
+### Acceptance Criteria
+- [ ] Operator logs in with `OPERATOR_PASSWORD`
+- [ ] Clicks "+ New Project", enters project name — left panel shows the name
+- [ ] Uploads voiceover MP3
+- [ ] Runs Alignment (Deepgram) — `alignment.json` appears in R2
+- [ ] Runs Create Storyboard — Input locks green; Storyboard table renders with all 11 columns
+- [ ] Runs Asset Acquisition — Assets table shows Description + "Open" link per scene; clicking "Open" loads the asset in a new tab
+- [ ] Runs Render Video — video renders in bounded player; Expand opens modal; Download downloads `final.mp4`
+- [ ] Left panel project name persists across page refresh
+- [ ] `run_log.json` shows all steps `complete`
+- [ ] Any blocking bug found → fixed inline and committed; any non-blocking bug → promoted to backlog
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Zero blocking bugs remaining
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+This story IS the smoke test. The AC above are the verification criteria.
+
+### Files to read
+- DONE.md — all 10 deferred smoke test conditions (Sprint 3–6 entries)
+- `src/static/pipeline.html` — if inline fixes are needed
+
+### Handover
+_filled on completion_
+
+---
+
 ## Ideas / Future Epics
 
 ### IDEA-001 — ElevenLabs TTS: script-only entry point

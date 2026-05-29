@@ -12,10 +12,10 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint 6** — Product UX: Design System, Project Identity & Stage Polish
+**Sprint 7** — Smoke Test + Cost Optimization Foundation
 
 ## Active story
-**S6-S1** — Design system: color palette, typography, panel spacing — start here
+**S7-S1** — Full pipeline smoke test — validate all deferred smoke tests on Railway DEV — start here
 
 ## Environments
 
