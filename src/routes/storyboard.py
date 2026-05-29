@@ -56,8 +56,22 @@ async def create_storyboard(
             "No alignment.json found — generating storyboard without timestamps: run=%s", run_id
         )
 
+    # Resolve script: body takes precedence; fall back to saved draft in R2
+    script = body.script.strip()
+    if not script:
+        try:
+            script = storage.get_bytes(f"runs/{run_id}/script.txt").decode("utf-8").strip()
+            logger.info("Using draft script.txt for storyboard: run=%s", run_id)
+        except StorageError:
+            pass
+    if not script:
+        raise HTTPException(
+            status_code=422,
+            detail="script is required — provide in the request body or save a draft first",
+        )
+
     try:
-        storyboard, validation = await generate_storyboard(body.script, settings, word_timestamps)
+        storyboard, validation = await generate_storyboard(script, settings, word_timestamps)
     except (StoryboardAPIError, StoryboardParseError, StoryboardValidationError) as exc:
         logger.error("Storyboard generation failed for run '%s': %s", run_id, exc)
         try:

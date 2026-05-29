@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S6-S3] Input stage: Save Draft + Create Storyboard (lock mechanic)
+**Completed:** 2026-05-29
+**Handover:**
+- `src/models.py`: `DraftRequest(project_name, script)` + `DraftResponse(status, project_name, script, vo_filename=None)` added. `StoryboardRequest.script` default changed to `""` (enables R2 fallback).
+- `src/routes/runs.py`: `POST /runs/{run_id}/draft` — guards against storyboard-complete (409); saves script to `runs/{run_id}/script.txt`; idempotent overwrite otherwise. `GET /runs/{run_id}/draft` — returns project_name (from run_log), script (from script.txt, empty if absent), vo_filename (first audio file in voiceover/ prefix, null if none).
+- `src/routes/storyboard.py`: If `body.script` is empty, reads `script.txt` from R2; returns 422 if both body and R2 are empty.
+- `src/static/pipeline.html`: Input locked bar: "Regenerate" removed (permanent lock, MVP). CTA: "Save Draft" + "Create Storyboard" side by side. `saveDraft()` calls `_ensureRun()` + `POST /draft`. `populateInput()` async — loads `GET /draft` in locked state to populate read-only script + VO filename. `updateSaveDraftBtn()` gates on name + script present + not locked.
+- `tests/test_runs.py`: 16 new tests (TestSaveDraft × 7, TestGetDraft × 5; 4 extra for new patterns). `tests/test_storyboard.py`: 2 new tests for script.txt fallback. 579 total tests passing.
+- No new ENV vars. No new pip dependencies.
+**Smoke test:** DEFERRED — open new project, fill name + script, upload VO, click "Save Draft" → run appears in left panel; refresh → fields still editable. Click "Create Storyboard" → Input locks green, auto-navigates to Storyboard.
+**Promoted to backlog:** none
+
+---
+
 ## [S6-S2] Project Name as primary identifier (auto-slug, backend + UI)
 **Completed:** 2026-05-29
 **Handover:**

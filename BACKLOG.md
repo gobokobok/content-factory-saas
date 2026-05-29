@@ -2007,7 +2007,8 @@ Click "New Project", type "Housing Crisis Explained", click Save Draft (or Creat
 ## [S6-S3] Input stage: Save Draft + Create Storyboard (lock mechanic)
 **Epic:** E6 — Operator UI
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-29
 **Priority:** high
 **Points:** 5
 **Depends on:** S6-S2
@@ -2042,7 +2043,13 @@ Open new project. Fill name + script + upload VO. Click "Save Draft". Refresh �
 - `src/static/pipeline.html` — Input section redesign: two buttons, lock-on-complete, read-only state
 
 ### Handover
-_filled on completion_
+- `src/models.py`: `DraftRequest(project_name, script)` and `DraftResponse(status, project_name, script, vo_filename=None)` added. `StoryboardRequest.script` default changed from required to `""` (empty default enables script.txt fallback).
+- `src/routes/runs.py`: `POST /runs/{run_id}/draft` — reads `run_log.json` to guard against storyboard-complete (409); saves script text to `runs/{run_id}/script.txt` via `upload_text`; returns `DraftResponse`. `GET /runs/{run_id}/draft` — returns `project_name` from `run_log.json`, `script` from `script.txt` (empty string if absent), `vo_filename` from first `.mp3/.wav/.m4a` in `voiceover/` prefix (null if none).
+- `src/routes/storyboard.py`: Before calling `generate_storyboard`, if `body.script.strip()` is empty, attempts `storage.get_bytes(f"runs/{run_id}/script.txt")`; raises HTTP 422 if both body and R2 are empty.
+- `src/static/pipeline.html`: Input locked bar: "Regenerate" button removed (MVP constraint). CTA area: "Save Draft" + "Create Storyboard" in a flex row with save status span. Script textarea has `oninput="updateSaveDraftBtn()"`. `saveDraft()` — calls `_ensureRun()` then `POST /draft`; shows `✓ Saved` with 2s reset. `updateSaveDraftBtn()` — enabled when name + script filled and not locked. `populateInput()` is now async — in locked state, fetches `GET /draft` and populates script textarea + VO filename as read-only.
+- `tests/test_runs.py`: `TestSaveDraft` (7 tests) + `TestGetDraft` (5 tests) added. 46 total tests in file.
+- `tests/test_storyboard.py`: `test_empty_body_script_falls_back_to_script_txt` + `test_missing_script_and_no_draft_returns_422` added.
+- No new ENV vars. No new pip dependencies. 579 total tests passing.
 
 ---
 

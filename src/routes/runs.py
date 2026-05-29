@@ -11,6 +11,8 @@ from src.config import Settings, get_settings
 from src.exceptions import StorageError
 from src.models import (
     ArtifactResponse,
+    DraftRequest,
+    DraftResponse,
     RunCreateRequest,
     RunCreateResponse,
     RunListResponse,
@@ -110,6 +112,73 @@ def get_run_log_txt(
         return RunLogTxtResponse(content=text, available=True)
     except StorageError:
         return RunLogTxtResponse(content="", available=False)
+
+
+@router.post("/runs/{run_id}/draft", response_model=DraftResponse)
+def save_draft(
+    run_id: str,
+    body: DraftRequest,
+    settings: Settings = Depends(get_settings),
+) -> DraftResponse:
+    """Save project_name + script as a draft. Rejected (409) if storyboard is already complete."""
+    client = _make_r2_client(settings)
+    try:
+        run_log = client.get_json(f"runs/{run_id}/run_log.json")
+    except StorageError as exc:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}") from exc
+
+    if run_log.get("steps", {}).get("storyboard", {}).get("status") == "complete":
+        raise HTTPException(
+            status_code=409, detail="Cannot save draft: storyboard is already complete"
+        )
+
+    try:
+        client.upload_text(f"runs/{run_id}/script.txt", body.script)
+    except StorageError as exc:
+        logger.error("Storage error saving draft for run '%s': %s", run_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    return DraftResponse(
+        status="saved",
+        project_name=run_log.get("project_name", body.project_name),
+        script=body.script,
+    )
+
+
+@router.get("/runs/{run_id}/draft", response_model=DraftResponse)
+def get_draft(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> DraftResponse:
+    """Return the saved draft: project_name (from run_log), script (from script.txt), VO filename."""
+    client = _make_r2_client(settings)
+    try:
+        run_log = client.get_json(f"runs/{run_id}/run_log.json")
+    except StorageError as exc:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}") from exc
+
+    project_name = run_log.get("project_name", "")
+
+    try:
+        script = client.get_bytes(f"runs/{run_id}/script.txt").decode("utf-8")
+    except StorageError:
+        script = ""
+
+    vo_filename: str | None = None
+    try:
+        keys = client.list_keys(f"runs/{run_id}/voiceover/")
+        audio_keys = [k for k in keys if k.endswith((".mp3", ".wav", ".m4a"))]
+        if audio_keys:
+            vo_filename = audio_keys[0].split("/")[-1]
+    except StorageError:
+        pass
+
+    return DraftResponse(
+        status="ok",
+        project_name=project_name,
+        script=script,
+        vo_filename=vo_filename,
+    )
 
 
 @router.get("/runs/{run_id}/artifact/{step}", response_model=ArtifactResponse)

@@ -209,7 +209,23 @@ class AcquisitionResponse(BaseModel):
 class StoryboardRequest(BaseModel):
     """Request body for POST /runs/{run_id}/storyboard."""
 
+    script: str = ""
+
+
+class DraftRequest(BaseModel):
+    """Request body for POST /runs/{run_id}/draft."""
+
+    project_name: str
     script: str
+
+
+class DraftResponse(BaseModel):
+    """Response body for POST/GET /runs/{run_id}/draft."""
+
+    status: str
+    project_name: str
+    script: str
+    vo_filename: Optional[str] = None
 
 
 class StoryboardResponse(BaseModel):

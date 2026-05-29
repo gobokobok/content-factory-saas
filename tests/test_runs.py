@@ -376,3 +376,162 @@ class TestCreateRunNameValidation:
         """Sending old 'slug' field (without project_name) returns HTTP 422."""
         response = client.post("/runs", json={"slug": "housing-crisis"})
         assert response.status_code == 422
+
+
+class TestSaveDraft:
+    """Tests for POST /runs/{run_id}/draft."""
+
+    RUN_ID = "2026-05-29_housing-crisis"
+    _SCRIPT = "Scene one: houses are expensive. Scene two: nobody can afford them."
+
+    def _run_log(self, storyboard_status: str = "pending") -> dict:
+        return {
+            "run_id": self.RUN_ID,
+            "created_at": "2026-05-29T10:00:00+00:00",
+            "project_name": "Housing Crisis",
+            "steps": {"storyboard": {"status": storyboard_status}},
+        }
+
+    def _mock_r2(self, storyboard_status: str = "pending") -> MagicMock:
+        m = MagicMock()
+        m.get_json.return_value = self._run_log(storyboard_status)
+        return m
+
+    def test_returns_200_on_success(self, client):
+        """POST /runs/{run_id}/draft returns HTTP 200 when storyboard is not complete."""
+        m = self._mock_r2()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/draft",
+                json={"project_name": "Housing Crisis", "script": self._SCRIPT},
+            )
+        assert res.status_code == 200
+
+    def test_returns_saved_status(self, client):
+        """Response body contains status='saved' and the saved script."""
+        m = self._mock_r2()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/draft",
+                json={"project_name": "Housing Crisis", "script": self._SCRIPT},
+            )
+        body = res.json()
+        assert body["status"] == "saved"
+        assert body["script"] == self._SCRIPT
+
+    def test_stores_script_txt_in_r2(self, client):
+        """upload_text is called with the correct R2 key and script content."""
+        m = self._mock_r2()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            client.post(
+                f"/runs/{self.RUN_ID}/draft",
+                json={"project_name": "Housing Crisis", "script": self._SCRIPT},
+            )
+        m.upload_text.assert_called_once_with(f"runs/{self.RUN_ID}/script.txt", self._SCRIPT)
+
+    def test_rejected_when_storyboard_complete(self, client):
+        """POST /draft returns 409 if the storyboard step is already complete."""
+        m = self._mock_r2(storyboard_status="complete")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/draft",
+                json={"project_name": "Housing Crisis", "script": self._SCRIPT},
+            )
+        assert res.status_code == 409
+        assert "storyboard" in res.json()["detail"].lower()
+
+    def test_run_not_found_returns_404(self, client):
+        """StorageError when reading run_log.json maps to HTTP 404."""
+        m = MagicMock()
+        m.get_json.side_effect = StorageError("NoSuchKey")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/draft",
+                json={"project_name": "Housing Crisis", "script": self._SCRIPT},
+            )
+        assert res.status_code == 404
+
+    def test_storage_error_on_upload_returns_500(self, client):
+        """StorageError from upload_text maps to HTTP 500."""
+        m = self._mock_r2()
+        m.upload_text.side_effect = StorageError("bucket full")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/draft",
+                json={"project_name": "Housing Crisis", "script": self._SCRIPT},
+            )
+        assert res.status_code == 500
+
+    def test_missing_script_field_returns_422(self, client):
+        """Request body missing script field returns HTTP 422."""
+        m = self._mock_r2()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(f"/runs/{self.RUN_ID}/draft", json={"project_name": "Test"})
+        assert res.status_code == 422
+
+
+class TestGetDraft:
+    """Tests for GET /runs/{run_id}/draft."""
+
+    RUN_ID = "2026-05-29_housing-crisis"
+    _SCRIPT = "Housing prices are too high."
+
+    def _run_log(self) -> dict:
+        return {
+            "run_id": self.RUN_ID,
+            "created_at": "2026-05-29T10:00:00+00:00",
+            "project_name": "Housing Crisis",
+            "steps": {"storyboard": {"status": "pending"}},
+        }
+
+    def test_returns_200_with_script(self, client):
+        """GET /runs/{run_id}/draft returns script from script.txt."""
+        m = MagicMock()
+        m.get_json.return_value = self._run_log()
+        m.get_bytes.return_value = self._SCRIPT.encode("utf-8")
+        m.list_keys.return_value = []
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/draft")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["script"] == self._SCRIPT
+        assert body["project_name"] == "Housing Crisis"
+
+    def test_returns_vo_filename_when_present(self, client):
+        """vo_filename is populated from the first .mp3 key in voiceover prefix."""
+        m = MagicMock()
+        m.get_json.return_value = self._run_log()
+        m.get_bytes.return_value = self._SCRIPT.encode("utf-8")
+        m.list_keys.return_value = [f"runs/{self.RUN_ID}/voiceover/narration.mp3"]
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/draft")
+        assert res.json()["vo_filename"] == "narration.mp3"
+
+    def test_vo_filename_none_when_no_voiceover(self, client):
+        """vo_filename is null when no audio files exist in voiceover prefix."""
+        m = MagicMock()
+        m.get_json.return_value = self._run_log()
+        m.get_bytes.return_value = self._SCRIPT.encode("utf-8")
+        m.list_keys.return_value = []
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/draft")
+        assert res.json()["vo_filename"] is None
+
+    def test_empty_script_when_no_draft_saved(self, client):
+        """script is empty string when script.txt does not exist yet."""
+        m = MagicMock()
+        m.get_json.return_value = self._run_log()
+        m.get_bytes.side_effect = StorageError("NoSuchKey")
+        m.list_keys.return_value = []
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/draft")
+        assert res.status_code == 200
+        assert res.json()["script"] == ""
+
+    def test_run_not_found_returns_404(self, client):
+        """StorageError reading run_log.json returns HTTP 404."""
+        m = MagicMock()
+        m.get_json.side_effect = StorageError("NoSuchKey")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/draft")
+        assert res.status_code == 404

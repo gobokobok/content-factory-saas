@@ -591,3 +591,35 @@ class TestStoryboardRoute:
         _, call_kwargs = mock_gen.call_args
         timestamps = call_kwargs.get("word_timestamps") or (mock_gen.call_args[0][2] if len(mock_gen.call_args[0]) > 2 else None)
         assert timestamps is None
+
+    def test_empty_body_script_falls_back_to_script_txt(self, client):
+        """When body.script is empty, the route reads script.txt from R2 and uses it."""
+        storyboard_data = _parse_storyboard_response(SAMPLE_FULL_RESPONSE)
+        mock_storage = self._mock_storage()
+        saved_script = "Houses are too expensive. Nobody can afford them."
+        mock_storage.get_bytes.return_value = saved_script.encode("utf-8")
+
+        with (
+            patch("src.routes.storyboard.generate_storyboard", new_callable=AsyncMock) as mock_gen,
+            patch("src.routes.storyboard.R2Client") as mock_r2,
+        ):
+            mock_gen.return_value = (storyboard_data, _MOCK_VALIDATION)
+            mock_r2.return_value = mock_storage
+
+            response = client.post(f"/runs/{RUN_ID}/storyboard", json={"script": ""})
+
+        assert response.status_code == 200
+        used_script = mock_gen.call_args[0][0]
+        assert used_script == saved_script
+
+    def test_missing_script_and_no_draft_returns_422(self, client):
+        """When body.script is empty and script.txt is absent, HTTP 422 is returned."""
+        mock_storage = self._mock_storage()
+        mock_storage.get_bytes.side_effect = StorageError("NoSuchKey")
+
+        with patch("src.routes.storyboard.R2Client") as mock_r2:
+            mock_r2.return_value = mock_storage
+            response = client.post(f"/runs/{RUN_ID}/storyboard", json={"script": ""})
+
+        assert response.status_code == 422
+        assert "script is required" in response.json()["detail"]
