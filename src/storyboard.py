@@ -354,9 +354,15 @@ def _get_field(text: str, field: str, required: bool = True) -> Optional[str]:
 
 
 def _parse_global(block: str) -> StoryboardGlobal:
-    """Parse the GLOBAL section into a StoryboardGlobal model."""
+    """
+    Parse the GLOBAL section into a StoryboardGlobal model.
+
+    subtitle_style is treated as optional — the field is purely descriptive metadata
+    and is never used by the rendering pipeline (caption style is hardcoded in captions.py).
+    Defaults to empty string when Claude omits or leaves it blank.
+    """
     return StoryboardGlobal(
-        subtitle_style=_get_field(block, "subtitle_style"),
+        subtitle_style=_get_field(block, "subtitle_style", required=False) or "",
         bg_music=_get_field(block, "bg_music"),
         visual_style=_get_field(block, "visual_style"),
     )

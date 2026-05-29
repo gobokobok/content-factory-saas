@@ -97,10 +97,24 @@ class TestParseGlobal:
         assert "80 BPM" in result.bg_music
         assert "Dark cinematic" in result.visual_style
 
-    def test_missing_field_raises(self):
+    def test_missing_visual_style_raises(self):
+        """visual_style is required — omitting it must raise."""
         bad_block = "GLOBAL\nsubtitle_style: foo\nbg_music: bar"
         with pytest.raises(StoryboardParseError, match="visual_style"):
             _parse_global(bad_block)
+
+    def test_missing_subtitle_style_defaults_to_empty_string(self):
+        """subtitle_style is optional — missing value yields empty string instead of crash."""
+        block = "GLOBAL\nbg_music: lo-fi beats 80bpm\nvisual_style: dark cinematic"
+        result = _parse_global(block)
+        assert result.subtitle_style == ""
+        assert result.bg_music == "lo-fi beats 80bpm"
+
+    def test_null_subtitle_style_defaults_to_empty_string(self):
+        """subtitle_style: null in Claude output is treated as empty string."""
+        block = "GLOBAL\nsubtitle_style: null\nbg_music: lo-fi\nvisual_style: cinematic"
+        result = _parse_global(block)
+        assert result.subtitle_style == ""
 
 
 class TestParseScene:

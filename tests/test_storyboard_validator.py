@@ -344,3 +344,21 @@ class TestValidateStoryboard:
 
         assert result.valid is False
         assert result.errors == ["scene 2: sfx is null"]
+
+    @pytest.mark.asyncio
+    async def test_subtitle_style_errors_are_filtered(self):
+        """subtitle_style is optional metadata — Haiku errors about it must be filtered."""
+        storyboard = _make_storyboard()
+        mock_message = _make_message(
+            {"valid": False, "errors": ["global: missing required field subtitle_style"]}
+        )
+
+        with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+            result = await validate_storyboard(storyboard, "test-key")
+
+        assert result.valid is True
+        assert result.errors == []
