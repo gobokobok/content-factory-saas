@@ -2160,7 +2160,8 @@ Open a run with completed assets. Navigate to Assets section. Verify Description
 ## [S6-S6] Render Video: bounded player + modal + Download button
 **Epic:** E6 — Operator UI
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-29
 **Priority:** medium
 **Points:** 2
 **Depends on:** S6-S1

@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S6-S6] Render Video: bounded player + modal + Download button
+**Completed:** 2026-05-29
+**Handover:**
+- `src/static/pipeline.html`: CSS — `.video-bounded` container (`max-height: 360px`, `overflow: hidden`, `cursor: pointer`, `background: #000`); `video` inside uses `object-fit: contain`. `.video-expand-btn` positioned absolute bottom-right. `.video-actions` flex row below the player. `.btn-download` styled as a light button. Modal CSS: `.video-modal-overlay` (`position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; display: flex` when `.open`); `.video-modal-box` (max-width 640px, `max-height: 80vh`); `.video-modal-close` circular × button.
+- HTML: `#video-modal` overlay injected between `.panels` and `<script>` — contains `#video-modal-box` with close button and `#video-modal-player` `<video>` element.
+- JS: `populateRender()` now generates `.video-bounded` container with `onclick` → `openVideoModal`, `⤢ Expand` button, and `.video-actions` div with `.btn-download` anchor (`download="final.mp4"`). `openVideoModal(url)` sets player src and adds `.open` class. `closeVideoModal()` removes `.open` and pauses+clears src. `handleModalOverlayClick(event)` closes when clicking the backdrop (not the box).
+- No backend changes. No new ENV vars. No new dependencies.
+- 585 tests passing, no regressions.
+**Smoke test:** DEFERRED — open a run with `render: complete`; confirm video is bounded (not full-height); click Expand or video → modal opens with larger player; click × → modal closes; click outside modal → modal closes; click "↓ Download Video" → browser downloads `final.mp4`.
+**Promoted to backlog:** none
+
+---
+
 ## [S6-S5] Assets stage: Description column + media link column
 **Completed:** 2026-05-29
 **Handover:**

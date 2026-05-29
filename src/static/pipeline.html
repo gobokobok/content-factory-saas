@@ -351,10 +351,18 @@
     .data-table td.muted { color: #9A9A9A; }
 
     /* ── Video player ─────────────────────────────────────────────────── */
-    .render-video { max-width: 100%; display: block; border-radius: 4px; border: 1px solid #E8E5E4; }
-    .video-dl { font-size: 13px; color: #9A9A9A; margin-top: 10px; }
-    .video-dl a { color: #1d4ed8; text-decoration: none; }
-    .video-dl a:hover { text-decoration: underline; }
+    .video-bounded { position: relative; max-height: 360px; overflow: hidden; border-radius: 4px; border: 1px solid #E8E5E4; cursor: pointer; background: #000; }
+    .video-bounded video { display: block; max-width: 100%; max-height: 360px; width: 100%; object-fit: contain; }
+    .video-expand-btn { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 4px; font-size: 11px; padding: 4px 8px; cursor: pointer; }
+    .video-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .btn-download { font-size: 13px; font-weight: 500; color: #2D2D2D; background: #EFECEB; border: 1px solid #E8E5E4; border-radius: 4px; padding: 6px 14px; cursor: pointer; text-decoration: none; }
+    .btn-download:hover { background: #E8E5E4; }
+    /* ── Video modal ──────────────────────────────────────────────────── */
+    .video-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
+    .video-modal-overlay.open { display: flex; }
+    .video-modal-box { position: relative; width: 90vw; max-width: 640px; background: #000; border-radius: 6px; overflow: hidden; }
+    .video-modal-box video { display: block; width: 100%; max-height: 80vh; object-fit: contain; }
+    .video-modal-close { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
     /* ── Generic states ───────────────────────────────────────────────── */
     .state-empty   { color: #9A9A9A; font-size: 13px; padding: 20px 0; }
@@ -493,6 +501,14 @@
     </div>
   </div><!-- end .panel-content -->
   </div><!-- end .panels -->
+
+  <!-- ── Video modal overlay ──────────────────────────────────────── -->
+  <div class="video-modal-overlay" id="video-modal" onclick="handleModalOverlayClick(event)">
+    <div class="video-modal-box" id="video-modal-box">
+      <button class="video-modal-close" onclick="closeVideoModal()">×</button>
+      <video id="video-modal-player" controls></video>
+    </div>
+  </div>
 
   <script>
     // ─── State ────────────────────────────────────────────────────────────────
@@ -923,12 +939,39 @@
         const res  = await fetch(`/runs/${currentRunId}/artifact/render`);
         const data = await res.json();
         if (!res.ok) { contentDiv.innerHTML = `<div class="error-text">${esc(data.detail || 'Failed to load render')}</div>`; return; }
+        const url = esc(data.url);
         contentDiv.innerHTML = `
-          <video class="render-video" src="${esc(data.url)}" controls></video>
-          <div class="video-dl"><a href="${esc(data.url)}" target="_blank">↓ Download final.mp4</a></div>`;
+          <div class="video-bounded" onclick="openVideoModal('${url}')">
+            <video src="${url}" controls onclick="event.stopPropagation()"></video>
+            <button class="video-expand-btn" onclick="event.stopPropagation(); openVideoModal('${url}')">⤢ Expand</button>
+          </div>
+          <div class="video-actions">
+            <a class="btn-download" href="${url}" download="final.mp4">↓ Download Video</a>
+          </div>`;
         contentDiv.dataset.loadedFor = currentRunId;
       } catch (err) {
         contentDiv.innerHTML = `<div class="error-text">Network error: ${esc(err.message)}</div>`;
+      }
+    }
+
+    function openVideoModal(url) {
+      const modal  = document.getElementById('video-modal');
+      const player = document.getElementById('video-modal-player');
+      player.src = url;
+      modal.classList.add('open');
+    }
+
+    function closeVideoModal() {
+      const modal  = document.getElementById('video-modal');
+      const player = document.getElementById('video-modal-player');
+      modal.classList.remove('open');
+      player.pause();
+      player.src = '';
+    }
+
+    function handleModalOverlayClick(event) {
+      if (!document.getElementById('video-modal-box').contains(event.target)) {
+        closeVideoModal();
       }
     }
 
