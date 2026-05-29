@@ -61,13 +61,14 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 4px 8px;
+      padding: 4px 8px 4px 6px;
       border-radius: 4px;
       cursor: pointer;
       color: #2D2D2D;
+      border-left: 2px solid transparent;
     }
     .run-item:not(.active):hover { background: #EFECEB; }
-    .run-item.active { font-weight: 600; }
+    .run-item.active { font-weight: 600; border-left: 2px solid #9A9A9A; }
     .run-item-id {
       font-family: monospace;
       font-size: 12px;
@@ -122,15 +123,16 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 5px 8px;
+      padding: 5px 8px 5px 6px;
       border-radius: 4px;
       cursor: pointer;
       font-size: 13px;
       color: #2D2D2D;
       user-select: none;
+      border-left: 2px solid transparent;
     }
     .nav-item:not(.active):hover { background: #EFECEB; }
-    .nav-item.active { font-weight: 600; color: #2D2D2D; }
+    .nav-item.active { font-weight: 600; color: #2D2D2D; border-left: 2px solid #9A9A9A; }
 
     .nav-connector {
       padding: 1px 0 1px 9px;
@@ -368,15 +370,16 @@
   <!-- ── Full-width app header ─────────────────────────────────────────── -->
   <div class="app-header">
     <span>Content Factory</span>
-    <button class="btn btn-outline btn-sm" onclick="openNewProjectForm()">+ New Project</button>
   </div>
 
   <!-- ── Three-panel layout ────────────────────────────────────────────── -->
   <div class="panels">
 
-  <!-- ── Left panel: run list ─────────────────────────────────────────── -->
+  <!-- ── Left panel: project list ──────────────────────────────────────── -->
   <div class="panel-runs">
-    <div id="new-run-panel"></div>
+    <div class="new-project-row">
+      <button class="btn btn-outline btn-sm" style="width:100%;" onclick="openNewProjectForm()">+ New Project</button>
+    </div>
 
     <div class="run-list-scroll" id="run-list-content">
       <span class="muted state-loading" style="padding:8px 10px; display:block;">loading…</span>
@@ -406,8 +409,6 @@
 
       <div id="input-locked-bar" class="locked-bar" style="display:none;">
         <span>✓ Storyboard created</span>
-        <span class="locked-bar-spacer"></span>
-        <button class="btn btn-secondary btn-sm" onclick="regenerateSection('input')">Regenerate</button>
       </div>
 
       <div class="field">
@@ -428,15 +429,21 @@
 
       <div class="field">
         <label for="script-input">VO Script</label>
-        <textarea id="script-input" placeholder="Paste the voiceover script here…"></textarea>
+        <textarea id="script-input" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn()"></textarea>
       </div>
 
       <div class="cta-area">
         <div id="input-step-progress" class="step-progress" style="display:none;"></div>
         <div id="input-error"         class="error-bar"      style="display:none;"></div>
-        <button class="btn btn-primary" id="create-storyboard-btn" disabled onclick="runCreateStoryboard()">
-          Create Storyboard
-        </button>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button class="btn btn-secondary" id="save-draft-btn" disabled onclick="saveDraft()">
+            Save Draft
+          </button>
+          <button class="btn btn-primary" id="create-storyboard-btn" disabled onclick="runCreateStoryboard()">
+            Create Storyboard
+          </button>
+          <span id="save-draft-status" class="muted" style="font-size:12px;"></span>
+        </div>
       </div>
     </div>
 
@@ -619,6 +626,7 @@
     function onProjectNameInput() {
       _updateVoUploadBtn();
       updateCreateStoryboardBtn();
+      updateSaveDraftBtn();
     }
 
     function _updateVoUploadBtn() {
@@ -752,12 +760,13 @@
       if (key === 'render')     populateRender();
     }
 
-    function populateInput() {
+    async function populateInput() {
       const locked = sectionLocked.input;
       document.getElementById('input-locked-bar').style.display = locked ? '' : 'none';
 
       const nameInput   = document.getElementById('project-name-input');
       const voPickBtn   = document.getElementById('vo-pick-btn');
+      const voUploadBtn = document.getElementById('vo-upload-btn');
       const scriptInput = document.getElementById('script-input');
 
       // Project name is read-only once a run exists (name was set at creation time)
@@ -765,7 +774,25 @@
       voPickBtn.disabled   = locked;
       scriptInput.disabled = locked;
 
+      // Load saved draft script (locked or unlocked) so the textarea is pre-filled on reload
+      if (currentRunId && !scriptInput.value) {
+        try {
+          const res  = await fetch(`/runs/${currentRunId}/draft`);
+          const data = await res.json();
+          if (res.ok) {
+            scriptInput.value = data.script || '';
+            if (data.vo_filename) {
+              document.getElementById('vo-filename').textContent = data.vo_filename;
+              if (voUploadBtn) voUploadBtn.disabled = locked;
+            }
+            updateSaveDraftBtn();   // re-evaluate now that script is populated
+            updateCreateStoryboardBtn();
+          }
+        } catch (_) { /* non-fatal */ }
+      }
+
       updateCreateStoryboardBtn();
+      updateSaveDraftBtn();
       _updateVoUploadBtn();
     }
 
@@ -776,6 +803,57 @@
       const nameOk  = currentRunId || document.getElementById('project-name-input')?.value.trim();
       btn.disabled    = locked || running || !voUploaded || !nameOk;
       btn.textContent = running ? 'Running…' : 'Create Storyboard';
+    }
+
+    function updateSaveDraftBtn() {
+      const btn = document.getElementById('save-draft-btn');
+      if (!btn) return;
+      const locked = sectionLocked.input;
+      if (locked) { btn.style.display = 'none'; return; }
+      btn.style.display = '';
+      const nameOk   = currentRunId || document.getElementById('project-name-input')?.value.trim();
+      const scriptOk = document.getElementById('script-input')?.value.trim();
+      btn.disabled = !nameOk || !scriptOk;
+    }
+
+    async function saveDraft() {
+      const name   = document.getElementById('project-name-input')?.value.trim();
+      const script = document.getElementById('script-input').value.trim();
+      if (!name)   { alert('Enter a Project Name first'); return; }
+      if (!script) { alert('VO Script is required to save a draft'); return; }
+
+      if (!await _ensureRun()) return;
+
+      const btn      = document.getElementById('save-draft-btn');
+      const statusEl = document.getElementById('save-draft-status');
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+      statusEl.textContent = '';
+
+      try {
+        const res = await fetch(`/runs/${currentRunId}/draft`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project_name: name, script }),
+        });
+        if (res.ok) {
+          btn.textContent      = '✓ Saved';
+          statusEl.textContent = '';
+          renderRunList();
+          setTimeout(() => { btn.disabled = false; btn.textContent = 'Save Draft'; updateSaveDraftBtn(); }, 2000);
+        } else {
+          const err = await res.json().catch(() => null);
+          statusEl.textContent = `Error: ${err?.detail || res.statusText}`;
+          statusEl.style.color = '#dc2626';
+          btn.disabled = false;
+          btn.textContent = 'Save Draft';
+        }
+      } catch (err) {
+        statusEl.textContent = `Network error: ${err.message}`;
+        statusEl.style.color = '#dc2626';
+        btn.disabled = false;
+        btn.textContent = 'Save Draft';
+      }
     }
 
     async function populateStoryboard() {
