@@ -535,3 +535,54 @@ class TestGetDraft:
         with patch("src.routes.runs.R2Client", return_value=m):
             res = client.get(f"/runs/{self.RUN_ID}/draft")
         assert res.status_code == 404
+
+
+class TestGetAssetLink:
+    RUN_ID = "2026-05-29_test-run"
+    VALID_KEY = f"runs/{RUN_ID}/images/scene_01.jpeg"
+    PRESIGNED = "https://r2.example.com/signed?token=abc"
+
+    def test_returns_presigned_url(self, client):
+        """Valid key within run prefix returns a presigned URL and expires_in."""
+        mock_instance = MagicMock()
+        mock_instance.generate_presigned_url.return_value = self.PRESIGNED
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            res = client.get(f"/runs/{self.RUN_ID}/asset-link", params={"key": self.VALID_KEY})
+        assert res.status_code == 200
+        body = res.json()
+        assert body["url"] == self.PRESIGNED
+        assert body["expires_in"] == 3600
+
+    def test_calls_correct_r2_key(self, client):
+        """R2Client.generate_presigned_url is called with the exact key."""
+        mock_instance = MagicMock()
+        mock_instance.generate_presigned_url.return_value = self.PRESIGNED
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            client.get(f"/runs/{self.RUN_ID}/asset-link", params={"key": self.VALID_KEY})
+        mock_instance.generate_presigned_url.assert_called_once_with(self.VALID_KEY)
+
+    def test_key_outside_run_prefix_returns_403(self, client):
+        """Key that does not start with runs/{run_id}/ is rejected with 403."""
+        bad_key = "runs/other-run/images/scene_01.jpeg"
+        res = client.get(f"/runs/{self.RUN_ID}/asset-link", params={"key": bad_key})
+        assert res.status_code == 403
+
+    def test_traversal_attempt_returns_403(self, client):
+        """Path traversal key is rejected with 403."""
+        traversal_key = f"runs/{self.RUN_ID}/../secret.txt"
+        res = client.get(f"/runs/{self.RUN_ID}/asset-link", params={"key": traversal_key})
+        assert res.status_code == 403
+
+    def test_storage_error_returns_500(self, client):
+        """StorageError from R2 maps to HTTP 500."""
+        mock_instance = MagicMock()
+        mock_instance.generate_presigned_url.side_effect = StorageError("R2 down")
+        with patch("src.routes.runs.R2Client", return_value=mock_instance):
+            res = client.get(f"/runs/{self.RUN_ID}/asset-link", params={"key": self.VALID_KEY})
+        assert res.status_code == 500
+        assert "R2 down" in res.json()["detail"]
+
+    def test_missing_key_param_returns_422(self, client):
+        """Request without key query param returns HTTP 422."""
+        res = client.get(f"/runs/{self.RUN_ID}/asset-link")
+        assert res.status_code == 422

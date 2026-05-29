@@ -11,6 +11,7 @@ from src.config import Settings, get_settings
 from src.exceptions import StorageError
 from src.models import (
     ArtifactResponse,
+    AssetLinkResponse,
     DraftRequest,
     DraftResponse,
     RunCreateRequest,
@@ -179,6 +180,28 @@ def get_draft(
         script=script,
         vo_filename=vo_filename,
     )
+
+
+@router.get("/runs/{run_id}/asset-link", response_model=AssetLinkResponse)
+def get_asset_link(
+    run_id: str,
+    key: str,
+    settings: Settings = Depends(get_settings),
+) -> AssetLinkResponse:
+    """Generate a 1-hour presigned GET URL for a run asset. Rejects keys outside the run prefix."""
+    expected_prefix = f"runs/{run_id}/"
+    if not key.startswith(expected_prefix) or ".." in key.split("/"):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Key must start with '{expected_prefix}'",
+        )
+    client = _make_r2_client(settings)
+    try:
+        url = client.generate_presigned_url(key)
+    except StorageError as exc:
+        logger.error("Storage error generating asset link for run '%s' key '%s': %s", run_id, key, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return AssetLinkResponse(url=url, expires_in=3600)
 
 
 @router.get("/runs/{run_id}/artifact/{step}", response_model=ArtifactResponse)

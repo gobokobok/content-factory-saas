@@ -2114,7 +2114,8 @@ _filled on completion_
 ## [S6-S5] Assets stage: Description column + media link column
 **Epic:** E6 — Operator UI
 **Sprint:** 6
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-29
 **Priority:** medium
 **Points:** 2
 **Depends on:** S6-S1
@@ -2148,7 +2149,11 @@ Open a run with completed assets. Navigate to Assets section. Verify Description
 - `src/static/pipeline.html` — Assets section: add Description + Link columns; remove regenerate
 
 ### Handover
-_filled on completion_
+- `src/models.py`: `AssetLinkResponse(url: str, expires_in: int)` added.
+- `src/routes/runs.py`: `GET /runs/{run_id}/asset-link?key=...` — validates key starts with `runs/{run_id}/` and contains no `..` path components; calls `R2Client.generate_presigned_url(key)`; returns `AssetLinkResponse(url, expires_in=3600)`. 403 on invalid key, 500 on `StorageError`.
+- `src/static/pipeline.html`: `renderManifestHtml` rewritten — 6 columns: Scene, Type, Description, Source, Status, Link. Description cell shows `primary_query` with `.trunc` + `title` tooltip. Link cell shows `<a class="asset-open-link">Open</a>` when `file_key` present, `<span class="muted">—</span>` when null. `openAssetLink(event, runId, fileKey)` async helper fetches presigned URL and calls `window.open`.
+- No new ENV vars. No new pip dependencies.
+- 585 tests passing (+6 new in `TestGetAssetLink`).
 
 ---
 

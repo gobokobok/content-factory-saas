@@ -206,6 +206,13 @@ class AcquisitionResponse(BaseModel):
     manifest_key: str
 
 
+class AssetLinkResponse(BaseModel):
+    """Response body for GET /runs/{run_id}/asset-link."""
+
+    url: str
+    expires_in: int
+
+
 class StoryboardRequest(BaseModel):
     """Request body for POST /runs/{run_id}/storyboard."""
 

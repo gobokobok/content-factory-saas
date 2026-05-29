@@ -980,18 +980,36 @@
       const entries = content?.entries;
       if (!entries?.length) return '<div class="state-empty">No entries found.</div>';
       return `<div class="table-wrap"><table class="data-table">
-        <thead><tr><th>Scene</th><th>Type</th><th>Source</th><th>Status</th><th>File</th></tr></thead>
+        <thead><tr><th>Scene</th><th>Type</th><th>Description</th><th>Source</th><th>Status</th><th>Link</th></tr></thead>
         <tbody>${entries.map(e => {
-          const file = e.file_key ? e.file_key.split('/').pop() : '—';
+          const linkCell = e.file_key
+            ? `<a href="#" class="asset-open-link" data-key="${esc(e.file_key)}" onclick="openAssetLink(event,'${esc(currentRunId)}','${esc(e.file_key)}')">Open</a>`
+            : '<span class="muted">—</span>';
           return `<tr>
             <td class="mono">${esc(e.scene_id)}</td>
             <td>${esc(e.clip_type)}</td>
+            <td class="trunc" title="${esc(e.primary_query)}">${esc(e.primary_query)}</td>
             <td>${esc(e.source || '—')}</td>
             <td>${esc(e.status)}</td>
-            <td class="mono trunc" title="${esc(e.file_key || '')}">${esc(file)}</td>
+            <td>${linkCell}</td>
           </tr>`;
         }).join('')}</tbody>
       </table></div>`;
+    }
+
+    async function openAssetLink(event, runId, fileKey) {
+      event.preventDefault();
+      const anchor = event.currentTarget;
+      const prev = anchor.textContent;
+      anchor.textContent = '…';
+      try {
+        const res = await fetch(`/runs/${encodeURIComponent(runId)}/asset-link?key=${encodeURIComponent(fileKey)}`);
+        if (!res.ok) { anchor.textContent = 'Error'; return; }
+        const data = await res.json();
+        window.open(data.url, '_blank', 'noopener');
+      } finally {
+        anchor.textContent = prev;
+      }
     }
 
     // ─── Lock / Regenerate ────────────────────────────────────────────────────

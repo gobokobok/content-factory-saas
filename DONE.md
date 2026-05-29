@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S6-S5] Assets stage: Description column + media link column
+**Completed:** 2026-05-29
+**Handover:**
+- `src/models.py`: `AssetLinkResponse(url, expires_in)` added.
+- `src/routes/runs.py`: `GET /runs/{run_id}/asset-link?key=...` — rejects keys outside `runs/{run_id}/` prefix and any containing `..` components (403); generates 1h presigned GET URL; returns `{url, expires_in: 3600}`.
+- `src/static/pipeline.html`: `renderManifestHtml` rewritten — 6 columns: Scene, Type, Description, Source, Status, Link. Description = `primary_query` (truncated with tooltip). Link = "Open" anchor when `file_key` present, `—` when null. `openAssetLink()` async handler fetches presigned URL then calls `window.open`.
+- No new ENV vars. No new pip dependencies.
+- 585 tests passing (+6 new in `TestGetAssetLink`).
+**Smoke test:** DEFERRED — open a run with completed assets; verify Description column shows search query text; click "Open" on an acquired asset; confirm correct image or video opens in new tab.
+**Promoted to backlog:** none
+
+---
+
 ## [S6-S4] Storyboard stage: full-data table view + permanent lock
 **Completed:** 2026-05-29
 **Handover:**
