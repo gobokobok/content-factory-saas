@@ -317,7 +317,7 @@ def _parse_storyboard_response(text: str) -> Storyboard:
     scenes = []
     for i, block in enumerate(parts[1:-1]):
         try:
-            scenes.append(_parse_scene(block))
+            scenes.append(_parse_scene(block, index=i))
         except StoryboardParseError:
             raise
         except Exception as exc:
@@ -407,22 +407,34 @@ _VALID_CLIP_TYPES = {"hard_cut", "still_with_motion", "animated"}
 _DEFAULT_CLIP_TYPE = "still_with_motion"
 
 
-def _parse_scene(block: str) -> StoryboardScene:
+def _parse_scene(block: str, index: int = 0) -> StoryboardScene:
     """
     Parse a single SCENE block into a StoryboardScene model.
 
     All required fields have safe fallbacks so a partially malformed Claude
     response produces a renderable scene rather than a hard failure:
-      clip_type   → "still_with_motion"
-      duration_s  → 2.0
+      clip_type    → "still_with_motion"
+      duration_s   → 2.0
       voiceover_line → ""
-      sfx         → "silence"
-      sfx_timing  → "scene_start"
+      sfx          → "silence"
+      sfx_timing   → "scene_start"
+      motion_effect → "zoom_in" when clip_type is "still_with_motion"
+
+    Scene ID must start with a digit (e.g. "1", "3a"). If SCENE has no
+    numeric ID — e.g. Claude writes "SCENE" on its own line — we fall back
+    to the 1-based block index to avoid capturing a field name as the ID.
     """
-    scene_match = re.search(r"SCENE\s+(\S+)", block, re.IGNORECASE)
+    # Require scene ID to start with a digit so we never capture a field
+    # name like "visual_style:" when SCENE appears on its own line.
+    scene_match = re.search(r"SCENE\s+(\d+\w*)", block, re.IGNORECASE)
     if not scene_match:
-        raise StoryboardParseError(f"No SCENE header found in block: {block[:80]!r}")
-    scene_id = scene_match.group(1)
+        # SCENE keyword exists but no numeric ID — use 1-based block position
+        if not re.search(r"\bSCENE\b", block, re.IGNORECASE):
+            raise StoryboardParseError(f"No SCENE header found in block: {block[:80]!r}")
+        scene_id = str(index + 1)
+        logger.warning("SCENE block %d has no numeric ID — assigned '%s'", index + 1, scene_id)
+    else:
+        scene_id = scene_match.group(1)
 
     # clip_type — validate; fall back to still_with_motion
     raw_clip = _get_field(block, "clip_type", required=False)
@@ -451,7 +463,13 @@ def _parse_scene(block: str) -> StoryboardScene:
 
     visual_prompts = _parse_visual_prompts(block)
 
-    motion_effect = _get_field(block, "motion_effect", required=False)
+    motion_effect_raw = _get_field(block, "motion_effect", required=False)
+    # still_with_motion requires a non-null motion_effect for the zoompan filter
+    if clip_type == "still_with_motion" and not motion_effect_raw:
+        motion_effect_raw = "zoom_in"
+        logger.warning("still_with_motion scene %s has no motion_effect — defaulting to zoom_in", scene_id)
+    motion_effect = motion_effect_raw
+
     on_screen_text = _get_field(block, "on_screen_text", required=False)
 
     # sfx must be non-null; default to "silence"

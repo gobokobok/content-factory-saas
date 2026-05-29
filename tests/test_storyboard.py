@@ -166,10 +166,23 @@ class TestParseScene:
         assert scene.duration_s == 2.0
 
     def test_missing_scene_header_raises(self):
-        """SCENE header is the only truly required line — without it we can't number the scene."""
+        """No SCENE keyword at all → raises StoryboardParseError."""
         bad_block = SAMPLE_SCENE_BLOCK.replace("SCENE 1", "")
         with pytest.raises(StoryboardParseError, match="SCENE header"):
             _parse_scene(bad_block)
+
+    def test_scene_without_numeric_id_uses_block_index(self):
+        """SCENE keyword with no number falls back to 1-based block index."""
+        block = SAMPLE_SCENE_BLOCK.replace("SCENE 1\n", "SCENE\n")
+        scene = _parse_scene(block, index=2)  # 3rd block → id "3"
+        assert scene.scene == "3"
+
+    def test_scene_without_numeric_id_does_not_capture_field_name(self):
+        """'SCENE\\nvisual_style: ...' must not set scene_id to 'visual_style:'."""
+        block = SAMPLE_SCENE_BLOCK.replace("SCENE 1\n", "SCENE\n")
+        scene = _parse_scene(block, index=0)
+        assert ":" not in scene.scene
+        assert "visual_style" not in scene.scene
 
     def test_missing_clip_type_defaults_to_still_with_motion(self):
         """Missing clip_type falls back to still_with_motion."""
@@ -220,6 +233,19 @@ class TestParseScene:
         )
         scene = _parse_scene(bad_block)
         assert scene.visual_prompts.primary_stk == ""
+
+    def test_still_with_motion_defaults_motion_effect_to_zoom_in(self):
+        """still_with_motion scene with no motion_effect defaults to zoom_in."""
+        block = SAMPLE_SCENE_BLOCK.replace("motion_effect: zoom-in\n", "")
+        scene = _parse_scene(block)
+        assert scene.clip_type == "still_with_motion"
+        assert scene.motion_effect == "zoom_in"
+
+    def test_hard_cut_allows_null_motion_effect(self):
+        """hard_cut scene does not get a default motion_effect."""
+        scene = _parse_scene(SAMPLE_SCENE_BLOCK_HARD_CUT)
+        assert scene.clip_type == "hard_cut"
+        assert scene.motion_effect is None
 
     def test_visual_prompt_without_backticks_parsed(self):
         """Visual prompts without backtick delimiters are accepted."""
