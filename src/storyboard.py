@@ -324,7 +324,7 @@ def _parse_storyboard_response(text: str) -> Storyboard:
             raise StoryboardParseError(f"Failed to parse scene block {i + 1}: {exc}") from exc
 
     try:
-        summary = _parse_summary(parts[-1])
+        summary = _parse_summary(parts[-1], scenes=scenes)
     except StoryboardParseError:
         raise
     except Exception as exc:
@@ -334,9 +334,17 @@ def _parse_storyboard_response(text: str) -> Storyboard:
 
 
 def _get_field(text: str, field: str, required: bool = True) -> Optional[str]:
-    """Extract a single-line field value; returns None for literal 'null' values."""
+    """
+    Extract a single-line field value from a storyboard block.
+
+    Tolerates Claude markdown bold formatting (**field:** value) and leading
+    bullet/dash characters. Returns None for literal 'null' values or empty
+    values. Raises StoryboardParseError only when required=True and the field
+    is completely absent.
+    """
+    # Permit optional ** markdown bold around the field name (Claude quirk)
     match = re.search(
-        rf"^[-\s]*{re.escape(field)}:\s*(.+)$",
+        rf"^[-\s]*\*{{0,2}}{re.escape(field)}\*{{0,2}}:\s*(.+)$",
         text,
         re.MULTILINE | re.IGNORECASE,
     )
@@ -350,68 +358,109 @@ def _get_field(text: str, field: str, required: bool = True) -> Optional[str]:
             raise StoryboardParseError(f"Missing required field '{field}'")
         return None
     value = match.group(1).strip()
-    return None if value.lower() == "null" else value
+    # Strip leading markdown bold markers Claude sometimes leaves in the value
+    # e.g. **subtitle_style:** value → captures "** value" → strip to "value"
+    value = re.sub(r"^\*+\s*", "", value).strip()
+    # Treat bare 'null' or empty-after-strip as absent
+    if not value or value.lower() == "null":
+        return None
+    return value
 
 
 def _parse_global(block: str) -> StoryboardGlobal:
     """
     Parse the GLOBAL section into a StoryboardGlobal model.
 
-    subtitle_style is treated as optional — the field is purely descriptive metadata
-    and is never used by the rendering pipeline (caption style is hardcoded in captions.py).
-    Defaults to empty string when Claude omits or leaves it blank.
+    All three fields are treated as optional metadata — none of them are used
+    by the rendering pipeline. Defaults to empty string when Claude omits or
+    leaves a field blank.
     """
     return StoryboardGlobal(
         subtitle_style=_get_field(block, "subtitle_style", required=False) or "",
-        bg_music=_get_field(block, "bg_music"),
-        visual_style=_get_field(block, "visual_style"),
+        bg_music=_get_field(block, "bg_music", required=False) or "",
+        visual_style=_get_field(block, "visual_style", required=False) or "",
     )
 
 
 def _parse_visual_prompts(block: str) -> VisualPrompts:
-    """Parse the visual_prompts sub-section (PRIMARY / FALLBACK / AI_GENERATE)."""
-    primary = re.search(r"PRIMARY:\s*STK\s*`([^`]+)`", block)
-    fallback = re.search(r"FALLBACK:\s*STK\s*`([^`]+)`", block)
-    ai_gen = re.search(r"AI_GENERATE[^:]*:\s*`([^`]+)`", block)
+    """
+    Parse the visual_prompts sub-section (PRIMARY / FALLBACK / AI_GENERATE).
 
-    if not primary:
-        raise StoryboardParseError("Missing PRIMARY visual prompt in scene")
-    if not fallback:
-        raise StoryboardParseError("Missing FALLBACK visual prompt in scene")
-    if not ai_gen:
-        raise StoryboardParseError("Missing AI_GENERATE visual prompt in scene")
+    Accepts values with or without backtick delimiters. Defaults to empty string
+    rather than raising so a single bad prompt doesn't abort the whole storyboard.
+    """
+    # Match `value` or bare value (Claude sometimes omits backticks)
+    _VP = r"[`\"]?([^`\"\n]+?)[`\"]?\s*$"
+
+    primary_m = re.search(rf"PRIMARY[:\s]+STK[:\s]+{_VP}", block, re.IGNORECASE | re.MULTILINE)
+    fallback_m = re.search(rf"FALLBACK[:\s]+STK[:\s]+{_VP}", block, re.IGNORECASE | re.MULTILINE)
+    ai_gen_m = re.search(rf"AI_GENERATE[^:\n]*:[:\s]+{_VP}", block, re.IGNORECASE | re.MULTILINE)
 
     return VisualPrompts(
-        primary_stk=primary.group(1).strip(),
-        fallback_stk=fallback.group(1).strip(),
-        ai_generate=ai_gen.group(1).strip(),
+        primary_stk=primary_m.group(1).strip() if primary_m else "",
+        fallback_stk=fallback_m.group(1).strip() if fallback_m else "",
+        ai_generate=ai_gen_m.group(1).strip() if ai_gen_m else "",
     )
 
 
+_VALID_CLIP_TYPES = {"hard_cut", "still_with_motion", "animated"}
+_DEFAULT_CLIP_TYPE = "still_with_motion"
+
+
 def _parse_scene(block: str) -> StoryboardScene:
-    """Parse a single SCENE block into a StoryboardScene model."""
+    """
+    Parse a single SCENE block into a StoryboardScene model.
+
+    All required fields have safe fallbacks so a partially malformed Claude
+    response produces a renderable scene rather than a hard failure:
+      clip_type   → "still_with_motion"
+      duration_s  → 2.0
+      voiceover_line → ""
+      sfx         → "silence"
+      sfx_timing  → "scene_start"
+    """
     scene_match = re.search(r"SCENE\s+(\S+)", block, re.IGNORECASE)
     if not scene_match:
         raise StoryboardParseError(f"No SCENE header found in block: {block[:80]!r}")
     scene_id = scene_match.group(1)
 
-    clip_type = _get_field(block, "clip_type")
+    # clip_type — validate; fall back to still_with_motion
+    raw_clip = _get_field(block, "clip_type", required=False)
+    if raw_clip and raw_clip.lower().replace("-", "_") in _VALID_CLIP_TYPES:
+        clip_type = raw_clip.lower().replace("-", "_")
+    else:
+        if raw_clip:
+            logger.warning("Unknown clip_type '%s' in scene %s — defaulting to %s",
+                           raw_clip, scene_id, _DEFAULT_CLIP_TYPE)
+        else:
+            logger.warning("Missing clip_type in scene %s — defaulting to %s",
+                           scene_id, _DEFAULT_CLIP_TYPE)
+        clip_type = _DEFAULT_CLIP_TYPE
 
-    dur_raw = _get_field(block, "duration_s")
+    # duration_s — fall back to 2.0
+    dur_raw = _get_field(block, "duration_s", required=False)
     try:
-        duration_s = float(dur_raw.rstrip("s").strip())
-    except (ValueError, AttributeError) as exc:
-        raise StoryboardParseError(f"Invalid duration_s value: '{dur_raw}'") from exc
+        duration_s = float(dur_raw.rstrip("s").strip()) if dur_raw else 2.0
+    except (ValueError, AttributeError):
+        logger.warning("Invalid duration_s '%s' in scene %s — defaulting to 2.0", dur_raw, scene_id)
+        duration_s = 2.0
 
-    vo_raw = _get_field(block, "voiceover_line")
+    # voiceover_line — fall back to ""
+    vo_raw = _get_field(block, "voiceover_line", required=False)
     voiceover_line = vo_raw.strip('"').strip("'") if vo_raw else ""
 
     visual_prompts = _parse_visual_prompts(block)
 
     motion_effect = _get_field(block, "motion_effect", required=False)
     on_screen_text = _get_field(block, "on_screen_text", required=False)
-    sfx = _get_field(block, "sfx")
-    sfx_timing = _get_field(block, "sfx_timing")
+
+    # sfx must be non-null; default to "silence"
+    sfx_raw = _get_field(block, "sfx", required=False)
+    sfx = sfx_raw if sfx_raw else "silence"
+
+    # sfx_timing — default to "scene_start"
+    sfx_timing_raw = _get_field(block, "sfx_timing", required=False)
+    sfx_timing = sfx_timing_raw if sfx_timing_raw else "scene_start"
 
     return StoryboardScene(
         scene=scene_id,
@@ -426,21 +475,29 @@ def _parse_scene(block: str) -> StoryboardScene:
     )
 
 
-def _parse_summary(block: str) -> StoryboardSummary:
-    """Parse the SUMMARY section into a StoryboardSummary model."""
+def _parse_summary(block: str, scenes: Optional[list] = None) -> StoryboardSummary:
+    """
+    Parse the SUMMARY section into a StoryboardSummary model.
+
+    Falls back to computed values from the scene list when Claude omits fields:
+      total_scenes   → len(scenes)
+      total_duration → sum of scene duration_s values
+      rhythm         → ""
+    """
+    scenes = scenes or []
+
     scenes_match = re.search(r"Total scenes:\s*(\d+)", block, re.IGNORECASE)
     duration_match = re.search(r"Total duration:[^\d]*([\d.]+)", block, re.IGNORECASE)
     rhythm_match = re.search(r"Rhythm:\s*(.+)$", block, re.IGNORECASE | re.MULTILINE)
 
-    if not scenes_match:
-        raise StoryboardParseError("Missing 'Total scenes' in SUMMARY")
-    if not duration_match:
-        raise StoryboardParseError("Missing 'Total duration' in SUMMARY")
-    if not rhythm_match:
-        raise StoryboardParseError("Missing 'Rhythm' in SUMMARY")
+    total_scenes = int(scenes_match.group(1)) if scenes_match else len(scenes)
+    total_duration_s = float(duration_match.group(1)) if duration_match else sum(
+        s.duration_s for s in scenes
+    )
+    rhythm = rhythm_match.group(1).strip() if rhythm_match else ""
 
     return StoryboardSummary(
-        total_scenes=int(scenes_match.group(1)),
-        total_duration_s=float(duration_match.group(1)),
-        rhythm=rhythm_match.group(1).strip(),
+        total_scenes=total_scenes,
+        total_duration_s=total_duration_s,
+        rhythm=rhythm,
     )

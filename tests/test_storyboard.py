@@ -97,24 +97,44 @@ class TestParseGlobal:
         assert "80 BPM" in result.bg_music
         assert "Dark cinematic" in result.visual_style
 
-    def test_missing_visual_style_raises(self):
-        """visual_style is required — omitting it must raise."""
-        bad_block = "GLOBAL\nsubtitle_style: foo\nbg_music: bar"
-        with pytest.raises(StoryboardParseError, match="visual_style"):
-            _parse_global(bad_block)
-
     def test_missing_subtitle_style_defaults_to_empty_string(self):
-        """subtitle_style is optional — missing value yields empty string instead of crash."""
+        """subtitle_style is optional — missing yields empty string."""
         block = "GLOBAL\nbg_music: lo-fi beats 80bpm\nvisual_style: dark cinematic"
         result = _parse_global(block)
         assert result.subtitle_style == ""
         assert result.bg_music == "lo-fi beats 80bpm"
 
     def test_null_subtitle_style_defaults_to_empty_string(self):
-        """subtitle_style: null in Claude output is treated as empty string."""
+        """subtitle_style: null is treated as empty string."""
         block = "GLOBAL\nsubtitle_style: null\nbg_music: lo-fi\nvisual_style: cinematic"
         result = _parse_global(block)
         assert result.subtitle_style == ""
+
+    def test_missing_bg_music_defaults_to_empty_string(self):
+        """bg_music is optional metadata — missing yields empty string."""
+        block = "GLOBAL\nsubtitle_style: foo\nvisual_style: cinematic"
+        result = _parse_global(block)
+        assert result.bg_music == ""
+
+    def test_missing_visual_style_defaults_to_empty_string(self):
+        """visual_style is optional metadata — missing yields empty string."""
+        block = "GLOBAL\nsubtitle_style: foo\nbg_music: lo-fi"
+        result = _parse_global(block)
+        assert result.visual_style == ""
+
+    def test_completely_empty_global_block_uses_all_defaults(self):
+        """Totally absent global fields all default to empty strings."""
+        result = _parse_global("GLOBAL")
+        assert result.subtitle_style == ""
+        assert result.bg_music == ""
+        assert result.visual_style == ""
+
+    def test_markdown_bold_field_name_parsed(self):
+        """Claude markdown bold (**field:**) formatting is stripped and parsed."""
+        block = "GLOBAL\n**subtitle_style:** Poppins Bold\n**bg_music:** lo-fi\n**visual_style:** dark"
+        result = _parse_global(block)
+        assert result.subtitle_style == "Poppins Bold"
+        assert result.bg_music == "lo-fi"
 
 
 class TestParseScene:
@@ -146,26 +166,69 @@ class TestParseScene:
         assert scene.duration_s == 2.0
 
     def test_missing_scene_header_raises(self):
+        """SCENE header is the only truly required line — without it we can't number the scene."""
         bad_block = SAMPLE_SCENE_BLOCK.replace("SCENE 1", "")
         with pytest.raises(StoryboardParseError, match="SCENE header"):
             _parse_scene(bad_block)
 
-    def test_missing_primary_prompt_raises(self):
-        bad_block = SAMPLE_SCENE_BLOCK.replace(
-            "  PRIMARY: STK `family home suburban street daytime`", ""
-        )
-        with pytest.raises(StoryboardParseError, match="PRIMARY"):
-            _parse_scene(bad_block)
+    def test_missing_clip_type_defaults_to_still_with_motion(self):
+        """Missing clip_type falls back to still_with_motion."""
+        bad_block = SAMPLE_SCENE_BLOCK.replace("clip_type: still_with_motion\n", "")
+        scene = _parse_scene(bad_block)
+        assert scene.clip_type == "still_with_motion"
 
-    def test_invalid_duration_raises(self):
-        bad_block = SAMPLE_SCENE_BLOCK.replace("duration_s: 2.0", "duration_s: not-a-number")
-        with pytest.raises(StoryboardParseError, match="duration_s"):
-            _parse_scene(bad_block)
-
-    def test_invalid_clip_type_raises(self):
+    def test_invalid_clip_type_defaults_to_still_with_motion(self):
+        """Unrecognised clip_type value falls back to still_with_motion."""
         bad_block = SAMPLE_SCENE_BLOCK.replace("clip_type: still_with_motion", "clip_type: warp_speed")
-        with pytest.raises(Exception):
-            _parse_scene(bad_block)
+        scene = _parse_scene(bad_block)
+        assert scene.clip_type == "still_with_motion"
+
+    def test_invalid_duration_defaults_to_2_seconds(self):
+        """Unparseable duration_s falls back to 2.0 instead of crashing."""
+        bad_block = SAMPLE_SCENE_BLOCK.replace("duration_s: 2.0", "duration_s: not-a-number")
+        scene = _parse_scene(bad_block)
+        assert scene.duration_s == 2.0
+
+    def test_missing_duration_defaults_to_2_seconds(self):
+        """Missing duration_s falls back to 2.0."""
+        bad_block = SAMPLE_SCENE_BLOCK.replace("duration_s: 2.0\n", "")
+        scene = _parse_scene(bad_block)
+        assert scene.duration_s == 2.0
+
+    def test_missing_voiceover_line_defaults_to_empty(self):
+        """Missing voiceover_line falls back to empty string."""
+        bad_block = SAMPLE_SCENE_BLOCK.replace('voiceover_line: "The American dream is slipping away."\n', "")
+        scene = _parse_scene(bad_block)
+        assert scene.voiceover_line == ""
+
+    def test_missing_sfx_defaults_to_silence(self):
+        """Missing sfx falls back to 'silence' — never null."""
+        bad_block = SAMPLE_SCENE_BLOCK.replace("sfx: soft ambient neighborhood sounds\n", "")
+        scene = _parse_scene(bad_block)
+        assert scene.sfx == "silence"
+
+    def test_missing_sfx_timing_defaults_to_scene_start(self):
+        """Missing sfx_timing falls back to 'scene_start'."""
+        bad_block = SAMPLE_SCENE_BLOCK.replace("sfx_timing: on cut", "")
+        scene = _parse_scene(bad_block)
+        assert scene.sfx_timing == "scene_start"
+
+    def test_missing_primary_prompt_defaults_to_empty(self):
+        """Missing PRIMARY visual prompt yields empty string instead of crash."""
+        bad_block = SAMPLE_SCENE_BLOCK.replace(
+            "  PRIMARY: STK `family home suburban street daytime`\n", ""
+        )
+        scene = _parse_scene(bad_block)
+        assert scene.visual_prompts.primary_stk == ""
+
+    def test_visual_prompt_without_backticks_parsed(self):
+        """Visual prompts without backtick delimiters are accepted."""
+        block = SAMPLE_SCENE_BLOCK.replace(
+            "  PRIMARY: STK `family home suburban street daytime`",
+            "  PRIMARY: STK family home suburban street daytime",
+        )
+        scene = _parse_scene(block)
+        assert scene.visual_prompts.primary_stk == "family home suburban street daytime"
 
 
 class TestParseSummary:
@@ -175,15 +238,28 @@ class TestParseSummary:
         assert summary.total_duration_s == 38.5
         assert summary.rhythm == "SM / HC"
 
-    def test_missing_total_scenes_raises(self):
+    def test_missing_total_scenes_falls_back_to_scene_count(self):
+        """Missing total_scenes is computed from the passed scenes list."""
+        from src.storyboard import _parse_scene
+        from tests.test_storyboard import SAMPLE_SCENE_BLOCK
+        scene = _parse_scene(SAMPLE_SCENE_BLOCK)
         bad = "SUMMARY\nTotal duration: 10s\nRhythm: SM"
-        with pytest.raises(StoryboardParseError, match="Total scenes"):
-            _parse_summary(bad)
+        summary = _parse_summary(bad, scenes=[scene, scene])
+        assert summary.total_scenes == 2
 
-    def test_missing_rhythm_raises(self):
+    def test_missing_total_duration_computed_from_scenes(self):
+        """Missing total_duration_s is summed from scene duration_s values."""
+        from src.storyboard import _parse_scene
+        scene = _parse_scene(SAMPLE_SCENE_BLOCK)  # duration_s == 2.0
+        bad = "SUMMARY\nTotal scenes: 1\nRhythm: SM"
+        summary = _parse_summary(bad, scenes=[scene])
+        assert summary.total_duration_s == pytest.approx(2.0)
+
+    def test_missing_rhythm_defaults_to_empty(self):
+        """Missing Rhythm defaults to empty string."""
         bad = "SUMMARY\nTotal scenes: 2\nTotal duration: 38.5s"
-        with pytest.raises(StoryboardParseError, match="Rhythm"):
-            _parse_summary(bad)
+        summary = _parse_summary(bad)
+        assert summary.rhythm == ""
 
 
 class TestParseStoryboardResponse:
