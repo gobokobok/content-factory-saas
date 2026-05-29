@@ -256,6 +256,24 @@ class TestParseScene:
         scene = _parse_scene(block)
         assert scene.visual_prompts.primary_stk == "family home suburban street daytime"
 
+    def test_visual_prompt_without_stk_keyword(self):
+        """Visual prompts formatted without 'STK' keyword are accepted."""
+        block = SAMPLE_SCENE_BLOCK.replace(
+            "  PRIMARY: STK `family home suburban street daytime`",
+            "  PRIMARY: `family home suburban street daytime`",
+        )
+        scene = _parse_scene(block)
+        assert scene.visual_prompts.primary_stk == "family home suburban street daytime"
+
+    def test_visual_prompt_yaml_style_field_name(self):
+        """YAML-style 'primary_stk: value' format is accepted."""
+        block = SAMPLE_SCENE_BLOCK.replace(
+            "  PRIMARY: STK `family home suburban street daytime`",
+            "primary_stk: family home suburban street daytime",
+        )
+        scene = _parse_scene(block)
+        assert scene.visual_prompts.primary_stk == "family home suburban street daytime"
+
 
 class TestParseSummary:
     def test_happy_path(self):

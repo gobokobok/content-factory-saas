@@ -382,24 +382,51 @@ def _parse_global(block: str) -> StoryboardGlobal:
     )
 
 
+def _extract_vp(pattern: str, block: str) -> str:
+    """Run a visual-prompt regex and return the stripped group(1), or ''."""
+    m = re.search(pattern, block, re.IGNORECASE | re.MULTILINE)
+    return m.group(1).strip() if m else ""
+
+
 def _parse_visual_prompts(block: str) -> VisualPrompts:
     """
     Parse the visual_prompts sub-section (PRIMARY / FALLBACK / AI_GENERATE).
 
-    Accepts values with or without backtick delimiters. Defaults to empty string
-    rather than raising so a single bad prompt doesn't abort the whole storyboard.
+    Tries multiple formats Claude uses:
+      1. PRIMARY: STK `value`          (canonical format with backticks)
+      2. PRIMARY: STK value            (canonical without backticks)
+      3. PRIMARY: `value`              (no STK keyword)
+      4. PRIMARY: value                (bare value)
+      5. primary_stk: value            (YAML-style field name)
+
+    Defaults to empty string rather than raising — empty prompts fail
+    gracefully at asset acquisition rather than crashing the whole pipeline.
     """
-    # Match `value` or bare value (Claude sometimes omits backticks)
     _VP = r"[`\"]?([^`\"\n]+?)[`\"]?\s*$"
 
-    primary_m = re.search(rf"PRIMARY[:\s]+STK[:\s]+{_VP}", block, re.IGNORECASE | re.MULTILINE)
-    fallback_m = re.search(rf"FALLBACK[:\s]+STK[:\s]+{_VP}", block, re.IGNORECASE | re.MULTILINE)
-    ai_gen_m = re.search(rf"AI_GENERATE[^:\n]*:[:\s]+{_VP}", block, re.IGNORECASE | re.MULTILINE)
+    primary = (
+        _extract_vp(rf"PRIMARY[:\s]+STK[:\s]+{_VP}", block) or
+        _extract_vp(rf"PRIMARY[:\s]+{_VP}", block) or
+        _get_field(block, "primary_stk", required=False) or
+        ""
+    )
+    fallback = (
+        _extract_vp(rf"FALLBACK[:\s]+STK[:\s]+{_VP}", block) or
+        _extract_vp(rf"FALLBACK[:\s]+{_VP}", block) or
+        _get_field(block, "fallback_stk", required=False) or
+        ""
+    )
+    ai_gen = (
+        _extract_vp(rf"AI_GENERATE[^:\n]*:[:\s]+{_VP}", block) or
+        _extract_vp(rf"AI[_\s]GEN(?:ERATE)?[^:\n]*:[:\s]+{_VP}", block) or
+        _get_field(block, "ai_generate", required=False) or
+        ""
+    )
 
     return VisualPrompts(
-        primary_stk=primary_m.group(1).strip() if primary_m else "",
-        fallback_stk=fallback_m.group(1).strip() if fallback_m else "",
-        ai_generate=ai_gen_m.group(1).strip() if ai_gen_m else "",
+        primary_stk=primary,
+        fallback_stk=fallback,
+        ai_generate=ai_gen,
     )
 
 

@@ -84,6 +84,9 @@ async def validate_storyboard(storyboard: Storyboard, api_key: str) -> Validatio
         # - duration_s / hard_cut / ceiling: Haiku invents duration limits not in schema
         # - subtitle_style / bg_music / visual_style: optional global metadata fields
         #   never used by the rendering pipeline — empty is acceptable
+        # - "is empty": parser already defaults all empty fields to safe values;
+        #   empty prompts/voiceover_lines fail gracefully at acquisition/caption time
+        #   rather than blocking the whole storyboard
         errors = [
             e for e in errors
             if "duration_s" not in e
@@ -92,6 +95,7 @@ async def validate_storyboard(storyboard: Storyboard, api_key: str) -> Validatio
             and "subtitle_style" not in e
             and "bg_music" not in e
             and "visual_style" not in e
+            and " is empty" not in e
         ]
         valid = len(errors) == 0
     except (json.JSONDecodeError, KeyError, TypeError) as exc:

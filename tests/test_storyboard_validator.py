@@ -367,6 +367,47 @@ class TestValidateStoryboard:
         assert result.errors == []
 
     @pytest.mark.asyncio
+    async def test_is_empty_errors_are_filtered(self):
+        """'field is empty' errors are filtered — parser already defaults these gracefully."""
+        storyboard = _make_storyboard()
+        mock_message = _make_message(
+            {"valid": False, "errors": [
+                "scene 1: voiceover_line is empty",
+                "scene 1: primary_stk is empty",
+                "scene 1: fallback_stk is empty",
+                "scene 1: ai_generate is empty",
+            ]}
+        )
+
+        with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+            result = await validate_storyboard(storyboard, "test-key")
+
+        assert result.valid is True
+        assert result.errors == []
+
+    @pytest.mark.asyncio
+    async def test_is_null_errors_are_kept(self):
+        """'field is null' errors are NOT filtered — null means the parser explicitly passed null."""
+        storyboard = _make_storyboard()
+        mock_message = _make_message(
+            {"valid": False, "errors": ["scene 2: sfx is null"]}
+        )
+
+        with patch("src.validators.storyboard_validator.anthropic.AsyncAnthropic") as mock_cls:
+            mock_client = AsyncMock()
+            mock_cls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+            result = await validate_storyboard(storyboard, "test-key")
+
+        assert result.valid is False
+        assert result.errors == ["scene 2: sfx is null"]
+
+    @pytest.mark.asyncio
     async def test_subtitle_style_errors_are_filtered(self):
         """subtitle_style is optional metadata — Haiku errors about it must be filtered."""
         storyboard = _make_storyboard()
