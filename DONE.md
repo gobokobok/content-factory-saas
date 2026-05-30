@@ -4,6 +4,16 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S8-S1] Collapsible sidebar
+**Completed:** 2026-05-30
+**Handover:**
+- `src/static/pipeline.html`: collapsible left panel (project list). Toggle icon (`sidebar-toggle`) is `position: absolute` inside `.panels`, top-left at `(10px, 11px)`, rendered on page background independent of panel state. Clicking adds/removes `sidebar-collapsed` class on `.panels`. Collapsed: `.panel-runs` animates to `width: 0; margin-right: 0` — panel fully disappears. Expanded: `width: 200px; margin-right: 24px`. Icon flips `scaleX(-1)` when collapsed to indicate "expand". Left panel background `#F0EDEC` (slightly darker than page `#FBF9F8`). `.panel-runs-header` left-padding `42px` to clear the absolute icon. `.panels` has no left padding — panel starts flush with screen edge. No backend changes.
+- `BACKLOG.md`: status updated to `done`.
+**Smoke test:** Visual — expanded shows project list flush with left edge; collapsed shows full-width content with only toggle icon at top-left; toggling back restores panel. 612 tests passing.
+**Promoted to backlog:** none
+
+---
+
 ## [S7-S3] E8-S4: Model router utility — centralize all Claude API model selection
 **Completed:** 2026-05-30
 **Handover:**

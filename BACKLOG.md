@@ -2374,7 +2374,7 @@ Scene-level asset refresh, partial re-render, and "video outdated" state when a 
 ## [S8-S1] Collapsible sidebar
 **Epic:** E9 — Workspace Layout
 **Sprint:** 8
-**Status:** backlog
+**Status:** done
 **Priority:** medium
 **Points:** 2
 **Depends on:** —
