@@ -177,6 +177,7 @@
     .panel-content {
       flex: 1;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 6px 40px 32px;
     }
 
@@ -352,7 +353,7 @@
       display: flex;
       flex-wrap: wrap;
       gap: 6px 20px;
-      margin-bottom: 12px;
+      margin-bottom: 24px;
       font-size: 12px;
       color: #9A9A9A;
     }
@@ -386,9 +387,11 @@
     /* Storyboard table: full text, no truncation, smaller font */
     .data-table.sb-table { white-space: normal; font-size: 11px; }
     .data-table.sb-table td { word-wrap: break-word; }
+    .data-table.sb-table td.mono { font-size: 11px; }
     .data-table.sb-table td.text-sm { max-width: 160px; }
     .data-table.sb-table td.text-md { max-width: 220px; }
-    .data-table.sb-table td.text-lg { max-width: 340px; }
+    .data-table.sb-table td.text-lg { max-width: 680px; }
+    .data-table.sb-table td.vo { background: #F0EDEC; }
     /* Storyboard section pane: full width for wide table */
     .section-pane.wide { max-width: none; }
 
@@ -1043,7 +1046,7 @@
         const vp = s.visual_prompts || {};
         return `<tr>
           <td class="mono">${esc(s.scene)}</td>
-          <td class="text-md">${esc(s.voiceover_line)}</td>
+          <td class="text-md vo">${esc(s.voiceover_line)}</td>
           <td class="mono">${esc(s.duration_s)}s</td>
           <td>${esc(humanize(s.clip_type))}</td>
           <td class="text-md">${esc(vp.primary_stk || '—')}</td>
