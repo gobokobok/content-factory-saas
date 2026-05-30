@@ -107,7 +107,8 @@
 # Sprint 5 — Navigation, Performance, Auth & UI Redesign
 
 **Goal:** URL-based navigation, performance fixes, single-operator login, and a redesigned three-panel UI that hides pipeline complexity from the operator.
-**Status:** in progress
+**Status:** done
+**Velocity:** 4/4 planned (S5-S3 deferred indefinitely; S5-S5 added as replacement) = 16 pts delivered
 **Points:** 16 (S5-S3 deferred; replaced by S5-S5)
 
 ---
@@ -161,7 +162,8 @@
 # Sprint 7 — Smoke Test + Cost Optimization Foundation
 
 **Goal:** Validate the full pipeline end-to-end on Railway DEV (clearing 10 deferred smoke tests), then establish the cost optimization layer with Haiku model routing.
-**Status:** planned
+**Status:** done
+**Velocity:** 2/3 planned stories completed; S7-S2 superseded (manifest generation is deterministic — no Claude call). 6/8 pts delivered.
 **Points:** 8
 
 ---
@@ -171,11 +173,8 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | S7-S1 | Full pipeline smoke test — validate all deferred smoke tests on Railway DEV | 3 | done |
-| S7-S2 | E8-S2: Haiku model for manifest generation | 2 | superseded |
+| S7-S2 | E8-S2: Haiku model for manifest generation | 2 | superseded — manifest is deterministic (no Claude call) |
 | S7-S3 | E8-S4: Model router utility — centralize all Claude API model selection | 3 | done |
-
-**Execution order:** S7-S1 → S7-S2 → S7-S3
-S7-S3 depends on S7-S2 (model router wraps all Claude calls including the new Haiku manifest call).
 
 ---
 
@@ -183,8 +182,8 @@ S7-S3 depends on S7-S2 (model router wraps all Claude calls including the new Ha
 - [x] S7-S1: Operator completes full pipeline from login → download on Railway DEV. All 10 deferred smoke tests signed off. Zero blocking bugs.
 - [x] S7-S2: Superseded — manifest generation is a pure deterministic function (no Claude call); adding Haiku would add cost/complexity for zero benefit.
 - [x] S7-S3: `ModelRouter` class centralizes all Claude model strings. Cost per call logged (model, tokens, USD estimate). All existing Claude API calls refactored through router. Tests pass.
-- [ ] All existing tests pass.
-- [ ] **Human touchpoint:** S7-S1 IS the human touchpoint — operator runs the full pipeline and signs off.
+- [x] All existing tests pass. (612 total)
+- [x] **Human touchpoint:** S7-S1 IS the human touchpoint — operator ran full pipeline on Railway DEV and signed off.
 
 ---
 
