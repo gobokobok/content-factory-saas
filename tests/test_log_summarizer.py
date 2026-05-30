@@ -181,10 +181,15 @@ class TestSummarizeStep:
         settings = MagicMock(spec=Settings)
         settings.ANTHROPIC_API_KEY = FAKE_API_KEY
 
-        with patch("src.pipeline.write_run_log_summary") as mock_write:
+        with patch("src.pipeline.ModelRouter"), \
+             patch("src.pipeline.write_run_log_summary") as mock_write:
             summarize_step(FAKE_RUN_ID, storage, settings)
 
-        mock_write.assert_called_once_with(FAKE_RUN_ID, storage, FAKE_API_KEY)
+        mock_write.assert_called_once()
+        args, kwargs = mock_write.call_args
+        assert args[0] == FAKE_RUN_ID
+        assert args[1] is storage
+        assert args[2] == FAKE_API_KEY
 
     def test_uses_anthropic_api_key_from_settings(self):
         """summarize_step passes settings.ANTHROPIC_API_KEY to write_run_log_summary."""
@@ -194,11 +199,12 @@ class TestSummarizeStep:
         settings = MagicMock(spec=Settings)
         settings.ANTHROPIC_API_KEY = "sk-ant-specific-key"
 
-        with patch("src.pipeline.write_run_log_summary") as mock_write:
+        with patch("src.pipeline.ModelRouter"), \
+             patch("src.pipeline.write_run_log_summary") as mock_write:
             summarize_step(FAKE_RUN_ID, storage, settings)
 
-        _, _, passed_key = mock_write.call_args[0]
-        assert passed_key == "sk-ant-specific-key"
+        args, kwargs = mock_write.call_args
+        assert args[2] == "sk-ant-specific-key"
 
 
 # ── GET /runs/{run_id}/run-log-txt ────────────────────────────────────────────

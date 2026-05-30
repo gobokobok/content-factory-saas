@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S7-S3] E8-S4: Model router utility — centralize all Claude API model selection
+**Completed:** 2026-05-30
+**Handover:**
+- `src/utils/model_router.py`: new `ModelRouter(settings)` class. Task type constants: `GENERATE`, `VALIDATE`, `SUMMARIZE`, `TRANSFORM`, `REASON`. `model_for(task) → str` returns the ENV-configured model; `log_cost(task, model, input_tokens, output_tokens) → float` emits a structured INFO log and returns the USD estimate. `PRICING` dict covers `claude-sonnet-4-6` and `claude-haiku-4-5-20251001`; unknown models log a warning and return 0.0.
+- `src/config.py`: 4 new optional ENV vars: `MODEL_VALIDATE` (default haiku), `MODEL_SUMMARIZE` (default haiku), `MODEL_TRANSFORM` (default haiku), `MODEL_REASON` (default sonnet). Existing `CLAUDE_MODEL` maps to `GENERATE` task.
+- `src/storyboard.py`: constructs `ModelRouter(settings)`, uses `router.model_for(GENERATE)` for model selection, captures `usage` from API response, calls `router.log_cost(GENERATE, ...)`. `_call_claude_api` now returns `(text, input_tokens, output_tokens)`.
+- `src/validators/storyboard_validator.py`: `VALIDATOR_MODEL` and pricing constants derived from `ModelRouter.DEFAULT_MODELS` / `PRICING` (backward-compat exports preserved for tests). Accepts `router: Optional[ModelRouter] = None`; delegates model + cost when provided.
+- `src/log_summarizer.py`: `HAIKU_MODEL` derived from `ModelRouter.DEFAULT_MODELS`. Accepts `router: Optional[ModelRouter] = None`; uses `router.model_for(SUMMARIZE)` and `router.log_cost()` when provided.
+- `src/pipeline.py`: constructs `ModelRouter(settings)` in `summarize_step` and passes it to `write_run_log_summary`.
+- `ENV.md`: 4 new vars documented.
+- `tests/test_model_router.py`: 27 new tests. 612 total passing. No new pip dependencies.
+**Smoke test:** DEFERRED — requires Railway DEV deploy with a completed pipeline run; verify Railway logs contain `"Claude call: task=generate model=claude-sonnet-4-6 input_tokens=… output_tokens=… cost_usd=$…"` lines for storyboard generation, validation, and summarizer steps.
+**Promoted to backlog:** none
+
+---
+
 ## [S7-S1] Full pipeline smoke test — validate all deferred smoke tests on Railway DEV
 **Completed:** 2026-05-30
 **Handover:**

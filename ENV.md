@@ -42,7 +42,11 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `ANTHROPIC_API_KEY` | Yes | Anthropic API key for Claude storyboard generation. |
-| `CLAUDE_MODEL` | No | Claude model ID for storyboard generation. Default: `claude-sonnet-4-6`. |
+| `CLAUDE_MODEL` | No | Claude model ID for storyboard generation (GENERATE task). Default: `claude-sonnet-4-6`. |
+| `MODEL_VALIDATE` | No | Claude model for storyboard schema validation (VALIDATE task). Default: `claude-haiku-4-5-20251001`. |
+| `MODEL_SUMMARIZE` | No | Claude model for run log summarization (SUMMARIZE task). Default: `claude-haiku-4-5-20251001`. |
+| `MODEL_TRANSFORM` | No | Claude model for structured data transformation (TRANSFORM task — reserved). Default: `claude-haiku-4-5-20251001`. |
+| `MODEL_REASON` | No | Claude model for complex reasoning tasks (REASON task — reserved). Default: `claude-sonnet-4-6`. |
 
 ---
 

@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str
     CLAUDE_MODEL: str = "claude-sonnet-4-6"
 
+    # Claude model overrides per task type (E8-S4 — ModelRouter)
+    MODEL_VALIDATE: str = "claude-haiku-4-5-20251001"
+    MODEL_SUMMARIZE: str = "claude-haiku-4-5-20251001"
+    MODEL_TRANSFORM: str = "claude-haiku-4-5-20251001"
+    MODEL_REASON: str = "claude-sonnet-4-6"
+
     # Asset APIs
     PEXELS_API_KEY: str
     REPLICATE_API_TOKEN: str

@@ -17,6 +17,7 @@ from src.models import (
     VisualPrompts,
     WordTimestamp,
 )
+from src.utils.model_router import GENERATE, ModelRouter
 from src.validators.storyboard_validator import validate_storyboard
 
 logger = logging.getLogger(__name__)
@@ -237,14 +238,18 @@ async def generate_storyboard(
 
     When word_timestamps are provided (from Deepgram alignment), they are injected into
     the user message so Claude can derive scene durations from actual speech timing.
+    Model selection and cost logging go through ModelRouter so ENV overrides apply.
     Returns (storyboard, validation_result). Raises StoryboardValidationError if
     Haiku finds schema violations in the generated storyboard.
     """
-    raw_text = await _call_claude_api(
-        script, settings.ANTHROPIC_API_KEY, settings.CLAUDE_MODEL, word_timestamps
+    router = ModelRouter(settings)
+    model = router.model_for(GENERATE)
+    raw_text, input_tokens, output_tokens = await _call_claude_api(
+        script, settings.ANTHROPIC_API_KEY, model, word_timestamps
     )
+    router.log_cost(GENERATE, model, input_tokens, output_tokens)
     storyboard = _parse_storyboard_response(raw_text)
-    validation = await validate_storyboard(storyboard, settings.ANTHROPIC_API_KEY)
+    validation = await validate_storyboard(storyboard, settings.ANTHROPIC_API_KEY, router=router)
     if not validation.valid:
         error_summary = "; ".join(validation.errors)
         raise StoryboardValidationError(f"Storyboard validation failed: {error_summary}")
@@ -256,8 +261,11 @@ async def _call_claude_api(
     api_key: str,
     model: str,
     word_timestamps: Optional[list[WordTimestamp]] = None,
-) -> str:
-    """Call Claude API with the v0.8 system prompt. Returns the raw text response."""
+) -> tuple[str, int, int]:
+    """Call Claude API with the v0.8 system prompt.
+
+    Returns (raw_text, input_tokens, output_tokens).
+    """
     if word_timestamps:
         ts_block = _format_timestamps(word_timestamps)
         user_content = (
@@ -282,7 +290,7 @@ async def _call_claude_api(
             ],
             messages=[{"role": "user", "content": user_content}],
         )
-        return message.content[0].text
+        return message.content[0].text, message.usage.input_tokens, message.usage.output_tokens
     except anthropic.APIError as exc:
         raise StoryboardAPIError(f"Claude API error: {exc}") from exc
 

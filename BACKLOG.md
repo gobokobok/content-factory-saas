@@ -1477,7 +1477,7 @@ Submit a valid storyboard — confirm pipeline proceeds. Submit a storyboard wit
 ## [E8-S2] Haiku asset manifest generator
 **Epic:** E8 — Cost Optimization
 **Sprint:** unassigned
-**Status:** backlog
+**Status:** superseded
 **Priority:** high
 **Depends on:** E2-S1, E8-S1
 
@@ -1512,7 +1512,7 @@ Run with a known good `storyboard.json` — verify `asset_manifest.json` has cor
 - `tests/test_asset_manifest.py` — add Haiku-specific assertions
 
 ### Handover
-_filled on completion_
+**Superseded 2026-05-30:** E2-S1 implemented manifest generation as a pure deterministic Python transformation with no Claude API call. `src/manifest.py:build_manifest()` maps storyboard fields directly to ManifestEntry objects — adding a Haiku call would add cost/latency/failure modes for zero benefit. Story retired. S7-S3 model router still covers all real Claude call sites (storyboard, validator, log-summarizer).
 
 ---
 
@@ -1573,8 +1573,9 @@ Complete E1-S3 on DEV — verify `run_log.txt` appears in Drive with readable st
 
 ## [E8-S4] Model router utility
 **Epic:** E8 — Cost Optimization
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 7
+**Status:** done
+**Completed:** 2026-05-30
 **Priority:** medium
 **Depends on:** E8-S1, E8-S2, E8-S3
 
@@ -1617,7 +1618,17 @@ Run full pipeline on DEV — verify `run_log.txt` shows correct model used per s
 - `ENV.md` — document new vars
 
 ### Handover
-_filled on completion_
+- `src/utils/model_router.py`: `ModelRouter(settings)` class. Task constants: `GENERATE`, `VALIDATE`, `SUMMARIZE`, `TRANSFORM`, `REASON`. Key methods: `model_for(task) → str`, `log_cost(task, model, input_tokens, output_tokens) → float`.
+- `src/utils/__init__.py`: empty package init.
+- `PRICING` dict in `model_router.py`: `claude-sonnet-4-6` ($3.00/$15.00 per M), `claude-haiku-4-5-20251001` ($0.80/$4.00 per M). Extend when new models are added.
+- `src/config.py`: 4 new optional ENV vars added: `MODEL_VALIDATE`, `MODEL_SUMMARIZE`, `MODEL_TRANSFORM`, `MODEL_REASON` (all with Haiku/Sonnet defaults).
+- `src/storyboard.py`: constructs `ModelRouter(settings)`, uses `router.model_for(GENERATE)`, captures `usage` from API response, calls `router.log_cost(GENERATE, ...)`, passes router to `validate_storyboard`.
+- `src/validators/storyboard_validator.py`: `VALIDATOR_MODEL` and pricing constants now derived from `ModelRouter` defaults. Accepts `router: Optional[ModelRouter] = None`; delegates model selection and cost logging when router provided.
+- `src/log_summarizer.py`: `HAIKU_MODEL` derived from `ModelRouter` defaults. Accepts `router: Optional[ModelRouter] = None`; delegates to router when provided.
+- `src/pipeline.py`: constructs `ModelRouter(settings)` and passes it to `write_run_log_summary`.
+- `ENV.md`: `MODEL_VALIDATE`, `MODEL_SUMMARIZE`, `MODEL_TRANSFORM`, `MODEL_REASON` documented.
+- 612 tests passing (27 new in `tests/test_model_router.py`). No new pip dependencies.
+**Promoted to backlog:** none
 
 ---
 

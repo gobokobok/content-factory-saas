@@ -3,19 +3,22 @@
 import json
 import logging
 import re
+from typing import TYPE_CHECKING, Optional
 
 import anthropic
 
 from src.exceptions import StoryboardValidationError
 from src.models import Storyboard, ValidationResult
+from src.utils.model_router import DEFAULT_MODELS, PRICING, VALIDATE
+
+if TYPE_CHECKING:
+    from src.utils.model_router import ModelRouter
 
 logger = logging.getLogger(__name__)
 
-VALIDATOR_MODEL = "claude-haiku-4-5-20251001"
-
-# Haiku 4.5 pricing per token (USD) — used for per-run cost logging
-_INPUT_COST_PER_TOKEN = 0.80 / 1_000_000
-_OUTPUT_COST_PER_TOKEN = 4.00 / 1_000_000
+# Derived from ModelRouter defaults — kept as module-level constants for backward compat
+VALIDATOR_MODEL = DEFAULT_MODELS[VALIDATE]
+_INPUT_COST_PER_TOKEN, _OUTPUT_COST_PER_TOKEN = PRICING[VALIDATOR_MODEL]
 
 VALIDATION_SYSTEM_PROMPT = """\
 You are a schema validator for storyboard.json files produced by a YouTube Shorts production pipeline.
@@ -42,13 +45,20 @@ or
 """
 
 
-async def validate_storyboard(storyboard: Storyboard, api_key: str) -> ValidationResult:
+async def validate_storyboard(
+    storyboard: Storyboard,
+    api_key: str,
+    router: Optional["ModelRouter"] = None,
+) -> ValidationResult:
     """
     Call Haiku to validate a parsed storyboard against v0.6 schema rules.
 
+    When a ModelRouter is provided, model selection and cost logging are delegated
+    to it so ENV overrides apply. Falls back to VALIDATOR_MODEL when router is None.
     Returns ValidationResult with valid flag, error list, and token cost data.
     Raises StoryboardValidationError on API failure or unparseable Haiku response.
     """
+    model = router.model_for(VALIDATE) if router else VALIDATOR_MODEL
     client = anthropic.AsyncAnthropic(api_key=api_key)
     storyboard_json = json.dumps(
         storyboard.model_dump(by_alias=True, mode="json"), indent=2
@@ -56,7 +66,7 @@ async def validate_storyboard(storyboard: Storyboard, api_key: str) -> Validatio
 
     try:
         message = await client.messages.create(
-            model=VALIDATOR_MODEL,
+            model=model,
             max_tokens=1024,
             system=VALIDATION_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": storyboard_json}],
@@ -71,10 +81,19 @@ async def validate_storyboard(storyboard: Storyboard, api_key: str) -> Validatio
         raw = raw.strip()
     input_tokens = message.usage.input_tokens
     output_tokens = message.usage.output_tokens
-    cost_usd = round(
-        input_tokens * _INPUT_COST_PER_TOKEN + output_tokens * _OUTPUT_COST_PER_TOKEN,
-        8,
-    )
+
+    if router:
+        cost_usd = router.log_cost(VALIDATE, model, input_tokens, output_tokens)
+    else:
+        cost_usd = round(
+            input_tokens * _INPUT_COST_PER_TOKEN + output_tokens * _OUTPUT_COST_PER_TOKEN,
+            8,
+        )
+        logger.info(
+            "Storyboard validation: valid=pending errors=pending tokens=%d cost=$%.8f",
+            input_tokens + output_tokens,
+            cost_usd,
+        )
 
     try:
         result = json.loads(raw)
@@ -104,13 +123,14 @@ async def validate_storyboard(storyboard: Storyboard, api_key: str) -> Validatio
             f"Haiku returned invalid validation JSON: {raw[:200]}"
         ) from exc
 
-    logger.info(
-        "Storyboard validation: valid=%s errors=%d tokens=%d cost=$%.8f",
-        valid,
-        len(errors),
-        input_tokens + output_tokens,
-        cost_usd,
-    )
+    if not router:
+        logger.info(
+            "Storyboard validation: valid=%s errors=%d tokens=%d cost=$%.8f",
+            valid,
+            len(errors),
+            input_tokens + output_tokens,
+            cost_usd,
+        )
 
     return ValidationResult(
         valid=valid,

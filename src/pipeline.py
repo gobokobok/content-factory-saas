@@ -9,6 +9,7 @@ import logging
 from src.config import Settings
 from src.log_summarizer import write_run_log_summary
 from src.storage import R2Client
+from src.utils.model_router import ModelRouter
 
 logger = logging.getLogger(__name__)
 
@@ -19,4 +20,5 @@ def summarize_step(run_id: str, storage: R2Client, settings: Settings) -> None:
     Always non-fatal — errors are caught inside write_run_log_summary and logged
     as warnings. No pipeline step is ever blocked by a summarizer failure.
     """
-    write_run_log_summary(run_id, storage, settings.ANTHROPIC_API_KEY)
+    router = ModelRouter(settings)
+    write_run_log_summary(run_id, storage, settings.ANTHROPIC_API_KEY, router=router)

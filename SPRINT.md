@@ -171,8 +171,8 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | S7-S1 | Full pipeline smoke test — validate all deferred smoke tests on Railway DEV | 3 | done |
-| S7-S2 | E8-S2: Haiku model for manifest generation | 2 | backlog |
-| S7-S3 | E8-S4: Model router utility — centralize all Claude API model selection | 3 | backlog |
+| S7-S2 | E8-S2: Haiku model for manifest generation | 2 | superseded |
+| S7-S3 | E8-S4: Model router utility — centralize all Claude API model selection | 3 | done |
 
 **Execution order:** S7-S1 → S7-S2 → S7-S3
 S7-S3 depends on S7-S2 (model router wraps all Claude calls including the new Haiku manifest call).
@@ -181,8 +181,8 @@ S7-S3 depends on S7-S2 (model router wraps all Claude calls including the new Ha
 
 ## Sprint 7 Definition of Done
 - [x] S7-S1: Operator completes full pipeline from login → download on Railway DEV. All 10 deferred smoke tests signed off. Zero blocking bugs.
-- [ ] S7-S2: Manifest generation uses Haiku by default. Falls back to Sonnet on malformed JSON. Tests pass.
-- [ ] S7-S3: `ModelRouter` class centralizes all Claude model strings. Cost per call logged (model, tokens, USD estimate). All existing Claude API calls refactored through router. Tests pass.
+- [x] S7-S2: Superseded — manifest generation is a pure deterministic function (no Claude call); adding Haiku would add cost/complexity for zero benefit.
+- [x] S7-S3: `ModelRouter` class centralizes all Claude model strings. Cost per call logged (model, tokens, USD estimate). All existing Claude API calls refactored through router. Tests pass.
 - [ ] All existing tests pass.
 - [ ] **Human touchpoint:** S7-S1 IS the human touchpoint — operator runs the full pipeline and signs off.
 
