@@ -383,6 +383,10 @@
       text-overflow: ellipsis;
     }
     .data-table td.muted { color: #9A9A9A; }
+    /* Storyboard table: full text, no truncation */
+    .data-table.sb-table { white-space: normal; }
+    .data-table.sb-table td { word-wrap: break-word; }
+    .data-table.sb-table td.text { max-width: 260px; }
 
     /* ── Video player ─────────────────────────────────────────────────── */
     .video-bounded { position: relative; max-height: 360px; overflow: hidden; border-radius: 4px; border: 1px solid #E8E5E4; cursor: pointer; background: #000; }
@@ -784,7 +788,7 @@
         }
         el.innerHTML = data.runs.map(run => {
           const st      = overallRunStatus(run.steps);
-          const dotCls  = st === 'complete' ? 'dot-complete' : st === 'failed' ? 'dot-failed' : st === 'pending' ? 'dot-pending' : 'dot-running';
+          const dotCls  = st === 'complete' ? 'dot-complete' : st === 'failed' ? 'dot-failed' : st === 'in-progress' ? 'dot-draft' : 'dot-pending';
           const isActive = run.run_id === currentRunId;
           const handler  = isActive ? 'deselectRun()' : `openRun('${esc(run.run_id)}')`;
           const displayName = run.project_name || run.run_id;
@@ -1034,18 +1038,18 @@
           <td class="mono">${esc(s.scene)}</td>
           <td>${esc(s.clip_type)}</td>
           <td class="mono">${esc(s.duration_s)}s</td>
-          <td class="trunc" title="${esc(s.voiceover_line)}">${esc(s.voiceover_line)}</td>
+          <td class="text">${esc(s.voiceover_line)}</td>
           <td class="${s.on_screen_text ? '' : 'muted'}">${esc(s.on_screen_text || '—')}</td>
-          <td class="trunc" title="${esc(vp.primary_stk || '')}">${esc(vp.primary_stk || '—')}</td>
-          <td class="trunc" title="${esc(vp.fallback_stk || '')}">${esc(vp.fallback_stk || '—')}</td>
-          <td class="trunc" title="${esc(vp.ai_generate || '')}">${esc(vp.ai_generate || '—')}</td>
+          <td class="text">${esc(vp.primary_stk || '—')}</td>
+          <td class="text">${esc(vp.fallback_stk || '—')}</td>
+          <td class="text">${esc(vp.ai_generate || '—')}</td>
           <td class="${s.motion_effect ? '' : 'muted'}">${esc(s.motion_effect || '—')}</td>
           <td>${esc(s.sfx || '—')}</td>
           <td class="mono">${esc(s.sfx_timing || '—')}</td>
         </tr>`;
       }).join('');
 
-      return `${metaHtml}<div class="table-wrap"><table class="data-table">
+      return `${metaHtml}<div class="table-wrap"><table class="data-table sb-table">
         <thead><tr>
           <th>Scene</th><th>Type</th><th>Duration</th><th>Voiceover</th>
           <th>On-Screen Text</th><th>Primary Query</th><th>Fallback Query</th>
