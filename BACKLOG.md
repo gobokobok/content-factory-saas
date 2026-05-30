@@ -2458,7 +2458,8 @@ Remove all step-level "completed" confirmation bars that appear inside pipeline 
 ## [S8-S3] Storyboard table UX — text wrapping and dynamic row height
 **Epic:** E9 — Workspace Layout
 **Sprint:** 8
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-30
 **Priority:** high
 **Points:** 2
 **Depends on:** —
@@ -2467,19 +2468,19 @@ Remove all step-level "completed" confirmation bars that appear inside pipeline 
 Fix the storyboard scene table so all text cells wrap their content rather than truncating with ellipsis. Row height must expand dynamically to fit the longest cell in each row.
 
 ### Acceptance Criteria
-- [ ] All text-containing table cells use `white-space: normal` and `word-wrap: break-word` — no `overflow: hidden`, no `text-overflow: ellipsis`
-- [ ] Row height is not fixed — `height: auto` / no `max-height` clipping on rows
-- [ ] Full content of long fields (AI Prompt, Voiceover, Primary Query) always readable without tooltip or hover
-- [ ] Horizontal scroll remains allowed — table may be wider than viewport
-- [ ] `.trunc` + `title` tooltip pattern removed from storyboard cells (was acceptable in Sprint 6; now explicit cells must show full text)
-- [ ] No backend changes
+- [x] All text-containing table cells use `white-space: normal` and `word-wrap: break-word` — no `overflow: hidden`, no `text-overflow: ellipsis`
+- [x] Row height is not fixed — `height: auto` / no `max-height` clipping on rows
+- [x] Full content of long fields (AI Prompt, Voiceover, Primary Query) always readable without tooltip or hover
+- [x] Horizontal scroll remains allowed — table may be wider than viewport
+- [x] `.trunc` + `title` tooltip pattern removed from storyboard cells (was acceptable in Sprint 6; now explicit cells must show full text)
+- [x] No backend changes
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Visual smoke test on a 10-scene run — all cells fully readable; no truncated text visible
-- [ ] No existing test regressions
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Visual smoke test on a 10-scene run — all cells fully readable; no truncated text visible
+- [x] No existing test regressions
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Smoke test
 Open a run with a completed storyboard. Scroll through the table. Confirm AI Prompt and Voiceover columns show their full text — no `...` anywhere.
@@ -2488,7 +2489,12 @@ Open a run with a completed storyboard. Scroll through the table. Confirm AI Pro
 - `src/static/pipeline.html` — CSS only
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- Three new CSS rules scoped to `.data-table.sb-table`: `white-space: normal` (overrides table-wide `nowrap`), `td { word-wrap: break-word }`, `td.text { max-width: 260px }`.
+- `class="data-table sb-table"` applied to the storyboard `<table>` element in `renderStoryboardHtml`.
+- Storyboard cells for Voiceover, Primary Query, Fallback Query, AI Prompt: `class="trunc" title="..."` → `class="text"`. No tooltip, no ellipsis, full content always visible.
+- Manifest table `.trunc` usage unchanged.
+- 612 tests passing.
 
 ---
 

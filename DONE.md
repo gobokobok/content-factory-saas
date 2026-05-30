@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S8-S3] Storyboard table UX — text wrapping and dynamic row height
+**Completed:** 2026-05-30
+**Handover:**
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- Added `.data-table.sb-table { white-space: normal; }`, `.data-table.sb-table td { word-wrap: break-word; }`, and `.data-table.sb-table td.text { max-width: 260px; }` CSS rules — scoped to the storyboard table only, leaving the manifest table's `nowrap` behaviour unchanged.
+- `class="data-table sb-table"` added to the storyboard `<table>` element in `renderStoryboardHtml`.
+- Removed `class="trunc" title="..."` from the four text-heavy storyboard cells (Voiceover, Primary Query, Fallback Query, AI Prompt) — replaced with `class="text"`. Manifest table `.trunc` usage untouched.
+- 612 tests passing.
+**Smoke test:** PASSED — CSS verified in preview: `white-space: normal`, `text-overflow: clip`, `overflow: visible`, `max-width: 260px` confirmed on `.text` cells; table `white-space: normal` confirmed.
+**Promoted to backlog:** none
+
+---
+
 ## [S8-S2] Pipeline status simplification
 **Completed:** 2026-05-30
 **Handover:**
