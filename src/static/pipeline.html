@@ -119,23 +119,79 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 4px 8px 4px 6px;
+      padding: 4px 6px 4px 6px;
       border-radius: 4px;
       cursor: pointer;
       color: #2D2D2D;
       border-left: 2px solid transparent;
+      position: relative;
     }
     .run-item:not(.active):hover { background: #E5E2E1; }
-    .run-item.active { font-weight: 600; }
+    .run-item.active { background: #E5E2E1; }
     .run-item-id {
       font-family: inherit;
       font-size: 12px;
       flex: 1;
       overflow: hidden;
-      text-overflow: ellipsis;
       white-space: nowrap;
       color: #2D2D2D;
+      -webkit-mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%);
+      mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%);
     }
+    .run-item:hover .run-item-id, .run-item.active .run-item-id {
+      -webkit-mask-image: linear-gradient(to right, black calc(100% - 36px), transparent calc(100% - 4px));
+      mask-image: linear-gradient(to right, black calc(100% - 36px), transparent calc(100% - 4px));
+    }
+    .run-menu-btn {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      border-radius: 3px;
+      color: #9A9A9A;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+      font-family: inherit;
+    }
+    .run-item:hover .run-menu-btn, .run-item.active .run-menu-btn { display: flex; }
+    .run-menu-btn:hover { background: #D0CCC9; color: #2D2D2D; }
+
+    /* ── Run context menu popover ─────────────────────────────────────── */
+    .run-ctx-menu {
+      display: none;
+      position: fixed;
+      background: #fff;
+      border: 1px solid #E0DCDB;
+      border-radius: 5px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+      z-index: 2000;
+      min-width: 140px;
+      padding: 4px 0;
+    }
+    .run-ctx-menu.open { display: block; }
+    .run-ctx-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      font-size: 13px;
+      cursor: pointer;
+      color: #2D2D2D;
+      font-family: inherit;
+      background: transparent;
+      border: none;
+      width: 100%;
+      text-align: left;
+    }
+    .run-ctx-item:hover { background: #F5F2F1; }
+    .run-ctx-item.danger { color: #dc2626; }
+    .run-ctx-item.danger:hover { background: #fff5f5; }
 
 
     /* ── Middle panel: section nav ────────────────────────────────────── */
@@ -199,7 +255,7 @@
       border-left: 2px solid transparent;
     }
     .nav-item:not(.active):hover { background: #EFECEB; }
-    .nav-item.active { font-weight: 600; color: #2D2D2D; }
+    .nav-item.active { background: #EFECEB; color: #2D2D2D; }
 
     .nav-connector {
       padding: 1px 0 1px 9px;
@@ -580,8 +636,6 @@
       <span class="bc-name" id="bc-name"></span>
       <span class="bc-sep">/</span>
       <span class="bc-step" id="bc-step"></span>
-      <span class="bc-spacer"></span>
-      <button class="bc-delete" id="bc-delete-btn" onclick="openDeleteModal()">Delete Project</button>
     </div>
 
     <!-- ── Input section ──────────────────────────────────────────────── -->
@@ -674,6 +728,11 @@
       <button class="video-modal-close" onclick="closeVideoModal()">×</button>
       <video id="video-modal-player" controls></video>
     </div>
+  </div>
+
+  <!-- ── Run context menu popover ──────────────────────────────────── -->
+  <div class="run-ctx-menu" id="run-ctx-menu">
+    <button class="run-ctx-item danger" onclick="closeRunMenu(); openDeleteModal()">Delete Project</button>
   </div>
 
   <!-- ── Delete confirmation modal ─────────────────────────────────── -->
@@ -964,7 +1023,8 @@
           const displayName = run.project_name || run.run_id;
           return `<div class="run-item${isActive ? ' active' : ''}" onclick="${handler}">
             <span class="dot ${dotCls}"></span>
-            <span class="run-item-id" title="${esc(run.run_id)}">${esc(displayName)}</span>
+            <span class="run-item-id">${esc(displayName)}</span>
+            <button class="run-menu-btn" title="More options" onclick="event.stopPropagation(); openRunMenu(event, '${esc(run.run_id)}')">···</button>
           </div>`;
         }).join('');
       } catch (_) {
@@ -1185,17 +1245,47 @@
       }
     }
 
+    // ─── Run context menu ─────────────────────────────────────────────────────
+    let pendingDeleteRunId = null;
+
+    function openRunMenu(event, runId) {
+      pendingDeleteRunId = runId;
+      const menu = document.getElementById('run-ctx-menu');
+      menu.classList.add('open');
+      const rect = event.currentTarget.getBoundingClientRect();
+      const menuW = 148;
+      let left = rect.right - menuW;
+      let top  = rect.bottom + 4;
+      if (left < 4) left = 4;
+      if (top + 80 > window.innerHeight) top = rect.top - 80;
+      menu.style.left = left + 'px';
+      menu.style.top  = top  + 'px';
+    }
+
+    function closeRunMenu() {
+      document.getElementById('run-ctx-menu').classList.remove('open');
+    }
+
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('run-ctx-menu');
+      if (menu && menu.classList.contains('open') && !menu.contains(e.target)) {
+        closeRunMenu();
+      }
+    });
+
     // ─── Delete project ───────────────────────────────────────────────────────
     function openDeleteModal() {
+      if (!pendingDeleteRunId) pendingDeleteRunId = currentRunId;
       document.getElementById('delete-modal').classList.add('open');
     }
 
     function closeDeleteModal() {
       document.getElementById('delete-modal').classList.remove('open');
+      pendingDeleteRunId = null;
     }
 
     async function confirmDeleteRun() {
-      const runId = currentRunId;
+      const runId = pendingDeleteRunId;
       if (!runId) return;
       const btn = document.getElementById('delete-confirm-btn');
       btn.disabled = true;
@@ -1210,17 +1300,19 @@
           return;
         }
         closeDeleteModal();
-        currentRunId = null;
-        currentProjectName = '';
-        currentSteps = {};
-        stepRunning = {};
-        sectionLocked = { input: false, storyboard: false, assets: false };
-        voUploaded = false;
-        history.pushState(null, '', window.location.pathname);
-        document.getElementById('content-empty').style.display = '';
-        document.getElementById('panel-nav').classList.add('hidden');
-        document.getElementById('content-breadcrumb').classList.remove('visible');
-        document.querySelectorAll('.section-pane').forEach(p => p.classList.remove('active'));
+        if (runId === currentRunId) {
+          currentRunId = null;
+          currentProjectName = '';
+          currentSteps = {};
+          stepRunning = {};
+          sectionLocked = { input: false, storyboard: false, assets: false };
+          voUploaded = false;
+          history.pushState(null, '', window.location.pathname);
+          document.getElementById('content-empty').style.display = '';
+          document.getElementById('panel-nav').classList.add('hidden');
+          document.getElementById('content-breadcrumb').classList.remove('visible');
+          document.querySelectorAll('.section-pane').forEach(p => p.classList.remove('active'));
+        }
         await renderRunList();
       } catch (err) {
         alert(`Network error: ${err.message}`);
