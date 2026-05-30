@@ -228,6 +228,19 @@
     .bc-name { overflow: hidden; text-overflow: ellipsis; }
     .bc-sep { flex-shrink: 0; }
     .bc-step { color: #2D2D2D; font-weight: 600; flex-shrink: 0; }
+    .bc-spacer { flex: 1; }
+    .bc-delete { flex-shrink: 0; padding: 2px 8px; font-size: 11px; color: #9A9A9A; background: transparent; border: 1px solid #d1d5db; border-radius: 3px; cursor: pointer; font-family: inherit; line-height: 1.4; }
+    .bc-delete:hover { color: #dc2626; border-color: #dc2626; background: #fff5f5; }
+
+    /* ── Delete confirmation modal ────────────────────────────────────── */
+    .delete-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; }
+    .delete-modal-overlay.open { display: flex; }
+    .delete-modal-box { background: #fff; border-radius: 6px; padding: 24px 28px; width: 360px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+    .delete-modal-title { font-size: 15px; font-weight: 600; color: #2D2D2D; margin-bottom: 10px; }
+    .delete-modal-body  { font-size: 13px; color: #5A5A5A; margin-bottom: 20px; line-height: 1.5; }
+    .delete-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn-danger { background: #dc2626; color: #fff; border-color: #dc2626; font-weight: 600; }
+    .btn-danger:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
 
     .content-empty {
       display: flex;
@@ -567,6 +580,8 @@
       <span class="bc-name" id="bc-name"></span>
       <span class="bc-sep">/</span>
       <span class="bc-step" id="bc-step"></span>
+      <span class="bc-spacer"></span>
+      <button class="bc-delete" id="bc-delete-btn" onclick="openDeleteModal()">Delete Project</button>
     </div>
 
     <!-- ── Input section ──────────────────────────────────────────────── -->
@@ -658,6 +673,18 @@
     <div class="video-modal-box" id="video-modal-box">
       <button class="video-modal-close" onclick="closeVideoModal()">×</button>
       <video id="video-modal-player" controls></video>
+    </div>
+  </div>
+
+  <!-- ── Delete confirmation modal ─────────────────────────────────── -->
+  <div class="delete-modal-overlay" id="delete-modal">
+    <div class="delete-modal-box">
+      <div class="delete-modal-title">Delete Project</div>
+      <div class="delete-modal-body">Are you sure you want to delete this project? This action cannot be undone.</div>
+      <div class="delete-modal-actions">
+        <button class="btn btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+        <button class="btn btn-danger" id="delete-confirm-btn" onclick="confirmDeleteRun()">Delete</button>
+      </div>
     </div>
   </div>
 
@@ -1155,6 +1182,50 @@
     function handleModalOverlayClick(event) {
       if (!document.getElementById('video-modal-box').contains(event.target)) {
         closeVideoModal();
+      }
+    }
+
+    // ─── Delete project ───────────────────────────────────────────────────────
+    function openDeleteModal() {
+      document.getElementById('delete-modal').classList.add('open');
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('delete-modal').classList.remove('open');
+    }
+
+    async function confirmDeleteRun() {
+      const runId = currentRunId;
+      if (!runId) return;
+      const btn = document.getElementById('delete-confirm-btn');
+      btn.disabled = true;
+      btn.textContent = 'Deleting…';
+      try {
+        const res = await fetch(`/runs/${encodeURIComponent(runId)}`, { method: 'DELETE' });
+        if (!res.ok && res.status !== 204) {
+          const err = await res.json().catch(() => null);
+          alert(`Delete failed: ${err?.detail || res.statusText}`);
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+          return;
+        }
+        closeDeleteModal();
+        currentRunId = null;
+        currentProjectName = '';
+        currentSteps = {};
+        stepRunning = {};
+        sectionLocked = { input: false, storyboard: false, assets: false };
+        voUploaded = false;
+        history.pushState(null, '', window.location.pathname);
+        document.getElementById('content-empty').style.display = '';
+        document.getElementById('panel-nav').classList.add('hidden');
+        document.getElementById('content-breadcrumb').classList.remove('visible');
+        document.querySelectorAll('.section-pane').forEach(p => p.classList.remove('active'));
+        await renderRunList();
+      } catch (err) {
+        alert(`Network error: ${err.message}`);
+        btn.disabled = false;
+        btn.textContent = 'Delete';
       }
     }
 

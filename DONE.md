@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S8-S5] Project deletion flow
+**Completed:** 2026-05-30
+**Handover:**
+- `src/storage.py`: `R2Client.delete_run(run_id) → int` — lists all keys under `runs/{run_id}/`, batch-deletes via `delete_objects` (up to 1000 keys/request), raises `StorageError("Run not found: {run_id}")` if prefix empty, returns key count.
+- `src/routes/runs.py`: `DELETE /runs/{run_id}` — 204 on success, 404 on missing run, 500 on R2 error. Auth covered by existing middleware.
+- `src/static/pipeline.html`: "Delete Project" button in breadcrumb bar (right-aligned via `.bc-spacer` flex push). Confirmation modal `#delete-modal` with exact AC text. `confirmDeleteRun()` resets all state, calls `renderRunList()`, and navigates back to root path.
+- 619 tests passing. No new ENV vars. No new dependencies.
+**Smoke test:** DEFERRED — requires a Railway DEV run with at least one pipeline step completed; click Delete Project, confirm modal, verify run disappears from left panel and R2 prefix is gone.
+**Promoted to backlog:** none
+
+---
+
 ## [S8-S4] Storyboard settings header — collapsible grouped section
 **Completed:** 2026-05-30
 **Handover:**

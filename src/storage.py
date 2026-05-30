@@ -184,6 +184,31 @@ class R2Client:
         except (BotoCoreError, ClientError, Exception) as exc:
             raise StorageError(f"Failed to generate presigned PUT URL for '{key}': {exc}") from exc
 
+    def delete_run(self, run_id: str) -> int:
+        """
+        Delete all R2 keys under runs/{run_id}/.
+
+        Raises StorageError if the run does not exist or on R2 failure.
+        Returns the number of keys deleted.
+        """
+        prefix = f"runs/{run_id}/"
+        keys = self.list_keys(prefix)
+        if not keys:
+            raise StorageError(f"Run not found: {run_id}")
+        # delete_objects accepts up to 1000 keys per request
+        _BATCH = 1000
+        for i in range(0, len(keys), _BATCH):
+            batch = [{"Key": k} for k in keys[i : i + _BATCH]]
+            try:
+                self._client.delete_objects(
+                    Bucket=self._bucket,
+                    Delete={"Objects": batch, "Quiet": True},
+                )
+            except (BotoCoreError, ClientError, Exception) as exc:
+                raise StorageError(f"R2 delete failed for prefix '{prefix}': {exc}") from exc
+        logger.info("Deleted %d keys for run: %s", len(keys), run_id)
+        return len(keys)
+
     def create_run_folder(self, run_id: str, project_name: Optional[str] = None) -> str:
         """
         Initialise a run prefix in R2 by uploading run_log.json.

@@ -586,3 +586,41 @@ class TestGetAssetLink:
         """Request without key query param returns HTTP 422."""
         res = client.get(f"/runs/{self.RUN_ID}/asset-link")
         assert res.status_code == 422
+
+
+class TestDeleteRun:
+    RUN_ID = "2026-05-30_delete-me"
+
+    def test_returns_204_on_success(self, client):
+        """DELETE /runs/{run_id} returns HTTP 204 when keys are deleted."""
+        m = MagicMock()
+        m.delete_run.return_value = 5
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}")
+        assert res.status_code == 204
+
+    def test_calls_delete_run_with_correct_run_id(self, client):
+        """R2Client.delete_run is called with the run_id from the URL."""
+        m = MagicMock()
+        m.delete_run.return_value = 3
+        with patch("src.routes.runs.R2Client", return_value=m):
+            client.delete(f"/runs/{self.RUN_ID}")
+        m.delete_run.assert_called_once_with(self.RUN_ID)
+
+    def test_returns_404_when_run_not_found(self, client):
+        """StorageError with 'not found' maps to HTTP 404."""
+        m = MagicMock()
+        m.delete_run.side_effect = StorageError(f"Run not found: {self.RUN_ID}")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}")
+        assert res.status_code == 404
+        assert self.RUN_ID in res.json()["detail"]
+
+    def test_returns_500_on_r2_error(self, client):
+        """Non-404 StorageError maps to HTTP 500."""
+        m = MagicMock()
+        m.delete_run.side_effect = StorageError("R2 connection error")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}")
+        assert res.status_code == 500
+        assert "R2 connection error" in res.json()["detail"]

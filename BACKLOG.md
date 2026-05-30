@@ -2540,7 +2540,8 @@ Replace the long inline storyboard metadata row with a collapsible settings head
 ## [S8-S5] Project deletion flow
 **Epic:** E16 — Project Deletion
 **Sprint:** 8
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-30
 **Priority:** medium
 **Points:** 3
 **Depends on:** —
@@ -2576,7 +2577,13 @@ Create a test project and run at least one pipeline step (so R2 has files). Clic
 - `tests/test_runs.py` — new delete tests
 
 ### Handover
-_filled on completion_
+- `src/storage.py`: `R2Client.delete_run(run_id) → int` — lists all keys under `runs/{run_id}/`, batch-deletes via `delete_objects` (up to 1000 keys/request), raises `StorageError("Run not found: {run_id}")` if prefix is empty, returns key count.
+- `src/routes/runs.py`: `DELETE /runs/{run_id}` — returns 204 on success, 404 when `StorageError` contains "not found", 500 on other R2 errors. Covered by existing auth middleware.
+- `src/static/pipeline.html`: "Delete Project" button added to breadcrumb bar (right-aligned via `.bc-spacer` flex push). Confirmation modal (`#delete-modal`) with exact AC text. `confirmDeleteRun()` calls DELETE endpoint, resets all state (`currentRunId`, `currentSteps`, `sectionLocked`, etc.), calls `renderRunList()`, and navigates to `window.location.pathname` (no run hash).
+- `tests/test_runs.py`: 4 new `TestDeleteRun` tests (204 success, correct run_id passed, 404 on missing, 500 on R2 error).
+- `tests/test_storage.py`: 3 new `TestDeleteRun` tests (deletes and returns count, raises on empty prefix, raises on boto3 failure).
+- 619 tests passing. No new ENV vars. No new dependencies.
+**Promoted to backlog:** none
 
 ---
 

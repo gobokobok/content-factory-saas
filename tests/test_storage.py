@@ -343,3 +343,33 @@ class TestBuildRunLog:
         """project_name is None when not provided."""
         log = _build_run_log(FAKE_RUN_ID)
         assert log.project_name is None
+
+
+class TestDeleteRun:
+    def test_deletes_all_keys_and_returns_count(self, client, mock_s3):
+        """delete_run calls delete_objects and returns the key count."""
+        keys = [f"runs/{FAKE_RUN_ID}/run_log.json", f"runs/{FAKE_RUN_ID}/storyboard.json"]
+        mock_s3.list_objects_v2.return_value = {"Contents": [{"Key": k} for k in keys]}
+        count = client.delete_run(FAKE_RUN_ID)
+        assert count == 2
+        mock_s3.delete_objects.assert_called_once_with(
+            Bucket=FAKE_BUCKET,
+            Delete={"Objects": [{"Key": k} for k in keys], "Quiet": True},
+        )
+
+    def test_raises_storage_error_when_run_not_found(self, client, mock_s3):
+        """Empty prefix (no keys) raises StorageError with 'not found'."""
+        mock_s3.list_objects_v2.return_value = {}
+        with pytest.raises(StorageError, match="not found"):
+            client.delete_run(FAKE_RUN_ID)
+
+    def test_raises_storage_error_on_delete_objects_failure(self, client, mock_s3):
+        """ClientError from delete_objects propagates as StorageError."""
+        from botocore.exceptions import ClientError
+        keys = [f"runs/{FAKE_RUN_ID}/run_log.json"]
+        mock_s3.list_objects_v2.return_value = {"Contents": [{"Key": k} for k in keys]}
+        mock_s3.delete_objects.side_effect = ClientError(
+            {"Error": {"Code": "InternalError", "Message": "R2 error"}}, "DeleteObjects"
+        )
+        with pytest.raises(StorageError):
+            client.delete_run(FAKE_RUN_ID)

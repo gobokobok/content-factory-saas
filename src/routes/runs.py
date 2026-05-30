@@ -204,6 +204,23 @@ def get_asset_link(
     return AssetLinkResponse(url=url, expires_in=3600)
 
 
+@router.delete("/runs/{run_id}", status_code=204)
+def delete_run(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Delete a run and all its R2 assets. Returns 204 on success, 404 if not found."""
+    client = _make_r2_client(settings)
+    try:
+        client.delete_run(run_id)
+    except StorageError as exc:
+        msg = str(exc)
+        if "not found" in msg.lower():
+            raise HTTPException(status_code=404, detail=msg) from exc
+        logger.error("Storage error deleting run '%s': %s", run_id, exc)
+        raise HTTPException(status_code=500, detail=msg) from exc
+
+
 @router.get("/runs/{run_id}/artifact/{step}", response_model=ArtifactResponse)
 def get_artifact(
     run_id: str,
