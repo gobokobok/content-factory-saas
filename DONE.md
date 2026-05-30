@@ -7,9 +7,13 @@ _Entries added here when a story reaches Definition of Done._
 ## [S8-S1] Collapsible sidebar
 **Completed:** 2026-05-30
 **Handover:**
-- `src/static/pipeline.html`: collapsible left panel (project list). Toggle icon (`sidebar-toggle`) is `position: absolute` inside `.panels`, top-left at `(10px, 11px)`, rendered on page background independent of panel state. Clicking adds/removes `sidebar-collapsed` class on `.panels`. Collapsed: `.panel-runs` animates to `width: 0; margin-right: 0` — panel fully disappears. Expanded: `width: 200px; margin-right: 24px`. Icon flips `scaleX(-1)` when collapsed to indicate "expand". Left panel background `#F0EDEC` (slightly darker than page `#FBF9F8`). `.panel-runs-header` left-padding `42px` to clear the absolute icon. `.panels` has no left padding — panel starts flush with screen edge. No backend changes.
-- `BACKLOG.md`: status updated to `done`.
-**Smoke test:** Visual — expanded shows project list flush with left edge; collapsed shows full-width content with only toggle icon at top-left; toggling back restores panel. 612 tests passing.
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- Sidebar toggle (`#sidebar-toggle`) is `position: absolute` inside `.panels` (`position: relative`), pinned at `top: 11px; left: 10px; z-index: 10`. Lives outside `panel-runs` — always visible on page background regardless of collapse state.
+- Toggling adds/removes `sidebar-collapsed` on `.panels`. Collapsed: `.panel-runs` animates to `width: 0; margin-right: 0` — fully gone. Expanded: `width: 200px; margin-right: 24px`. Icon flips `scaleX(-1)` when collapsed.
+- Panel background `#F0EDEC` (slightly darker than page `#FBF9F8`). Panel starts flush with screen left edge (no left padding on `.panels`). Extends full viewport height (no bottom padding).
+- "Content Factory" title removed. `+ New Project` is the first visible item in the left panel, styled as a borderless list row (48px top margin to clear the toggle icon).
+- Session-only state via JS `sidebarCollapsed` variable. No page reload persistence.
+**Smoke test:** PASSED — visual smoke test in preview: expanded shows project list flush with left edge; collapsed shows only toggle icon at top-left on page background with full-width content area; toggling back restores. 612 tests passing.
 **Promoted to backlog:** none
 
 ---

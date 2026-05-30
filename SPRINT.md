@@ -211,7 +211,7 @@
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| S8-S1 | Collapsible sidebar — toggle hides/shows left panel; center + right expand full width | 2 | backlog |
+| S8-S1 | Collapsible sidebar — toggle hides/shows left panel; center + right expand full width | 2 | done |
 | S8-S2 | Pipeline status simplification — remove step-level completion bars; global step circles are the only status indicator | 1 | backlog |
 | S8-S3 | Storyboard table UX — text cells wrap (no truncation, no ellipsis), dynamic row height | 2 | backlog |
 | S8-S4 | Storyboard settings header — collapsible grouped section (compact summary / expanded detail) | 2 | backlog |
@@ -222,7 +222,7 @@
 ---
 
 ## Sprint 8 Definition of Done
-- [ ] S8-S1: Sidebar collapses via toggle button; center + right panels expand to fill width when collapsed; state preserved during session.
+- [x] S8-S1: Sidebar collapses via toggle button; center + right panels expand to fill width when collapsed; state preserved during session.
 - [ ] S8-S2: No "completed" banner or status bar inside any pipeline stage UI; global pipeline step circles (○/●) are the sole completion indicator.
 - [ ] S8-S3: Every storyboard table cell wraps its text content; no `text-overflow: ellipsis`; row height expands with content; horizontal scroll still allowed.
 - [ ] S8-S4: Storyboard settings show one-line summary by default (Style / Aspect Ratio / Subtitles / Music); clicking expands to grouped detail (VIDEO STYLE + AUDIO sections).

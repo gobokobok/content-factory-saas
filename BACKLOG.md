@@ -2383,19 +2383,19 @@ Scene-level asset refresh, partial re-render, and "video outdated" state when a 
 Add a toggle button that collapses the left project-list panel, causing the center and right panels to expand and fill the full viewport width. Gives the operator significantly more horizontal space for the storyboard and assets tables.
 
 ### Acceptance Criteria
-- [ ] Toggle button visible in or adjacent to the left panel header
-- [ ] Clicking toggle hides the left panel; center + right panels expand to fill width
-- [ ] Clicking toggle again restores the left panel
-- [ ] Collapsed state preserved for the duration of the session (not persisted across reload)
-- [ ] No layout breakage at 1280px and 1440px widths
-- [ ] No backend changes
+- [x] Toggle button visible in or adjacent to the left panel header
+- [x] Clicking toggle hides the left panel; center + right panels expand to fill width
+- [x] Clicking toggle again restores the left panel
+- [x] Collapsed state preserved for the duration of the session (not persisted across reload)
+- [x] No layout breakage at 1280px and 1440px widths
+- [x] No backend changes
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Visual smoke test at 1280px and 1440px — no overflow, no layout shift
-- [ ] No existing test regressions
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Visual smoke test at 1280px and 1440px — no overflow, no layout shift
+- [x] No existing test regressions
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Smoke test
 Open the app. Click the collapse toggle. Confirm the left panel disappears and center + right panels fill the screen. Click again — left panel returns.
@@ -2404,7 +2404,14 @@ Open the app. Click the collapse toggle. Confirm the left panel disappears and c
 - `src/static/pipeline.html` — CSS + JS only
 
 ### Handover
-_filled on completion_
+**Completed:** 2026-05-30
+- `src/static/pipeline.html` only — no backend changes.
+- Sidebar toggle (`#sidebar-toggle`) is `position: absolute` inside `.panels` (which is `position: relative`), pinned at `top: 11px; left: 10px; z-index: 10`. It lives outside `panel-runs` so it persists on page background when collapsed.
+- Toggling adds/removes `sidebar-collapsed` class on `.panels`. Collapsed: `.panel-runs` animates `width: 0; margin-right: 0` — fully disappears. Expanded: `width: 200px; margin-right: 24px`.
+- Icon flips `scaleX(-1)` when collapsed to signal "expand".
+- `+ New Project` button is the first item in the left panel (above scroll list), styled as a borderless list item with 48px top margin to clear the toggle icon.
+- "Content Factory" title removed. Left panel extends full viewport height (no bottom padding on `.panels`).
+- Session-only state via `sidebarCollapsed` JS variable. No backend or ENV changes.
 
 ---
 
