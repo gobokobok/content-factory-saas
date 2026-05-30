@@ -2237,16 +2237,649 @@ _filled on completion_
 
 ---
 
+---
+
+## EPIC 9 — Workspace Layout
+Collapsible left sidebar so the operator can reclaim horizontal space for wide data tables (storyboard, assets).
+
+---
+
+## EPIC 10 — Project Details Refactor
+Rename "Input" → "Project Details" and restructure into a proper configuration hub with Content and Settings sections.
+
+---
+
+## EPIC 11 — Commit System
+Formal commit gate with confirmation modal and locked read-only state — replaces the implicit "Create Storyboard" lock.
+
+---
+
+## EPIC 12 — Video Settings
+Aspect ratio, visual style, and subtitle controls. First stored in config (Sprint 9); wired into the pipeline (Sprint 12).
+
+---
+
+## EPIC 13 — TTS Voiceover Generation
+ElevenLabs API generates voiceover from script when no audio file is uploaded. Chunked parallel requests, PCM merge, auto-alignment.
+
+---
+
+## EPIC 14 — Audio Layer
+Background music as a first-class component: upload, volume control, voiceover ducking, ffmpeg integration.
+
+---
+
+## EPIC 15 — Publishing Metadata
+Post-render Claude API call generates titles, descriptions, and hashtags. Display with copy-to-clipboard in the UI.
+
+---
+
+## EPIC 16 — Project Deletion
+Delete a project from the UI with a confirmation modal and a backend purge of R2 storage.
+
+---
+
+## EPIC 17 — Scene-Based Storyboard Editor (Phase 2 — future)
+Storyboard evolves from read-only table to editable scene graph. Per-scene editing, regeneration, asset type override. Not scheduled.
+
+---
+
+## EPIC 18 — Scene-Level Asset & Regeneration System (Phase 2 — future)
+Scene-level asset refresh, partial re-render, and "video outdated" state when a scene changes. Depends on E17. Not scheduled.
+
+---
+
+# Sprint 8 — UI Polish & Workspace
+
+---
+
+## [S8-S1] Collapsible sidebar
+**Epic:** E9 — Workspace Layout
+**Sprint:** 8
+**Status:** backlog
+**Priority:** medium
+**Points:** 2
+**Depends on:** —
+
+### Goal
+Add a toggle button that collapses the left project-list panel, causing the center and right panels to expand and fill the full viewport width. Gives the operator significantly more horizontal space for the storyboard and assets tables.
+
+### Acceptance Criteria
+- [ ] Toggle button visible in or adjacent to the left panel header
+- [ ] Clicking toggle hides the left panel; center + right panels expand to fill width
+- [ ] Clicking toggle again restores the left panel
+- [ ] Collapsed state preserved for the duration of the session (not persisted across reload)
+- [ ] No layout breakage at 1280px and 1440px widths
+- [ ] No backend changes
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Visual smoke test at 1280px and 1440px — no overflow, no layout shift
+- [ ] No existing test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open the app. Click the collapse toggle. Confirm the left panel disappears and center + right panels fill the screen. Click again — left panel returns.
+
+### Files to modify
+- `src/static/pipeline.html` — CSS + JS only
+
+### Handover
+_filled on completion_
+
+---
+
+## [S8-S2] Pipeline status simplification
+**Epic:** E9 — Workspace Layout
+**Sprint:** 8
+**Status:** backlog
+**Priority:** medium
+**Points:** 1
+**Depends on:** —
+
+### Goal
+Remove all step-level "completed" confirmation bars that appear inside pipeline stage panels. The global step indicator circles (○/●) in the section nav are the single source of truth for completion state.
+
+### Acceptance Criteria
+- [ ] No inline "✓ [Step] complete" banner or colored bar inside any pipeline stage content area
+- [ ] Global section nav circles update correctly: ○ not started, ● in progress, ● green complete
+- [ ] Stage content (table, player, etc.) remains visible after completion — only the banner is removed
+- [ ] No backend changes
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] All four stages verified: Project Details, Storyboard, Assets, Render Video
+- [ ] No existing test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify
+- `src/static/pipeline.html` — HTML + JS only
+
+### Handover
+_filled on completion_
+
+---
+
+## [S8-S3] Storyboard table UX — text wrapping and dynamic row height
+**Epic:** E9 — Workspace Layout
+**Sprint:** 8
+**Status:** backlog
+**Priority:** high
+**Points:** 2
+**Depends on:** —
+
+### Goal
+Fix the storyboard scene table so all text cells wrap their content rather than truncating with ellipsis. Row height must expand dynamically to fit the longest cell in each row.
+
+### Acceptance Criteria
+- [ ] All text-containing table cells use `white-space: normal` and `word-wrap: break-word` — no `overflow: hidden`, no `text-overflow: ellipsis`
+- [ ] Row height is not fixed — `height: auto` / no `max-height` clipping on rows
+- [ ] Full content of long fields (AI Prompt, Voiceover, Primary Query) always readable without tooltip or hover
+- [ ] Horizontal scroll remains allowed — table may be wider than viewport
+- [ ] `.trunc` + `title` tooltip pattern removed from storyboard cells (was acceptable in Sprint 6; now explicit cells must show full text)
+- [ ] No backend changes
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Visual smoke test on a 10-scene run — all cells fully readable; no truncated text visible
+- [ ] No existing test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Open a run with a completed storyboard. Scroll through the table. Confirm AI Prompt and Voiceover columns show their full text — no `...` anywhere.
+
+### Files to modify
+- `src/static/pipeline.html` — CSS only
+
+### Handover
+_filled on completion_
+
+---
+
+## [S8-S4] Storyboard settings header — collapsible grouped section
+**Epic:** E10 — Project Details Refactor
+**Sprint:** 8
+**Status:** backlog
+**Priority:** medium
+**Points:** 2
+**Depends on:** S8-S3
+
+### Goal
+Replace the long inline storyboard metadata row with a collapsible settings header. Collapsed view shows a compact one-line summary; expanded view shows grouped VIDEO STYLE and AUDIO sections.
+
+### Acceptance Criteria
+- [ ] Default (collapsed): single line reading `Storyboard Settings ▾` with a compact summary: `Style: [visual_style] | [aspect_ratio] | Subtitles [ON/OFF] | Music: [bg_music or "None"]`
+- [ ] Clicking expands to show: **VIDEO STYLE** group (Visual Style, Aspect Ratio, Subtitle Style) and **AUDIO** group (Background Music, Volume, Voiceover ducking)
+- [ ] Clicking again collapses back to summary
+- [ ] No horizontal overflow at any panel width
+- [ ] No backend changes
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Visual smoke test — collapsed and expanded states render cleanly; no overflow
+- [ ] No existing test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify
+- `src/static/pipeline.html` — HTML + CSS + JS
+
+### Handover
+_filled on completion_
+
+---
+
+## [S8-S5] Project deletion flow
+**Epic:** E16 — Project Deletion
+**Sprint:** 8
+**Status:** backlog
+**Priority:** medium
+**Points:** 3
+**Depends on:** —
+
+### Goal
+Give the operator a way to delete a project from the UI. A confirmation modal prevents accidental deletion. The backend purges all R2 keys under `runs/{run_id}/` and the run disappears from the left panel.
+
+### Acceptance Criteria
+- [ ] "Delete Project" button or action visible in the project header when a run is open
+- [ ] Clicking opens a confirmation modal: "Are you sure you want to delete this project? This action cannot be undone. [Cancel] [Delete]"
+- [ ] Confirmed delete calls `DELETE /runs/{run_id}` which purges all R2 keys under `runs/{run_id}/` prefix
+- [ ] After delete: modal closes, app navigates back to the run list, deleted run no longer appears in left panel
+- [ ] Cancel closes modal with no action
+- [ ] Backend returns 204 on success, 404 if run not found, 500 on R2 error
+- [ ] `DELETE /runs/{run_id}` requires auth (covered by existing auth middleware)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: delete endpoint purges all keys; returns 404 on missing run; auth required
+- [ ] Manual smoke test: create a test project, delete it, confirm it disappears and R2 prefix is empty
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Create a test project and run at least one pipeline step (so R2 has files). Click "Delete Project". Confirm modal appears. Click "Delete". Confirm run disappears from left panel. Open R2 console and verify `runs/{run_id}/` prefix is gone.
+
+### Files to create or modify
+- `src/routes/runs.py` — `DELETE /runs/{run_id}` endpoint
+- `src/storage.py` — `R2Client.delete_run(run_id)` — lists + batch-deletes all keys under prefix
+- `src/models.py` — no new models needed
+- `src/static/pipeline.html` — Delete button + confirmation modal + post-delete navigation
+- `tests/test_runs.py` — new delete tests
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 9 — Project Details + Commit System + Video Settings UI
+
+---
+
+## [S9-S1] Project Details tab restructure
+**Epic:** E10 — Project Details Refactor
+**Sprint:** 9
+**Status:** backlog
+**Priority:** high
+**Points:** 3
+**Depends on:** S8-S4
+
+### Goal
+Rename the "Input" tab to "Project Details" everywhere in the UI. Restructure the panel content into two named sections: **Content** (Project Name, Script, Voiceover) and **Settings** (video settings — populated by S9-S3). Existing functionality (Save Draft, VO upload, lock mechanic) must be fully preserved.
+
+### Acceptance Criteria
+- [ ] All user-visible references to "Input" updated to "Project Details" (tab label, locked state text, section nav dot label)
+- [ ] Content section renders: Project Name field, Script textarea, Voiceover upload widget
+- [ ] Settings section renders below Content (initially empty placeholder until S9-S3 adds controls)
+- [ ] Save Draft, Upload VO, Commit (from S9-S2) all function as before
+- [ ] No backend changes — label is UI only
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] No existing test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify
+- `src/static/pipeline.html` — label text + HTML structure
+
+### Handover
+_filled on completion_
+
+---
+
+## [S9-S2] Commit system
+**Epic:** E11 — Commit System
+**Sprint:** 9
+**Status:** backlog
+**Priority:** high
+**Points:** 3
+**Depends on:** S9-S1
+
+### Goal
+Replace the "Create Storyboard" CTA with a formal **Commit** action. Clicking Commit opens a confirmation modal explaining what will be locked. After confirming, Project Details becomes permanently read-only with a ✓ green committed indicator.
+
+### Acceptance Criteria
+- [ ] CTA button reads "Commit" (not "Create Storyboard")
+- [ ] Clicking Commit opens a modal with exact text: "After committing, you will NOT be able to modify: Project Name, Script, Voiceover. Do you want to continue?" with [Cancel] and [Commit] buttons
+- [ ] Confirming the modal triggers the existing pipeline sequence (alignment → storyboard) — no change to backend behavior
+- [ ] After commit completes: Project Details panel shows ✓ committed indicator (green); all fields are read-only; Commit button replaced by the locked indicator
+- [ ] Cancel closes modal with no action and no pipeline trigger
+- [ ] Existing `POST /runs/{run_id}/draft` guard (rejects if storyboard complete) remains unchanged
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Manual smoke test: click Commit, read modal, confirm, observe locked state with ✓ indicator
+- [ ] No existing test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify
+- `src/static/pipeline.html` — CTA replacement, modal HTML + JS, locked state indicator
+
+### Handover
+_filled on completion_
+
+---
+
+## [S9-S3] Video settings UI
+**Epic:** E12 — Video Settings
+**Sprint:** 9
+**Status:** backlog
+**Priority:** medium
+**Points:** 2
+**Depends on:** S9-S1
+
+### Goal
+Add video settings selectors to the Settings section of Project Details. Values are stored in R2 config and survive page reload. No pipeline wiring in this story — the settings are captured only. Pipeline wiring is S12-S1.
+
+### Acceptance Criteria
+- [ ] Aspect ratio selector: 9:16 (default) / 16:9 / 1:1
+- [ ] Visual style dropdown: Realistic / Cinematic / Cartoonish / Documentary / Minimalist
+- [ ] Subtitles toggle: enabled (default) / disabled
+- [ ] Subtitle style selector (visible only when subtitles enabled): TikTok style / Classic
+- [ ] All values stored via `POST /runs/{run_id}/settings` and returned by `GET /runs/{run_id}/settings`
+- [ ] Values persist across page reload — `GET /runs/{run_id}/draft` or new settings endpoint returns stored values
+- [ ] Controls are read-only after commit (locked with Project Details)
+- [ ] Default values applied when no settings have been saved
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: settings saved and retrieved; defaults returned when absent; read-only after commit
+- [ ] No existing test regressions
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/routes/runs.py` — `POST /runs/{run_id}/settings`, `GET /runs/{run_id}/settings`
+- `src/models.py` — `VideoSettings(aspect_ratio, visual_style, subtitles_enabled, subtitle_style)`, `RunSettings`
+- `src/storage.py` — `upload_json` / `get_json` for `settings.json` (already exists — no new method needed)
+- `src/static/pipeline.html` — Settings section controls
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 10 — TTS Voiceover Generation
+
+---
+
+## [S10-S1] TTS VO generation via ElevenLabs
+**Epic:** E13 — TTS Voiceover Generation
+**Sprint:** 10
+**Status:** backlog
+**Priority:** high
+**Points:** 6
+**Depends on:** S9-S2
+
+### Goal
+Add a "Generate Voiceover" mode alongside "Upload VO" in Project Details. When selected, the backend splits the script into sentence-boundary-aligned chunks (~1000 chars), sends all chunks to ElevenLabs concurrently, concatenates the raw PCM responses in order, encodes to MP3 via ffmpeg, stores the file, and auto-runs alignment — all invisible to the user.
+
+### Acceptance Criteria
+- [ ] "Generate Voiceover" toggle/tab in Project Details alongside "Upload VO"
+- [ ] When "Generate Voiceover" is active and script is present, "Commit" triggers TTS generation before alignment
+- [ ] Backend: `POST /runs/{run_id}/tts` — reads `script.txt` from R2, splits into chunks at sentence boundaries (`.`, `!`, `?`) with target ~1000 chars per chunk; sends all chunks to ElevenLabs `POST /v1/text-to-speech/{voice_id}/stream` with `output_format=pcm_44100`; `previous_text` and `next_text` params set per chunk for prosody continuity; chunks sent via `asyncio.gather`; PCM bytes concatenated in request order; encoded to MP3 via ffmpeg subprocess (`-f s16le -ar 44100 -ac 1`); stored as `runs/{run_id}/voiceover/generated.mp3`
+- [ ] After TTS completes, `POST /runs/{run_id}/alignment` is called automatically — no user action required
+- [ ] `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` added to `config.py` and `ENV.md`
+- [ ] If ElevenLabs API fails: step marked failed, clear error shown in UI; operator can retry or switch to Upload VO mode
+- [ ] Generated VO filename shown in Project Details after generation ("generated.mp3 ✓")
+- [ ] Existing "Upload VO" path completely unchanged
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests pass with ElevenLabs API mocked (httpx mock); chunk split logic unit-tested; PCM concat unit-tested; ffmpeg encode mocked
+- [ ] `DECISIONS.md` D038 + D039 already exist — no new entries needed
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+In Project Details, switch to "Generate Voiceover". Paste a 300+ word script. Click "Commit". Observe progress indicator. After completion: confirm `voiceover/generated.mp3` exists in R2; confirm `alignment.json` also created; confirm pipeline advances to Storyboard section.
+
+### Files to create or modify
+- `src/tts.py` — new: `generate_tts(script, api_key, voice_id) → bytes` — chunker + parallel ElevenLabs calls + PCM concat + ffmpeg encode
+- `src/routes/tts.py` — new: `POST /runs/{run_id}/tts`
+- `src/main.py` — register TTS router
+- `src/models.py` — `TTSResponse(status, key, chunk_count, duration_s)`
+- `src/config.py` — `ELEVENLABS_API_KEY: str = ""`, `ELEVENLABS_VOICE_ID: str = ""`
+- `src/exceptions.py` — `TTSError`
+- `ENV.md` — document new vars
+- `src/static/pipeline.html` — Generate Voiceover mode + auto-trigger chain
+- `tests/test_tts.py` — new
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 11 — Audio Layer
+
+---
+
+## [S11-S1] Background music upload
+**Epic:** E14 — Audio Layer
+**Sprint:** 11
+**Status:** backlog
+**Priority:** medium
+**Points:** 3
+**Depends on:** S9-S1
+
+### Goal
+Add a background music upload widget to the Project Details Audio section. Music file is stored in R2 and a playback preview is shown in the UI.
+
+### Acceptance Criteria
+- [ ] Audio section in Project Details Settings area, below Video settings
+- [ ] File picker accepts `.mp3`, `.wav`, `.m4a`
+- [ ] On file select: generates presigned PUT URL, uploads directly to R2 at `runs/{run_id}/music/bg.[ext]`
+- [ ] After upload: `<audio controls>` preview element renders for the uploaded track
+- [ ] "No music" option available (default) — clears any previously uploaded track
+- [ ] Uploaded filename shown alongside preview
+- [ ] Controls locked after commit (read-only with Project Details)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Manual smoke test: upload an MP3, hear preview, delete and re-upload
+- [ ] No existing test regressions
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/routes/runs.py` — `POST /runs/{run_id}/music-upload-url` (presigned PUT, mirrors voiceover-upload-url pattern)
+- `src/models.py` — `MusicUploadUrlResponse(upload_url, key)`
+- `src/static/pipeline.html` — Audio section, music upload widget + preview
+
+### Handover
+_filled on completion_
+
+---
+
+## [S11-S2] Audio controls UI
+**Epic:** E14 — Audio Layer
+**Sprint:** 11
+**Status:** backlog
+**Priority:** medium
+**Points:** 2
+**Depends on:** S11-S1
+
+### Goal
+Add audio mixing controls to the Audio section: volume slider, voiceover ducking toggle, and loop vs fit-to-duration mode selector. Values stored in run config and persist across reload.
+
+### Acceptance Criteria
+- [ ] Volume slider: 0–100%, default 15%, labeled "Music volume"
+- [ ] Voiceover ducking toggle: ON/OFF, default ON, labeled "Auto-duck music under voiceover"
+- [ ] Playback mode selector: "Loop full track" / "Fit to video duration", default "Fit to video duration"
+- [ ] All values persisted via `POST /runs/{run_id}/settings` (extends existing VideoSettings model)
+- [ ] Values survive page reload
+- [ ] Controls locked after commit
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: audio settings saved and retrieved
+- [ ] No existing test regressions
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify
+- `src/models.py` — extend `RunSettings` / `VideoSettings` with `AudioSettings(music_volume, ducking_enabled, playback_mode)`
+- `src/static/pipeline.html` — slider, toggle, selector controls
+
+### Handover
+_filled on completion_
+
+---
+
+## [S11-S3] Audio → ffmpeg integration
+**Epic:** E14 — Audio Layer
+**Sprint:** 11
+**Status:** backlog
+**Priority:** high
+**Points:** 5
+**Depends on:** S11-S1, S11-S2
+
+### Goal
+Pass background music key, volume, and ducking settings from run config into the ffmpeg script generator. Replaces the hardcoded `music 0.15` constant.
+
+### Acceptance Criteria
+- [ ] ffmpeg script generator reads `settings.json` from R2 before building the script
+- [ ] When BG music present: `runs/{run_id}/music/bg.[ext]` used as music input; volume applied from config value (e.g. `volume=0.40` filter)
+- [ ] Ducking ON: music volume lowered during voiceover using ffmpeg `sidechaincompress` or `volume` automation where voiceover is active
+- [ ] Playback mode: "Fit to video duration" trims music to total video length; "Loop full track" uses `stream_loop=-1` with `atrim`
+- [ ] When no music uploaded: existing silence fallback preserved (`anullsrc`)
+- [ ] All new filter graph changes covered by tests
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: volume applied correctly; ducking filter present when enabled; silence fallback when no music; loop vs trim modes
+- [ ] Manual smoke test: render video with background track at 40% volume + ducking ON — confirm audible result
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify
+- `src/ffmpeg_builder.py` — audio section rewrite; read settings; dynamic volume + ducking + loop/trim
+- `src/routes/ffmpeg_script.py` — load settings from R2 before calling builder
+- `tests/test_ffmpeg_builder.py` — new audio section tests
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 12 — Video Settings Pipeline Wiring + Publishing Metadata
+
+---
+
+## [S12-S1] Video settings → pipeline wiring
+**Epic:** E12 — Video Settings
+**Sprint:** 12
+**Status:** backlog
+**Priority:** high
+**Points:** 4
+**Depends on:** S9-S3, S11-S3
+
+### Goal
+Wire the stored video settings into the actual render pipeline. Aspect ratio changes ffmpeg output dimensions. Visual style feeds the Replicate AI image generation prompt. Subtitles toggle enables or disables the caption burn steps.
+
+### Acceptance Criteria
+- [ ] ffmpeg script generator reads `aspect_ratio` from settings; outputs 1080×1920 (9:16), 1920×1080 (16:9), or 1080×1080 (1:1) — all dimensions + crop/pad filters updated accordingly
+- [ ] Asset acquisition reads `visual_style` from settings; appends style modifier to `ai_generate_prompt` (e.g. "cinematic, shallow depth of field, golden hour" for Cinematic style)
+- [ ] When `subtitles_enabled = false`: ffmpeg script omits both `_burn_captions()` and `_burn_voiceover_captions()` steps entirely
+- [ ] Subtitle style selector (TikTok / Classic) changes the ASS style parameters (`Fontsize`, `Outline`, `MarginV`) in `captions.py`
+- [ ] Default values (9:16, Realistic, subtitles ON, TikTok style) produce output identical to current behavior — no regressions
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: all 3 aspect ratios produce correct ffmpeg dimension args; visual style modifier appended to Replicate prompt; subtitles OFF produces script without caption steps; both subtitle styles produce different ASS headers
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify
+- `src/ffmpeg_builder.py` — aspect ratio dimensions + conditional caption steps + subtitle style params
+- `src/captions.py` — Classic vs TikTok ASS style variant
+- `src/acquisition.py` or `src/replicate_client.py` — visual style modifier on `ai_generate_prompt`
+- `src/routes/ffmpeg_script.py` — load settings before calling builder
+- `tests/test_ffmpeg_builder.py`, `tests/test_captions.py` — new variant tests
+
+### Handover
+_filled on completion_
+
+---
+
+## [S12-S2] Publishing metadata generator
+**Epic:** E15 — Publishing Metadata
+**Sprint:** 12
+**Status:** backlog
+**Priority:** medium
+**Points:** 3
+**Depends on:** E5-S1 (render step)
+
+### Goal
+After a video renders, a Claude API call (Haiku) generates publishing metadata: a primary title, two alternative titles, a YouTube description, an Instagram description, and a hashtag/SEO tag set. Result stored in R2 as `metadata.json`.
+
+### Acceptance Criteria
+- [ ] `POST /runs/{run_id}/metadata` endpoint — reads `storyboard.json` + `project_name` from R2 as context; calls Claude Haiku with a structured prompt; parses and stores response
+- [ ] Output schema: `{title: str, alt_titles: [str, str], youtube_description: str, instagram_description: str, hashtags: [str], seo_tags: [str]}`
+- [ ] Stored at `runs/{run_id}/metadata.json`; `run_log.json` step `metadata` → `complete`
+- [ ] `PIPELINE_STEPS` gains `"metadata"` after `"render"`
+- [ ] Failure: step marked `failed`, error logged; operator can retry
+- [ ] Haiku model used (cost-optimized; content is short structured text)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: endpoint generates metadata from mocked Claude response; parses all fields; handles API failure gracefully
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/metadata_generator.py` — new: `generate_metadata(project_name, storyboard, api_key) → PublishingMetadata`
+- `src/routes/metadata.py` — new: `POST /runs/{run_id}/metadata`
+- `src/main.py` — register metadata router
+- `src/models.py` — `PublishingMetadata`, `MetadataResponse`
+- `src/exceptions.py` — `MetadataError`
+- `tests/test_metadata_generator.py` — new
+
+### Handover
+_filled on completion_
+
+---
+
+## [S12-S3] Publishing metadata UI
+**Epic:** E15 — Publishing Metadata
+**Sprint:** 12
+**Status:** backlog
+**Priority:** medium
+**Points:** 2
+**Depends on:** S12-S2
+
+### Goal
+Display the generated publishing metadata below the video player in the Render Video section. Each field has a copy-to-clipboard button. No auto-posting to any platform.
+
+### Acceptance Criteria
+- [ ] Metadata section appears in Render Video after render is complete (auto-triggered or manual "Generate Metadata" button)
+- [ ] Fields displayed: Primary Title, Alternative Titles (×2), YouTube Description, Instagram Description, Hashtags, SEO Tags
+- [ ] Each field has a "Copy" button — clicking writes the field value to clipboard and briefly shows "Copied ✓"
+- [ ] If metadata not yet generated: section shows "Generate Metadata" button that triggers `POST /runs/{run_id}/metadata`
+- [ ] No backend changes beyond S12-S2
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Manual smoke test: generate metadata for a completed run; copy YouTube description; paste confirms correct content
+- [ ] No existing test regressions
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to modify
+- `src/static/pipeline.html` — metadata section below video player; copy buttons
+
+### Handover
+_filled on completion_
+
+---
+
 ## Ideas / Future Epics
 
 ### IDEA-001 — ElevenLabs TTS: script-only entry point
-When user provides only a script (no VO upload), generate voiceover via ElevenLabs API.
-Requires: ElevenLabs API key in Railway env vars, Voice ID selection (dropdown of presets),
-new pipeline branch: script → TTS → alignment → storyboard → ...
-Status: idea, not scheduled
+**Status:** promoted — implemented as E13-S1 / S10-S1 (Sprint 10)
 
 ### IDEA-002 — VO-only entry: derive transcript from Deepgram
 When user uploads VO with no script, use Deepgram transcript (already in alignment.json)
 as the script. No storyboard text input needed.
 Requires: minor UI change (script textarea optional), Deepgram transcript extraction.
 Status: idea, not scheduled
+
+### IDEA-003 — Scene-Based Storyboard Editor (Phase 2)
+Storyboard evolves from read-only table into editable scene graph. Per-scene text editing, visual description override, asset type selection, keyword override, regenerate single scene. See EPIC 17.
+Status: idea, not scheduled — planned for Phase 2 after Sprint 12
+
+### IDEA-004 — Scene-Level Asset & Regeneration System (Phase 2)
+Refresh assets for a single scene, partial re-render, "video outdated" indicator when a scene changes. Depends on IDEA-003 (scene graph). See EPIC 18.
+Status: idea, not scheduled — planned for Phase 2 after Sprint 12

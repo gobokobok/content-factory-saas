@@ -59,6 +59,35 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D038 — ElevenLabs for TTS voiceover generation
+**Date:** 2026-05-30
+**Decision:** Use ElevenLabs API for text-to-speech voiceover generation when the operator provides a script but no audio file.
+**Rationale:**
+- Best-in-class voice quality for short-form video narration
+- Simple REST API — no SDK required; plain `httpx` POST (zero new dependencies)
+- Voice ID is configurable per-project via `ELEVENLABS_VOICE_ID` ENV var — operator can switch voices without code changes
+- Supports PCM output format, which enables clean byte-level chunk concatenation (see D039)
+- Cost is acceptable for POC: ~$0.30/1K chars; a 60s voiceover script ≈ 500–700 chars ≈ $0.15–$0.21/run
+**New ENV vars:** `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
+**Implemented by:** S10-S1
+
+---
+
+## D039 — Chunked parallel TTS for voice consistency on long scripts
+**Date:** 2026-05-30
+**Decision:** Split scripts into sentence-boundary-aligned chunks of ~1000 chars, send all chunks to ElevenLabs in parallel via `asyncio.gather`, concatenate raw PCM responses in order, then encode to MP3 once via ffmpeg.
+**Rationale:**
+- ElevenLabs voice quality degrades on long inputs (prosody drift, pacing inconsistency)
+- Shorter chunks produce more consistent, natural-sounding narration per segment
+- Parallelisation keeps total latency comparable to a single long request
+- PCM (not MP3) requested from ElevenLabs because PCM chunks can be byte-concatenated without header collisions or audible pops at boundaries; a single MP3 encode at the end is cleaner than MP3-concat
+- `previous_text` and `next_text` context params sent on each chunk request to help ElevenLabs maintain prosody continuity across boundaries
+**Chunk split rule:** sentence boundary (`.`, `!`, `?`) nearest to 1000-char mark; never split mid-sentence
+**Merge:** raw PCM bytes concatenated in request order → `ffmpeg -f s16le -ar 44100 -ac 1 -i pipe:0 output.mp3`
+**Implemented by:** S10-S1
+
+---
+
 ## D033 — Montserrat ExtraBold font for voiceover captions
 **Date:** 2026-05-27
 **Decision:** Add `fonts-montserrat` apt package to the Dockerfile so libass can render the `VoiceCaption` ASS style using `Montserrat ExtraBold`.

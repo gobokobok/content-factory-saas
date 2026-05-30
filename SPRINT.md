@@ -192,5 +192,151 @@ S7-S3 depends on S7-S2 (model router wraps all Claude calls including the new Ha
 
 | Sprint | Theme | Key stories |
 |--------|-------|-------------|
-| Sprint 8 | UI/UX iteration — second pass | TBD at Sprint 7 review |
-| Sprint 9 | Pipeline step enhancements — additional selection options per step | TBD at Sprint 8 review |
+| Sprint 8 | UI Polish & Workspace | Collapsible sidebar, pipeline status cleanup, storyboard table UX, project deletion |
+| Sprint 9 | Project Details + Commit + Video Settings UI | Input → Project Details, commit modal, video settings selectors |
+| Sprint 10 | TTS Voiceover Generation | ElevenLabs chunked TTS, auto-alignment |
+| Sprint 11 | Audio Layer | Background music upload, audio controls, ffmpeg integration |
+| Sprint 12 | Video Settings Pipeline Wiring + Publishing Metadata | Video settings → render, metadata generator + UI |
+
+---
+
+# Sprint 8 — UI Polish & Workspace
+
+**Goal:** Fast, high-visibility UI improvements — no backend changes except project deletion. Collapsible sidebar, pipeline status simplification, storyboard table readability, storyboard settings header collapsible, and project deletion flow.
+**Status:** planned
+**Points:** 10
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| S8-S1 | Collapsible sidebar — toggle hides/shows left panel; center + right expand full width | 2 | backlog |
+| S8-S2 | Pipeline status simplification — remove step-level completion bars; global step circles are the only status indicator | 1 | backlog |
+| S8-S3 | Storyboard table UX — text cells wrap (no truncation, no ellipsis), dynamic row height | 2 | backlog |
+| S8-S4 | Storyboard settings header — collapsible grouped section (compact summary / expanded detail) | 2 | backlog |
+| S8-S5 | Project deletion — header CTA + confirmation modal + `DELETE /runs/{run_id}` endpoint that purges R2 prefix | 3 | backlog |
+
+**Execution order:** S8-S1 → S8-S2 → S8-S3 → S8-S4 are all independent frontend-only; S8-S5 adds a backend endpoint.
+
+---
+
+## Sprint 8 Definition of Done
+- [ ] S8-S1: Sidebar collapses via toggle button; center + right panels expand to fill width when collapsed; state preserved during session.
+- [ ] S8-S2: No "completed" banner or status bar inside any pipeline stage UI; global pipeline step circles (○/●) are the sole completion indicator.
+- [ ] S8-S3: Every storyboard table cell wraps its text content; no `text-overflow: ellipsis`; row height expands with content; horizontal scroll still allowed.
+- [ ] S8-S4: Storyboard settings show one-line summary by default (Style / Aspect Ratio / Subtitles / Music); clicking expands to grouped detail (VIDEO STYLE + AUDIO sections).
+- [ ] S8-S5: Delete button in project header; confirmation modal shows exact warning text; confirmed delete removes all `runs/{run_id}/` keys from R2 and removes run from left panel without page reload.
+- [ ] All existing tests pass.
+- [ ] **Human touchpoint:** operator collapses sidebar to gain workspace for the wide storyboard table; deletes a test project.
+
+---
+
+# Sprint 9 — Project Details + Commit System + Video Settings UI
+
+**Goal:** Rename "Input" → "Project Details" and restructure it as a proper configuration hub. Add the formal commit flow with confirmation modal and locked state. Add video settings selectors (UI only — no pipeline wiring yet).
+**Status:** planned
+**Points:** 8
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| S9-S1 | Project Details tab — rename Input → Project Details; restructure into Content section (Name, Script, Voiceover) and Settings section | 3 | backlog |
+| S9-S2 | Commit system — "Commit" CTA replaces "Create Storyboard"; confirmation modal with lock warning; ✓ committed state indicator | 3 | backlog |
+| S9-S3 | Video settings UI — aspect ratio (9:16 / 16:9 / 1:1), visual style enum, subtitles toggle + style selector; stored in run config, no pipeline wiring yet | 2 | backlog |
+
+**Execution order:** S9-S1 → S9-S2 (commit UI built on restructured Project Details); S9-S3 independent.
+
+---
+
+## Sprint 9 Definition of Done
+- [ ] S9-S1: Tab label reads "Project Details". Content section: Project Name, Script, Voiceover upload. Settings section visible below content. Existing functionality (Save Draft, VO upload) preserved.
+- [ ] S9-S2: "Commit" button replaces "Create Storyboard". Clicking opens modal with text: "After committing, you will NOT be able to modify: Project Name, Script, Voiceover. Do you want to continue? [Cancel] [Commit]". After confirming: Project Details locked read-only, ✓ green indicator shown. Triggers alignment + storyboard as before.
+- [ ] S9-S3: Aspect ratio selector (9:16 default), visual style dropdown (Realistic/Cinematic/Cartoonish/Documentary/Minimalist), subtitles toggle + style selector (TikTok / Classic) all render, persist in run config via `POST /runs/{run_id}/settings`, and survive page reload.
+- [ ] All existing tests pass.
+- [ ] **Human touchpoint:** operator fills Project Details, clicks Commit, reads the confirmation modal, confirms, and sees the section lock with a green ✓.
+
+---
+
+# Sprint 10 — TTS Voiceover Generation
+
+**Goal:** Operator can provide a script with no audio file and have ElevenLabs generate the voiceover. Script is chunked, sent in parallel, merged as PCM, and stored as MP3. Alignment runs automatically — invisible to the user.
+**Status:** planned
+**Points:** 6
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| S10-S1 | TTS VO generation — ElevenLabs chunked parallel requests, PCM merge via ffmpeg, auto-run alignment | 6 | backlog |
+
+---
+
+## Sprint 10 Definition of Done
+- [ ] S10-S1: "Generate Voiceover" toggle available alongside "Upload VO" in Project Details. Script split at sentence boundaries (~1000-char chunks). All chunks sent to ElevenLabs concurrently (`asyncio.gather`). `previous_text`/`next_text` context params sent per chunk. PCM responses concatenated in order, encoded to MP3 via ffmpeg subprocess, stored as `runs/{run_id}/voiceover/generated.mp3`. Alignment (`POST /alignment`) runs automatically after generation — no user action required. `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` added to `config.py` and `ENV.md`. Tests pass (ElevenLabs API mocked). DECISIONS.md D038 + D039 pre-exist.
+- [ ] All existing tests pass.
+- [ ] **Human touchpoint:** operator pastes a script, clicks "Generate Voiceover", sees a progress indicator, then the pipeline advances to Commit without requiring an audio file upload.
+
+---
+
+# Sprint 11 — Audio Layer
+
+**Goal:** Background music as a first-class pipeline component. Operator uploads a background track, sets volume, enables voiceover ducking. Settings flow through to the ffmpeg render — replaces the hardcoded `music 0.15` constant.
+**Status:** planned
+**Points:** 10
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| S11-S1 | Background music upload — presigned PUT to `runs/{run_id}/music/`, stored in R2, playback preview in UI | 3 | backlog |
+| S11-S2 | Audio controls UI — volume slider (0–100%), voiceover ducking toggle, loop vs fit-to-duration mode; stored in run config | 2 | backlog |
+| S11-S3 | Audio → ffmpeg integration — BG music key + volume + ducking settings passed into generated ffmpeg script; replaces hardcoded `music 0.15` | 5 | backlog |
+
+**Execution order:** S11-S1 → S11-S2 (controls require upload widget to exist); S11-S3 depends on both.
+
+---
+
+## Sprint 11 Definition of Done
+- [ ] S11-S1: Audio section in Project Details. Background music file picker → presigned PUT → R2 at `runs/{run_id}/music/bg.mp3`. Playback `<audio>` preview shown after upload.
+- [ ] S11-S2: Volume slider (0–100%, default 15%), voiceover ducking toggle (default ON), loop/fit-to-duration selector render and persist in run config.
+- [ ] S11-S3: ffmpeg script generator reads audio settings from run config. When BG music present: uses configured volume (not hardcoded 0.15). Ducking ON: applies ffmpeg `volume` envelope or `sidechaincompress` to lower music under voiceover. Loop/fit mode controls whether BG music is trimmed or looped to match video duration. Tests cover each variant.
+- [ ] All existing tests pass.
+- [ ] **Human touchpoint:** operator uploads a background track, sets volume to 40%, enables ducking, renders video, hears the track duck under the voiceover in the final output.
+
+---
+
+# Sprint 12 — Video Settings Pipeline Wiring + Publishing Metadata
+
+**Goal:** Wire the stored video settings into the actual render pipeline (aspect ratio changes ffmpeg output, visual style feeds Replicate prompts, subtitles toggle skips caption burn). Add post-render publishing metadata generation.
+**Status:** planned
+**Points:** 9
+
+---
+
+## Stories
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| S12-S1 | Video settings → pipeline — aspect ratio into ffmpeg output dimensions, visual style into Replicate `ai_generate_prompt`, subtitles toggle enables/disables caption burn steps | 4 | backlog |
+| S12-S2 | Publishing metadata generator — Claude API call post-render; generates title (primary + 2 variants), YouTube description, Instagram description, hashtags + SEO tags; stored at `runs/{run_id}/metadata.json` | 3 | backlog |
+| S12-S3 | Publishing metadata UI — display below video player after render; copy-to-clipboard per field | 2 | backlog |
+
+**Execution order:** S12-S1 independent; S12-S2 → S12-S3.
+
+---
+
+## Sprint 12 Definition of Done
+- [ ] S12-S1: 9:16 project renders 1080×1920; 16:9 renders 1920×1080; 1:1 renders 1080×1080. Visual style value appended to Replicate `ai_generate_prompt` modifier (e.g. "cinematic, shallow depth of field"). Subtitles OFF skips both caption burn steps in ffmpeg script. Tests cover all aspect ratios and subtitle toggle.
+- [ ] S12-S2: `POST /runs/{run_id}/metadata` endpoint calls Claude API (Haiku) with run storyboard + project name as context. Returns and stores `{title, alt_titles: [str, str], youtube_description, instagram_description, hashtags: [str], seo_tags: [str]}` at `runs/{run_id}/metadata.json`. Updates `run_log.json` step `metadata → complete`.
+- [ ] S12-S3: After render section loads and render is complete, metadata section appears below video player. Each field (title, descriptions, hashtags) has a "Copy" button. No auto-posting to any platform.
+- [ ] All existing tests pass.
+- [ ] **Human touchpoint:** operator renders a video, sees metadata section appear automatically, clicks "Copy" on the YouTube description, pastes it directly into YouTube Studio.
