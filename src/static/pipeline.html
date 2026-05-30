@@ -390,8 +390,10 @@
     .data-table.sb-table td.mono { font-size: 11px; }
     .data-table.sb-table td.text-sm { max-width: 160px; }
     .data-table.sb-table td.text-md { max-width: 220px; }
-    .data-table.sb-table td.text-lg { max-width: 680px; }
-    .data-table.sb-table td.vo { background: #F0EDEC; }
+    .data-table.sb-table td.text-lg { max-width: 800px; }
+    .data-table.sb-table td.vo { background: #F6F4F3; }
+    .data-table.sb-table td.motion { min-width: 80px; }
+    .data-table.sb-table td.sfx { max-width: 130px; }
     /* Storyboard section pane: full width for wide table */
     .section-pane.wide { max-width: none; }
 
@@ -1052,8 +1054,8 @@
           <td class="text-md">${esc(vp.primary_stk || '—')}</td>
           <td class="text-sm">${esc(vp.fallback_stk || '—')}</td>
           <td class="text-lg">${esc(vp.ai_generate || '—')}</td>
-          <td class="${s.motion_effect ? '' : 'muted'}">${esc(humanize(s.motion_effect))}</td>
-          <td>${esc(s.sfx || '—')}</td>
+          <td class="motion${s.motion_effect ? '' : ' muted'}">${esc(humanize(s.motion_effect))}</td>
+          <td class="sfx">${esc(s.sfx || '—')}</td>
           <td class="mono">${esc(s.sfx_timing || '—')}</td>
         </tr>`;
       }).join('');
