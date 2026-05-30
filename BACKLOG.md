@@ -847,6 +847,69 @@ Use word-level timestamps from Deepgram (via `alignment.json`) to display captio
 
 ---
 
+## [E4-S8] Caption word coverage + video tail padding
+**Epic:** E4 — FFmpeg Script Generation
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Depends on:** E4-S7
+
+### Goal
+Fix two categories of rendering defects observed in production (2026-05-30):
+
+**Category A — Missing caption words (5 instances observed):** Claude's 4-6 word voiceover_line constraint causes it to drop connecting words ("with", "when we reach", "API") when splitting a long VO line into scenes. `assign_words_to_scenes` uses text matching against `voiceover_line`, so any word absent from all scene voiceover_lines is never assigned to a scene → silently skipped by the caption system.
+
+**Category B — Abrupt video end:** The video cuts off immediately after the last word with no breathing room. A 0.5s silence tail is needed after the final scene.
+
+### Acceptance Criteria
+**Category A — Prompt fix (storyboard)**
+- [ ] Prompt updated to explicitly forbid dropping words when splitting: every word from the spoken VO must appear in exactly one scene's `voiceover_line`. If a phrase exceeds 6 words, split into two scenes — never drop the connecting word.
+- [ ] Add a few-shot example showing a 9-word phrase split into two scenes across a `---` boundary, with "with", "and", "when" preserved.
+- [ ] Prompt version bumped to v0.9 in `docs/PROMPTS.md`
+
+**Category A — Caption fallback (ffmpeg_builder)**
+- [ ] `assign_words_to_scenes`: after the primary greedy assignment, any Deepgram words not matched to any scene are assigned to the scene whose time window they fall within (by `start_ms`). This ensures that words Claude omitted from voiceover_lines still get captions if the audio timing is available.
+- [ ] Unassigned words that fall before the first scene or after the last scene are appended to the nearest scene.
+- [ ] No change to existing matched-word behaviour — only unmatched words are affected by the fallback.
+
+**Category B — Video tail**
+- [ ] `build_ffmpeg_script` adds a `_VIDEO_TAIL_S = 0.5` silence pad after the final concat step (before audio assembly). The last scene's video clip is extended by 0.5s via `tpad=stop_mode=clone:stop_duration=0.5` filter or equivalent.
+- [ ] Tail length configurable via `VIDEO_TAIL_SECONDS` ENV var (default `0.5`, type `float`).
+- [ ] `src/config.py`: `VIDEO_TAIL_SECONDS: float = 0.5`.
+- [ ] `ENV.md`: document `VIDEO_TAIL_SECONDS`.
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green, deployed to DEV
+- [ ] Smoke test passed
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Smoke test
+Render a video with a VO containing: (a) connecting words like "with X, Y, and Z", and (b) a phrase "when we reach X" — verify all words appear in captions. Confirm rendered video has ~0.5s of visible frames after the last spoken word before the video ends.
+
+### Files to read
+- `src/ffmpeg_builder.py` — `assign_words_to_scenes`, `build_ffmpeg_script`
+- `src/captions.py` — `build_word_synced_captions_ass`
+- `docs/PROMPTS.md` — current v0.8 prompt
+- `src/storyboard.py` — `SYSTEM_PROMPT` constant
+- `src/config.py`
+
+### Files to create or modify
+- `src/storyboard.py` — bump SYSTEM_PROMPT to v0.9 (word-preservation rule + example)
+- `docs/PROMPTS.md` — v0.9 changelog
+- `src/ffmpeg_builder.py` — fallback assignment in `assign_words_to_scenes`; tail pad in `build_ffmpeg_script`
+- `src/config.py` — `VIDEO_TAIL_SECONDS: float = 0.5`
+- `ENV.md` — document `VIDEO_TAIL_SECONDS`
+- `tests/test_ffmpeg_builder.py` — test fallback assignment and tail pad
+- `tests/test_storyboard.py` — update system prompt version assertion if present
+
+### Handover
+_filled on completion_
+
+---
+
 ## EPIC 5 — FFmpeg Execution + Drive Upload (Pipeline Step 6)
 Execute `ffmpeg_script.sh` on Railway, upload final video to Drive `/output`
 
