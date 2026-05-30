@@ -24,7 +24,7 @@
       flex: 1;
       overflow: hidden;
       position: relative;
-      padding: 0 20px 16px 0;
+      padding: 0 20px 0 0;
     }
 
     /* ── Left panel: run list ─────────────────────────────────────────── */
@@ -43,20 +43,23 @@
       margin-right: 0;
     }
 
-    .panel-runs-header {
+    .new-project-btn {
       display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 10px;
-      padding: 12px 14px 10px 42px;
+      align-items: center;
+      width: calc(100% - 12px);
+      margin: 36px 6px 2px;
+      padding: 4px 8px 4px 6px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      color: #9A9A9A;
+      text-align: left;
       flex-shrink: 0;
     }
-    .app-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: #2D2D2D;
-      white-space: nowrap;
-    }
+    .new-project-btn:hover { background: #E5E2E1; color: #2D2D2D; }
 
     /* ── Sidebar collapse toggle ─────────────────────────────────────── */
     .sidebar-toggle {
@@ -121,7 +124,7 @@
       background: #FBF9F8;
       display: flex;
       flex-direction: column;
-      padding: 87px 4px 6px;
+      padding: 67px 4px 6px;
       margin-right: 16px;
     }
     .panel-nav.hidden { display: none; }
@@ -419,10 +422,7 @@
 
   <!-- ── Left panel: project list ──────────────────────────────────────── -->
   <div class="panel-runs" id="panel-runs">
-    <div class="panel-runs-header">
-      <span class="app-title">Content Factory</span>
-      <button class="btn btn-outline btn-sm new-project-btn" onclick="openNewProjectForm()">+ New Project</button>
-    </div>
+    <button class="new-project-btn" onclick="openNewProjectForm()">+ New Project</button>
     <div class="run-list-scroll" id="run-list-content">
       <span class="muted state-loading" style="padding:8px 10px; display:block;">loading…</span>
     </div>
