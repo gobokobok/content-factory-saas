@@ -1276,6 +1276,9 @@
     // ─── Delete project ───────────────────────────────────────────────────────
     function openDeleteModal() {
       if (!pendingDeleteRunId) pendingDeleteRunId = currentRunId;
+      const btn = document.getElementById('delete-confirm-btn');
+      btn.disabled = false;
+      btn.textContent = 'Delete';
       document.getElementById('delete-modal').classList.add('open');
     }
 
