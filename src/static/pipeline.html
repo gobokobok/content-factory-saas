@@ -443,6 +443,44 @@
     .hint-error { color: #dc2626; }
     .field { margin-bottom: 16px; }
     #section-input .field { margin-bottom: 20px; }
+
+    /* ── Field card (Project Details) ────────────────────────────────── */
+    .field-card {
+      background: #F0EDEC;
+      border-radius: 8px;
+      padding: 12px 14px 14px;
+      margin-bottom: 8px;
+    }
+    .field-card label {
+      margin-top: 0;
+      margin-bottom: 0;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #E3E0DE;
+      width: 100%;
+      display: block;
+    }
+    /* Remove underline inside card — card provides the visual boundary */
+    #section-input .field-card input[type="text"],
+    #section-input .field-card textarea {
+      border: none;
+      padding: 10px 0 0;
+    }
+    #section-input .field-card input[type="text"]:focus,
+    #section-input .field-card textarea:focus {
+      border: none;
+      box-shadow: none;
+    }
+    #section-input .field-card input[type="text"]:disabled,
+    #section-input .field-card textarea:disabled {
+      border: none;
+    }
+    .field-card .vo-widget {
+      padding-top: 10px;
+    }
+    .field-card .subsection-placeholder {
+      padding: 10px 0 0;
+      font-size: 12px;
+    }
     .subsection { margin-bottom: 24px; }
     .subsection + .subsection { margin-top: 16px; }
     .subsection-title {
@@ -702,12 +740,12 @@
       <div class="subsection">
         <div class="subsection-title">Content</div>
 
-        <div class="field">
+        <div class="field-card">
           <label for="project-name-input">Project Name</label>
           <input type="text" id="project-name-input" placeholder="e.g. Housing Crisis Explained" oninput="onProjectNameInput()">
         </div>
 
-        <div class="field">
+        <div class="field-card">
           <label>Voiceover</label>
           <div class="vo-widget">
             <input type="file" id="vo-file-input" accept=".mp3,audio/*" style="display:none" onchange="onVoFileSelected()">
@@ -718,7 +756,7 @@
           </div>
         </div>
 
-        <div class="field">
+        <div class="field-card">
           <label for="script-input">VO Script</label>
           <textarea id="script-input" rows="1" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn(); autoResizeScript(this)"></textarea>
         </div>
@@ -726,7 +764,9 @@
 
       <div class="subsection">
         <div class="subsection-title">Settings</div>
-        <div class="subsection-placeholder">Video settings coming soon.</div>
+        <div class="field-card">
+          <div class="subsection-placeholder">Video settings coming soon.</div>
+        </div>
       </div>
 
       <div class="cta-area">
