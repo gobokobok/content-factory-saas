@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S9-S1] Project Details tab restructure
+**Completed:** 2026-05-31
+**Handover:**
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- All user-visible "Input" labels replaced with "Project Details": `SECTION_LABELS.input`, `renderNavItems` label, `section-title` hidden div, and two empty-state messages.
+- Content section wraps Project Name, Voiceover, and VO Script fields under a `CONTENT` subsection heading.
+- Settings section placeholder added below (`SETTINGS` heading + "Video settings coming soon.") — ready for S9-S3 controls with no further HTML restructuring needed.
+- New CSS: `.subsection`, `.subsection-title` (11px uppercase muted), `.subsection-placeholder`.
+- Internal JS IDs and function names (`section-input`, `sectionLocked.input`, `populateInput`) unchanged.
+- 619 tests passing.
+**Smoke test:** PASSED — accessibility tree confirmed nav label "Project Details", "CONTENT" heading with all 3 fields, "SETTINGS" heading with placeholder text, and both CTAs present.
+**Promoted to backlog:** none
+
+---
+
 ## [S8-S5] Project deletion flow
 **Completed:** 2026-05-30
 **Handover:**

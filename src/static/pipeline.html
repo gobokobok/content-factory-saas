@@ -412,6 +412,20 @@
     .hint { font-size: 12px; color: #9A9A9A; margin-top: 4px; }
     .hint-error { color: #dc2626; }
     .field { margin-bottom: 16px; }
+    .subsection { margin-bottom: 24px; }
+    .subsection-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #9A9A9A;
+      margin-bottom: 12px;
+    }
+    .subsection-placeholder {
+      font-size: 13px;
+      color: #9A9A9A;
+      padding: 12px 0;
+    }
 
     /* ── VO upload widget ─────────────────────────────────────────────── */
     .vo-widget {
@@ -638,30 +652,39 @@
       <span class="bc-step" id="bc-step"></span>
     </div>
 
-    <!-- ── Input section ──────────────────────────────────────────────── -->
+    <!-- ── Project Details section ─────────────────────────────────────── -->
     <div class="section-pane" id="section-input">
-      <div class="section-title" style="display:none;">Input</div>
+      <div class="section-title" style="display:none;">Project Details</div>
       <div id="input-error" class="error-bar" style="display:none;"></div>
 
-      <div class="field">
-        <label for="project-name-input">Project Name</label>
-        <input type="text" id="project-name-input" placeholder="e.g. Housing Crisis Explained" oninput="onProjectNameInput()">
-      </div>
+      <div class="subsection">
+        <div class="subsection-title">Content</div>
 
-      <div class="field">
-        <label>Voiceover</label>
-        <div class="vo-widget">
-          <input type="file" id="vo-file-input" accept=".mp3,audio/*" style="display:none" onchange="onVoFileSelected()">
-          <button class="btn btn-secondary btn-sm" id="vo-pick-btn" onclick="document.getElementById('vo-file-input').click()">Choose File</button>
-          <span id="vo-filename" class="vo-filename">no file selected</span>
-          <button class="btn btn-secondary btn-sm" id="vo-upload-btn" disabled onclick="uploadVoiceover()">Upload</button>
-          <span id="vo-upload-status" class="muted" style="font-size:12px;"></span>
+        <div class="field">
+          <label for="project-name-input">Project Name</label>
+          <input type="text" id="project-name-input" placeholder="e.g. Housing Crisis Explained" oninput="onProjectNameInput()">
+        </div>
+
+        <div class="field">
+          <label>Voiceover</label>
+          <div class="vo-widget">
+            <input type="file" id="vo-file-input" accept=".mp3,audio/*" style="display:none" onchange="onVoFileSelected()">
+            <button class="btn btn-secondary btn-sm" id="vo-pick-btn" onclick="document.getElementById('vo-file-input').click()">Choose File</button>
+            <span id="vo-filename" class="vo-filename">no file selected</span>
+            <button class="btn btn-secondary btn-sm" id="vo-upload-btn" disabled onclick="uploadVoiceover()">Upload</button>
+            <span id="vo-upload-status" class="muted" style="font-size:12px;"></span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="script-input">VO Script</label>
+          <textarea id="script-input" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn()"></textarea>
         </div>
       </div>
 
-      <div class="field">
-        <label for="script-input">VO Script</label>
-        <textarea id="script-input" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn()"></textarea>
+      <div class="subsection">
+        <div class="subsection-title">Settings</div>
+        <div class="subsection-placeholder">Video settings coming soon.</div>
       </div>
 
       <div class="cta-area">
@@ -684,7 +707,7 @@
       <div id="storyboard-error" class="error-bar" style="display:none;"></div>
 
       <div id="storyboard-content">
-        <div class="state-empty">No storyboard yet — create one in Input.</div>
+        <div class="state-empty">No storyboard yet — create one in Project Details.</div>
       </div>
 
       <div class="cta-area" id="storyboard-cta-area" style="display:none;">
@@ -841,7 +864,7 @@
       document.getElementById('vo-upload-status').textContent = '';
 
       const sb = document.getElementById('storyboard-content');
-      if (sb) { sb.innerHTML = '<div class="state-empty">No storyboard yet — create one in Input.</div>'; delete sb.dataset.loadedFor; }
+      if (sb) { sb.innerHTML = '<div class="state-empty">No storyboard yet — create one in Project Details.</div>'; delete sb.dataset.loadedFor; }
 
       document.getElementById('content-empty').style.display = 'none';
       document.getElementById('panel-nav').classList.remove('hidden');
@@ -964,7 +987,7 @@
     }
 
     const SECTION_LABELS = {
-      input: 'Input', storyboard: 'Storyboard', assets: 'Assets', render: 'Rendered Video',
+      input: 'Project Details', storyboard: 'Storyboard', assets: 'Assets', render: 'Rendered Video',
     };
 
     function updateBreadcrumb() {
@@ -980,7 +1003,7 @@
 
     function renderNavItems() {
       const sections = [
-        { key: 'input',      label: 'Input' },
+        { key: 'input',      label: 'Project Details' },
         { key: 'storyboard', label: 'Storyboard' },
         { key: 'assets',     label: 'Assets' },
         { key: 'render',     label: 'Rendered Video' },
@@ -1148,7 +1171,7 @@
 
       const contentDiv = document.getElementById('storyboard-content');
       if (!storyboardDone) {
-        contentDiv.innerHTML = '<div class="state-empty">No storyboard yet — create one in Input.</div>';
+        contentDiv.innerHTML = '<div class="state-empty">No storyboard yet — create one in Project Details.</div>';
         return;
       }
       if (contentDiv.dataset.loadedFor === currentRunId) return;

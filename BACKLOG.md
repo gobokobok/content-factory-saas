@@ -2594,7 +2594,8 @@ Create a test project and run at least one pipeline step (so R2 has files). Clic
 ## [S9-S1] Project Details tab restructure
 **Epic:** E10 — Project Details Refactor
 **Sprint:** 9
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-31
 **Priority:** high
 **Points:** 3
 **Depends on:** S8-S4
@@ -2619,7 +2620,12 @@ Rename the "Input" tab to "Project Details" everywhere in the UI. Restructure th
 - `src/static/pipeline.html` — label text + HTML structure
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- All user-visible "Input" strings replaced with "Project Details": `SECTION_LABELS.input`, `renderNavItems` label entry, `section-title` hidden div, and two empty-state messages ("create one in Project Details.").
+- HTML restructured into two named subsections inside `#section-input`: **Content** (Project Name, Voiceover, VO Script) and **Settings** (placeholder "Video settings coming soon." — ready for S9-S3 wiring).
+- New CSS classes: `.subsection` (margin group), `.subsection-title` (11px uppercase muted label), `.subsection-placeholder` (muted placeholder text).
+- All JS IDs/function names unchanged — `section-input`, `sectionLocked.input`, `populateInput()`, etc. preserved for internal use.
+- 619 tests passing. No new ENV vars. No new dependencies.
 
 ---
 
