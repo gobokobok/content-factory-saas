@@ -8,11 +8,18 @@ _Entries added here when a story reaches Definition of Done._
 **Completed:** 2026-05-30
 **Handover:**
 - `src/static/pipeline.html` only — no backend changes, no new ENV vars.
-- Added `.data-table.sb-table { white-space: normal; }`, `.data-table.sb-table td { word-wrap: break-word; }`, and `.data-table.sb-table td.text { max-width: 260px; }` CSS rules — scoped to the storyboard table only, leaving the manifest table's `nowrap` behaviour unchanged.
+- Added `.data-table.sb-table { white-space: normal; }`, `.data-table.sb-table td { word-wrap: break-word; }` CSS rules — scoped to the storyboard table only, leaving the manifest table's `nowrap` behaviour unchanged.
 - `class="data-table sb-table"` added to the storyboard `<table>` element in `renderStoryboardHtml`.
-- Removed `class="trunc" title="..."` from the four text-heavy storyboard cells (Voiceover, Primary Query, Fallback Query, AI Prompt) — replaced with `class="text"`. Manifest table `.trunc` usage untouched.
+- Removed `class="trunc" title="..."` from the four text-heavy storyboard cells (Voiceover, Primary Query, Fallback Query, AI Prompt). Manifest table `.trunc` usage untouched.
 - 612 tests passing.
-**Smoke test:** PASSED — CSS verified in preview: `white-space: normal`, `text-overflow: clip`, `overflow: visible`, `max-width: 260px` confirmed on `.text` cells; table `white-space: normal` confirmed.
+**Post-close amendments (same session):** Additional storyboard table polish applied after story close:
+  - `.section-pane.wide { max-width: none }` + `wide` class on `#section-storyboard` — panel extends to right edge of screen.
+  - Font size reduced to 11px on `.data-table.sb-table`.
+  - Per-column max-width classes: `text-sm` (160px, fallback query), `text-md` (220px, voiceover + primary query), `text-lg` (340px, AI prompt). Replaces the old uniform `text` class.
+  - Column reordered: ID → Voiceover → Duration → Type → Primary Query → Fallback Query → AI Prompt → Motion → SFX → SFX Timing.
+  - On-Screen Text column removed from storyboard table.
+  - `humanize()` helper added to `renderStoryboardHtml` — replaces underscores with spaces in Type and Motion cell values (`still_with_motion` → `still with motion`, `zoom_in` → `zoom in`). Frontend-only; backend enum values unchanged.
+**Smoke test:** PASSED — verified in preview: all columns present in correct order, humanized type/motion values, 11px font, `#section-storyboard` carries `.wide` class, no On-Screen Text column.
 **Promoted to backlog:** none
 
 ---

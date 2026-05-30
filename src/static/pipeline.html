@@ -383,10 +383,14 @@
       text-overflow: ellipsis;
     }
     .data-table td.muted { color: #9A9A9A; }
-    /* Storyboard table: full text, no truncation */
-    .data-table.sb-table { white-space: normal; }
+    /* Storyboard table: full text, no truncation, smaller font */
+    .data-table.sb-table { white-space: normal; font-size: 11px; }
     .data-table.sb-table td { word-wrap: break-word; }
-    .data-table.sb-table td.text { max-width: 260px; }
+    .data-table.sb-table td.text-sm { max-width: 160px; }
+    .data-table.sb-table td.text-md { max-width: 220px; }
+    .data-table.sb-table td.text-lg { max-width: 340px; }
+    /* Storyboard section pane: full width for wide table */
+    .section-pane.wide { max-width: none; }
 
     /* ── Video player ─────────────────────────────────────────────────── */
     .video-bounded { position: relative; max-height: 360px; overflow: hidden; border-radius: 4px; border: 1px solid #E8E5E4; cursor: pointer; background: #000; }
@@ -488,7 +492,7 @@
     </div>
 
     <!-- ── Storyboard section ─────────────────────────────────────────── -->
-    <div class="section-pane" id="section-storyboard">
+    <div class="section-pane wide" id="section-storyboard">
       <div class="section-title">Storyboard</div>
       <div id="storyboard-error" class="error-bar" style="display:none;"></div>
 
@@ -1020,6 +1024,9 @@
       const scenes = content?.scenes;
       if (!scenes?.length) return '<div class="state-empty">No scenes found.</div>';
 
+      /** Replace underscores with spaces for human-readable display. */
+      const humanize = s => s ? s.replace(/_/g, ' ') : '—';
+
       const g = content?.global || {};
       const metaFields = [
         ['BG Music',       g.bg_music],
@@ -1036,14 +1043,13 @@
         const vp = s.visual_prompts || {};
         return `<tr>
           <td class="mono">${esc(s.scene)}</td>
-          <td>${esc(s.clip_type)}</td>
+          <td class="text-md">${esc(s.voiceover_line)}</td>
           <td class="mono">${esc(s.duration_s)}s</td>
-          <td class="text">${esc(s.voiceover_line)}</td>
-          <td class="${s.on_screen_text ? '' : 'muted'}">${esc(s.on_screen_text || '—')}</td>
-          <td class="text">${esc(vp.primary_stk || '—')}</td>
-          <td class="text">${esc(vp.fallback_stk || '—')}</td>
-          <td class="text">${esc(vp.ai_generate || '—')}</td>
-          <td class="${s.motion_effect ? '' : 'muted'}">${esc(s.motion_effect || '—')}</td>
+          <td>${esc(humanize(s.clip_type))}</td>
+          <td class="text-md">${esc(vp.primary_stk || '—')}</td>
+          <td class="text-sm">${esc(vp.fallback_stk || '—')}</td>
+          <td class="text-lg">${esc(vp.ai_generate || '—')}</td>
+          <td class="${s.motion_effect ? '' : 'muted'}">${esc(humanize(s.motion_effect))}</td>
           <td>${esc(s.sfx || '—')}</td>
           <td class="mono">${esc(s.sfx_timing || '—')}</td>
         </tr>`;
@@ -1051,8 +1057,8 @@
 
       return `${metaHtml}<div class="table-wrap"><table class="data-table sb-table">
         <thead><tr>
-          <th>Scene</th><th>Type</th><th>Duration</th><th>Voiceover</th>
-          <th>On-Screen Text</th><th>Primary Query</th><th>Fallback Query</th>
+          <th>ID</th><th>Voiceover</th><th>Duration</th><th>Type</th>
+          <th>Primary Query</th><th>Fallback Query</th>
           <th>AI Prompt</th><th>Motion</th><th>SFX</th><th>SFX Timing</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
