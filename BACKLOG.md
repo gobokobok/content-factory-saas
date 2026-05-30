@@ -2199,7 +2199,8 @@ _filled on completion_
 ## [S7-S1] Full pipeline smoke test — validate all deferred smoke tests on Railway DEV
 **Epic:** E6 — Operator UI
 **Sprint:** 7
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-30
 **Priority:** critical
 **Points:** 3
 **Depends on:** Railway DEV deploy live (auto-deploy from main ✓)
@@ -2233,7 +2234,10 @@ This story IS the smoke test. The AC above are the verification criteria.
 - `src/static/pipeline.html` — if inline fixes are needed
 
 ### Handover
-_filled on completion_
+- Full pipeline validated end-to-end on Railway DEV: login → new project → VO upload → alignment → storyboard → asset acquisition → render → download.
+- All 10 deferred smoke tests from Sprints 3–6 signed off in a single session (S6-S2 through S6-S6, S5-S2, S5-S4, S5-S5, E5-S4, E5-S5).
+- No blocking bugs found. No ENV vars added. No new dependencies.
+- Zero issues promoted to backlog.
 
 ---
 

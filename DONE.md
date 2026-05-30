@@ -4,6 +4,17 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S7-S1] Full pipeline smoke test — validate all deferred smoke tests on Railway DEV
+**Completed:** 2026-05-30
+**Handover:**
+- Full pipeline validated end-to-end on Railway DEV: login → new project → VO upload → alignment (Deepgram) → storyboard → asset acquisition → render → download.
+- All 10 deferred smoke tests from Sprints 3–6 signed off in one session: S6-S6 (bounded player + modal + download), S6-S5 (assets Description + Open link), S6-S4 (storyboard 11-column table), S6-S3 (Save Draft + Create Storyboard lock), S6-S2 (project name identifier), S5-S5 (login/logout gate), S5-S4 (three-panel UI), S5-S2 (GET /runs latency), E5-S5 (VO-first pipeline), E5-S4 (Deepgram alignment.json).
+- No blocking bugs found. No ENV vars added. No new dependencies.
+**Smoke test:** PASSED — operator ran the complete pipeline on Railway DEV; all steps reached `complete` in `run_log.json`; video quality confirmed good.
+**Promoted to backlog:** none
+
+---
+
 ## [S6-S6] Render Video: bounded player + modal + Download button
 **Completed:** 2026-05-29
 **Handover:**
