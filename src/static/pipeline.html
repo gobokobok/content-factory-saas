@@ -124,10 +124,22 @@
       background: #FBF9F8;
       display: flex;
       flex-direction: column;
-      padding: 67px 6px 6px;
+      padding: 16px 6px 6px;
       margin-right: 16px;
     }
     .panel-nav.hidden { display: none; }
+    .panel-nav-heading {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #B0ABA9;
+      padding: 0 8px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      margin-bottom: 10px;
+    }
 
     .nav-back {
       display: flex;
@@ -178,8 +190,23 @@
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
-      padding: 6px 40px 32px;
+      padding: 16px 40px 32px;
     }
+    .content-breadcrumb {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      height: 22px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: #9A9A9A;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    .content-breadcrumb.visible { display: flex; }
+    .bc-name { overflow: hidden; text-overflow: ellipsis; }
+    .bc-sep { flex-shrink: 0; }
+    .bc-step { color: #2D2D2D; font-weight: 600; flex-shrink: 0; }
 
     .content-empty {
       display: flex;
@@ -505,16 +532,22 @@
 
   <!-- ── Middle panel: section nav ────────────────────────────────────── -->
   <div class="panel-nav hidden" id="panel-nav">
+    <div class="panel-nav-heading">Project Pipeline</div>
     <div id="nav-items"></div>
   </div>
 
   <!-- ── Right panel: content ─────────────────────────────────────────── -->
   <div class="panel-content">
     <div class="content-empty" id="content-empty">Select a run to get started</div>
+    <div class="content-breadcrumb" id="content-breadcrumb">
+      <span class="bc-name" id="bc-name"></span>
+      <span class="bc-sep">/</span>
+      <span class="bc-step" id="bc-step"></span>
+    </div>
 
     <!-- ── Input section ──────────────────────────────────────────────── -->
     <div class="section-pane" id="section-input">
-      <div class="section-title">Input</div>
+      <div class="section-title" style="display:none;">Input</div>
       <div id="input-error" class="error-bar" style="display:none;"></div>
 
       <div class="field">
@@ -554,7 +587,7 @@
 
     <!-- ── Storyboard section ─────────────────────────────────────────── -->
     <div class="section-pane wide" id="section-storyboard">
-      <div class="section-title">Storyboard</div>
+      <div class="section-title" style="display:none;">Storyboard</div>
       <div id="storyboard-error" class="error-bar" style="display:none;"></div>
 
       <div id="storyboard-content">
@@ -571,7 +604,7 @@
 
     <!-- ── Assets section ────────────────────────────────────────────── -->
     <div class="section-pane" id="section-assets">
-      <div class="section-title">Assets</div>
+      <div class="section-title" style="display:none;">Assets</div>
       <div id="assets-error" class="error-bar" style="display:none;"></div>
 
       <div id="assets-content">
@@ -588,7 +621,7 @@
 
     <!-- ── Rendered Video section ────────────────────────────────────── -->
     <div class="section-pane" id="section-render">
-      <div class="section-title">Rendered Video</div>
+      <div class="section-title" style="display:none;">Rendered Video</div>
       <div id="render-content">
         <div class="state-empty">No video yet — render one in Assets.</div>
       </div>
@@ -607,6 +640,7 @@
   <script>
     // ─── State ────────────────────────────────────────────────────────────────
     let currentRunId      = null;
+    let currentProjectName = '';
     let currentSection    = 'input';
     let currentSteps      = {};
     let stepRunning       = {};
@@ -730,6 +764,7 @@
         }
         const { run_id } = await res.json();
         currentRunId = run_id;
+        currentProjectName = name;
         history.pushState(null, '', `#run/${encodeURIComponent(run_id)}/input`);
         renderRunList();
         return true;
@@ -754,10 +789,12 @@
     // ─── Navigation ───────────────────────────────────────────────────────────
     function deselectRun() {
       currentRunId = null;
+      currentProjectName = '';
       history.pushState(null, '', window.location.pathname);
       document.getElementById('panel-nav').classList.add('hidden');
       document.getElementById('content-empty').style.display = '';
       document.querySelectorAll('.section-pane').forEach(p => p.classList.remove('active'));
+      updateBreadcrumb();
       renderRunList();
     }
 
@@ -780,8 +817,9 @@
       }
 
       // Populate project name field (read-only for existing runs)
+      currentProjectName = run?.project_name || '';
       const nameInput = document.getElementById('project-name-input');
-      if (nameInput) nameInput.value = run?.project_name || '';
+      if (nameInput) nameInput.value = currentProjectName;
 
       // Initialize locked state based on completed steps
       sectionLocked = {
@@ -811,7 +849,23 @@
       const pane = document.getElementById(`section-${sectionKey}`);
       if (pane) pane.classList.add('active');
       renderNavItems();
+      updateBreadcrumb();
       populateSection(sectionKey);
+    }
+
+    const SECTION_LABELS = {
+      input: 'Input', storyboard: 'Storyboard', assets: 'Assets', render: 'Rendered Video',
+    };
+
+    function updateBreadcrumb() {
+      const bc = document.getElementById('content-breadcrumb');
+      if (!bc) return;
+      if (!currentRunId) { bc.classList.remove('visible'); return; }
+      const name = currentProjectName || currentRunId;
+      const truncated = name.length > 30 ? name.slice(0, 30) + '...' : name;
+      document.getElementById('bc-name').textContent = truncated;
+      document.getElementById('bc-step').textContent = SECTION_LABELS[currentSection] || '';
+      bc.classList.add('visible');
     }
 
     function renderNavItems() {
