@@ -31,7 +31,7 @@
     .panel-runs {
       width: 200px;
       flex-shrink: 0;
-      background: linear-gradient(to right, #F6F4F2 60%, #F0EDEC 100%);
+      background: #F6F4F3;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -43,11 +43,35 @@
       margin-right: 0;
     }
 
+    .panel-runs-top {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      flex-shrink: 0;
+      padding: 0 6px;
+    }
+    .panel-logout-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      color: #9A9A9A;
+      border-radius: 4px;
+      padding: 0;
+    }
+    .panel-logout-btn:hover { color: #2D2D2D; background: #E5E2E1; }
+
     .new-project-btn {
       display: flex;
       align-items: center;
+      gap: 5px;
       width: calc(100% - 12px);
-      margin: 48px 6px 2px;
+      margin: 4px 6px 2px;
       padding: 4px 8px 4px 6px;
       border-radius: 4px;
       border: none;
@@ -104,7 +128,7 @@
     .run-item:not(.active):hover { background: #E5E2E1; }
     .run-item.active { font-weight: 600; }
     .run-item-id {
-      font-family: monospace;
+      font-family: inherit;
       font-size: 12px;
       flex: 1;
       overflow: hidden;
@@ -113,9 +137,6 @@
       color: #2D2D2D;
     }
 
-    .panel-runs-footer {
-      padding: 10px 16px;
-    }
 
     /* ── Middle panel: section nav ────────────────────────────────────── */
     .panel-nav {
@@ -508,7 +529,7 @@
 
   <!-- ── Sidebar collapse toggle (absolute, outside panel-runs) ─────────── -->
   <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Collapse sidebar">
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
       <rect x="1" y="1" width="14" height="14" rx="2"/>
       <line x1="6" y1="1" x2="6" y2="15"/>
     </svg>
@@ -516,17 +537,20 @@
 
   <!-- ── Left panel: project list ──────────────────────────────────────── -->
   <div class="panel-runs" id="panel-runs">
-    <button class="new-project-btn" onclick="openNewProjectForm()">+ New Project</button>
-    <div class="run-list-scroll" id="run-list-content">
-      <span class="muted state-loading" style="padding:8px 10px; display:block;">loading…</span>
+    <!-- top bar: toggle placeholder left, logout right -->
+    <div class="panel-runs-top">
+      <!-- TODO: S5-S3 — wire to POST /auth/logout + redirect to /login -->
+      <button class="panel-logout-btn" onclick="logOut()" title="Log out">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
     </div>
 
-    <div class="panel-runs-footer">
-      <!-- TODO: S5-S3 — wire to POST /auth/logout + redirect to /login -->
-      <button class="btn btn-ghost btn-sm" style="width:100%; justify-content:flex-start; gap:6px;" onclick="logOut()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        Log out
-      </button>
+    <button class="new-project-btn" onclick="openNewProjectForm()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Project
+    </button>
+    <div class="run-list-scroll" id="run-list-content">
+      <span class="muted state-loading" style="padding:8px 10px; display:block;">loading…</span>
     </div>
   </div>
 
