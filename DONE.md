@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S8-S4] Storyboard settings header — collapsible grouped section
+**Completed:** 2026-05-30
+**Handover:**
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- Replaced the flat `.sb-meta` row with a `.sb-settings` collapsible card rendered at the top of the storyboard section.
+- Collapsed state: header bar with label "Storyboard Settings", one-line summary (`Style: X · Y · Subtitles ON/OFF · Music: Z`), `▾` chevron (rotates 180° via CSS transition when open).
+- `toggleSbSettings()` added to global JS scope — toggles `.open` class on `#sb-settings-block`. Called via `onclick` on header.
+- Expanded body (`display:flex; flex-wrap:wrap`) renders two side-by-side groups: **VIDEO STYLE** (Visual Style, Aspect Ratio, Subtitle Style, Rhythm, Total Duration) and **AUDIO** (Background Music, Volume, VO Ducking). Absent fields render `—` — ready for Sprint 9/11 data wiring with no further HTML changes.
+- 612 tests passing. No new ENV vars.
+**Smoke test:** PASSED — collapsed and expanded states verified via accessibility tree snapshot: summary line correct, all 8 detail fields present in expanded view, toggle works.
+**Promoted to backlog:** none
+
+---
+
 ## [S8-S3] Storyboard table UX — text wrapping and dynamic row height
 **Completed:** 2026-05-30
 **Handover:**

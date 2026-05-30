@@ -348,17 +348,73 @@
     /* ── CTA area ─────────────────────────────────────────────────────── */
     .cta-area { margin-top: 24px; }
 
-    /* ── Storyboard global metadata row ──────────────────────────────── */
-    .sb-meta {
+    /* ── Storyboard settings collapsible ─────────────────────────────── */
+    .sb-settings {
+      margin-bottom: 20px;
+      border: 1px solid #E8E5E4;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .sb-settings-header {
       display: flex;
-      flex-wrap: wrap;
-      gap: 6px 20px;
-      margin-bottom: 24px;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+      user-select: none;
+      background: #F6F4F3;
+    }
+    .sb-settings-header:hover { background: #EFECEB; }
+    .sb-settings-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6B6B6B;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      flex: 0 0 auto;
+    }
+    .sb-settings-summary {
       font-size: 12px;
       color: #9A9A9A;
+      flex: 1 1 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
     }
-    .sb-meta-item { white-space: nowrap; }
-    .sb-meta-item strong { color: #2D2D2D; font-weight: 500; }
+    .sb-settings-chevron {
+      font-size: 10px;
+      color: #9A9A9A;
+      transition: transform 0.15s;
+      flex: 0 0 auto;
+    }
+    .sb-settings.open .sb-settings-chevron { transform: rotate(180deg); }
+    .sb-settings-body {
+      display: none;
+      padding: 14px 16px;
+      gap: 20px;
+      background: #FDFCFC;
+    }
+    .sb-settings.open .sb-settings-body { display: flex; flex-wrap: wrap; }
+    .sb-settings-group {
+      min-width: 180px;
+      flex: 1 1 180px;
+    }
+    .sb-settings-group-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: #9A9A9A;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+    .sb-settings-row {
+      display: flex;
+      gap: 6px;
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+    .sb-settings-row-label { color: #9A9A9A; flex: 0 0 110px; }
+    .sb-settings-row-val { color: #2D2D2D; font-weight: 500; }
 
     /* ── Data tables (storyboard + manifest) ─────────────────────────── */
     .table-wrap { overflow-x: auto; margin-bottom: 8px; }
@@ -1033,16 +1089,41 @@
       const humanize = s => s ? s.replace(/_/g, ' ') : '—';
 
       const g = content?.global || {};
-      const metaFields = [
-        ['BG Music',       g.bg_music],
-        ['Visual Style',   g.visual_style],
-        ['Subtitle Style', g.subtitle_style],
-        ['Rhythm',         g.rhythm],
-        ['Total Duration', g.total_duration_s != null ? `${g.total_duration_s}s` : null],
-      ];
-      const metaHtml = `<div class="sb-meta">${metaFields.map(([label, val]) =>
-        `<span class="sb-meta-item">${esc(label)}: <strong>${esc(val || '—')}</strong></span>`
-      ).join('')}</div>`;
+      const val = v => esc(v || '—');
+      const subtitlesOn = g.subtitle_style && g.subtitle_style !== 'none';
+      const summary = [
+        g.visual_style   ? `Style: ${g.visual_style}`                     : null,
+        g.aspect_ratio   ? g.aspect_ratio                                   : null,
+        `Subtitles ${subtitlesOn ? 'ON' : 'OFF'}`,
+        `Music: ${g.bg_music || 'None'}`,
+      ].filter(Boolean).join(' · ');
+
+      const row = (label, value) =>
+        `<div class="sb-settings-row"><span class="sb-settings-row-label">${esc(label)}</span><span class="sb-settings-row-val">${esc(value || '—')}</span></div>`;
+
+      const metaHtml = `<div class="sb-settings" id="sb-settings-block">
+        <div class="sb-settings-header" onclick="toggleSbSettings()">
+          <span class="sb-settings-label">Storyboard Settings</span>
+          <span class="sb-settings-summary">${esc(summary)}</span>
+          <span class="sb-settings-chevron">▾</span>
+        </div>
+        <div class="sb-settings-body">
+          <div class="sb-settings-group">
+            <div class="sb-settings-group-title">Video Style</div>
+            ${row('Visual Style',   g.visual_style)}
+            ${row('Aspect Ratio',   g.aspect_ratio)}
+            ${row('Subtitle Style', g.subtitle_style)}
+            ${row('Rhythm',         g.rhythm)}
+            ${row('Total Duration', g.total_duration_s != null ? `${g.total_duration_s}s` : null)}
+          </div>
+          <div class="sb-settings-group">
+            <div class="sb-settings-group-title">Audio</div>
+            ${row('Background Music', g.bg_music)}
+            ${row('Volume',           g.volume != null ? `${g.volume}%` : null)}
+            ${row('VO Ducking',       g.vo_ducking != null ? (g.vo_ducking ? 'ON' : 'OFF') : null)}
+          </div>
+        </div>
+      </div>`;
 
       const rowsHtml = scenes.map(s => {
         const vp = s.visual_prompts || {};
@@ -1068,6 +1149,11 @@
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table></div>`;
+    }
+
+    function toggleSbSettings() {
+      const block = document.getElementById('sb-settings-block');
+      if (block) block.classList.toggle('open');
     }
 
     function renderManifestHtml(content) {

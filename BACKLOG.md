@@ -2501,7 +2501,8 @@ Open a run with a completed storyboard. Scroll through the table. Confirm AI Pro
 ## [S8-S4] Storyboard settings header — collapsible grouped section
 **Epic:** E10 — Project Details Refactor
 **Sprint:** 8
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-30
 **Priority:** medium
 **Points:** 2
 **Depends on:** S8-S3
@@ -2510,24 +2511,29 @@ Open a run with a completed storyboard. Scroll through the table. Confirm AI Pro
 Replace the long inline storyboard metadata row with a collapsible settings header. Collapsed view shows a compact one-line summary; expanded view shows grouped VIDEO STYLE and AUDIO sections.
 
 ### Acceptance Criteria
-- [ ] Default (collapsed): single line reading `Storyboard Settings ▾` with a compact summary: `Style: [visual_style] | [aspect_ratio] | Subtitles [ON/OFF] | Music: [bg_music or "None"]`
-- [ ] Clicking expands to show: **VIDEO STYLE** group (Visual Style, Aspect Ratio, Subtitle Style) and **AUDIO** group (Background Music, Volume, Voiceover ducking)
-- [ ] Clicking again collapses back to summary
-- [ ] No horizontal overflow at any panel width
-- [ ] No backend changes
+- [x] Default (collapsed): single line reading `Storyboard Settings ▾` with a compact summary: `Style: [visual_style] | [aspect_ratio] | Subtitles [ON/OFF] | Music: [bg_music or "None"]`
+- [x] Clicking expands to show: **VIDEO STYLE** group (Visual Style, Aspect Ratio, Subtitle Style) and **AUDIO** group (Background Music, Volume, Voiceover ducking)
+- [x] Clicking again collapses back to summary
+- [x] No horizontal overflow at any panel width
+- [x] No backend changes
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Visual smoke test — collapsed and expanded states render cleanly; no overflow
-- [ ] No existing test regressions
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] All AC checked
+- [x] Visual smoke test — collapsed and expanded states render cleanly; no overflow
+- [x] No existing test regressions (612 passing)
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Files to modify
 - `src/static/pipeline.html` — HTML + CSS + JS
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- Replaced `.sb-meta` flat row with `.sb-settings` collapsible card. Collapsed state shows header bar with label "Storyboard Settings", inline summary (`Style: X · Y · Subtitles ON/OFF · Music: Z`), and `▾` chevron. Chevron rotates 180° when open (CSS transition).
+- `toggleSbSettings()` — added to global JS scope; toggles `.open` class on `#sb-settings-block`. Called via `onclick` in the header.
+- Expanded body (`display:flex; flex-wrap:wrap`) shows two groups: **VIDEO STYLE** (Visual Style, Aspect Ratio, Subtitle Style, Rhythm, Total Duration) and **AUDIO** (Background Music, Volume, VO Ducking). Audio fields (Volume, VO Ducking) gracefully show `—` when absent — ready for Sprint 9/11 wiring.
+- Summary uses ` · ` separator; `aspect_ratio` and `visual_style` only appear in summary if present in storyboard `global` object.
+- 612 tests passing. No new ENV vars. No promoted issues.
 
 ---
 
