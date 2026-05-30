@@ -200,11 +200,23 @@
     }
 
     /* ── Status dots ──────────────────────────────────────────────────── */
-    .dot { font-size: 10px; flex-shrink: 0; }
-    .dot-pending  { color: #d1d5db; }
-    .dot-running  { color: #f59e0b; }
-    .dot-complete { color: #16a34a; }
-    .dot-failed   { color: #dc2626; }
+    .dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      vertical-align: middle;
+    }
+    .dot-pending  { border: 1.5px solid #d1d5db; background: transparent; }
+    .dot-running  { border: 1.5px dashed #9ca3af; background: transparent; animation: dot-spin 1s linear infinite; }
+    .dot-draft    { background: #f59e0b; }
+    .dot-complete { background: #16a34a; }
+    .dot-failed   { background: #dc2626; }
+    @keyframes dot-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
 
     /* ── Buttons ──────────────────────────────────────────────────────── */
     .btn {
@@ -305,20 +317,6 @@
       white-space: nowrap;
     }
 
-    /* ── Section locked bar ───────────────────────────────────────────── */
-    .locked-bar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 13px;
-      border: 1px solid #d1fae5;
-      border-radius: 4px;
-      background: #f0fdf4;
-      color: #15803d;
-      font-size: 13px;
-      margin-bottom: 20px;
-    }
-    .locked-bar-spacer { flex: 1; }
 
     /* ── Inline step progress ─────────────────────────────────────────── */
     .step-progress {
@@ -448,10 +446,7 @@
     <!-- ── Input section ──────────────────────────────────────────────── -->
     <div class="section-pane" id="section-input">
       <div class="section-title">Input</div>
-
-      <div id="input-locked-bar" class="locked-bar" style="display:none;">
-        <span>✓ Storyboard created</span>
-      </div>
+      <div id="input-error" class="error-bar" style="display:none;"></div>
 
       <div class="field">
         <label for="project-name-input">Project Name</label>
@@ -476,7 +471,6 @@
 
       <div class="cta-area">
         <div id="input-step-progress" class="step-progress" style="display:none;"></div>
-        <div id="input-error"         class="error-bar"      style="display:none;"></div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <button class="btn btn-secondary" id="save-draft-btn" disabled onclick="saveDraft()">
             Save Draft
@@ -492,10 +486,7 @@
     <!-- ── Storyboard section ─────────────────────────────────────────── -->
     <div class="section-pane" id="section-storyboard">
       <div class="section-title">Storyboard</div>
-
-      <div id="storyboard-locked-bar" class="locked-bar" style="display:none;">
-        <span>✓ Asset acquisition complete</span>
-      </div>
+      <div id="storyboard-error" class="error-bar" style="display:none;"></div>
 
       <div id="storyboard-content">
         <div class="state-empty">No storyboard yet — create one in Input.</div>
@@ -503,7 +494,6 @@
 
       <div class="cta-area" id="storyboard-cta-area" style="display:none;">
         <div id="storyboard-step-progress" class="step-progress" style="display:none;"></div>
-        <div id="storyboard-error"         class="error-bar"      style="display:none;"></div>
         <button class="btn btn-primary" id="run-acquisition-btn" onclick="runAssetAcquisition()">
           Run Asset Acquisition
         </button>
@@ -513,10 +503,7 @@
     <!-- ── Assets section ────────────────────────────────────────────── -->
     <div class="section-pane" id="section-assets">
       <div class="section-title">Assets</div>
-
-      <div id="assets-locked-bar" class="locked-bar" style="display:none;">
-        <span>✓ Video rendered</span>
-      </div>
+      <div id="assets-error" class="error-bar" style="display:none;"></div>
 
       <div id="assets-content">
         <div class="state-empty">No asset manifest yet — approve storyboard first.</div>
@@ -524,7 +511,6 @@
 
       <div class="cta-area" id="assets-cta-area" style="display:none;">
         <div id="assets-step-progress" class="step-progress" style="display:none;"></div>
-        <div id="assets-error"         class="error-bar"      style="display:none;"></div>
         <button class="btn btn-primary" id="render-btn" onclick="runRenderVideo()">
           Render Video
         </button>
@@ -579,9 +565,8 @@
     }
 
     function dotHtml(status) {
-      const chars   = { pending: '○', running: '◌', complete: '●', failed: '●' };
-      const classes = { pending: 'dot-pending', running: 'dot-running', complete: 'dot-complete', failed: 'dot-failed' };
-      return `<span class="dot ${classes[status] || 'dot-pending'}">${chars[status] || '○'}</span>`;
+      const cls = { pending: 'dot-pending', running: 'dot-running', draft: 'dot-draft', complete: 'dot-complete', failed: 'dot-failed' };
+      return `<span class="dot ${cls[status] || 'dot-pending'}"></span>`;
     }
 
     function stepSt(key) { return currentSteps[key] || 'pending'; }
@@ -599,6 +584,7 @@
       if (vals.every(v => v === 'complete'))  return 'complete';
       if (vals.some(v => v === 'failed'))     return 'failed';
       if (vals.some(v => v === 'complete'))   return 'running';
+      if (sectionKey === 'input' && currentRunId) return 'draft';
       return 'pending';
     }
 
@@ -799,12 +785,11 @@
         el.innerHTML = data.runs.map(run => {
           const st      = overallRunStatus(run.steps);
           const dotCls  = st === 'complete' ? 'dot-complete' : st === 'failed' ? 'dot-failed' : st === 'pending' ? 'dot-pending' : 'dot-running';
-          const dotChar = (st === 'complete' || st === 'failed' || st === 'in-progress') ? '●' : '○';
           const isActive = run.run_id === currentRunId;
           const handler  = isActive ? 'deselectRun()' : `openRun('${esc(run.run_id)}')`;
           const displayName = run.project_name || run.run_id;
           return `<div class="run-item${isActive ? ' active' : ''}" onclick="${handler}">
-            <span class="dot ${dotCls}">${dotChar}</span>
+            <span class="dot ${dotCls}"></span>
             <span class="run-item-id" title="${esc(run.run_id)}">${esc(displayName)}</span>
           </div>`;
         }).join('');
@@ -823,7 +808,6 @@
 
     async function populateInput() {
       const locked = sectionLocked.input;
-      document.getElementById('input-locked-bar').style.display = locked ? '' : 'none';
 
       const nameInput   = document.getElementById('project-name-input');
       const voPickBtn   = document.getElementById('vo-pick-btn');
@@ -921,7 +905,6 @@
       const storyboardDone = stepSt('storyboard') === 'complete';
       const locked = sectionLocked.storyboard;
 
-      document.getElementById('storyboard-locked-bar').style.display = locked ? '' : 'none';
       document.getElementById('storyboard-cta-area').style.display   = storyboardDone ? '' : 'none';
 
       const approveBtn = document.getElementById('run-acquisition-btn');
@@ -952,7 +935,6 @@
       const manifestDone = stepSt('asset_manifest') === 'complete';
       const locked = sectionLocked.assets;
 
-      document.getElementById('assets-locked-bar').style.display = locked ? '' : 'none';
       document.getElementById('assets-cta-area').style.display   = manifestDone ? '' : 'none';
 
       const renderBtn = document.getElementById('render-btn');

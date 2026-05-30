@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S8-S2] Pipeline status simplification
+**Completed:** 2026-05-30
+**Handover:**
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- **5 CSS dot states** replace Unicode characters. `dot-pending` (grey solid border), `dot-running` (dashed grey border + `dot-spin` CSS rotation animation), `dot-draft` (yellow fill, Input section when run exists but storyboard not started), `dot-complete` (green fill), `dot-failed` (red fill).
+- `dotHtml(status)` updated to emit empty `<span class="dot dot-{state}"></span>` — no text content, works for all 5 states.
+- `sectionStatus('input')` returns `'draft'` when `currentRunId !== null` and all input steps are still pending.
+- Removed `#input-locked-bar`, `#storyboard-locked-bar`, `#assets-locked-bar` HTML divs, `.locked-bar`/`.locked-bar-spacer` CSS, and 3 JS display lines.
+- Error bars (`#input-error`, `#storyboard-error`, `#assets-error`) moved to top of each section pane (immediately after `.section-title`) — visible without scrolling when a step fails.
+- Left-panel run list dots also converted to CSS circles (no text chars).
+- 612 tests passing.
+**Smoke test:** PASSED — visual smoke test in preview: all 5 dot states confirmed (grey border, dashed spinning, yellow, green, red); no locked banners present; error bars at top of sections.
+**Promoted to backlog:** none
+
+---
+
 ## [S8-S1] Collapsible sidebar
 **Completed:** 2026-05-30
 **Handover:**

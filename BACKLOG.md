@@ -2418,7 +2418,8 @@ Open the app. Click the collapse toggle. Confirm the left panel disappears and c
 ## [S8-S2] Pipeline status simplification
 **Epic:** E9 — Workspace Layout
 **Sprint:** 8
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-30
 **Priority:** medium
 **Points:** 1
 **Depends on:** —
@@ -2443,7 +2444,14 @@ Remove all step-level "completed" confirmation bars that appear inside pipeline 
 - `src/static/pipeline.html` — HTML + JS only
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- **5 CSS dot states:** All dots are now CSS circles (10×10px, border-radius 50%) — no Unicode characters. States: `dot-pending` (grey border), `dot-running` (dashed grey border + `dot-spin` keyframe animation), `dot-draft` (yellow fill #f59e0b), `dot-complete` (green fill #16a34a), `dot-failed` (red fill #dc2626).
+- **`dotHtml(status)`** updated — returns `<span class="dot dot-{status}"></span>` with no text content. Accepts all 5 states.
+- **`sectionStatus(sectionKey)`** updated — returns `'draft'` for the Input section when `currentRunId` is set but all input steps are still pending (run created/saved, storyboard not yet started).
+- **Locked bars removed:** `#input-locked-bar`, `#storyboard-locked-bar`, `#assets-locked-bar` HTML divs deleted. `.locked-bar` and `.locked-bar-spacer` CSS rules deleted. Three `getElementById('*-locked-bar').style.display` JS lines removed.
+- **Error bars repositioned:** `#input-error`, `#storyboard-error`, `#assets-error` moved from inside `.cta-area` to the top of each section pane (immediately after `.section-title`) so failures are visible without scrolling to the CTA.
+- **Run list dots** updated — removed text char `dotChar` variable; left-panel run items now use `<span class="dot dot-{cls}"></span>`.
+- 612 tests passing, no regressions.
 
 ---
 
