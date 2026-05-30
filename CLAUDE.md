@@ -15,7 +15,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 **Sprint 7** — Smoke Test + Cost Optimization Foundation
 
 ## Active story
-**S7-S1** — Full pipeline smoke test — validate all deferred smoke tests on Railway DEV — start here
+**S7-S2** — E8-S2: Haiku model for manifest generation — start here
 
 ## Environments
 
