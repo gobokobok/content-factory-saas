@@ -15,7 +15,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/pipeline.py`: constructs `ModelRouter(settings)` in `summarize_step` and passes it to `write_run_log_summary`.
 - `ENV.md`: 4 new vars documented.
 - `tests/test_model_router.py`: 27 new tests. 612 total passing. No new pip dependencies.
-**Smoke test:** DEFERRED — requires Railway DEV deploy with a completed pipeline run; verify Railway logs contain `"Claude call: task=generate model=claude-sonnet-4-6 input_tokens=… output_tokens=… cost_usd=$…"` lines for storyboard generation, validation, and summarizer steps.
+**Smoke test:** PASSED — Railway DEV logs confirmed all 3 task types on 2026-05-30: `task=generate model=claude-sonnet-4-6 cost=$0.04746600` (storyboard), `task=validate model=claude-haiku-4-5-20251001 cost=$0.00329280` (validator), `task=summarize model=claude-haiku-4-5-20251001 cost~$0.00090` (run log, once per pipeline step).
 **Promoted to backlog:** none
 
 ---
