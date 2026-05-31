@@ -530,17 +530,11 @@
       font-weight: 500;
       white-space: nowrap;
     }
-    .settings-row-control {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      min-width: 130px;
-      flex-shrink: 0;
-    }
     .toggle-switch {
-      display: inline-flex; align-items: center;
-      flex-shrink: 0; width: 36px; height: 20px;
+      display: block; flex-shrink: 0;
+      width: 36px; height: 20px;
       cursor: pointer; position: relative;
+      text-decoration: none; border: none; outline: none;
     }
     .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .toggle-track {
@@ -944,12 +938,10 @@
           </div>
           <div class="settings-row">
             <span class="settings-row-label">Voiceover ducking</span>
-            <div class="settings-row-control">
-              <label class="toggle-switch">
-                <input type="checkbox" id="setting-ducking" checked onchange="saveVideoSettings()">
-                <span class="toggle-track"></span>
-              </label>
-            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-ducking" checked onchange="saveVideoSettings()">
+              <span class="toggle-track"></span>
+            </label>
           </div>
           <div class="settings-row">
             <span class="settings-row-label">Playback mode</span>
