@@ -3024,6 +3024,59 @@ _filled on completion_
 
 ---
 
+## Bugs
+
+---
+
+## [BUG-001] Storyboard Commit: network fetch failure marks step failed despite server success
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** high
+**Points:** 2
+**Reported:** 2026-05-31
+
+### Description
+When the user clicks **Commit** on the Project Details page, the backend generates `storyboard.json` successfully and writes it to R2. However, if the fetch response fails to reach the browser (e.g. connection reset, timeout, Railway keep-alive drop), the UI shows "Storyboard network error: Failed to fetch" and marks the Storyboard dot red. The storyboard is actually complete in R2. The user is misled into thinking the step failed.
+
+### Reproduction
+1. Open any run in Project Details.
+2. Click **Commit** on a slow connection or while Railway DEV is under load.
+3. Observe: red dot + "network error" in the UI.
+4. Click **Save Draft** → receives "Cannot save draft: storyboard is already complete" — confirming the server succeeded.
+
+### Root cause hypothesis
+The UI trusts the client-side fetch result to determine step state. It should fall back to re-fetching `run_log.json` (or `GET /runs/{run_id}`) to reconcile actual backend state when a network error occurs.
+
+### Acceptance Criteria
+- [ ] After a fetch error during Commit, the UI re-polls the run log to check actual step status before displaying a failure state
+- [ ] If the run log shows the step is `complete`, the UI shows the green dot and "✓ Committed" — not an error
+- [ ] If the run log shows the step is `failed`, the UI shows the red dot and the actual error from the log
+- [ ] No regression on happy path
+
+### Files to modify
+- `src/static/pipeline.html` — storyboard commit error handler; add re-poll logic after fetch failure
+
+---
+
+## [BUG-002] Error message from Save Draft persists alongside "✓ Committed" status
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Points:** 1
+**Reported:** 2026-05-31
+
+### Description
+After BUG-001 scenario plays out (network error → user clicks Save Draft → error message displayed → user clicks Commit again and succeeds), the UI shows "✓ Committed  Error: Cannot save draft: storyboard is already complete" simultaneously. The error message from the failed Save Draft is not cleared when the subsequent Commit succeeds.
+
+### Acceptance Criteria
+- [ ] Any displayed error message is cleared whenever a Commit or Save Draft operation transitions to a success state
+- [ ] The "✓ Committed" status is shown cleanly without stale error text beside it
+
+### Files to modify
+- `src/static/pipeline.html` — clear error state on successful commit/draft transitions
+
+---
+
 ## Ideas / Future Epics
 
 ### IDEA-001 — ElevenLabs TTS: script-only entry point

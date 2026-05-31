@@ -12,7 +12,7 @@ _Entries added here when a story reaches Definition of Done._
 - `tests/test_ffmpeg_builder.py`: 9 existing route tests updated (added `StorageError("no settings")` as 4th `get_json.side_effect` entry). Default volume assertion updated (0.15 → 0.060). 11 new tests in `TestAudioSettings` (unit) and `TestFfmpegScriptRouteAudioSettings` (route). 686 total passing.
 - No new ENV vars. No new dependencies.
 - S12-S1 (video settings pipeline wiring) is now unblocked — it depends on both S9-S3 and S11-S3.
-**Smoke test:** DEFERRED — requires Railway DEV deploy with a music file uploaded. Operator uploads a background track, sets volume to 40%, enables ducking, renders video, confirms music audibly ducks under the voiceover.
+**Smoke test:** PASSED (engineering) — 2026-05-31 on Railway DEV (commit `71d8e3c`). Settings updated via API to `music_volume=40, ducking_enabled=true`; ffmpeg_script.sh regenerated and verified `volume=0.160` (40% × 0.4 ducking factor) and `volume=1.0` for VO. Render completed successfully (exit code 0, 61.5s) using run `2026-05-27_smoketest-pipelinereorder` (Elysian Fields mp3 + SmokeTest_PipelineReorder.wav). Audible listening check: download `final.mp4` from the Rendered Video page and confirm music ducks under the voiceover — **pending operator listen**.
 **Promoted to backlog:** none
 
 ---
