@@ -529,17 +529,6 @@
       color: #5A5A5A;
       font-weight: 500;
     }
-    .settings-row--section-label {
-      padding: 6px 0 4px;
-      border-top: 1px solid #F0EDEC;
-    }
-    .settings-row-section {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      color: #B0ABA9;
-    }
     .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }
     .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .toggle-track {
@@ -554,9 +543,23 @@
       border-radius: 50%; background: #fff;
       transition: transform 0.15s;
     }
-    .toggle-switch input:checked + .toggle-track { background: #2D2D2D; }
+    .toggle-switch input:checked + .toggle-track { background: #9A9A9A; }
     .toggle-switch input:checked + .toggle-track::after { transform: translateX(16px); }
     .toggle-switch input:disabled + .toggle-track { opacity: 0.45; cursor: default; }
+    #setting-music-volume {
+      -webkit-appearance: none; appearance: none;
+      height: 4px; border-radius: 2px;
+      background: #E8E5E4; outline: none; cursor: pointer;
+    }
+    #setting-music-volume::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #9A9A9A; cursor: pointer;
+    }
+    #setting-music-volume::-moz-range-thumb {
+      width: 14px; height: 14px; border-radius: 50%;
+      background: #9A9A9A; cursor: pointer; border: none;
+    }
     #setting-music-volume:disabled { opacity: 0.45; cursor: default; }
     #section-input .field-card select {
       width: auto;
@@ -917,9 +920,6 @@
               <option value="Classic">Classic</option>
             </select>
           </div>
-          <div class="settings-row settings-row--section-label">
-            <span class="settings-row-section">AUDIO</span>
-          </div>
           <div class="settings-row">
             <span class="settings-row-label">Music volume</span>
             <div style="display:flex;align-items:center;gap:8px;">
@@ -929,7 +929,7 @@
             </div>
           </div>
           <div class="settings-row">
-            <span class="settings-row-label">Auto-duck music under voiceover</span>
+            <span class="settings-row-label">Duck music under VO</span>
             <label class="toggle-switch">
               <input type="checkbox" id="setting-ducking" checked onchange="saveVideoSettings()">
               <span class="toggle-track"></span>
