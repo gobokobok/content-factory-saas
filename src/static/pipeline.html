@@ -298,6 +298,18 @@
     .btn-danger { background: #dc2626; color: #fff; border-color: #dc2626; font-weight: 600; }
     .btn-danger:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
 
+    /* ── Commit confirmation modal ─────────────────────────────────────── */
+    .commit-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; }
+    .commit-modal-overlay.open { display: flex; }
+    .commit-modal-box { background: #fff; border-radius: 6px; padding: 24px 28px; width: 400px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+    .commit-modal-title { font-size: 15px; font-weight: 600; color: #2D2D2D; margin-bottom: 10px; }
+    .commit-modal-body  { font-size: 13px; color: #5A5A5A; margin-bottom: 20px; line-height: 1.5; }
+    .commit-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── Committed indicator ───────────────────────────────────────────── */
+    .committed-indicator { display: none; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #16a34a; }
+    .committed-indicator.visible { display: flex; }
+
     .content-empty {
       display: flex;
       align-items: center;
@@ -776,9 +788,10 @@
           <button class="btn btn-secondary" id="save-draft-btn" disabled onclick="saveDraft()">
             Save Draft
           </button>
-          <button class="btn btn-primary" id="create-storyboard-btn" disabled onclick="runCreateStoryboard()">
-            Create Storyboard
+          <button class="btn btn-primary" id="commit-btn" disabled onclick="openCommitModal()">
+            Commit
           </button>
+          <span class="committed-indicator" id="committed-indicator">✓ Committed</span>
           <span id="save-draft-status" class="muted" style="font-size:12px;"></span>
         </div>
       </div>
@@ -839,6 +852,18 @@
   <!-- ── Run context menu popover ──────────────────────────────────── -->
   <div class="run-ctx-menu" id="run-ctx-menu">
     <button class="run-ctx-item danger" onclick="closeRunMenu(); openDeleteModal()">Delete Project</button>
+  </div>
+
+  <!-- ── Commit confirmation modal ────────────────────────────────── -->
+  <div class="commit-modal-overlay" id="commit-modal">
+    <div class="commit-modal-box">
+      <div class="commit-modal-title">Commit Project Details</div>
+      <div class="commit-modal-body">After committing, you will NOT be able to modify: Project Name, Script, Voiceover. Do you want to continue?</div>
+      <div class="commit-modal-actions">
+        <button class="btn btn-secondary" onclick="closeCommitModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmCommit()">Commit</button>
+      </div>
+    </div>
   </div>
 
   <!-- ── Delete confirmation modal ─────────────────────────────────── -->
@@ -994,7 +1019,7 @@
 
     function onProjectNameInput() {
       _updateVoUploadBtn();
-      updateCreateStoryboardBtn();
+      updateCommitBtn();
       updateSaveDraftBtn();
     }
 
@@ -1174,23 +1199,31 @@
               if (voUploadBtn) voUploadBtn.disabled = locked;
             }
             updateSaveDraftBtn();   // re-evaluate now that script is populated
-            updateCreateStoryboardBtn();
+            updateCommitBtn();
           }
         } catch (_) { /* non-fatal */ }
       }
 
-      updateCreateStoryboardBtn();
+      updateCommitBtn();
       updateSaveDraftBtn();
       _updateVoUploadBtn();
     }
 
-    function updateCreateStoryboardBtn() {
-      const btn     = document.getElementById('create-storyboard-btn');
-      const locked  = sectionLocked.input;
+    function updateCommitBtn() {
+      const btn       = document.getElementById('commit-btn');
+      const indicator = document.getElementById('committed-indicator');
+      const locked    = sectionLocked.input;
+      if (locked) {
+        btn.style.display = 'none';
+        indicator.classList.add('visible');
+        return;
+      }
+      btn.style.display = '';
+      indicator.classList.remove('visible');
       const running = !!stepRunning['alignment'] || !!stepRunning['storyboard'];
       const nameOk  = currentRunId || document.getElementById('project-name-input')?.value.trim();
-      btn.disabled    = locked || running || !voUploaded || !nameOk;
-      btn.textContent = running ? 'Running…' : 'Create Storyboard';
+      btn.disabled    = running || !voUploaded || !nameOk;
+      btn.textContent = running ? 'Running…' : 'Commit';
     }
 
     function autoResizeScript(el) {
@@ -1556,8 +1589,23 @@
       populateSection(sectionKey);
     }
 
-    // ─── CTA: Create Storyboard (alignment → storyboard) ─────────────────────
-    async function runCreateStoryboard() {
+    // ─── CTA: Commit (alignment → storyboard) ────────────────────────────────
+    function openCommitModal() {
+      const script  = document.getElementById('script-input').value.trim();
+      if (!script) { alert('VO script is required'); return; }
+      document.getElementById('commit-modal').classList.add('open');
+    }
+
+    function closeCommitModal() {
+      document.getElementById('commit-modal').classList.remove('open');
+    }
+
+    async function confirmCommit() {
+      closeCommitModal();
+      await runCommit();
+    }
+
+    async function runCommit() {
       const script = document.getElementById('script-input').value.trim();
       if (!script) { alert('VO script is required'); return; }
 
@@ -1567,7 +1615,7 @@
       const errorEl    = document.getElementById('input-error');
       errorEl.style.display = 'none';
 
-      document.getElementById('create-storyboard-btn').disabled = true;
+      document.getElementById('commit-btn').disabled = true;
 
       const ok = await runSequence([
         { key: 'alignment',  label: 'Alignment',  path: `/runs/${currentRunId}/alignment`,  body: null },
@@ -1575,7 +1623,7 @@
       ], progressEl, errorEl);
 
       renderNavItems();
-      updateCreateStoryboardBtn();
+      updateCommitBtn();
 
       if (ok) {
         sectionLocked.input = true;
@@ -1719,7 +1767,7 @@
         }
         statusEl.textContent = '✓ uploaded'; statusEl.style.color = '#16a34a';
         voUploaded = true;
-        updateCreateStoryboardBtn();
+        updateCommitBtn();
       } catch (err) {
         statusEl.textContent = `Network error: ${esc(err.message)}`;
         statusEl.style.color = '#dc2626'; btn.disabled = false;

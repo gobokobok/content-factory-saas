@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S9-S2] Commit system
+**Completed:** 2026-05-31
+**Handover:**
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- `#commit-btn` replaces `#create-storyboard-btn`; onclick → `openCommitModal()`.
+- `openCommitModal()` validates script present then shows `#commit-modal` with exact AC warning text.
+- `closeCommitModal()` hides modal (Cancel path — no pipeline trigger).
+- `confirmCommit()` closes modal and calls `runCommit()` (the renamed `runCreateStoryboard` — unchanged pipeline logic: alignment → storyboard).
+- `updateCommitBtn()` replaces `updateCreateStoryboardBtn()` — when `sectionLocked.input` is true: hides button, makes `#committed-indicator` (✓ Committed, green) visible; when unlocked: standard enable/disable.
+- `.commit-modal-*` CSS and `.committed-indicator` CSS added (same pattern as delete modal).
+- 619 tests passing.
+**Smoke test:** DEFERRED — requires Railway DEV with a project that has VO uploaded; operator clicks Commit, reads modal, confirms, observes ✓ Committed indicator and all fields locked read-only.
+**Promoted to backlog:** none
+
+---
+
 ## [S9-S1] Project Details tab restructure
 **Completed:** 2026-05-31
 **Handover:**

@@ -2632,7 +2632,8 @@ Rename the "Input" tab to "Project Details" everywhere in the UI. Restructure th
 ## [S9-S2] Commit system
 **Epic:** E11 — Commit System
 **Sprint:** 9
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-31
 **Priority:** high
 **Points:** 3
 **Depends on:** S9-S1
@@ -2659,7 +2660,17 @@ Replace the "Create Storyboard" CTA with a formal **Commit** action. Clicking Co
 - `src/static/pipeline.html` — CTA replacement, modal HTML + JS, locked state indicator
 
 ### Handover
-_filled on completion_
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- `#create-storyboard-btn` renamed to `#commit-btn`; text "Commit"; onclick → `openCommitModal()`.
+- `openCommitModal()` — validates script present, opens `#commit-modal`.
+- `closeCommitModal()` — hides modal (Cancel path).
+- `confirmCommit()` — closes modal, calls `runCommit()`.
+- `runCommit()` — renamed from `runCreateStoryboard()`; identical alignment → storyboard pipeline sequence.
+- `updateCreateStoryboardBtn()` renamed to `updateCommitBtn()` — when locked: hides button, shows `#committed-indicator` (✓ Committed, green `#16a34a`); when unlocked: normal enable/disable.
+- `#committed-indicator` `<span>` added to CTA row; hidden by default via `.committed-indicator` CSS; shown via `.committed-indicator.visible`.
+- Commit confirmation modal HTML added (`#commit-modal`) with exact AC text.
+- `.commit-modal-*` CSS added (same pattern as delete modal).
+- 619 tests passing. No new ENV vars. No new dependencies.
 
 ---
 

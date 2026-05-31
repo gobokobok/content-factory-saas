@@ -245,7 +245,7 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | S9-S1 | Project Details tab — rename Input → Project Details; restructure into Content section (Name, Script, Voiceover) and Settings section | 3 | done |
-| S9-S2 | Commit system — "Commit" CTA replaces "Create Storyboard"; confirmation modal with lock warning; ✓ committed state indicator | 3 | backlog |
+| S9-S2 | Commit system — "Commit" CTA replaces "Create Storyboard"; confirmation modal with lock warning; ✓ committed state indicator | 3 | done |
 | S9-S3 | Video settings UI — aspect ratio (9:16 / 16:9 / 1:1), visual style enum, subtitles toggle + style selector; stored in run config, no pipeline wiring yet | 2 | backlog |
 
 **Execution order:** S9-S1 → S9-S2 (commit UI built on restructured Project Details); S9-S3 independent.
