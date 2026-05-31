@@ -517,9 +517,9 @@
     }
     /* ── Video settings controls ──────────────────────────────────────── */
     .settings-row {
-      display: flex;
+      display: grid;
+      grid-template-columns: 1fr auto;
       align-items: center;
-      justify-content: space-between;
       padding: 9px 0;
     }
     .settings-row + .settings-row { border-top: 1px solid #F0EDEC; }
@@ -531,7 +531,7 @@
       white-space: nowrap;
     }
     .toggle-switch {
-      display: block; flex-shrink: 0; margin-left: auto;
+      display: block;
       width: 36px; height: 20px;
       cursor: pointer; position: relative;
       text-decoration: none; border: none; outline: none;
