@@ -166,7 +166,7 @@
     .run-ctx-menu {
       display: none;
       position: fixed;
-      background: #F6F4F3;
+      background: #E5E2E1;
       border: 1px solid #E0DCDB;
       border-radius: 5px;
       box-shadow: 0 4px 16px rgba(0,0,0,0.12);
@@ -191,9 +191,9 @@
       text-align: left;
       box-sizing: border-box;
     }
-    .run-ctx-item:hover { background: #EAE7E6; }
+    .run-ctx-item:hover { background: #D8D4D3; }
     .run-ctx-item.danger { color: #dc2626; }
-    .run-ctx-item.danger:hover { background: #EAE7E6; }
+    .run-ctx-item.danger:hover { background: #D8D4D3; }
 
 
     /* ── Middle panel: section nav ────────────────────────────────────── */
@@ -1399,16 +1399,15 @@
 
     function openRunMenu(event, runId) {
       pendingDeleteRunId = runId;
-      const menu  = document.getElementById('run-ctx-menu');
+      const menu    = document.getElementById('run-ctx-menu');
       menu.classList.add('open');
-      const panel = document.getElementById('panel-runs');
-      const panelRect = panel.getBoundingClientRect();
-      const rect  = event.currentTarget.getBoundingClientRect();
-      const menuW = menu.offsetWidth || 148;
-      let left = panelRect.right - menuW;
-      let top  = rect.bottom + 4;
+      const runItem = event.currentTarget.closest('.run-item');
+      const itemRect = runItem.getBoundingClientRect();
+      const menuW  = menu.offsetWidth || 148;
+      let left = itemRect.right - menuW;
+      let top  = itemRect.bottom + 2;
       if (left < 4) left = 4;
-      if (top + 80 > window.innerHeight) top = rect.top - 80;
+      if (top + 80 > window.innerHeight) top = itemRect.top - 80;
       menu.style.left = left + 'px';
       menu.style.top  = top  + 'px';
     }
