@@ -21,6 +21,7 @@ from src.ffmpeg_builder import (
 from src.main import app
 from src.models import (
     AssetManifest,
+    AudioSettings,
     ManifestEntry,
     Storyboard,
     StoryboardGlobal,
@@ -526,12 +527,13 @@ class TestBuildFfmpegScript:
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "[1:a]asetpts=PTS-STARTPTS,volume=1.0[vo]" in script
-        assert "[2:a]asetpts=PTS-STARTPTS,volume=0.15[music]" in script
+        assert "[2:a]asetpts=PTS-STARTPTS,volume=0.060[music]" in script
 
-    def test_music_volume_is_fifteen_percent(self):
+    def test_default_audio_applies_ducking_to_fifteen_percent(self):
+        """Default AudioSettings: 15% volume × 0.4 ducking factor = 0.060 effective."""
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "volume=0.15" in script
+        assert "volume=0.060[music]" in script
 
     def test_voiceover_full_volume(self):
         sb, mf = _simple_storyboard_and_manifest()
@@ -611,6 +613,7 @@ class TestFfmpegScriptRoute:
                 _storyboard_data(),
                 _manifest_data(self.RUN),
                 StorageError("no alignment"),
+                StorageError("no settings"),
             ]
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -626,6 +629,7 @@ class TestFfmpegScriptRoute:
                 _storyboard_data(),
                 _manifest_data(self.RUN),
                 StorageError("no alignment"),
+                StorageError("no settings"),
             ]
             client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -641,6 +645,7 @@ class TestFfmpegScriptRoute:
                 _storyboard_data(),
                 _manifest_data(self.RUN),
                 StorageError("no alignment"),
+                StorageError("no settings"),
             ]
             client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -689,7 +694,7 @@ class TestFfmpegScriptRoute:
         with patch("src.routes.ffmpeg_script.R2Client") as MockR2:
             mock_storage = MockR2.return_value
             mock_storage.get_json.side_effect = [
-                _storyboard_data(), manifest, StorageError("no alignment")
+                _storyboard_data(), manifest, StorageError("no alignment"), StorageError("no settings")
             ]
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -706,6 +711,7 @@ class TestFfmpegScriptRoute:
                 _storyboard_data(),
                 _manifest_data(self.RUN),
                 StorageError("no alignment"),
+                StorageError("no settings"),
             ]
             mock_storage.upload_text.side_effect = StorageError("R2 down")
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
@@ -1063,6 +1069,7 @@ class TestFfmpegScriptRouteVoiceover:
                 _storyboard_data(),
                 _manifest_data(self.RUN),
                 StorageError("no alignment"),
+                StorageError("no settings"),
             ]
             mock_storage.list_keys.return_value = [f"runs/{self.RUN}/voiceover/voice.mp3"]
             mock_storage.get_bytes.return_value = b"fake-audio"
@@ -1085,6 +1092,7 @@ class TestFfmpegScriptRouteVoiceover:
                 _storyboard_data(),
                 _manifest_data(self.RUN),
                 StorageError("no alignment"),
+                StorageError("no settings"),
             ]
             mock_storage.list_keys.return_value = []
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
@@ -1105,6 +1113,7 @@ class TestFfmpegScriptRouteVoiceover:
                 _storyboard_data(),
                 _manifest_data(self.RUN),
                 {"run_id": self.RUN, "word_count": 5, "used_fallback": False, "words": []},
+                StorageError("no settings"),
             ]
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
@@ -1133,7 +1142,9 @@ class TestFfmpegScriptRouteVoiceover:
         }
         with patch("src.routes.ffmpeg_script.R2Client") as MockR2:
             mock_storage = MockR2.return_value
-            mock_storage.get_json.side_effect = [storyboard, _manifest_data(self.RUN), alignment]
+            mock_storage.get_json.side_effect = [
+                storyboard, _manifest_data(self.RUN), alignment, StorageError("no settings")
+            ]
             resp = client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
         assert resp.status_code == 200
@@ -1238,3 +1249,121 @@ class TestCaptionsInScript:
         mf = _manifest([_entry("01", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf, scene_words=None)
         assert "unique fallback line" in script
+
+
+# ── Unit: audio settings (volume, ducking, playback mode) ────────────────────
+
+
+class TestAudioSettings:
+    """Verify music volume, ducking factor, and loop/fit mode are applied to the generated script."""
+
+    def _make_script(self, audio: AudioSettings) -> str:
+        """Build a minimal one-scene script with the given audio settings."""
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        return build_ffmpeg_script(
+            RUN_ID,
+            _storyboard(scenes),
+            _manifest([_entry("01", "hard_cut")]),
+            audio=audio,
+        )
+
+    def test_default_audio_applies_ducking_to_fifteen_percent(self):
+        """AudioSettings(): 15% volume × 0.4 ducking factor = 0.060 effective."""
+        script = self._make_script(AudioSettings())
+        assert "volume=0.060[music]" in script
+
+    def test_custom_volume_ducking_off(self):
+        """Ducking OFF: configured volume applied directly with no reduction."""
+        script = self._make_script(AudioSettings(music_volume=40, ducking_enabled=False))
+        assert "volume=0.400[music]" in script
+
+    def test_custom_volume_ducking_on(self):
+        """Ducking ON: 40% × _DUCKING_FACTOR (0.4) = 0.160 effective volume."""
+        script = self._make_script(AudioSettings(music_volume=40, ducking_enabled=True))
+        assert "volume=0.160[music]" in script
+
+    def test_zero_volume_produces_zero_filter(self):
+        """Volume slider at 0% → volume=0.000 regardless of ducking."""
+        script = self._make_script(AudioSettings(music_volume=0, ducking_enabled=False))
+        assert "volume=0.000[music]" in script
+
+    def test_full_volume_ducking_off(self):
+        """100% volume with ducking OFF → volume=1.000."""
+        script = self._make_script(AudioSettings(music_volume=100, ducking_enabled=False))
+        assert "volume=1.000[music]" in script
+
+    def test_loop_mode_sets_stream_loop_flag(self):
+        """Loop mode adds -stream_loop -1 before the music file input."""
+        script = self._make_script(AudioSettings(playback_mode="loop"))
+        music_start = script.index("# ── Background music")
+        music_section = script[music_start:music_start + 500]
+        assert "-stream_loop -1" in music_section
+
+    def test_fit_mode_no_stream_loop_flag(self):
+        """Fit mode (default) does not add -stream_loop to MUSIC_ARGS."""
+        script = self._make_script(AudioSettings(playback_mode="fit"))
+        assert "-stream_loop" not in script
+
+    def test_none_audio_uses_same_defaults_as_audio_settings(self):
+        """Omitting audio= produces identical filter output to AudioSettings()."""
+        scenes = [_scene("01", "hard_cut", 3.0)]
+        sb, mf = _storyboard(scenes), _manifest([_entry("01", "hard_cut")])
+        script_none = build_ffmpeg_script(RUN_ID, sb, mf, audio=None)
+        assert "volume=0.060[music]" in script_none
+
+    def test_voiceover_volume_unchanged(self):
+        """VO volume is always 1.0 regardless of audio settings."""
+        script = self._make_script(AudioSettings(music_volume=80, ducking_enabled=False))
+        assert "volume=1.0[vo]" in script
+
+
+# ── Route: audio settings loaded from R2 ─────────────────────────────────────
+
+
+class TestFfmpegScriptRouteAudioSettings:
+    """Verify the route loads settings.json and passes audio to the script builder."""
+
+    RUN = "2026-05-22_test-run"
+
+    def _settings_json(self, music_volume: int = 40, ducking_enabled: bool = False) -> dict:
+        return {
+            "aspect_ratio": "9:16",
+            "visual_style": "Realistic",
+            "subtitles_enabled": True,
+            "subtitle_style": "TikTok",
+            "audio": {
+                "music_volume": music_volume,
+                "ducking_enabled": ducking_enabled,
+                "playback_mode": "fit",
+            },
+        }
+
+    def test_audio_settings_applied_when_settings_json_present(self, client):
+        """When settings.json exists, configured volume replaces defaults in the script."""
+        with patch("src.routes.ffmpeg_script.R2Client") as MockR2:
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = [
+                _storyboard_data(),
+                _manifest_data(self.RUN),
+                StorageError("no alignment"),
+                self._settings_json(music_volume=40, ducking_enabled=False),
+            ]
+            client.post(f"/runs/{self.RUN}/ffmpeg-script")
+
+        uploaded_script = mock_storage.upload_text.call_args[0][1]
+        assert "volume=0.400[music]" in uploaded_script
+
+    def test_default_audio_used_when_settings_json_missing(self, client):
+        """When settings.json is absent, AudioSettings() defaults apply (0.060 effective)."""
+        with patch("src.routes.ffmpeg_script.R2Client") as MockR2:
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = [
+                _storyboard_data(),
+                _manifest_data(self.RUN),
+                StorageError("no alignment"),
+                StorageError("no settings"),
+            ]
+            client.post(f"/runs/{self.RUN}/ffmpeg-script")
+
+        uploaded_script = mock_storage.upload_text.call_args[0][1]
+        assert "volume=0.060[music]" in uploaded_script

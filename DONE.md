@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S11-S3] Audio → ffmpeg integration
+**Completed:** 2026-05-31
+**Handover:**
+- `src/ffmpeg_builder.py`: `_MUSIC_VOL = 0.15` removed; `_DUCKING_FACTOR = 0.4` added as module constant. `build_ffmpeg_script` gains `audio: Optional[AudioSettings] = None` — defaults to `AudioSettings()` when omitted. `_music_check(audio)` generates `-stream_loop -1` in `MUSIC_ARGS` for loop mode; fit mode unchanged. `_audio_section(storyboard, audio)` computes `effective_vol = music_volume/100.0 * _DUCKING_FACTOR` (ducking ON) or `music_volume/100.0` (ducking OFF); bakes value into `volume={effective_vol:.3f}[music]` at generation time — no bash arithmetic needed at render.
+- `src/routes/ffmpeg_script.py`: loads `runs/{run_id}/settings.json` from R2 after alignment section; falls back to `VideoSettings()` on `StorageError`; passes `audio=video_settings.audio` to `build_ffmpeg_script`. Imports `VideoSettings`.
+- `tests/test_ffmpeg_builder.py`: 9 existing route tests updated (added `StorageError("no settings")` as 4th `get_json.side_effect` entry). Default volume assertion updated (0.15 → 0.060). 11 new tests in `TestAudioSettings` (unit) and `TestFfmpegScriptRouteAudioSettings` (route). 686 total passing.
+- No new ENV vars. No new dependencies.
+- S12-S1 (video settings pipeline wiring) is now unblocked — it depends on both S9-S3 and S11-S3.
+**Smoke test:** DEFERRED — requires Railway DEV deploy with a music file uploaded. Operator uploads a background track, sets volume to 40%, enables ducking, renders video, confirms music audibly ducks under the voiceover.
+**Promoted to backlog:** none
+
+---
+
 ## [S11-S2] Audio controls UI
 **Completed:** 2026-05-31
 **Handover:**

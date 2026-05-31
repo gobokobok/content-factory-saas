@@ -2872,7 +2872,8 @@ Add audio mixing controls to the Audio section: volume slider, voiceover ducking
 ## [S11-S3] Audio → ffmpeg integration
 **Epic:** E14 — Audio Layer
 **Sprint:** 11
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-31
 **Priority:** high
 **Points:** 5
 **Depends on:** S11-S1, S11-S2
@@ -2902,7 +2903,11 @@ Pass background music key, volume, and ducking settings from run config into the
 - `tests/test_ffmpeg_builder.py` — new audio section tests
 
 ### Handover
-_filled on completion_
+- `src/ffmpeg_builder.py`: `_MUSIC_VOL = 0.15` removed; replaced by `_DUCKING_FACTOR = 0.4` module constant. `build_ffmpeg_script` gains `audio: Optional[AudioSettings] = None` param (defaults to `AudioSettings()` when None). `_music_check(audio)` — loop mode injects `-stream_loop -1` into `MUSIC_ARGS` before the file input; fit mode is existing behaviour. `_audio_section(storyboard, audio)` — computes `vol_factor = music_volume/100.0`; `effective_vol = vol_factor * _DUCKING_FACTOR` when `ducking_enabled=True`, else `vol_factor`; baked into filter_complex as `volume={effective_vol:.3f}[music]` (no bash arithmetic at render time).
+- `src/routes/ffmpeg_script.py`: loads `runs/{run_id}/settings.json` from R2 after alignment check; falls back to `VideoSettings()` defaults on `StorageError`; passes `audio=video_settings.audio` to `build_ffmpeg_script`.
+- `tests/test_ffmpeg_builder.py`: all 9 route-level tests updated to add `StorageError("no settings")` as 4th `get_json.side_effect` entry. Existing volume assertion updated (0.15 → 0.060 default). 11 new tests: `TestAudioSettings` (9 unit) + `TestFfmpegScriptRouteAudioSettings` (2 route). 686 total passing.
+- No new ENV vars. No new dependencies.
+- Default effective volume is `0.060` (15% slider × 0.4 ducking). S12-S1 (video settings wiring) can now depend on both S9-S3 and S11-S3 being complete.
 
 ---
 

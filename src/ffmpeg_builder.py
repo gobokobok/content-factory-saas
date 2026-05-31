@@ -9,12 +9,12 @@ from typing import Optional
 
 from src.captions import build_ass, build_captions_ass, build_word_synced_captions_ass
 from src.exceptions import FFmpegBuildError
-from src.models import AssetManifest, ManifestEntry, Storyboard, StoryboardScene, WordTimestamp
+from src.models import AudioSettings, AssetManifest, ManifestEntry, Storyboard, StoryboardScene, WordTimestamp
 
 _FPS = 25
 _OUT_W = 1080
 _OUT_H = 1920
-_MUSIC_VOL = 0.15
+_DUCKING_FACTOR = 0.4  # Multiplier applied to music volume when ducking is enabled
 
 
 _MIN_SCENE_DURATION_S = 0.5
@@ -151,6 +151,7 @@ def build_ffmpeg_script(
     storyboard: Storyboard,
     manifest: AssetManifest,
     scene_words: Optional[list[list[WordTimestamp]]] = None,
+    audio: Optional[AudioSettings] = None,
 ) -> str:
     """
     Build a self-contained bash script that assembles the run's assets into a 9:16 Short.
@@ -159,8 +160,12 @@ def build_ffmpeg_script(
     word-level sync with the active word highlighted in yellow and chunks that never
     cross scene boundaries.  Falls back to scene-boundary captions derived from
     voiceover_line when no alignment data is available.
+    When audio is provided, music volume, ducking, and loop/fit playback mode are applied;
+    defaults to AudioSettings() when omitted.
     Raises FFmpegBuildError if any scene lacks an acquired asset (file_key is None).
     """
+    if audio is None:
+        audio = AudioSettings()
     entries: dict[str, ManifestEntry] = {e.scene_id: e for e in manifest.entries}
 
     for scene in storyboard.scenes:
@@ -183,13 +188,13 @@ def build_ffmpeg_script(
         _header(run_id, n_scenes, total_s),
         _preamble(run_id),
         _voiceover_check(),
-        _music_check(),
+        _music_check(audio),
         _debug_section(),
         _scene_section(storyboard, entries, run_id),
         _filter_complex_concat(n_scenes),
         _write_voiceover_captions_ass(captions_ass_content),
         _burn_voiceover_captions(),
-        _audio_section(storyboard),
+        _audio_section(storyboard, audio),
         f'echo "Done: /tmp/{run_id}/output/final.mp4"',
     ]
     return "\n\n".join(parts) + "\n"
@@ -247,18 +252,24 @@ def _voiceover_check() -> str:
     )
 
 
-def _music_check() -> str:
+def _music_check(audio: AudioSettings) -> str:
     """
     Check for a background music file and set MUSIC_ARGS for the audio assembly step.
 
-    If a music file (.mp3/.wav/.m4a) is found in $BASE/music/, MUSIC_ARGS is set
-    to (-i "$MUSIC") so it is opened as a file input.
+    Playback mode is applied when a music file is found:
+    - "loop": adds -stream_loop -1 before the file input so the track repeats until
+      the voiceover ends (amix duration=first cuts the output at VO length).
+    - "fit": plays the track once; if shorter than the VO, amix silence-pads the tail.
     If no music file is found, MUSIC_ARGS is set to (-f lavfi -i anullsrc=r=44100:cl=stereo)
     so the audio assembly uses a direct silence source without a fragile intermediate
     file generation step.  The intermediate _silence.mp3 approach is deliberately
     avoided: it requires a working libmp3lame encoder and an extra ffmpeg invocation
     that can fail silently under set -euo pipefail.
     """
+    if audio.playback_mode == "loop":
+        music_input_args = 'MUSIC_ARGS=(-stream_loop -1 -i "$MUSIC")'
+    else:
+        music_input_args = 'MUSIC_ARGS=(-i "$MUSIC")'
     return (
         "# ── Background music ───────────────────────────────────────\n"
         'MUSIC=""\n'
@@ -269,7 +280,7 @@ def _music_check() -> str:
         '  echo "WARNING: no music found in $BASE/music/ — rendering without background music"\n'
         '  MUSIC_ARGS=(-f lavfi -i anullsrc=r=44100:cl=stereo)\n'
         "else\n"
-        '  MUSIC_ARGS=(-i "$MUSIC")\n'
+        f"  {music_input_args}\n"
         "fi\n"
         'echo "Music: ${MUSIC:-<none — using anullsrc silence>}"'
     )
@@ -445,15 +456,26 @@ def _burn_voiceover_captions() -> str:
     )
 
 
-def _audio_section(storyboard: Storyboard) -> str:
+def _audio_section(storyboard: Storyboard, audio: AudioSettings) -> str:
     """
     Build the audio assembly ffmpeg command.
+
+    Music volume is computed from audio settings at script-generation time:
+    - vol_factor = music_volume / 100.0
+    - ducking_enabled=True:  effective_vol = vol_factor * _DUCKING_FACTOR
+    - ducking_enabled=False: effective_vol = vol_factor
+    The computed value is embedded directly in the filter_complex string so no
+    bash arithmetic is required at render time.
 
     SFX inputs are conditional: each file is checked for existence at runtime
     with [ -f "..." ] so the script runs correctly even when SFX files were
     not acquired (e.g. before Freesound integration is implemented).
     The filter_complex and amix input count are built dynamically in bash.
     """
+    vol_factor = audio.music_volume / 100.0
+    effective_vol = vol_factor * _DUCKING_FACTOR if audio.ducking_enabled else vol_factor
+    music_vol_str = f"{effective_vol:.3f}"
+
     sfx_entries: list[tuple[str, int]] = []  # (sfx_name, delay_ms)
     offset_s = 0.0
     for scene in storyboard.scenes:
@@ -484,13 +506,20 @@ def _audio_section(storyboard: Storyboard) -> str:
         lines.append("fi")
         lines.append("")
 
+    filter_complex_line = (
+        '  -filter_complex "[1:a]asetpts=PTS-STARTPTS,volume=1.0[vo];'
+        '[2:a]asetpts=PTS-STARTPTS,volume='
+        + music_vol_str
+        + '[music]${_sfx_filters};[vo][music]${_sfx_labels}amix=inputs=${_n_audio}:duration=first:normalize=0[aout]" \\'
+    )
+
     lines.extend([
         'ffmpeg -y \\',
         '  -i "$WORK/video_captioned.mp4" \\',
         '  -i "$VO" \\',
         '  "${MUSIC_ARGS[@]}" \\',
         '  "${_sfx_inputs[@]}" \\',
-        '  -filter_complex "[1:a]asetpts=PTS-STARTPTS,volume=1.0[vo];[2:a]asetpts=PTS-STARTPTS,volume=0.15[music]${_sfx_filters};[vo][music]${_sfx_labels}amix=inputs=${_n_audio}:duration=first:normalize=0[aout]" \\',
+        filter_complex_line,
         '  -map 0:v -map "[aout]" \\',
         "  -c:v copy -c:a aac -b:a 192k \\",
         '  "$BASE/output/final.mp4"',

@@ -17,7 +17,7 @@ from src.ffmpeg_builder import (
     get_audio_duration,
     redistribute_scene_durations,
 )
-from src.models import AssetManifest, FFmpegScriptResponse, Storyboard, WordTimestamp
+from src.models import AssetManifest, FFmpegScriptResponse, Storyboard, VideoSettings, WordTimestamp
 from src.storage import R2Client
 
 logger = logging.getLogger(__name__)
@@ -107,8 +107,24 @@ def generate_ffmpeg_script(
         except (StorageError, FFmpegBuildError) as exc:
             logger.warning("Voiceover pacing skipped for run=%s: %s", run_id, exc)
 
+    # Load audio settings from run config; fall back to defaults when not yet saved.
+    settings_key = f"runs/{run_id}/settings.json"
     try:
-        script = build_ffmpeg_script(run_id, storyboard, manifest, scene_words)
+        settings_data = storage.get_json(settings_key)
+        video_settings = VideoSettings.model_validate(settings_data)
+        logger.info(
+            "Audio settings loaded: run=%s volume=%d ducking=%s mode=%s",
+            run_id,
+            video_settings.audio.music_volume,
+            video_settings.audio.ducking_enabled,
+            video_settings.audio.playback_mode,
+        )
+    except StorageError:
+        video_settings = VideoSettings()
+        logger.debug("No settings.json for run=%s — using audio defaults", run_id)
+
+    try:
+        script = build_ffmpeg_script(run_id, storyboard, manifest, scene_words, audio=video_settings.audio)
     except FFmpegBuildError as exc:
         logger.error("FFmpeg script build failed for run=%s: %s", run_id, exc)
         storage.update_run_log(run_id, "ffmpeg_script", "failed", error=str(exc))
