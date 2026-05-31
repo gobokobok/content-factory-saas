@@ -784,7 +784,7 @@
     .video-bounded video { display: block; max-width: 100%; max-height: 360px; width: 100%; object-fit: contain; }
     .video-expand-btn { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.55); color: #fff; border: none; border-radius: 4px; font-size: 11px; padding: 4px 8px; cursor: pointer; }
     .video-actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-    .btn-download { font-size: 13px; font-weight: 500; color: #2D2D2D; background: #EFECEB; border: 1px solid #E8E5E4; border-radius: 4px; padding: 6px 14px; cursor: pointer; text-decoration: none; }
+    .btn-download { font-family: inherit; font-size: 13px; font-weight: 500; color: #2D2D2D; background: #EFECEB; border: 1px solid #E8E5E4; border-radius: 4px; padding: 6px 14px; cursor: pointer; text-decoration: none; display: inline-block; }
     .btn-download:hover { background: #E8E5E4; }
     /* ── Video modal ──────────────────────────────────────────────────── */
     .video-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; }
@@ -1586,11 +1586,34 @@
             <button class="video-expand-btn" onclick="event.stopPropagation(); openVideoModal('${url}')">⤢ Expand</button>
           </div>
           <div class="video-actions">
-            <a class="btn-download" href="${url}" download="final.mp4">↓ Download Video</a>
+            <button class="btn-download" onclick="downloadVideo(this, '${url}', 'final.mp4')">↓ Download Video</button>
           </div>`;
         contentDiv.dataset.loadedFor = currentRunId;
       } catch (err) {
         contentDiv.innerHTML = `<div class="error-text">Network error: ${esc(err.message)}</div>`;
+      }
+    }
+
+    async function downloadVideo(btn, url, filename) {
+      const label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Downloading…';
+      try {
+        const res  = await fetch(url);
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch (err) {
+        alert('Download failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = label;
       }
     }
 
