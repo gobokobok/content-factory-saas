@@ -306,6 +306,15 @@ class RunLogTxtResponse(BaseModel):
     available: bool
 
 
+class TTSResponse(BaseModel):
+    """Response body for POST /runs/{run_id}/tts."""
+
+    status: str
+    key: str
+    chunk_count: int
+    duration_s: float
+
+
 # ── Video settings schemas ────────────────────────────────────────────────────
 
 

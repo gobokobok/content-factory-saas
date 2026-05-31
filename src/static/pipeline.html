@@ -308,6 +308,20 @@
     .commit-modal-body  { font-size: 13px; color: #5A5A5A; margin-bottom: 20px; line-height: 1.5; }
     .commit-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
 
+    /* ── TTS overwrite warning modal ───────────────────────────────────── */
+    .tts-warn-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; }
+    .tts-warn-modal-overlay.open { display: flex; }
+    .tts-warn-modal-box { background: #fff; border-radius: 6px; padding: 24px 28px; width: 400px; max-width: 90vw; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
+    .tts-warn-modal-title { font-size: 15px; font-weight: 600; color: #2D2D2D; margin-bottom: 10px; }
+    .tts-warn-modal-body  { font-size: 13px; color: #5A5A5A; margin-bottom: 20px; line-height: 1.5; }
+    .tts-warn-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+    /* ── VO mode tabs ──────────────────────────────────────────────────── */
+    .vo-mode-tabs { display: flex; gap: 4px; margin-bottom: 10px; }
+    .vo-mode-tab { background: transparent; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 10px; font-size: 12px; color: #6b7280; cursor: pointer; font-family: inherit; transition: background 0.1s, color 0.1s; }
+    .vo-mode-tab.active { background: #2D2D2D; color: #fff; border-color: #2D2D2D; }
+    .vo-mode-tab:disabled { opacity: 0.5; cursor: default; }
+
     /* ── Committed indicator ───────────────────────────────────────────── */
     .committed-indicator { display: none; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: #16a34a; }
     .committed-indicator.visible { display: flex; }
@@ -801,18 +815,28 @@
 
         <div class="field-card">
           <label>Voiceover</label>
-          <div class="vo-widget">
-            <input type="file" id="vo-file-input" accept=".mp3,audio/*" style="display:none" onchange="onVoFileSelected()">
-            <button id="vo-pick-btn" onclick="document.getElementById('vo-file-input').click()">Choose a file</button>
-            <span id="vo-filename" class="vo-filename"></span>
-            <button class="btn btn-secondary btn-sm" id="vo-upload-btn" disabled onclick="uploadVoiceover()">Upload</button>
-            <span id="vo-upload-status" class="muted" style="font-size:12px;"></span>
+          <div class="vo-mode-tabs">
+            <button class="vo-mode-tab active" id="vo-tab-upload" onclick="setVoMode('upload')">Upload File</button>
+            <button class="vo-mode-tab" id="vo-tab-generate" onclick="setVoMode('generate')">Generate with ElevenLabs</button>
+          </div>
+          <div id="vo-upload-panel">
+            <div class="vo-widget">
+              <input type="file" id="vo-file-input" accept=".mp3,audio/*" style="display:none" onchange="onVoFileSelected()">
+              <button id="vo-pick-btn" onclick="document.getElementById('vo-file-input').click()">Choose a file</button>
+              <span id="vo-filename" class="vo-filename"></span>
+              <button class="btn btn-secondary btn-sm" id="vo-upload-btn" disabled onclick="uploadVoiceover()">Upload</button>
+              <span id="vo-upload-status" class="muted" style="font-size:12px;"></span>
+            </div>
+          </div>
+          <div id="vo-generate-panel" style="display:none;">
+            <p class="muted" style="font-size:12px; margin:6px 0 0;">Voiceover will be generated from your script when you click Commit.</p>
+            <span id="vo-generate-status" style="font-size:12px;"></span>
           </div>
         </div>
 
         <div class="field-card">
           <label for="script-input">VO Script</label>
-          <textarea id="script-input" rows="1" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn(); autoResizeScript(this)"></textarea>
+          <textarea id="script-input" rows="1" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn(); updateCommitBtn(); autoResizeScript(this)"></textarea>
         </div>
       </div>
 
@@ -923,6 +947,17 @@
   </div>
 
   <!-- ── Commit confirmation modal ────────────────────────────────── -->
+  <div class="tts-warn-modal-overlay" id="tts-warn-modal">
+    <div class="tts-warn-modal-box">
+      <div class="tts-warn-modal-title">Switch to ElevenLabs?</div>
+      <div class="tts-warn-modal-body">An uploaded voiceover exists. If generation succeeds, it will be permanently deleted. Continue?</div>
+      <div class="tts-warn-modal-actions">
+        <button class="btn btn-secondary" onclick="closeTtsWarnModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmTtsMode()">Continue</button>
+      </div>
+    </div>
+  </div>
+
   <div class="commit-modal-overlay" id="commit-modal">
     <div class="commit-modal-box">
       <div class="commit-modal-title">Commit Project Details</div>
@@ -954,6 +989,7 @@
     let currentSteps      = {};
     let stepRunning       = {};
     let voUploaded        = false;
+    let voMode            = 'upload'; // 'upload' | 'generate'
     let sectionLocked     = { input: false, storyboard: false, assets: false };
     let sidebarCollapsed  = false;
 
@@ -1028,6 +1064,7 @@
       currentSteps  = {};
       stepRunning   = {};
       voUploaded    = false;
+      voMode        = 'upload';
       sectionLocked = { input: false, storyboard: false, assets: false };
 
       const nameInput = document.getElementById('project-name-input');
@@ -1113,6 +1150,7 @@
       currentRunId  = runId;
       stepRunning   = {};
       voUploaded    = false;
+      voMode        = 'upload';
 
       const targetSection = section || 'input';
       history.pushState(null, '', `#run/${encodeURIComponent(runId)}/${targetSection}`);
@@ -1263,14 +1301,28 @@
             scriptInput.value = data.script || '';
             autoResizeScript(scriptInput);
             if (data.vo_filename) {
-              document.getElementById('vo-filename').textContent = data.vo_filename;
-              if (voUploadBtn) voUploadBtn.disabled = locked;
+              if (data.vo_filename === 'generated.mp3') {
+                _applyVoMode('generate');
+                document.getElementById('vo-generate-status').textContent = '✓ generated.mp3';
+                document.getElementById('vo-generate-status').style.color  = '#16a34a';
+                voUploaded = true;
+              } else {
+                document.getElementById('vo-filename').textContent = data.vo_filename;
+                if (voUploadBtn) voUploadBtn.disabled = locked;
+                voUploaded = true;
+              }
             }
             updateSaveDraftBtn();   // re-evaluate now that script is populated
             updateCommitBtn();
           }
         } catch (_) { /* non-fatal */ }
       }
+
+      // Reflect locked state on VO mode tabs
+      const tabUpload   = document.getElementById('vo-tab-upload');
+      const tabGenerate = document.getElementById('vo-tab-generate');
+      if (tabUpload)   tabUpload.disabled   = locked;
+      if (tabGenerate) tabGenerate.disabled = locked;
 
       await loadVideoSettings();
       updateCommitBtn();
@@ -1289,9 +1341,11 @@
       }
       btn.style.display = '';
       indicator.classList.remove('visible');
-      const running = !!stepRunning['alignment'] || !!stepRunning['storyboard'];
-      const nameOk  = currentRunId || document.getElementById('project-name-input')?.value.trim();
-      btn.disabled    = running || !voUploaded || !nameOk;
+      const running   = !!stepRunning['alignment'] || !!stepRunning['storyboard'] || !!stepRunning['tts'];
+      const nameOk    = currentRunId || document.getElementById('project-name-input')?.value.trim();
+      const scriptOk  = !!document.getElementById('script-input')?.value.trim();
+      const voReady   = voMode === 'generate' ? scriptOk : voUploaded;
+      btn.disabled    = running || !voReady || !nameOk;
       btn.textContent = running ? 'Running…' : 'Commit';
     }
 
@@ -1732,10 +1786,15 @@
 
       document.getElementById('commit-btn').disabled = true;
 
-      const ok = await runSequence([
+      const steps = [];
+      if (voMode === 'generate') {
+        steps.push({ key: 'tts', label: 'Generating VO', path: `/runs/${currentRunId}/tts`, body: null });
+      }
+      steps.push(
         { key: 'alignment',  label: 'Alignment',  path: `/runs/${currentRunId}/alignment`,  body: null },
         { key: 'storyboard', label: 'Storyboard', path: `/runs/${currentRunId}/storyboard`, body: JSON.stringify({ script }) },
-      ], progressEl, errorEl);
+      );
+      const ok = await runSequence(steps, progressEl, errorEl);
 
       renderNavItems();
       updateCommitBtn();
@@ -1840,6 +1899,45 @@
       }
       renderNavItems();
       return true;
+    }
+
+    // ─── VO mode (Upload vs Generate) ────────────────────────────────────────
+    function setVoMode(mode) {
+      if (sectionLocked.input) return;
+      if (mode === 'generate' && voUploaded) {
+        document.getElementById('tts-warn-modal').classList.add('open');
+        return;
+      }
+      _applyVoMode(mode);
+    }
+
+    function _applyVoMode(mode) {
+      voMode = mode;
+      const uploadPanel   = document.getElementById('vo-upload-panel');
+      const generatePanel = document.getElementById('vo-generate-panel');
+      const tabUpload     = document.getElementById('vo-tab-upload');
+      const tabGenerate   = document.getElementById('vo-tab-generate');
+      if (mode === 'generate') {
+        uploadPanel.style.display   = 'none';
+        generatePanel.style.display = '';
+        tabUpload.classList.remove('active');
+        tabGenerate.classList.add('active');
+      } else {
+        uploadPanel.style.display   = '';
+        generatePanel.style.display = 'none';
+        tabUpload.classList.add('active');
+        tabGenerate.classList.remove('active');
+      }
+      updateCommitBtn();
+    }
+
+    function closeTtsWarnModal() {
+      document.getElementById('tts-warn-modal').classList.remove('open');
+    }
+
+    function confirmTtsMode() {
+      closeTtsWarnModal();
+      _applyVoMode('generate');
     }
 
     // ─── Voiceover upload ─────────────────────────────────────────────────────

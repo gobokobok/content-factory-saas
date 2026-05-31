@@ -20,6 +20,7 @@ from src.routes import manifest as manifest_router
 from src.routes import render as render_router
 from src.routes import runs as runs_router
 from src.routes import storyboard as storyboard_router
+from src.routes import tts as tts_router
 
 _AUTH_EXEMPT_PATHS = {"/health", "/login", "/auth/login", "/auth/logout"}
 
@@ -60,6 +61,7 @@ app.include_router(storyboard_router.router)
 app.include_router(manifest_router.router)
 app.include_router(assets_router.router)
 app.include_router(alignment_router.router)
+app.include_router(tts_router.router)
 app.include_router(ffmpeg_script_router.router)
 app.include_router(render_router.router)
 

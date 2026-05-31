@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # Deepgram alignment (E5-S4)
     DEEPGRAM_API_KEY: str = ""
 
+    # ElevenLabs TTS (S10-S1)
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_VOICE_ID: str = ""
+
     # Auth (S5-S5)
     OPERATOR_PASSWORD: str
     SESSION_SECRET_KEY: str

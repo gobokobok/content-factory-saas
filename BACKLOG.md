@@ -2726,7 +2726,7 @@ Add video settings selectors to the Settings section of Project Details. Values 
 ## [S10-S1] TTS VO generation via ElevenLabs
 **Epic:** E13 — TTS Voiceover Generation
 **Sprint:** 10
-**Status:** backlog
+**Status:** done
 **Priority:** high
 **Points:** 6
 **Depends on:** S9-S2
@@ -2735,14 +2735,14 @@ Add video settings selectors to the Settings section of Project Details. Values 
 Add a "Generate Voiceover" mode alongside "Upload VO" in Project Details. When selected, the backend splits the script into sentence-boundary-aligned chunks (~1000 chars), sends all chunks to ElevenLabs concurrently, concatenates the raw PCM responses in order, encodes to MP3 via ffmpeg, stores the file, and auto-runs alignment — all invisible to the user.
 
 ### Acceptance Criteria
-- [ ] "Generate Voiceover" toggle/tab in Project Details alongside "Upload VO"
-- [ ] When "Generate Voiceover" is active and script is present, "Commit" triggers TTS generation before alignment
-- [ ] Backend: `POST /runs/{run_id}/tts` — reads `script.txt` from R2, splits into chunks at sentence boundaries (`.`, `!`, `?`) with target ~1000 chars per chunk; sends all chunks to ElevenLabs `POST /v1/text-to-speech/{voice_id}/stream` with `output_format=pcm_44100`; `previous_text` and `next_text` params set per chunk for prosody continuity; chunks sent via `asyncio.gather`; PCM bytes concatenated in request order; encoded to MP3 via ffmpeg subprocess (`-f s16le -ar 44100 -ac 1`); stored as `runs/{run_id}/voiceover/generated.mp3`
-- [ ] After TTS completes, `POST /runs/{run_id}/alignment` is called automatically — no user action required
-- [ ] `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` added to `config.py` and `ENV.md`
-- [ ] If ElevenLabs API fails: step marked failed, clear error shown in UI; operator can retry or switch to Upload VO mode
-- [ ] Generated VO filename shown in Project Details after generation ("generated.mp3 ✓")
-- [ ] Existing "Upload VO" path completely unchanged
+- [x] "Generate Voiceover" toggle/tab in Project Details alongside "Upload VO"
+- [x] When "Generate Voiceover" is active and script is present, "Commit" triggers TTS generation before alignment
+- [x] Backend: `POST /runs/{run_id}/tts` — reads `script.txt` from R2, splits into chunks at sentence boundaries (`.`, `!`, `?`) with target ~1000 chars per chunk; sends all chunks to ElevenLabs `POST /v1/text-to-speech/{voice_id}/stream` with `output_format=pcm_44100`; `previous_text` and `next_text` params set per chunk for prosody continuity; chunks sent via `asyncio.gather`; PCM bytes concatenated in request order; encoded to MP3 via ffmpeg subprocess (`-f s16le -ar 44100 -ac 1`); stored as `runs/{run_id}/voiceover/generated.mp3`
+- [x] After TTS completes, `POST /runs/{run_id}/alignment` is called automatically — no user action required
+- [x] `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` added to `config.py` and `ENV.md`
+- [x] If ElevenLabs API fails: step marked failed, clear error shown in UI; operator can retry or switch to Upload VO mode
+- [x] Generated VO filename shown in Project Details after generation ("generated.mp3 ✓")
+- [x] Existing "Upload VO" path completely unchanged
 
 ### Definition of Done
 - [ ] All AC checked
@@ -2767,7 +2767,17 @@ In Project Details, switch to "Generate Voiceover". Paste a 300+ word script. Cl
 - `tests/test_tts.py` — new
 
 ### Handover
-_filled on completion_
+- `src/tts.py`: `split_into_chunks(script, target_chars=1000) → list[str]` — splits at `.`, `!`, `?` sentence boundaries; merges short sentences until target reached. `generate_tts(script, api_key, voice_id) → (mp3_bytes, chunk_count)` — async; gathers `_call_elevenlabs` coroutines in parallel with `previous_text`/`next_text` context params; concatenates raw PCM in order; calls `_encode_pcm_to_mp3` (ffmpeg subprocess: `-f s16le -ar 44100 -ac 1 -i pipe:0 -f mp3 pipe:1`). Raises `TTSError` on any failure.
+- `src/routes/tts.py`: `POST /runs/{run_id}/tts` — returns 503 if `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` unset; reads `script.txt` via `storage.get_bytes` (404 if missing); calls `generate_tts`; on success lists and deletes all existing `runs/{run_id}/voiceover/` keys then uploads `generated.mp3`; on failure leaves existing voiceover untouched (delete-on-success only). Returns `TTSResponse(status, key, chunk_count, duration_s)`.
+- `src/exceptions.py`: `TTSError` added.
+- `src/models.py`: `TTSResponse(status, key, chunk_count, duration_s)` added.
+- `src/config.py`: `ELEVENLABS_API_KEY: str = ""`, `ELEVENLABS_VOICE_ID: str = ""` (both optional; absent → 503 at route level).
+- `src/main.py`: `tts_router` registered between `alignment_router` and `ffmpeg_script_router`.
+- `ENV.md`: `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` documented.
+- `src/static/pipeline.html`: Voiceover field-card now has `.vo-mode-tabs` with "Upload File" / "Generate with ElevenLabs" buttons. `voMode` state var ('upload'|'generate'). `setVoMode(mode)` shows `#tts-warn-modal` if switching to generate when `voUploaded`. Modal: "If generation succeeds, it will be permanently deleted." Cancel reverts; Confirm calls `_applyVoMode('generate')`. `updateCommitBtn` allows Commit when `voMode==='generate'` and script non-empty (no upload required). `runCommit` prepends `POST /tts` step in generate sequence. `populateInput` restores generate mode when `vo_filename === 'generated.mp3'` and shows "✓ generated.mp3". Tabs disabled when `sectionLocked.input`.
+- `tests/test_tts.py`: 25 new tests. 656 total passing.
+- No new pip dependencies (`httpx` and `subprocess`/`asyncio` already available).
+**Promoted to backlog:** none
 
 ---
 

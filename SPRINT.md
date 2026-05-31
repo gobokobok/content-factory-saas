@@ -274,7 +274,7 @@
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| S10-S1 | TTS VO generation — ElevenLabs chunked parallel requests, PCM merge via ffmpeg, auto-run alignment | 6 | backlog |
+| S10-S1 | TTS VO generation — ElevenLabs chunked parallel requests, PCM merge via ffmpeg, auto-run alignment | 6 | done |
 
 ---
 

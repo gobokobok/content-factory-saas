@@ -43,3 +43,7 @@ class CLIPError(Exception):
 
 class AlignmentError(Exception):
     """Raised when Deepgram API call fails or returns an unexpected response."""
+
+
+class TTSError(Exception):
+    """Raised when ElevenLabs TTS API call, PCM concat, or ffmpeg MP3 encode fails."""

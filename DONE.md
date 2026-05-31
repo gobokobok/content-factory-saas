@@ -4,6 +4,23 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S10-S1] TTS VO generation via ElevenLabs
+**Completed:** 2026-05-31
+**Handover:**
+- `src/tts.py`: `split_into_chunks(script, target_chars=1000) → list[str]` — splits at `.`, `!`, `?` boundaries, merges short sentences until target reached. `generate_tts(script, api_key, voice_id) → (mp3_bytes, chunk_count)` — async; builds `_call_elevenlabs` coroutines with `previous_text`/`next_text` context, gathers all in parallel, concatenates PCM in order, calls `_encode_pcm_to_mp3` (ffmpeg subprocess: `-f s16le -ar 44100 -ac 1`). Raises `TTSError` on any failure.
+- `src/routes/tts.py`: `POST /runs/{run_id}/tts` — reads `script.txt` from R2 (404 if missing); returns 503 if `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` unset; calls `generate_tts`; on success purges all `runs/{run_id}/voiceover/` keys then uploads `generated.mp3`; on failure leaves existing upload untouched (delete-on-success only). Returns `TTSResponse`.
+- `src/exceptions.py`: `TTSError` added.
+- `src/models.py`: `TTSResponse(status, key, chunk_count, duration_s)` added.
+- `src/config.py`: `ELEVENLABS_API_KEY: str = ""`, `ELEVENLABS_VOICE_ID: str = ""` added (optional; 503 returned if unset when route is called).
+- `src/main.py`: `tts_router` registered.
+- `ENV.md`: `ELEVENLABS_API_KEY` and `ELEVENLABS_VOICE_ID` documented.
+- `src/static/pipeline.html`: Voiceover field-card replaced with two-mode widget. "Upload File" / "Generate with ElevenLabs" tab toggle. Switching to Generate when a VO is uploaded shows `#tts-warn-modal` ("If generation succeeds, it will be permanently deleted. Continue?") — Cancel reverts; Confirm arms generate mode. `voMode` state var ('upload'|'generate'). `updateCommitBtn` allows Commit when `voMode==='generate'` and script is non-empty. `runCommit` prepends `POST /tts` step in generate sequence. `populateInput` restores generate mode when `vo_filename === 'generated.mp3'` and shows "✓ generated.mp3" status. Mode tabs disabled when section locked.
+- `tests/test_tts.py`: 25 new tests — `split_into_chunks` (8), `_encode_pcm_to_mp3` (4), `generate_tts` (5), route integration (8). 656 total passing.
+**Smoke test:** DEFERRED — requires `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` on Railway DEV. Operator switches to "Generate with ElevenLabs", pastes script, clicks Commit, observes "Generating VO…" progress, then pipeline advances through alignment → storyboard automatically.
+**Promoted to backlog:** none
+
+---
+
 ## [S9-S3] Video settings UI
 **Completed:** 2026-05-31
 **Handover:**
