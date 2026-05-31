@@ -2788,7 +2788,8 @@ In Project Details, switch to "Generate Voiceover". Paste a 300+ word script. Cl
 ## [S11-S1] Background music upload
 **Epic:** E14 — Audio Layer
 **Sprint:** 11
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-31
 **Priority:** medium
 **Points:** 3
 **Depends on:** S9-S1
@@ -2819,7 +2820,11 @@ Add a background music upload widget to the Project Details Audio section. Music
 - `src/static/pipeline.html` — Audio section, music upload widget + preview
 
 ### Handover
-_filled on completion_
+- `POST /runs/{run_id}/music-upload-url` → `MusicUploadUrlResponse(upload_url, key)`. Key pattern: `runs/{run_id}/music/{filename}`.
+- `DELETE /runs/{run_id}/music` → 204. Clears all keys under the music prefix; no-op if empty.
+- `GET /runs/{run_id}/draft` now includes `music_filename: Optional[str]` — first audio file found under `runs/{run_id}/music/` prefix.
+- UI: Background Music field-card in Settings subsection. States: no-music / pending-upload / preview (audio player + Remove). Locked on commit. Music state restored on run open via presigned GET URL through existing `/asset-link` endpoint.
+- No new ENV vars. No new dependencies. 665 tests passing.
 
 ---
 

@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S11-S1] Background music upload
+**Completed:** 2026-05-31
+**Handover:**
+- `src/models.py`: `MusicUploadUrlRequest(filename)` + `MusicUploadUrlResponse(upload_url, key)` added. `DraftResponse` gains `music_filename: Optional[str] = None`.
+- `src/routes/runs.py`: `POST /runs/{run_id}/music-upload-url` — generates presigned R2 PUT URL; stores at `runs/{run_id}/music/{filename}`. Mirrors voiceover-upload-url pattern exactly. `DELETE /runs/{run_id}/music` — lists and deletes all keys under `runs/{run_id}/music/` prefix; no-op (204) if none exist. `GET /runs/{run_id}/draft` extended: detects first `.mp3/.wav/.m4a` in music prefix, returns as `music_filename`.
+- `src/static/pipeline.html`: Background Music field-card added to Settings subsection (below Video settings). Three JS states: no-music (default, "Upload track" button), pending-upload (filename + Upload button), preview (audio player + filename + Remove button). `_resetMusicWidget()`, `_showMusicPreview(filename, url)`, `_setMusicLocked(locked)`, `onMusicFileSelected()`, `uploadMusic()`, `removeMusic()` added. `populateInput()` restores music preview on run open via `GET /draft` → `asset-link` presigned URL. `musicUploaded` state var tracks upload state; reset in `openNewProjectForm()`.
+- No new ENV vars. No new dependencies.
+- 9 new tests in `tests/test_runs.py` (`TestMusicUploadUrl` × 4, `TestDeleteMusic` × 3, `TestGetDraftMusicFilename` × 2). 665 total passing.
+**Smoke test:** DEFERRED — requires Railway DEV deploy. Operator opens Project Details, uploads a .mp3 track, confirms `<audio>` preview plays, clicks Remove and verifies track disappears, re-uploads, commits, and confirms all music controls are locked read-only.
+**Promoted to backlog:** none
+
+---
+
 ## [S10-S1] TTS VO generation via ElevenLabs
 **Completed:** 2026-05-31
 **Handover:**

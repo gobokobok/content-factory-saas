@@ -233,6 +233,7 @@ class DraftResponse(BaseModel):
     project_name: str
     script: str
     vo_filename: Optional[str] = None
+    music_filename: Optional[str] = None
 
 
 class StoryboardResponse(BaseModel):
@@ -294,6 +295,19 @@ class VoiceoverUploadUrlRequest(BaseModel):
 
 class VoiceoverUploadUrlResponse(BaseModel):
     """Response body for POST /runs/{run_id}/voiceover-upload-url."""
+
+    upload_url: str
+    key: str
+
+
+class MusicUploadUrlRequest(BaseModel):
+    """Request body for POST /runs/{run_id}/music-upload-url."""
+
+    filename: str
+
+
+class MusicUploadUrlResponse(BaseModel):
+    """Response body for POST /runs/{run_id}/music-upload-url."""
 
     upload_url: str
     key: str

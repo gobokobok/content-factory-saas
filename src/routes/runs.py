@@ -14,6 +14,8 @@ from src.models import (
     AssetLinkResponse,
     DraftRequest,
     DraftResponse,
+    MusicUploadUrlRequest,
+    MusicUploadUrlResponse,
     RunCreateRequest,
     RunCreateResponse,
     RunListResponse,
@@ -103,6 +105,42 @@ def voiceover_upload_url(
     return VoiceoverUploadUrlResponse(upload_url=url, key=key)
 
 
+@router.post("/runs/{run_id}/music-upload-url", response_model=MusicUploadUrlResponse)
+def music_upload_url(
+    run_id: str,
+    body: MusicUploadUrlRequest,
+    settings: Settings = Depends(get_settings),
+) -> MusicUploadUrlResponse:
+    """Generate a presigned R2 PUT URL for uploading a background music file from the browser."""
+    key = f"runs/{run_id}/music/{body.filename}"
+    client = _make_r2_client(settings)
+    try:
+        url = client.generate_presigned_put_url(key)
+    except StorageError as exc:
+        logger.error("Storage error generating music upload URL for '%s': %s", run_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return MusicUploadUrlResponse(upload_url=url, key=key)
+
+
+@router.delete("/runs/{run_id}/music", status_code=204)
+def delete_music(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Delete all background music files for a run. No-op if none exist."""
+    client = _make_r2_client(settings)
+    try:
+        keys = client.list_keys(f"runs/{run_id}/music/")
+    except StorageError as exc:
+        logger.error("Storage error listing music for run '%s': %s", run_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    for key in keys:
+        try:
+            client._client.delete_object(Bucket=client._bucket, Key=key)
+        except Exception as exc:
+            logger.warning("Could not delete music key '%s': %s", key, exc)
+
+
 @router.get("/runs/{run_id}/run-log-txt", response_model=RunLogTxtResponse)
 def get_run_log_txt(
     run_id: str,
@@ -176,11 +214,21 @@ def get_draft(
     except StorageError:
         pass
 
+    music_filename: str | None = None
+    try:
+        music_keys = client.list_keys(f"runs/{run_id}/music/")
+        audio_music = [k for k in music_keys if k.endswith((".mp3", ".wav", ".m4a"))]
+        if audio_music:
+            music_filename = audio_music[0].split("/")[-1]
+    except StorageError:
+        pass
+
     return DraftResponse(
         status="ok",
         project_name=project_name,
         script=script,
         vo_filename=vo_filename,
+        music_filename=music_filename,
     )
 
 

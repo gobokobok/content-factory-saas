@@ -297,7 +297,7 @@
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| S11-S1 | Background music upload — presigned PUT to `runs/{run_id}/music/`, stored in R2, playback preview in UI | 3 | backlog |
+| S11-S1 | Background music upload — presigned PUT to `runs/{run_id}/music/`, stored in R2, playback preview in UI | 3 | done |
 | S11-S2 | Audio controls UI — volume slider (0–100%), voiceover ducking toggle, loop vs fit-to-duration mode; stored in run config | 2 | backlog |
 | S11-S3 | Audio → ffmpeg integration — BG music key + volume + ducking settings passed into generated ffmpeg script; replaces hardcoded `music 0.15` | 5 | backlog |
 

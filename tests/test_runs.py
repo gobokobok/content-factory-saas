@@ -769,3 +769,120 @@ class TestDeleteRun:
             res = client.delete(f"/runs/{self.RUN_ID}")
         assert res.status_code == 500
         assert "R2 connection error" in res.json()["detail"]
+
+
+class TestMusicUploadUrl:
+    """Tests for POST /runs/{run_id}/music-upload-url."""
+
+    RUN_ID = "2026-05-31_music-test"
+
+    def test_returns_upload_url_and_key(self, client):
+        """Endpoint returns presigned PUT URL and the R2 key for the music file."""
+        m = MagicMock()
+        m.generate_presigned_put_url.return_value = "https://r2.example.com/upload?sig=xyz"
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/music-upload-url",
+                json={"filename": "track.mp3"},
+            )
+        assert res.status_code == 200
+        body = res.json()
+        assert body["upload_url"] == "https://r2.example.com/upload?sig=xyz"
+        assert body["key"] == f"runs/{self.RUN_ID}/music/track.mp3"
+
+    def test_calls_correct_r2_key(self, client):
+        """R2Client receives the correct key composed from run_id and filename."""
+        m = MagicMock()
+        m.generate_presigned_put_url.return_value = "https://example.com/upload"
+        with patch("src.routes.runs.R2Client", return_value=m):
+            client.post(
+                f"/runs/{self.RUN_ID}/music-upload-url",
+                json={"filename": "bg.wav"},
+            )
+        m.generate_presigned_put_url.assert_called_once_with(
+            f"runs/{self.RUN_ID}/music/bg.wav"
+        )
+
+    def test_storage_error_returns_500(self, client):
+        """StorageError from R2 maps to HTTP 500."""
+        m = MagicMock()
+        m.generate_presigned_put_url.side_effect = StorageError("R2 unreachable")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/music-upload-url",
+                json={"filename": "bg.mp3"},
+            )
+        assert res.status_code == 500
+        assert "R2 unreachable" in res.json()["detail"]
+
+    def test_missing_filename_returns_422(self, client):
+        """Request body without filename field returns HTTP 422."""
+        res = client.post(f"/runs/{self.RUN_ID}/music-upload-url", json={})
+        assert res.status_code == 422
+
+
+class TestDeleteMusic:
+    """Tests for DELETE /runs/{run_id}/music."""
+
+    RUN_ID = "2026-05-31_music-delete-test"
+
+    def test_returns_204_when_files_deleted(self, client):
+        """DELETE /runs/{run_id}/music returns HTTP 204 on success."""
+        m = MagicMock()
+        m.list_keys.return_value = [f"runs/{self.RUN_ID}/music/bg.mp3"]
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}/music")
+        assert res.status_code == 204
+
+    def test_returns_204_when_no_music_exists(self, client):
+        """DELETE is a no-op when no music files exist — still returns 204."""
+        m = MagicMock()
+        m.list_keys.return_value = []
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}/music")
+        assert res.status_code == 204
+
+    def test_storage_error_listing_returns_500(self, client):
+        """StorageError from list_keys maps to HTTP 500."""
+        m = MagicMock()
+        m.list_keys.side_effect = StorageError("R2 unreachable")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}/music")
+        assert res.status_code == 500
+
+
+class TestGetDraftMusicFilename:
+    """Tests for music_filename field in GET /runs/{run_id}/draft."""
+
+    RUN_ID = "2026-05-31_music-draft-test"
+
+    def _run_log(self) -> dict:
+        return {
+            "run_id": self.RUN_ID,
+            "created_at": "2026-05-31T10:00:00+00:00",
+            "project_name": "Music Test",
+            "steps": {"storyboard": {"status": "pending"}},
+        }
+
+    def test_music_filename_populated_when_present(self, client):
+        """music_filename is returned when a music file exists in the music prefix."""
+        m = MagicMock()
+        m.get_json.return_value = self._run_log()
+        m.get_bytes.return_value = b""
+        # First call = voiceover prefix (empty), second call = music prefix
+        m.list_keys.side_effect = [[], [f"runs/{self.RUN_ID}/music/bg.mp3"]]
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/draft")
+        assert res.status_code == 200
+        assert res.json()["music_filename"] == "bg.mp3"
+
+    def test_music_filename_none_when_no_music(self, client):
+        """music_filename is null when no audio files exist in music prefix."""
+        m = MagicMock()
+        m.get_json.return_value = self._run_log()
+        m.get_bytes.return_value = b""
+        m.list_keys.return_value = []
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/draft")
+        assert res.status_code == 200
+        assert res.json()["music_filename"] is None
