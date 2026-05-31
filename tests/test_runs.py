@@ -588,6 +588,147 @@ class TestGetAssetLink:
         assert res.status_code == 422
 
 
+class TestVideoSettings:
+    """Tests for POST/GET /runs/{run_id}/settings."""
+
+    RUN_ID = "2026-05-31_settings-test"
+    SETTINGS_KEY = f"runs/{RUN_ID}/settings.json"
+    DEFAULT_PAYLOAD = {
+        "aspect_ratio": "9:16",
+        "visual_style": "Realistic",
+        "subtitles_enabled": True,
+        "subtitle_style": "TikTok",
+    }
+
+    def test_post_saves_settings_and_returns_saved(self, client):
+        """POST /runs/{run_id}/settings stores settings.json and returns status='saved'."""
+        m = MagicMock()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(f"/runs/{self.RUN_ID}/settings", json=self.DEFAULT_PAYLOAD)
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "saved"
+        assert body["settings"]["aspect_ratio"] == "9:16"
+        assert body["settings"]["visual_style"] == "Realistic"
+        assert body["settings"]["subtitles_enabled"] is True
+        assert body["settings"]["subtitle_style"] == "TikTok"
+
+    def test_post_calls_upload_json_with_correct_key(self, client):
+        """POST stores settings at runs/{run_id}/settings.json."""
+        m = MagicMock()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            client.post(f"/runs/{self.RUN_ID}/settings", json=self.DEFAULT_PAYLOAD)
+        m.upload_json.assert_called_once()
+        key_arg = m.upload_json.call_args[0][0]
+        assert key_arg == self.SETTINGS_KEY
+
+    def test_post_stores_all_fields(self, client):
+        """POST stores the full settings dict in R2."""
+        m = MagicMock()
+        payload = {
+            "aspect_ratio": "16:9",
+            "visual_style": "Cinematic",
+            "subtitles_enabled": False,
+            "subtitle_style": "Classic",
+        }
+        with patch("src.routes.runs.R2Client", return_value=m):
+            client.post(f"/runs/{self.RUN_ID}/settings", json=payload)
+        stored = m.upload_json.call_args[0][1]
+        assert stored["aspect_ratio"] == "16:9"
+        assert stored["visual_style"] == "Cinematic"
+        assert stored["subtitles_enabled"] is False
+        assert stored["subtitle_style"] == "Classic"
+
+    def test_post_invalid_aspect_ratio_returns_422(self, client):
+        """POST with unknown aspect_ratio value returns HTTP 422."""
+        m = MagicMock()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/settings",
+                json={**self.DEFAULT_PAYLOAD, "aspect_ratio": "4:3"},
+            )
+        assert res.status_code == 422
+
+    def test_post_invalid_visual_style_returns_422(self, client):
+        """POST with unknown visual_style value returns HTTP 422."""
+        m = MagicMock()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/settings",
+                json={**self.DEFAULT_PAYLOAD, "visual_style": "Watercolour"},
+            )
+        assert res.status_code == 422
+
+    def test_post_invalid_subtitle_style_returns_422(self, client):
+        """POST with unknown subtitle_style value returns HTTP 422."""
+        m = MagicMock()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/settings",
+                json={**self.DEFAULT_PAYLOAD, "subtitle_style": "Fancy"},
+            )
+        assert res.status_code == 422
+
+    def test_post_storage_error_returns_500(self, client):
+        """StorageError from upload_json maps to HTTP 500."""
+        m = MagicMock()
+        m.upload_json.side_effect = StorageError("R2 write failed")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(f"/runs/{self.RUN_ID}/settings", json=self.DEFAULT_PAYLOAD)
+        assert res.status_code == 500
+        assert "R2 write failed" in res.json()["detail"]
+
+    def test_get_returns_stored_settings(self, client):
+        """GET /runs/{run_id}/settings returns stored values from R2."""
+        stored = {
+            "aspect_ratio": "1:1",
+            "visual_style": "Documentary",
+            "subtitles_enabled": False,
+            "subtitle_style": "Classic",
+        }
+        m = MagicMock()
+        m.get_json.return_value = stored
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/settings")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["status"] == "ok"
+        s = body["settings"]
+        assert s["aspect_ratio"] == "1:1"
+        assert s["visual_style"] == "Documentary"
+        assert s["subtitles_enabled"] is False
+        assert s["subtitle_style"] == "Classic"
+
+    def test_get_returns_defaults_when_settings_absent(self, client):
+        """GET returns default VideoSettings (9:16, Realistic, subtitles on, TikTok) when no file exists."""
+        m = MagicMock()
+        m.get_json.side_effect = StorageError("NoSuchKey")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/settings")
+        assert res.status_code == 200
+        s = res.json()["settings"]
+        assert s["aspect_ratio"] == "9:16"
+        assert s["visual_style"] == "Realistic"
+        assert s["subtitles_enabled"] is True
+        assert s["subtitle_style"] == "TikTok"
+
+    def test_get_calls_correct_r2_key(self, client):
+        """GET fetches runs/{run_id}/settings.json from R2."""
+        m = MagicMock()
+        m.get_json.side_effect = StorageError("NoSuchKey")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            client.get(f"/runs/{self.RUN_ID}/settings")
+        m.get_json.assert_called_once_with(self.SETTINGS_KEY)
+
+    def test_get_returns_200_even_when_no_settings_file(self, client):
+        """GET returns HTTP 200 with defaults when settings.json does not exist (never a 404)."""
+        m = MagicMock()
+        m.get_json.side_effect = StorageError("NoSuchKey")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/settings")
+        assert res.status_code == 200
+
+
 class TestDeleteRun:
     RUN_ID = "2026-05-30_delete-me"
 

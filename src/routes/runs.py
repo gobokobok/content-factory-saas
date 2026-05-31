@@ -19,6 +19,8 @@ from src.models import (
     RunListResponse,
     RunLogTxtResponse,
     RunSummary,
+    VideoSettings,
+    VideoSettingsResponse,
     VoiceoverUploadUrlRequest,
     VoiceoverUploadUrlResponse,
 )
@@ -219,6 +221,39 @@ def delete_run(
             raise HTTPException(status_code=404, detail=msg) from exc
         logger.error("Storage error deleting run '%s': %s", run_id, exc)
         raise HTTPException(status_code=500, detail=msg) from exc
+
+
+@router.post("/runs/{run_id}/settings", response_model=VideoSettingsResponse)
+def save_video_settings(
+    run_id: str,
+    body: VideoSettings,
+    settings: Settings = Depends(get_settings),
+) -> VideoSettingsResponse:
+    """Save video settings to settings.json in R2."""
+    client = _make_r2_client(settings)
+    key = f"runs/{run_id}/settings.json"
+    try:
+        client.upload_json(key, body.model_dump())
+    except StorageError as exc:
+        logger.error("Storage error saving settings for run '%s': %s", run_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return VideoSettingsResponse(status="saved", settings=body)
+
+
+@router.get("/runs/{run_id}/settings", response_model=VideoSettingsResponse)
+def get_video_settings(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> VideoSettingsResponse:
+    """Return stored video settings, or defaults when settings.json is absent."""
+    client = _make_r2_client(settings)
+    key = f"runs/{run_id}/settings.json"
+    try:
+        data = client.get_json(key)
+        video_settings = VideoSettings.model_validate(data)
+    except StorageError:
+        video_settings = VideoSettings()
+    return VideoSettingsResponse(status="ok", settings=video_settings)
 
 
 @router.get("/runs/{run_id}/artifact/{step}", response_model=ArtifactResponse)

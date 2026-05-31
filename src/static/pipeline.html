@@ -496,6 +496,61 @@
       padding: 10px 0 0;
       font-size: 12px;
     }
+    /* ── Video settings controls ──────────────────────────────────────── */
+    .settings-select-wrap { padding-top: 10px; }
+    #section-input .field-card select {
+      width: 100%;
+      border: 1px solid #E8E5E4;
+      border-radius: 6px;
+      padding: 7px 28px 7px 10px;
+      background: #FBF9F8;
+      font-size: 13px;
+      color: #2D2D2D;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23B0ABA9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+    #section-input .field-card select:focus {
+      outline: none;
+      border-color: #B0ABA9;
+      box-shadow: none;
+    }
+    #section-input .field-card select:disabled {
+      color: #9A9A9A;
+      cursor: default;
+      background-color: #F5F3F2;
+    }
+    .settings-toggle-wrap { padding-top: 10px; }
+    .settings-toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .settings-toggle-label input[type="checkbox"] {
+      width: 15px;
+      height: 15px;
+      cursor: pointer;
+      accent-color: #2D2D2D;
+    }
+    .settings-toggle-label input[type="checkbox"]:disabled { cursor: default; }
+    .settings-toggle-text { font-size: 13px; color: #2D2D2D; }
+    .settings-substyle-wrap {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #F0EDEC;
+    }
+    .settings-substyle-wrap label {
+      font-size: 11px;
+      color: #B0ABA9;
+      padding-bottom: 6px;
+      border-bottom: none;
+      margin-bottom: 0;
+    }
     .subsection { margin-bottom: 24px; }
     .subsection + .subsection { margin-top: 16px; }
     .subsection-title {
@@ -779,9 +834,48 @@
 
       <div class="subsection">
         <div class="subsection-title">Settings</div>
+
         <div class="field-card">
-          <div class="subsection-placeholder">Video settings coming soon.</div>
+          <label>Aspect Ratio</label>
+          <div class="settings-select-wrap">
+            <select id="setting-aspect-ratio" onchange="saveVideoSettings()">
+              <option value="9:16">9:16 – Vertical (Shorts / Reels)</option>
+              <option value="16:9">16:9 – Landscape</option>
+              <option value="1:1">1:1 – Square</option>
+            </select>
+          </div>
         </div>
+
+        <div class="field-card">
+          <label>Visual Style</label>
+          <div class="settings-select-wrap">
+            <select id="setting-visual-style" onchange="saveVideoSettings()">
+              <option value="Realistic">Realistic</option>
+              <option value="Cinematic">Cinematic</option>
+              <option value="Cartoonish">Cartoonish</option>
+              <option value="Documentary">Documentary</option>
+              <option value="Minimalist">Minimalist</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-card">
+          <label>Subtitles</label>
+          <div class="settings-toggle-wrap">
+            <label class="settings-toggle-label">
+              <input type="checkbox" id="setting-subtitles-enabled" checked onchange="onSubtitlesToggle()">
+              <span class="settings-toggle-text">Enabled</span>
+            </label>
+            <div id="subtitle-style-wrap" class="settings-substyle-wrap">
+              <label for="setting-subtitle-style">Caption Style</label>
+              <select id="setting-subtitle-style" onchange="saveVideoSettings()">
+                <option value="TikTok">TikTok Style (highlighted, animated)</option>
+                <option value="Classic">Classic (plain bottom captions)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       <div class="cta-area">
@@ -1206,6 +1300,7 @@
         } catch (_) { /* non-fatal */ }
       }
 
+      await loadVideoSettings();
       updateCommitBtn();
       updateSaveDraftBtn();
       _updateVoUploadBtn();
@@ -1548,6 +1643,77 @@
     function toggleSbSettings() {
       const block = document.getElementById('sb-settings-block');
       if (block) block.classList.toggle('open');
+    }
+
+    // ─── Video settings ───────────────────────────────────────────────────────
+
+    /** Load stored video settings from R2 and populate the Settings controls. */
+    async function loadVideoSettings() {
+      if (!currentRunId) return;
+      const locked = sectionLocked.input;
+      try {
+        const res  = await fetch(`/runs/${currentRunId}/settings`);
+        const data = await res.json();
+        if (res.ok && data.settings) {
+          const s = data.settings;
+          const selAspect   = document.getElementById('setting-aspect-ratio');
+          const selStyle    = document.getElementById('setting-visual-style');
+          const chkSubs     = document.getElementById('setting-subtitles-enabled');
+          const selSubStyle = document.getElementById('setting-subtitle-style');
+          if (selAspect)   selAspect.value   = s.aspect_ratio   || '9:16';
+          if (selStyle)    selStyle.value    = s.visual_style   || 'Realistic';
+          if (chkSubs)     chkSubs.checked   = s.subtitles_enabled !== false;
+          if (selSubStyle) selSubStyle.value = s.subtitle_style || 'TikTok';
+        }
+      } catch (_) { /* non-fatal — HTML defaults remain */ }
+      _applyVideoSettingsLock(locked);
+      _updateSubtitleStyleVisibility();
+    }
+
+    /** Disable or enable all video settings controls based on locked state. */
+    function _applyVideoSettingsLock(locked) {
+      ['setting-aspect-ratio', 'setting-visual-style', 'setting-subtitles-enabled', 'setting-subtitle-style']
+        .forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.disabled = locked;
+        });
+    }
+
+    /** Show/hide the subtitle style selector based on the subtitles toggle. */
+    function _updateSubtitleStyleVisibility() {
+      const chk  = document.getElementById('setting-subtitles-enabled');
+      const wrap = document.getElementById('subtitle-style-wrap');
+      if (!chk || !wrap) return;
+      wrap.style.display = chk.checked ? '' : 'none';
+    }
+
+    /** Called when the subtitles toggle changes. */
+    function onSubtitlesToggle() {
+      _updateSubtitleStyleVisibility();
+      saveVideoSettings();
+    }
+
+    /** Persist current settings control values to R2 via POST /runs/{run_id}/settings. */
+    async function saveVideoSettings() {
+      if (!currentRunId || sectionLocked.input) return;
+      const selAspect   = document.getElementById('setting-aspect-ratio');
+      const selStyle    = document.getElementById('setting-visual-style');
+      const chkSubs     = document.getElementById('setting-subtitles-enabled');
+      const selSubStyle = document.getElementById('setting-subtitle-style');
+      if (!selAspect) return;
+      const payload = {
+        aspect_ratio:      selAspect.value,
+        visual_style:      selStyle.value,
+        subtitles_enabled: chkSubs ? chkSubs.checked : true,
+        subtitle_style:    selSubStyle ? selSubStyle.value : 'TikTok',
+      };
+      try {
+        await fetch(`/runs/${currentRunId}/settings`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+      } catch (_) { /* best-effort — non-fatal */ }
     }
 
     function renderManifestHtml(content) {

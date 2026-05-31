@@ -304,3 +304,24 @@ class RunLogTxtResponse(BaseModel):
 
     content: str
     available: bool
+
+
+# ── Video settings schemas ────────────────────────────────────────────────────
+
+
+class VideoSettings(BaseModel):
+    """Video production settings stored in settings.json — no pipeline wiring yet (see S12-S1)."""
+
+    aspect_ratio: Literal["9:16", "16:9", "1:1"] = "9:16"
+    visual_style: Literal[
+        "Realistic", "Cinematic", "Cartoonish", "Documentary", "Minimalist"
+    ] = "Realistic"
+    subtitles_enabled: bool = True
+    subtitle_style: Literal["TikTok", "Classic"] = "TikTok"
+
+
+class VideoSettingsResponse(BaseModel):
+    """Response body for GET/POST /runs/{run_id}/settings."""
+
+    status: str
+    settings: VideoSettings

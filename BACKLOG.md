@@ -2677,7 +2677,8 @@ Replace the "Create Storyboard" CTA with a formal **Commit** action. Clicking Co
 ## [S9-S3] Video settings UI
 **Epic:** E12 — Video Settings
 **Sprint:** 9
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-05-31
 **Priority:** medium
 **Points:** 2
 **Depends on:** S9-S1
@@ -2686,22 +2687,22 @@ Replace the "Create Storyboard" CTA with a formal **Commit** action. Clicking Co
 Add video settings selectors to the Settings section of Project Details. Values are stored in R2 config and survive page reload. No pipeline wiring in this story — the settings are captured only. Pipeline wiring is S12-S1.
 
 ### Acceptance Criteria
-- [ ] Aspect ratio selector: 9:16 (default) / 16:9 / 1:1
-- [ ] Visual style dropdown: Realistic / Cinematic / Cartoonish / Documentary / Minimalist
-- [ ] Subtitles toggle: enabled (default) / disabled
-- [ ] Subtitle style selector (visible only when subtitles enabled): TikTok style / Classic
-- [ ] All values stored via `POST /runs/{run_id}/settings` and returned by `GET /runs/{run_id}/settings`
-- [ ] Values persist across page reload — `GET /runs/{run_id}/draft` or new settings endpoint returns stored values
-- [ ] Controls are read-only after commit (locked with Project Details)
-- [ ] Default values applied when no settings have been saved
+- [x] Aspect ratio selector: 9:16 (default) / 16:9 / 1:1
+- [x] Visual style dropdown: Realistic / Cinematic / Cartoonish / Documentary / Minimalist
+- [x] Subtitles toggle: enabled (default) / disabled
+- [x] Subtitle style selector (visible only when subtitles enabled): TikTok style / Classic
+- [x] All values stored via `POST /runs/{run_id}/settings` and returned by `GET /runs/{run_id}/settings`
+- [x] Values persist across page reload — GET /runs/{run_id}/settings returns stored values
+- [x] Controls are read-only after commit (locked with Project Details)
+- [x] Default values applied when no settings have been saved
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests: settings saved and retrieved; defaults returned when absent; read-only after commit
-- [ ] No existing test regressions
+- [x] All AC checked
+- [x] Tests: settings saved and retrieved; defaults returned when absent; read-only after commit
+- [x] No existing test regressions (630 passing)
 - [ ] CI green
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Files to create or modify
 - `src/routes/runs.py` — `POST /runs/{run_id}/settings`, `GET /runs/{run_id}/settings`
@@ -2710,7 +2711,11 @@ Add video settings selectors to the Settings section of Project Details. Values 
 - `src/static/pipeline.html` — Settings section controls
 
 ### Handover
-_filled on completion_
+- `src/models.py`: `VideoSettings(aspect_ratio, visual_style, subtitles_enabled, subtitle_style)` — all fields use `Literal` types for validation; defaults: `"9:16"`, `"Realistic"`, `True`, `"TikTok"`. `VideoSettingsResponse(status, settings)` added.
+- `src/routes/runs.py`: `POST /runs/{run_id}/settings` — stores `runs/{run_id}/settings.json` via `upload_json`, returns `{status:"saved", settings:{...}}`. `GET /runs/{run_id}/settings` — returns stored values or silent defaults on `StorageError` (never 404).
+- `src/static/pipeline.html`: Settings section (previously a placeholder) now renders three field-cards: Aspect Ratio select, Visual Style select, Subtitles toggle + conditional Caption Style select. JS: `loadVideoSettings()` fetches from `/settings` and populates controls; `saveVideoSettings()` POSTs on every change; `_applyVideoSettingsLock(locked)` disables all four controls when `sectionLocked.input` is true; `_updateSubtitleStyleVisibility()` hides subtitle style when toggle is off; `onSubtitlesToggle()` combines both. `loadVideoSettings()` called from `populateInput()`.
+- No new ENV vars. No new dependencies.
+- 630 tests passing (+11).
 
 ---
 

@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S9-S3] Video settings UI
+**Completed:** 2026-05-31
+**Handover:**
+- `src/models.py`: `VideoSettings` (Literal-validated: `aspect_ratio`, `visual_style`, `subtitles_enabled`, `subtitle_style`) + `VideoSettingsResponse` added. Defaults: 9:16 / Realistic / true / TikTok.
+- `src/routes/runs.py`: `POST /runs/{run_id}/settings` stores `settings.json` in R2. `GET /runs/{run_id}/settings` returns stored values or defaults — never 404.
+- `src/static/pipeline.html`: Settings section replaced with three field-cards (Aspect Ratio, Visual Style, Subtitles). Auto-saves on change; loads on run open; all controls disabled when `sectionLocked.input` is true. Subtitle style selector conditionally shown.
+- No new ENV vars. No new dependencies. 630 tests passing (+11).
+**Smoke test:** DEFERRED — requires Railway DEV deploy. Operator opens Project Details, confirms Settings section shows three controls with correct options, changes Aspect Ratio and Visual Style, reloads page, and verifies values persist. Disables Subtitles toggle and confirms Caption Style selector disappears.
+**Promoted to backlog:** none
+
+---
+
 ## [S9-S2] Commit system
 **Completed:** 2026-05-31
 **Handover:**

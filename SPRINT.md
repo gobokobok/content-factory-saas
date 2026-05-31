@@ -235,7 +235,8 @@
 # Sprint 9 — Project Details + Commit System + Video Settings UI
 
 **Goal:** Rename "Input" → "Project Details" and restructure it as a proper configuration hub. Add the formal commit flow with confirmation modal and locked state. Add video settings selectors (UI only — no pipeline wiring yet).
-**Status:** planned
+**Status:** done
+**Velocity:** 8/8 pts (100%)
 **Points:** 8
 
 ---
@@ -246,17 +247,17 @@
 |----|-------|--------|--------|
 | S9-S1 | Project Details tab — rename Input → Project Details; restructure into Content section (Name, Script, Voiceover) and Settings section | 3 | done |
 | S9-S2 | Commit system — "Commit" CTA replaces "Create Storyboard"; confirmation modal with lock warning; ✓ committed state indicator | 3 | done |
-| S9-S3 | Video settings UI — aspect ratio (9:16 / 16:9 / 1:1), visual style enum, subtitles toggle + style selector; stored in run config, no pipeline wiring yet | 2 | backlog |
+| S9-S3 | Video settings UI — aspect ratio (9:16 / 16:9 / 1:1), visual style enum, subtitles toggle + style selector; stored in run config, no pipeline wiring yet | 2 | done |
 
 **Execution order:** S9-S1 → S9-S2 (commit UI built on restructured Project Details); S9-S3 independent.
 
 ---
 
 ## Sprint 9 Definition of Done
-- [ ] S9-S1: Tab label reads "Project Details". Content section: Project Name, Script, Voiceover upload. Settings section visible below content. Existing functionality (Save Draft, VO upload) preserved.
-- [ ] S9-S2: "Commit" button replaces "Create Storyboard". Clicking opens modal with text: "After committing, you will NOT be able to modify: Project Name, Script, Voiceover. Do you want to continue? [Cancel] [Commit]". After confirming: Project Details locked read-only, ✓ green indicator shown. Triggers alignment + storyboard as before.
-- [ ] S9-S3: Aspect ratio selector (9:16 default), visual style dropdown (Realistic/Cinematic/Cartoonish/Documentary/Minimalist), subtitles toggle + style selector (TikTok / Classic) all render, persist in run config via `POST /runs/{run_id}/settings`, and survive page reload.
-- [ ] All existing tests pass.
+- [x] S9-S1: Tab label reads "Project Details". Content section: Project Name, Script, Voiceover upload. Settings section visible below content. Existing functionality (Save Draft, VO upload) preserved.
+- [x] S9-S2: "Commit" button replaces "Create Storyboard". Clicking opens modal with text: "After committing, you will NOT be able to modify: Project Name, Script, Voiceover. Do you want to continue? [Cancel] [Commit]". After confirming: Project Details locked read-only, ✓ green indicator shown. Triggers alignment + storyboard as before.
+- [x] S9-S3: Aspect ratio selector (9:16 default), visual style dropdown (Realistic/Cinematic/Cartoonish/Documentary/Minimalist), subtitles toggle + style selector (TikTok / Classic) all render, persist in run config via `POST /runs/{run_id}/settings`, and survive page reload.
+- [x] All existing tests pass (630 passing).
 - [ ] **Human touchpoint:** operator fills Project Details, clicks Commit, reads the confirmation modal, confirms, and sees the section lock with a green ✓.
 
 ---
