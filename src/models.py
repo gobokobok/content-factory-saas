@@ -332,6 +332,14 @@ class TTSResponse(BaseModel):
 # ── Video settings schemas ────────────────────────────────────────────────────
 
 
+class AudioSettings(BaseModel):
+    """Audio mixing controls stored within settings.json — wired into ffmpeg in S11-S3."""
+
+    music_volume: int = Field(default=15, ge=0, le=100)
+    ducking_enabled: bool = True
+    playback_mode: Literal["loop", "fit"] = "fit"
+
+
 class VideoSettings(BaseModel):
     """Video production settings stored in settings.json — no pipeline wiring yet (see S12-S1)."""
 
@@ -340,6 +348,7 @@ class VideoSettings(BaseModel):
         "Realistic", "Cinematic", "Cartoonish", "Documentary", "Minimalist"
     ] = "Realistic"
     subtitles: Literal["none", "TikTok", "Classic"] = "TikTok"
+    audio: AudioSettings = Field(default_factory=AudioSettings)
 
 
 class VideoSettingsResponse(BaseModel):

@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S11-S2] Audio controls UI
+**Completed:** 2026-05-31
+**Handover:**
+- `src/models.py`: `AudioSettings(music_volume: int = 15, ducking_enabled: bool = True, playback_mode: Literal["loop","fit"] = "fit")` added as a new model. `VideoSettings` gains `audio: AudioSettings = Field(default_factory=AudioSettings)`. Backward-compatible — existing `settings.json` without the `audio` key deserialises cleanly using defaults.
+- `src/static/pipeline.html`: Three controls added to the existing Settings `field-card--tight-v` below the Subtitles row: `#setting-music-volume` (range 0–100), `#setting-ducking` (checkbox in a `.toggle-switch` component), `#setting-playback-mode` (select: fit/loop). Separated from video settings by a `.settings-row--section-label` "AUDIO" divider. CSS added for toggle switch, section label, and disabled states.
+- `loadVideoSettings()` extended to restore all three audio controls from `s.audio`; all audio controls disabled when `sectionLocked.input` is true.
+- `saveVideoSettings()` extended to include `audio: {music_volume, ducking_enabled, playback_mode}` in the POST body. Single call — no new endpoint.
+- `renderStoryboardHtml(content, audioSettings)` gains optional second param. `populateStoryboard()` now fetches `GET /runs/{run_id}/settings` in parallel with the storyboard artifact and passes `settings.audio` to the renderer. Storyboard settings panel Audio section shows real Volume, VO Ducking, and Playback values instead of storyboard-global placeholders.
+- `tests/test_runs.py`: 7 new tests in `TestVideoSettings` — audio POST round-trip, R2 storage, GET returns stored audio, GET returns defaults on absent file, invalid playback_mode → 422, music_volume > 100 → 422, POST without audio block → defaults. 675 total passing.
+**Smoke test:** DEFERRED — requires Railway DEV deploy. Operator opens Project Details Settings, adjusts volume slider to 40%, disables ducking, selects "Loop full track", reloads page, confirms values persist. Clicks Commit and confirms all audio controls are locked read-only.
+**Promoted to backlog:** none
+
+---
+
 ## [S11-S1] Background music upload
 **Completed:** 2026-05-31
 **Handover:**

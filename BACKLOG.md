@@ -2831,7 +2831,7 @@ Add a background music upload widget to the Project Details Audio section. Music
 ## [S11-S2] Audio controls UI
 **Epic:** E14 — Audio Layer
 **Sprint:** 11
-**Status:** backlog
+**Status:** done
 **Priority:** medium
 **Points:** 2
 **Depends on:** S11-S1
@@ -2840,27 +2840,32 @@ Add a background music upload widget to the Project Details Audio section. Music
 Add audio mixing controls to the Audio section: volume slider, voiceover ducking toggle, and loop vs fit-to-duration mode selector. Values stored in run config and persist across reload.
 
 ### Acceptance Criteria
-- [ ] Volume slider: 0–100%, default 15%, labeled "Music volume"
-- [ ] Voiceover ducking toggle: ON/OFF, default ON, labeled "Auto-duck music under voiceover"
-- [ ] Playback mode selector: "Loop full track" / "Fit to video duration", default "Fit to video duration"
-- [ ] All values persisted via `POST /runs/{run_id}/settings` (extends existing VideoSettings model)
-- [ ] Values survive page reload
-- [ ] Controls locked after commit
+- [x] Volume slider: 0–100%, default 15%, labeled "Music volume"
+- [x] Voiceover ducking toggle: ON/OFF, default ON, labeled "Auto-duck music under voiceover"
+- [x] Playback mode selector: "Loop full track" / "Fit to video duration", default "Fit to video duration"
+- [x] All values persisted via `POST /runs/{run_id}/settings` (extends existing VideoSettings model)
+- [x] Values survive page reload
+- [x] Controls locked after commit
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests: audio settings saved and retrieved
-- [ ] No existing test regressions
+- [x] All AC checked
+- [x] Tests: audio settings saved and retrieved
+- [x] No existing test regressions
 - [ ] CI green
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Files to modify
 - `src/models.py` — extend `RunSettings` / `VideoSettings` with `AudioSettings(music_volume, ducking_enabled, playback_mode)`
 - `src/static/pipeline.html` — slider, toggle, selector controls
 
 ### Handover
-_filled on completion_
+- `src/models.py`: `AudioSettings(music_volume: int = 15, ducking_enabled: bool = True, playback_mode: Literal["loop","fit"] = "fit")` added. `VideoSettings` gains `audio: AudioSettings = Field(default_factory=AudioSettings)`. Fully backward-compatible — existing `settings.json` without the `audio` key deserialises to defaults.
+- `src/static/pipeline.html`: Three controls added inside the existing `field-card--tight-v` below the Subtitles row, separated by a `.settings-row--section-label` "AUDIO" divider. Controls: `#setting-music-volume` range input + `#setting-music-volume-display` label; `#setting-ducking` checkbox wrapped in `.toggle-switch`; `#setting-playback-mode` select. CSS added: `.settings-row--section-label`, `.settings-row-section`, `.toggle-switch`/`.toggle-track` toggle component, disabled-state for slider and ducking checkbox.
+- `loadVideoSettings()` extended to restore all three audio controls from `s.audio`; all controls disabled when section is locked.
+- `saveVideoSettings()` extended to include `audio: {music_volume, ducking_enabled, playback_mode}` in the POST body.
+- `renderStoryboardHtml(content, audioSettings)` — signature gains optional `audioSettings` param. Storyboard settings panel Audio section now shows Volume, VO Ducking, and Playback from `audioSettings` (passed from `populateStoryboard` which fetches `GET /runs/{run_id}/settings` in parallel with the storyboard artifact).
+- `tests/test_runs.py`: 7 new tests in `TestVideoSettings` — audio POST/GET round-trip, R2 storage, defaults on absent file, invalid playback_mode → 422, out-of-range volume → 422, POST without audio block → defaults. 675 total passing.
 
 ---
 

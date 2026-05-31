@@ -298,7 +298,7 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | S11-S1 | Background music upload — presigned PUT to `runs/{run_id}/music/`, stored in R2, playback preview in UI | 3 | done |
-| S11-S2 | Audio controls UI — volume slider (0–100%), voiceover ducking toggle, loop vs fit-to-duration mode; stored in run config | 2 | backlog |
+| S11-S2 | Audio controls UI — volume slider (0–100%), voiceover ducking toggle, loop vs fit-to-duration mode; stored in run config | 2 | done |
 | S11-S3 | Audio → ffmpeg integration — BG music key + volume + ducking settings passed into generated ffmpeg script; replaces hardcoded `music 0.15` | 5 | backlog |
 
 **Execution order:** S11-S1 → S11-S2 (controls require upload widget to exist); S11-S3 depends on both.
@@ -307,7 +307,7 @@
 
 ## Sprint 11 Definition of Done
 - [ ] S11-S1: Audio section in Project Details. Background music file picker → presigned PUT → R2 at `runs/{run_id}/music/bg.mp3`. Playback `<audio>` preview shown after upload.
-- [ ] S11-S2: Volume slider (0–100%, default 15%), voiceover ducking toggle (default ON), loop/fit-to-duration selector render and persist in run config.
+- [x] S11-S2: Volume slider (0–100%, default 15%), voiceover ducking toggle (default ON), loop/fit-to-duration selector render and persist in run config.
 - [ ] S11-S3: ffmpeg script generator reads audio settings from run config. When BG music present: uses configured volume (not hardcoded 0.15). Ducking ON: applies ffmpeg `volume` envelope or `sidechaincompress` to lower music under voiceover. Loop/fit mode controls whether BG music is trimmed or looped to match video duration. Tests cover each variant.
 - [ ] All existing tests pass.
 - [ ] **Human touchpoint:** operator uploads a background track, sets volume to 40%, enables ducking, renders video, hears the track duck under the voiceover in the final output.

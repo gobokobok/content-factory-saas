@@ -732,6 +732,98 @@ class TestVideoSettings:
             res = client.get(f"/runs/{self.RUN_ID}/settings")
         assert res.status_code == 200
 
+    # ── Audio settings ──────────────────────────────────────────────────────
+
+    def test_post_with_audio_settings_returns_saved(self, client):
+        """POST with audio block returns status='saved' and echoes audio values."""
+        m = MagicMock()
+        payload = {
+            **self.DEFAULT_PAYLOAD,
+            "audio": {"music_volume": 40, "ducking_enabled": False, "playback_mode": "loop"},
+        }
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(f"/runs/{self.RUN_ID}/settings", json=payload)
+        assert res.status_code == 200
+        a = res.json()["settings"]["audio"]
+        assert a["music_volume"] == 40
+        assert a["ducking_enabled"] is False
+        assert a["playback_mode"] == "loop"
+
+    def test_post_stores_audio_fields_in_r2(self, client):
+        """POST persists audio fields inside the settings dict written to R2."""
+        m = MagicMock()
+        payload = {
+            **self.DEFAULT_PAYLOAD,
+            "audio": {"music_volume": 60, "ducking_enabled": True, "playback_mode": "fit"},
+        }
+        with patch("src.routes.runs.R2Client", return_value=m):
+            client.post(f"/runs/{self.RUN_ID}/settings", json=payload)
+        stored = m.upload_json.call_args[0][1]
+        assert stored["audio"]["music_volume"] == 60
+        assert stored["audio"]["ducking_enabled"] is True
+        assert stored["audio"]["playback_mode"] == "fit"
+
+    def test_get_returns_stored_audio_settings(self, client):
+        """GET returns audio values stored in settings.json."""
+        stored = {
+            **self.DEFAULT_PAYLOAD,
+            "audio": {"music_volume": 25, "ducking_enabled": False, "playback_mode": "loop"},
+        }
+        m = MagicMock()
+        m.get_json.return_value = stored
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/settings")
+        assert res.status_code == 200
+        a = res.json()["settings"]["audio"]
+        assert a["music_volume"] == 25
+        assert a["ducking_enabled"] is False
+        assert a["playback_mode"] == "loop"
+
+    def test_get_returns_audio_defaults_when_settings_absent(self, client):
+        """GET returns AudioSettings defaults (volume=15, ducking=True, mode=fit) when no file."""
+        m = MagicMock()
+        m.get_json.side_effect = StorageError("NoSuchKey")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.get(f"/runs/{self.RUN_ID}/settings")
+        assert res.status_code == 200
+        a = res.json()["settings"]["audio"]
+        assert a["music_volume"] == 15
+        assert a["ducking_enabled"] is True
+        assert a["playback_mode"] == "fit"
+
+    def test_post_invalid_playback_mode_returns_422(self, client):
+        """POST with unknown playback_mode value returns HTTP 422."""
+        m = MagicMock()
+        payload = {
+            **self.DEFAULT_PAYLOAD,
+            "audio": {"music_volume": 15, "ducking_enabled": True, "playback_mode": "shuffle"},
+        }
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(f"/runs/{self.RUN_ID}/settings", json=payload)
+        assert res.status_code == 422
+
+    def test_post_music_volume_out_of_range_returns_422(self, client):
+        """POST with music_volume > 100 returns HTTP 422."""
+        m = MagicMock()
+        payload = {
+            **self.DEFAULT_PAYLOAD,
+            "audio": {"music_volume": 150, "ducking_enabled": True, "playback_mode": "fit"},
+        }
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(f"/runs/{self.RUN_ID}/settings", json=payload)
+        assert res.status_code == 422
+
+    def test_post_without_audio_block_uses_defaults(self, client):
+        """POST without an audio key returns audio defaults in the response."""
+        m = MagicMock()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(f"/runs/{self.RUN_ID}/settings", json=self.DEFAULT_PAYLOAD)
+        assert res.status_code == 200
+        a = res.json()["settings"]["audio"]
+        assert a["music_volume"] == 15
+        assert a["ducking_enabled"] is True
+        assert a["playback_mode"] == "fit"
+
 
 class TestDeleteRun:
     RUN_ID = "2026-05-30_delete-me"

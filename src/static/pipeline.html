@@ -529,6 +529,35 @@
       color: #5A5A5A;
       font-weight: 500;
     }
+    .settings-row--section-label {
+      padding: 6px 0 4px;
+      border-top: 1px solid #F0EDEC;
+    }
+    .settings-row-section {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #B0ABA9;
+    }
+    .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-track {
+      position: absolute; inset: 0;
+      background: #D0CBC8; border-radius: 20px;
+      transition: background 0.15s;
+    }
+    .toggle-track::after {
+      content: ''; position: absolute;
+      left: 3px; top: 3px;
+      width: 14px; height: 14px;
+      border-radius: 50%; background: #fff;
+      transition: transform 0.15s;
+    }
+    .toggle-switch input:checked + .toggle-track { background: #2D2D2D; }
+    .toggle-switch input:checked + .toggle-track::after { transform: translateX(16px); }
+    .toggle-switch input:disabled + .toggle-track { opacity: 0.45; cursor: default; }
+    #setting-music-volume:disabled { opacity: 0.45; cursor: default; }
     #section-input .field-card select {
       width: auto;
       min-width: 130px;
@@ -886,6 +915,31 @@
               <option value="none">None</option>
               <option value="TikTok">TikTok</option>
               <option value="Classic">Classic</option>
+            </select>
+          </div>
+          <div class="settings-row settings-row--section-label">
+            <span class="settings-row-section">AUDIO</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Music volume</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input type="range" id="setting-music-volume" min="0" max="100" value="15"
+                     style="width:110px;" oninput="updateVolumeDisplay();saveVideoSettings()">
+              <span id="setting-music-volume-display" style="font-size:13px;min-width:32px;color:#2D2D2D;">15%</span>
+            </div>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Auto-duck music under voiceover</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="setting-ducking" checked onchange="saveVideoSettings()">
+              <span class="toggle-track"></span>
+            </label>
+          </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Playback mode</span>
+            <select id="setting-playback-mode" onchange="saveVideoSettings()">
+              <option value="fit">Fit to video duration</option>
+              <option value="loop">Loop full track</option>
             </select>
           </div>
         </div>
@@ -1458,10 +1512,15 @@
 
       contentDiv.innerHTML = '<div class="state-loading">Loading storyboard…</div>';
       try {
-        const res  = await fetch(`/runs/${currentRunId}/artifact/storyboard`);
-        const data = await res.json();
-        if (!res.ok) { contentDiv.innerHTML = `<div class="error-text">${esc(data.detail || 'Failed to load storyboard')}</div>`; return; }
-        contentDiv.innerHTML         = renderStoryboardHtml(data.content);
+        const [sbRes, settingsRes] = await Promise.all([
+          fetch(`/runs/${currentRunId}/artifact/storyboard`),
+          fetch(`/runs/${currentRunId}/settings`),
+        ]);
+        const data         = await sbRes.json();
+        const settingsData = settingsRes.ok ? await settingsRes.json() : null;
+        if (!sbRes.ok) { contentDiv.innerHTML = `<div class="error-text">${esc(data.detail || 'Failed to load storyboard')}</div>`; return; }
+        const audioSettings = settingsData?.settings?.audio || null;
+        contentDiv.innerHTML         = renderStoryboardHtml(data.content, audioSettings);
         contentDiv.dataset.loadedFor = currentRunId;
       } catch (err) {
         contentDiv.innerHTML = `<div class="error-text">Network error: ${esc(err.message)}</div>`;
@@ -1629,7 +1688,7 @@
     }
 
     // ─── Artifact renderers ───────────────────────────────────────────────────
-    function renderStoryboardHtml(content) {
+    function renderStoryboardHtml(content, audioSettings) {
       const scenes = content?.scenes;
       if (!scenes?.length) return '<div class="state-empty">No scenes found.</div>';
 
@@ -1667,8 +1726,9 @@
           <div class="sb-settings-group">
             <div class="sb-settings-group-title">Audio</div>
             ${row('Background Music', g.bg_music)}
-            ${row('Volume',           g.volume != null ? `${g.volume}%` : null)}
-            ${row('VO Ducking',       g.vo_ducking != null ? (g.vo_ducking ? 'ON' : 'OFF') : null)}
+            ${row('Volume',           audioSettings?.music_volume    != null ? `${audioSettings.music_volume}%` : null)}
+            ${row('VO Ducking',       audioSettings?.ducking_enabled != null ? (audioSettings.ducking_enabled ? 'ON' : 'OFF') : null)}
+            ${row('Playback',         audioSettings?.playback_mode   === 'loop' ? 'Loop full track' : audioSettings?.playback_mode === 'fit' ? 'Fit to duration' : null)}
           </div>
         </div>
       </div>`;
@@ -1706,7 +1766,14 @@
 
     // ─── Video settings ───────────────────────────────────────────────────────
 
-    /** Load stored video settings from R2 and populate the Settings controls. */
+    /** Sync the volume percentage label to the slider's current value. */
+    function updateVolumeDisplay() {
+      const slider  = document.getElementById('setting-music-volume');
+      const display = document.getElementById('setting-music-volume-display');
+      if (slider && display) display.textContent = `${slider.value}%`;
+    }
+
+    /** Load stored video+audio settings from R2 and populate all Settings controls. */
     async function loadVideoSettings() {
       if (!currentRunId) return;
       const locked = sectionLocked.input;
@@ -1721,20 +1788,35 @@
           if (selAspect) selAspect.value = s.aspect_ratio  || '9:16';
           if (selStyle)  selStyle.value  = s.visual_style  || 'Realistic';
           if (selSubs)   selSubs.value   = s.subtitles     || 'TikTok';
+          const a = s.audio || {};
+          const slider   = document.getElementById('setting-music-volume');
+          const ducking  = document.getElementById('setting-ducking');
+          const playback = document.getElementById('setting-playback-mode');
+          if (slider)   { slider.value    = a.music_volume    != null ? a.music_volume   : 15; updateVolumeDisplay(); }
+          if (ducking)    ducking.checked  = a.ducking_enabled != null ? a.ducking_enabled : true;
+          if (playback)   playback.value   = a.playback_mode  || 'fit';
         }
       } catch (_) { /* non-fatal — HTML defaults remain */ }
-      ['setting-aspect-ratio', 'setting-visual-style', 'setting-subtitles'].forEach(id => {
+      ['setting-aspect-ratio', 'setting-visual-style', 'setting-subtitles',
+       'setting-playback-mode'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = locked;
       });
+      const slider  = document.getElementById('setting-music-volume');
+      const ducking = document.getElementById('setting-ducking');
+      if (slider)  slider.disabled  = locked;
+      if (ducking) ducking.disabled = locked;
     }
 
-    /** Persist current settings control values to R2 via POST /runs/{run_id}/settings. */
+    /** Persist current video+audio settings to R2 via POST /runs/{run_id}/settings. */
     async function saveVideoSettings() {
       if (!currentRunId || sectionLocked.input) return;
       const selAspect = document.getElementById('setting-aspect-ratio');
       const selStyle  = document.getElementById('setting-visual-style');
       const selSubs   = document.getElementById('setting-subtitles');
+      const slider    = document.getElementById('setting-music-volume');
+      const ducking   = document.getElementById('setting-ducking');
+      const playback  = document.getElementById('setting-playback-mode');
       if (!selAspect) return;
       try {
         await fetch(`/runs/${currentRunId}/settings`, {
@@ -1744,6 +1826,11 @@
             aspect_ratio: selAspect.value,
             visual_style: selStyle.value,
             subtitles:    selSubs ? selSubs.value : 'TikTok',
+            audio: {
+              music_volume:    slider  ? parseInt(slider.value, 10) : 15,
+              ducking_enabled: ducking ? ducking.checked            : true,
+              playback_mode:   playback ? playback.value            : 'fit',
+            },
           }),
         });
       } catch (_) { /* best-effort — non-fatal */ }
