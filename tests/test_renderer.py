@@ -368,12 +368,17 @@ class TestCleanup:
 
 
 class TestCopyMusicToRun:
+    # Helper: no existing run music → library returns a file
+    def _storage_no_run_music(self, library_keys: list) -> MagicMock:
+        storage = MagicMock()
+        storage.list_keys.side_effect = [[], library_keys]
+        storage.get_bytes.return_value = b"audio bytes"
+        return storage
+
     def test_copies_first_mp3_from_music_library(self):
         from src.renderer import copy_music_to_run
 
-        storage = MagicMock()
-        storage.list_keys.return_value = ["music-library/lofi-beat.mp3"]
-        storage.get_bytes.return_value = b"audio bytes"
+        storage = self._storage_no_run_music(["music-library/lofi-beat.mp3"])
 
         copy_music_to_run(RUN_ID, storage)
 
@@ -385,23 +390,19 @@ class TestCopyMusicToRun:
     def test_copies_wav_file(self):
         from src.renderer import copy_music_to_run
 
-        storage = MagicMock()
-        storage.list_keys.return_value = ["music-library/track.wav"]
-        storage.get_bytes.return_value = b"wav bytes"
+        storage = self._storage_no_run_music(["music-library/track.wav"])
 
         copy_music_to_run(RUN_ID, storage)
 
         storage.get_bytes.assert_called_once_with("music-library/track.wav")
         storage.upload_bytes.assert_called_once_with(
-            f"runs/{RUN_ID}/music/track.wav", b"wav bytes", "audio/mpeg"
+            f"runs/{RUN_ID}/music/track.wav", b"audio bytes", "audio/mpeg"
         )
 
     def test_copies_m4a_file(self):
         from src.renderer import copy_music_to_run
 
-        storage = MagicMock()
-        storage.list_keys.return_value = ["music-library/track.m4a"]
-        storage.get_bytes.return_value = b"m4a bytes"
+        storage = self._storage_no_run_music(["music-library/track.m4a"])
 
         copy_music_to_run(RUN_ID, storage)
 
@@ -410,13 +411,11 @@ class TestCopyMusicToRun:
     def test_skips_non_audio_keys_and_picks_first_audio(self):
         from src.renderer import copy_music_to_run
 
-        storage = MagicMock()
-        storage.list_keys.return_value = [
+        storage = self._storage_no_run_music([
             "music-library/README.txt",
             "music-library/lofi.mp3",
             "music-library/other.mp3",
-        ]
-        storage.get_bytes.return_value = b"bytes"
+        ])
 
         copy_music_to_run(RUN_ID, storage)
 
@@ -425,8 +424,7 @@ class TestCopyMusicToRun:
     def test_warns_and_returns_when_no_music_found(self):
         from src.renderer import copy_music_to_run
 
-        storage = MagicMock()
-        storage.list_keys.return_value = []
+        storage = self._storage_no_run_music([])
 
         copy_music_to_run(RUN_ID, storage)
 
@@ -436,24 +434,49 @@ class TestCopyMusicToRun:
     def test_uploads_to_correct_run_music_key(self):
         from src.renderer import copy_music_to_run
 
-        storage = MagicMock()
-        storage.list_keys.return_value = ["music-library/ambient.mp3"]
-        storage.get_bytes.return_value = b"data"
+        storage = self._storage_no_run_music(["music-library/ambient.mp3"])
 
         copy_music_to_run(RUN_ID, storage)
 
         dest_key = storage.upload_bytes.call_args[0][0]
         assert dest_key == f"runs/{RUN_ID}/music/ambient.mp3"
 
-    def test_lists_music_library_prefix(self):
+    def test_checks_run_music_prefix_before_library(self):
         from src.renderer import copy_music_to_run
 
-        storage = MagicMock()
-        storage.list_keys.return_value = []
+        storage = self._storage_no_run_music([])
 
         copy_music_to_run(RUN_ID, storage)
 
-        storage.list_keys.assert_called_once_with("music-library/")
+        calls = [c.args[0] for c in storage.list_keys.call_args_list]
+        assert calls[0] == f"runs/{RUN_ID}/music/"
+        assert calls[1] == "music-library/"
+
+    def test_skips_library_copy_when_run_already_has_music(self):
+        """Operator-uploaded track must not be overwritten by the shared library."""
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        # First list_keys call → run already has a track
+        storage.list_keys.return_value = [f"runs/{RUN_ID}/music/my-track.mp3"]
+
+        copy_music_to_run(RUN_ID, storage)
+
+        # Only one list_keys call (the run prefix check); library never queried
+        storage.list_keys.assert_called_once_with(f"runs/{RUN_ID}/music/")
+        storage.get_bytes.assert_not_called()
+        storage.upload_bytes.assert_not_called()
+
+    def test_skips_library_copy_when_run_has_wav(self):
+        from src.renderer import copy_music_to_run
+
+        storage = MagicMock()
+        storage.list_keys.return_value = [f"runs/{RUN_ID}/music/custom.wav"]
+
+        copy_music_to_run(RUN_ID, storage)
+
+        storage.list_keys.assert_called_once()
+        storage.get_bytes.assert_not_called()
 
 
 # ── renderer: render_run ──────────────────────────────────────────────────────

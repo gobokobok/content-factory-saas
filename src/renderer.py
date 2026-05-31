@@ -28,11 +28,20 @@ def copy_music_to_run(run_id: str, storage: R2Client) -> None:
     """
     Copy the first eligible music file from music-library/ in R2 to runs/{run_id}/music/.
 
-    Lists keys under music-library/, picks the first .mp3, .wav, or .m4a file,
-    downloads its bytes, and re-uploads to runs/{run_id}/music/{filename}.
+    Only runs when the run has no music file already — operator-uploaded tracks
+    take precedence over the shared library. Lists keys under music-library/,
+    picks the first .mp3, .wav, or .m4a file, downloads its bytes, and
+    re-uploads to runs/{run_id}/music/{filename}.
     Logs a warning if no music files are found and continues — the ffmpeg script
     handles the no-music case via anullsrc so the render is not blocked.
     """
+    run_music_prefix = f"runs/{run_id}/music/"
+    existing = storage.list_keys(run_music_prefix)
+    has_music = any(k.lower().endswith((".mp3", ".wav", ".m4a")) for k in existing)
+    if has_music:
+        logger.info("Run %s already has a music file — skipping music-library copy", run_id)
+        return
+
     keys = storage.list_keys("music-library/")
     music_key = next(
         (k for k in keys if k.lower().endswith((".mp3", ".wav", ".m4a"))),
