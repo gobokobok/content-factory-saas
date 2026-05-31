@@ -821,10 +821,6 @@
 
         <div class="field-card no-label-line">
           <label>Voiceover</label>
-          <div class="vo-mode-tabs">
-            <button class="vo-mode-tab active" id="vo-tab-upload" onclick="setVoMode('upload')">Upload File</button>
-            <button class="vo-mode-tab" id="vo-tab-generate" onclick="setVoMode('generate')">Generate with ElevenLabs</button>
-          </div>
           <div id="vo-upload-panel">
             <div class="vo-widget">
               <input type="file" id="vo-file-input" accept=".mp3,audio/*" style="display:none" onchange="onVoFileSelected()">
@@ -833,10 +829,12 @@
               <button class="btn btn-secondary btn-sm" id="vo-upload-btn" disabled onclick="uploadVoiceover()">Upload</button>
               <span id="vo-upload-status" class="muted" style="font-size:12px;"></span>
             </div>
+            <button class="vo-mode-tab" id="vo-tab-generate" onclick="setVoMode('generate')" style="margin-top:10px;">Generate with ElevenLabs</button>
           </div>
           <div id="vo-generate-panel" style="display:none;">
-            <p class="muted" style="font-size:12px; margin:6px 0 0;">Voiceover will be generated from your script when you click Commit.</p>
+            <p class="muted" style="font-size:12px; margin:0 0 6px;">Voiceover will be generated from your script when you click Commit.</p>
             <span id="vo-generate-status" style="font-size:12px;"></span>
+            <div><button class="vo-mode-tab" onclick="setVoMode('upload')" style="margin-top:8px;">↩ Switch to file upload</button></div>
           </div>
         </div>
       </div>
@@ -1319,10 +1317,8 @@
         } catch (_) { /* non-fatal */ }
       }
 
-      // Reflect locked state on VO mode tabs
-      const tabUpload   = document.getElementById('vo-tab-upload');
+      // Reflect locked state on VO mode button
       const tabGenerate = document.getElementById('vo-tab-generate');
-      if (tabUpload)   tabUpload.disabled   = locked;
       if (tabGenerate) tabGenerate.disabled = locked;
 
       await loadVideoSettings();
@@ -1923,18 +1919,12 @@
       voMode = mode;
       const uploadPanel   = document.getElementById('vo-upload-panel');
       const generatePanel = document.getElementById('vo-generate-panel');
-      const tabUpload     = document.getElementById('vo-tab-upload');
-      const tabGenerate   = document.getElementById('vo-tab-generate');
       if (mode === 'generate') {
         uploadPanel.style.display   = 'none';
         generatePanel.style.display = '';
-        tabUpload.classList.remove('active');
-        tabGenerate.classList.add('active');
       } else {
         uploadPanel.style.display   = '';
         generatePanel.style.display = 'none';
-        tabUpload.classList.add('active');
-        tabGenerate.classList.remove('active');
       }
       updateCommitBtn();
     }
