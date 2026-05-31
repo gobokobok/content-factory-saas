@@ -488,6 +488,7 @@
       width: 100%;
       display: block;
     }
+    .field-card.no-label-line label { border-bottom: none; padding-bottom: 6px; }
     /* Remove underline inside card — card provides the visual boundary */
     #section-input .field-card input[type="text"],
     #section-input .field-card textarea {
@@ -814,6 +815,11 @@
         </div>
 
         <div class="field-card">
+          <label for="script-input">VO Script</label>
+          <textarea id="script-input" rows="1" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn(); updateCommitBtn(); autoResizeScript(this)"></textarea>
+        </div>
+
+        <div class="field-card no-label-line">
           <label>Voiceover</label>
           <div class="vo-mode-tabs">
             <button class="vo-mode-tab active" id="vo-tab-upload" onclick="setVoMode('upload')">Upload File</button>
@@ -832,11 +838,6 @@
             <p class="muted" style="font-size:12px; margin:6px 0 0;">Voiceover will be generated from your script when you click Commit.</p>
             <span id="vo-generate-status" style="font-size:12px;"></span>
           </div>
-        </div>
-
-        <div class="field-card">
-          <label for="script-input">VO Script</label>
-          <textarea id="script-input" rows="1" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn(); updateCommitBtn(); autoResizeScript(this)"></textarea>
         </div>
       </div>
 
@@ -1904,9 +1905,16 @@
     // ─── VO mode (Upload vs Generate) ────────────────────────────────────────
     function setVoMode(mode) {
       if (sectionLocked.input) return;
-      if (mode === 'generate' && voUploaded) {
-        document.getElementById('tts-warn-modal').classList.add('open');
-        return;
+      if (mode === 'generate') {
+        const script = document.getElementById('script-input')?.value.trim();
+        if (!script) {
+          alert('Add a VO Script before generating the voiceover with ElevenLabs.');
+          return;
+        }
+        if (voUploaded) {
+          document.getElementById('tts-warn-modal').classList.add('open');
+          return;
+        }
       }
       _applyVoMode(mode);
     }
