@@ -529,12 +529,17 @@
       color: #5A5A5A;
       font-weight: 500;
     }
-    .toggle-switch { position: relative; display: inline-block; width: 36px; height: 20px; cursor: pointer; }
+    .toggle-switch {
+      display: inline-flex; align-items: center;
+      flex-shrink: 0; width: 36px; height: 20px;
+      cursor: pointer; position: relative;
+    }
     .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
     .toggle-track {
-      position: absolute; inset: 0;
+      display: block; flex-shrink: 0;
+      width: 36px; height: 20px;
       background: #D0CBC8; border-radius: 20px;
-      transition: background 0.15s;
+      transition: background 0.15s; position: relative;
     }
     .toggle-track::after {
       content: ''; position: absolute;
@@ -548,8 +553,9 @@
     .toggle-switch input:disabled + .toggle-track { opacity: 0.45; cursor: default; }
     #setting-music-volume {
       -webkit-appearance: none; appearance: none;
-      height: 4px; border-radius: 2px;
-      background: #E8E5E4; outline: none; cursor: pointer;
+      width: 110px; height: 4px; border-radius: 2px;
+      background: linear-gradient(to right, #9A9A9A 15%, #E8E5E4 15%);
+      outline: none; cursor: pointer;
     }
     #setting-music-volume::-webkit-slider-thumb {
       -webkit-appearance: none; appearance: none;
@@ -924,12 +930,12 @@
             <span class="settings-row-label">Music volume</span>
             <div style="display:flex;align-items:center;gap:8px;">
               <input type="range" id="setting-music-volume" min="0" max="100" value="15"
-                     style="width:110px;" oninput="updateVolumeDisplay();saveVideoSettings()">
+                     oninput="updateVolumeDisplay();saveVideoSettings()">
               <span id="setting-music-volume-display" style="font-size:13px;min-width:32px;color:#2D2D2D;">15%</span>
             </div>
           </div>
           <div class="settings-row">
-            <span class="settings-row-label">Duck music under VO</span>
+            <span class="settings-row-label">VO ducking</span>
             <label class="toggle-switch">
               <input type="checkbox" id="setting-ducking" checked onchange="saveVideoSettings()">
               <span class="toggle-track"></span>
@@ -1766,11 +1772,15 @@
 
     // ─── Video settings ───────────────────────────────────────────────────────
 
-    /** Sync the volume percentage label to the slider's current value. */
+    /** Sync the volume percentage label and filled-track gradient to the slider's current value. */
     function updateVolumeDisplay() {
       const slider  = document.getElementById('setting-music-volume');
       const display = document.getElementById('setting-music-volume-display');
-      if (slider && display) display.textContent = `${slider.value}%`;
+      if (!slider) return;
+      const pct = slider.value;
+      if (display) display.textContent = `${pct}%`;
+      slider.style.background =
+        `linear-gradient(to right, #9A9A9A ${pct}%, #E8E5E4 ${pct}%)`;
     }
 
     /** Load stored video+audio settings from R2 and populate all Settings controls. */
