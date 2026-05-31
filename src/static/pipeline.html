@@ -519,6 +519,7 @@
       padding: 10px 0;
     }
     .settings-row + .settings-row { border-top: 1px solid #F0EDEC; }
+    .field-card--tight-v { padding-top: 4px; padding-bottom: 4px; }
     .settings-row-label {
       font-size: 13px;
       color: #5A5A5A;
@@ -855,7 +856,7 @@
       <div class="subsection">
         <div class="subsection-title">Settings</div>
 
-        <div class="field-card">
+        <div class="field-card field-card--tight-v">
           <div class="settings-row">
             <span class="settings-row-label">Aspect Ratio</span>
             <select id="setting-aspect-ratio" onchange="saveVideoSettings()">
