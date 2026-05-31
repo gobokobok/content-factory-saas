@@ -2097,6 +2097,10 @@
       btn.disabled = true; statusEl.textContent = 'uploading…'; statusEl.style.color = '#6b7280';
 
       try {
+        // Delete any existing voiceover before uploading the new one so only one
+        // file lives under runs/{id}/voiceover/ at a time (best-effort).
+        await fetch(`/runs/${currentRunId}/voiceover`, { method: 'DELETE' }).catch(() => {});
+
         const urlRes = await fetch(`/runs/${currentRunId}/voiceover-upload-url`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filename: file.name }),
@@ -2185,6 +2189,10 @@
       const statusEl = document.getElementById('music-upload-status');
       btn.disabled = true; statusEl.textContent = 'uploading…'; statusEl.style.color = '#6b7280';
       try {
+        // Delete any existing music before uploading the new one so only one
+        // file lives under runs/{id}/music/ at a time (best-effort).
+        await fetch(`/runs/${currentRunId}/music`, { method: 'DELETE' }).catch(() => {});
+
         const urlRes = await fetch(`/runs/${currentRunId}/music-upload-url`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ filename: file.name }),
