@@ -516,7 +516,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px 0;
+      padding: 6px 0;
     }
     .settings-row + .settings-row { border-top: 1px solid #F0EDEC; }
     .settings-row-label {
@@ -815,7 +815,7 @@
         </div>
 
         <div class="field-card">
-          <label for="script-input">VO Script</label>
+          <label for="script-input">Voiceover Script</label>
           <textarea id="script-input" rows="1" placeholder="Paste the voiceover script here…" oninput="updateSaveDraftBtn(); updateCommitBtn(); autoResizeScript(this)"></textarea>
         </div>
 
@@ -830,7 +830,7 @@
               <button class="btn btn-secondary btn-sm" id="vo-delete-btn" style="display:none" onclick="deleteVoiceover()">Delete</button>
               <span id="vo-upload-status" class="muted" style="font-size:12px;"></span>
             </div>
-            <button class="vo-mode-tab" id="vo-tab-generate" onclick="setVoMode('generate')" style="margin-top:10px;">Generate with ElevenLabs</button>
+            <button class="vo-mode-tab" id="vo-tab-generate" onclick="setVoMode('generate')" style="margin-top:18px;">Generate with ElevenLabs</button>
           </div>
           <div id="vo-generate-panel" style="display:none;">
             <p class="muted" style="font-size:12px; margin:0 0 6px;">Voiceover will be generated from your script when you click Commit.</p>
