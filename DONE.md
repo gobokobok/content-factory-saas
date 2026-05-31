@@ -40,6 +40,7 @@ _Entries added here when a story reaches Definition of Done._
 - No new ENV vars. No new dependencies.
 - 12 new tests in `tests/test_runs.py` (`TestDeleteVoiceover` × 3, `TestMusicUploadUrl` × 4, `TestDeleteMusic` × 3, `TestGetDraftMusicFilename` × 2). 668 total passing.
 **Smoke test:** DEFERRED — requires Railway DEV deploy. Operator opens Project Details, uploads a .mp3 track, confirms `<audio>` preview plays, clicks Remove and verifies track disappears, re-uploads, commits, and confirms all music controls are locked read-only.
+**Post-close fix (2026-05-31, commit `a680b00`):** `uploadMusic()` and `uploadVoiceover()` now issue a best-effort `DELETE` on the existing file before fetching a presigned URL for the new upload. Previously, uploading a replacement track with a different filename left both files in R2; the ffmpeg script picked up the old track. Fix applied in the same `pipeline.html`.
 **Promoted to backlog:** none
 
 ---
