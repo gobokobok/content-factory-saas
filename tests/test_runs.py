@@ -596,8 +596,7 @@ class TestVideoSettings:
     DEFAULT_PAYLOAD = {
         "aspect_ratio": "9:16",
         "visual_style": "Realistic",
-        "subtitles_enabled": True,
-        "subtitle_style": "TikTok",
+        "subtitles": "TikTok",
     }
 
     def test_post_saves_settings_and_returns_saved(self, client):
@@ -610,8 +609,7 @@ class TestVideoSettings:
         assert body["status"] == "saved"
         assert body["settings"]["aspect_ratio"] == "9:16"
         assert body["settings"]["visual_style"] == "Realistic"
-        assert body["settings"]["subtitles_enabled"] is True
-        assert body["settings"]["subtitle_style"] == "TikTok"
+        assert body["settings"]["subtitles"] == "TikTok"
 
     def test_post_calls_upload_json_with_correct_key(self, client):
         """POST stores settings at runs/{run_id}/settings.json."""
@@ -628,16 +626,25 @@ class TestVideoSettings:
         payload = {
             "aspect_ratio": "16:9",
             "visual_style": "Cinematic",
-            "subtitles_enabled": False,
-            "subtitle_style": "Classic",
+            "subtitles": "Classic",
         }
         with patch("src.routes.runs.R2Client", return_value=m):
             client.post(f"/runs/{self.RUN_ID}/settings", json=payload)
         stored = m.upload_json.call_args[0][1]
         assert stored["aspect_ratio"] == "16:9"
         assert stored["visual_style"] == "Cinematic"
-        assert stored["subtitles_enabled"] is False
-        assert stored["subtitle_style"] == "Classic"
+        assert stored["subtitles"] == "Classic"
+
+    def test_post_subtitles_none_accepted(self, client):
+        """POST with subtitles='none' (disabled) is valid."""
+        m = MagicMock()
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.post(
+                f"/runs/{self.RUN_ID}/settings",
+                json={**self.DEFAULT_PAYLOAD, "subtitles": "none"},
+            )
+        assert res.status_code == 200
+        assert res.json()["settings"]["subtitles"] == "none"
 
     def test_post_invalid_aspect_ratio_returns_422(self, client):
         """POST with unknown aspect_ratio value returns HTTP 422."""
@@ -659,13 +666,13 @@ class TestVideoSettings:
             )
         assert res.status_code == 422
 
-    def test_post_invalid_subtitle_style_returns_422(self, client):
-        """POST with unknown subtitle_style value returns HTTP 422."""
+    def test_post_invalid_subtitles_value_returns_422(self, client):
+        """POST with unknown subtitles value returns HTTP 422."""
         m = MagicMock()
         with patch("src.routes.runs.R2Client", return_value=m):
             res = client.post(
                 f"/runs/{self.RUN_ID}/settings",
-                json={**self.DEFAULT_PAYLOAD, "subtitle_style": "Fancy"},
+                json={**self.DEFAULT_PAYLOAD, "subtitles": "Fancy"},
             )
         assert res.status_code == 422
 
@@ -683,8 +690,7 @@ class TestVideoSettings:
         stored = {
             "aspect_ratio": "1:1",
             "visual_style": "Documentary",
-            "subtitles_enabled": False,
-            "subtitle_style": "Classic",
+            "subtitles": "Classic",
         }
         m = MagicMock()
         m.get_json.return_value = stored
@@ -696,11 +702,10 @@ class TestVideoSettings:
         s = body["settings"]
         assert s["aspect_ratio"] == "1:1"
         assert s["visual_style"] == "Documentary"
-        assert s["subtitles_enabled"] is False
-        assert s["subtitle_style"] == "Classic"
+        assert s["subtitles"] == "Classic"
 
     def test_get_returns_defaults_when_settings_absent(self, client):
-        """GET returns default VideoSettings (9:16, Realistic, subtitles on, TikTok) when no file exists."""
+        """GET returns default VideoSettings (9:16 / Realistic / TikTok) when no file exists."""
         m = MagicMock()
         m.get_json.side_effect = StorageError("NoSuchKey")
         with patch("src.routes.runs.R2Client", return_value=m):
@@ -709,8 +714,7 @@ class TestVideoSettings:
         s = res.json()["settings"]
         assert s["aspect_ratio"] == "9:16"
         assert s["visual_style"] == "Realistic"
-        assert s["subtitles_enabled"] is True
-        assert s["subtitle_style"] == "TikTok"
+        assert s["subtitles"] == "TikTok"
 
     def test_get_calls_correct_r2_key(self, client):
         """GET fetches runs/{run_id}/settings.json from R2."""

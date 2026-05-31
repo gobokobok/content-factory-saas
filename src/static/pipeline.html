@@ -497,12 +497,24 @@
       font-size: 12px;
     }
     /* ── Video settings controls ──────────────────────────────────────── */
-    .settings-select-wrap { padding-top: 10px; }
+    .settings-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+    }
+    .settings-row + .settings-row { border-top: 1px solid #F0EDEC; }
+    .settings-row-label {
+      font-size: 13px;
+      color: #5A5A5A;
+      font-weight: 500;
+    }
     #section-input .field-card select {
-      width: 100%;
+      width: auto;
+      min-width: 130px;
       border: 1px solid #E8E5E4;
       border-radius: 6px;
-      padding: 7px 28px 7px 10px;
+      padding: 5px 24px 5px 8px;
       background: #FBF9F8;
       font-size: 13px;
       color: #2D2D2D;
@@ -511,7 +523,7 @@
       -webkit-appearance: none;
       background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23B0ABA9' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
       background-repeat: no-repeat;
-      background-position: right 10px center;
+      background-position: right 8px center;
     }
     #section-input .field-card select:focus {
       outline: none;
@@ -522,34 +534,6 @@
       color: #9A9A9A;
       cursor: default;
       background-color: #F5F3F2;
-    }
-    .settings-toggle-wrap { padding-top: 10px; }
-    .settings-toggle-label {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-      user-select: none;
-    }
-    .settings-toggle-label input[type="checkbox"] {
-      width: 15px;
-      height: 15px;
-      cursor: pointer;
-      accent-color: #2D2D2D;
-    }
-    .settings-toggle-label input[type="checkbox"]:disabled { cursor: default; }
-    .settings-toggle-text { font-size: 13px; color: #2D2D2D; }
-    .settings-substyle-wrap {
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #F0EDEC;
-    }
-    .settings-substyle-wrap label {
-      font-size: 11px;
-      color: #B0ABA9;
-      padding-bottom: 6px;
-      border-bottom: none;
-      margin-bottom: 0;
     }
     .subsection { margin-bottom: 24px; }
     .subsection + .subsection { margin-top: 16px; }
@@ -836,19 +820,16 @@
         <div class="subsection-title">Settings</div>
 
         <div class="field-card">
-          <label>Aspect Ratio</label>
-          <div class="settings-select-wrap">
+          <div class="settings-row">
+            <span class="settings-row-label">Aspect Ratio</span>
             <select id="setting-aspect-ratio" onchange="saveVideoSettings()">
-              <option value="9:16">9:16 – Vertical (Shorts / Reels)</option>
-              <option value="16:9">16:9 – Landscape</option>
-              <option value="1:1">1:1 – Square</option>
+              <option value="9:16">9:16</option>
+              <option value="16:9">16:9</option>
+              <option value="1:1">1:1</option>
             </select>
           </div>
-        </div>
-
-        <div class="field-card">
-          <label>Visual Style</label>
-          <div class="settings-select-wrap">
+          <div class="settings-row">
+            <span class="settings-row-label">Visual Style</span>
             <select id="setting-visual-style" onchange="saveVideoSettings()">
               <option value="Realistic">Realistic</option>
               <option value="Cinematic">Cinematic</option>
@@ -857,22 +838,13 @@
               <option value="Minimalist">Minimalist</option>
             </select>
           </div>
-        </div>
-
-        <div class="field-card">
-          <label>Subtitles</label>
-          <div class="settings-toggle-wrap">
-            <label class="settings-toggle-label">
-              <input type="checkbox" id="setting-subtitles-enabled" checked onchange="onSubtitlesToggle()">
-              <span class="settings-toggle-text">Enabled</span>
-            </label>
-            <div id="subtitle-style-wrap" class="settings-substyle-wrap">
-              <label for="setting-subtitle-style">Caption Style</label>
-              <select id="setting-subtitle-style" onchange="saveVideoSettings()">
-                <option value="TikTok">TikTok Style (highlighted, animated)</option>
-                <option value="Classic">Classic (plain bottom captions)</option>
-              </select>
-            </div>
+          <div class="settings-row">
+            <span class="settings-row-label">Subtitles</span>
+            <select id="setting-subtitles" onchange="saveVideoSettings()">
+              <option value="none">None</option>
+              <option value="TikTok">TikTok</option>
+              <option value="Classic">Classic</option>
+            </select>
           </div>
         </div>
 
@@ -1656,62 +1628,36 @@
         const data = await res.json();
         if (res.ok && data.settings) {
           const s = data.settings;
-          const selAspect   = document.getElementById('setting-aspect-ratio');
-          const selStyle    = document.getElementById('setting-visual-style');
-          const chkSubs     = document.getElementById('setting-subtitles-enabled');
-          const selSubStyle = document.getElementById('setting-subtitle-style');
-          if (selAspect)   selAspect.value   = s.aspect_ratio   || '9:16';
-          if (selStyle)    selStyle.value    = s.visual_style   || 'Realistic';
-          if (chkSubs)     chkSubs.checked   = s.subtitles_enabled !== false;
-          if (selSubStyle) selSubStyle.value = s.subtitle_style || 'TikTok';
+          const selAspect = document.getElementById('setting-aspect-ratio');
+          const selStyle  = document.getElementById('setting-visual-style');
+          const selSubs   = document.getElementById('setting-subtitles');
+          if (selAspect) selAspect.value = s.aspect_ratio  || '9:16';
+          if (selStyle)  selStyle.value  = s.visual_style  || 'Realistic';
+          if (selSubs)   selSubs.value   = s.subtitles     || 'TikTok';
         }
       } catch (_) { /* non-fatal — HTML defaults remain */ }
-      _applyVideoSettingsLock(locked);
-      _updateSubtitleStyleVisibility();
-    }
-
-    /** Disable or enable all video settings controls based on locked state. */
-    function _applyVideoSettingsLock(locked) {
-      ['setting-aspect-ratio', 'setting-visual-style', 'setting-subtitles-enabled', 'setting-subtitle-style']
-        .forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.disabled = locked;
-        });
-    }
-
-    /** Show/hide the subtitle style selector based on the subtitles toggle. */
-    function _updateSubtitleStyleVisibility() {
-      const chk  = document.getElementById('setting-subtitles-enabled');
-      const wrap = document.getElementById('subtitle-style-wrap');
-      if (!chk || !wrap) return;
-      wrap.style.display = chk.checked ? '' : 'none';
-    }
-
-    /** Called when the subtitles toggle changes. */
-    function onSubtitlesToggle() {
-      _updateSubtitleStyleVisibility();
-      saveVideoSettings();
+      ['setting-aspect-ratio', 'setting-visual-style', 'setting-subtitles'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = locked;
+      });
     }
 
     /** Persist current settings control values to R2 via POST /runs/{run_id}/settings. */
     async function saveVideoSettings() {
       if (!currentRunId || sectionLocked.input) return;
-      const selAspect   = document.getElementById('setting-aspect-ratio');
-      const selStyle    = document.getElementById('setting-visual-style');
-      const chkSubs     = document.getElementById('setting-subtitles-enabled');
-      const selSubStyle = document.getElementById('setting-subtitle-style');
+      const selAspect = document.getElementById('setting-aspect-ratio');
+      const selStyle  = document.getElementById('setting-visual-style');
+      const selSubs   = document.getElementById('setting-subtitles');
       if (!selAspect) return;
-      const payload = {
-        aspect_ratio:      selAspect.value,
-        visual_style:      selStyle.value,
-        subtitles_enabled: chkSubs ? chkSubs.checked : true,
-        subtitle_style:    selSubStyle ? selSubStyle.value : 'TikTok',
-      };
       try {
         await fetch(`/runs/${currentRunId}/settings`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify(payload),
+          body:    JSON.stringify({
+            aspect_ratio: selAspect.value,
+            visual_style: selStyle.value,
+            subtitles:    selSubs ? selSubs.value : 'TikTok',
+          }),
         });
       } catch (_) { /* best-effort — non-fatal */ }
     }

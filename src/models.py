@@ -316,8 +316,7 @@ class VideoSettings(BaseModel):
     visual_style: Literal[
         "Realistic", "Cinematic", "Cartoonish", "Documentary", "Minimalist"
     ] = "Realistic"
-    subtitles_enabled: bool = True
-    subtitle_style: Literal["TikTok", "Classic"] = "TikTok"
+    subtitles: Literal["none", "TikTok", "Classic"] = "TikTok"
 
 
 class VideoSettingsResponse(BaseModel):
