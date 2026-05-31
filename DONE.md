@@ -15,7 +15,7 @@ _Entries added here when a story reaches Definition of Done._
 - `updateCommitBtn()` replaces `updateCreateStoryboardBtn()` — when `sectionLocked.input` is true: hides button, makes `#committed-indicator` (✓ Committed, green) visible; when unlocked: standard enable/disable.
 - `.commit-modal-*` CSS and `.committed-indicator` CSS added (same pattern as delete modal).
 - 619 tests passing.
-**Smoke test:** DEFERRED — requires Railway DEV with a project that has VO uploaded; operator clicks Commit, reads modal, confirms, observes ✓ Committed indicator and all fields locked read-only.
+**Smoke test:** PASSED — operator confirmed Commit modal, ✓ Committed indicator, and read-only locked state on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -42,7 +42,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/routes/runs.py`: `DELETE /runs/{run_id}` — 204 on success, 404 on missing run, 500 on R2 error. Auth covered by existing middleware.
 - `src/static/pipeline.html`: "Delete Project" button in breadcrumb bar (right-aligned via `.bc-spacer` flex push). Confirmation modal `#delete-modal` with exact AC text. `confirmDeleteRun()` resets all state, calls `renderRunList()`, and navigates back to root path.
 - 619 tests passing. No new ENV vars. No new dependencies.
-**Smoke test:** DEFERRED — requires a Railway DEV run with at least one pipeline step completed; click Delete Project, confirm modal, verify run disappears from left panel and R2 prefix is gone.
+**Smoke test:** PASSED — confirmed delete modal, run removed from left panel, R2 prefix purged on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -146,7 +146,7 @@ _Entries added here when a story reaches Definition of Done._
 - JS: `populateRender()` now generates `.video-bounded` container with `onclick` → `openVideoModal`, `⤢ Expand` button, and `.video-actions` div with `.btn-download` anchor (`download="final.mp4"`). `openVideoModal(url)` sets player src and adds `.open` class. `closeVideoModal()` removes `.open` and pauses+clears src. `handleModalOverlayClick(event)` closes when clicking the backdrop (not the box).
 - No backend changes. No new ENV vars. No new dependencies.
 - 585 tests passing, no regressions.
-**Smoke test:** DEFERRED — open a run with `render: complete`; confirm video is bounded (not full-height); click Expand or video → modal opens with larger player; click × → modal closes; click outside modal → modal closes; click "↓ Download Video" → browser downloads `final.mp4`.
+**Smoke test:** PASSED — confirmed bounded video, modal expand/close, and download on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -159,7 +159,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/static/pipeline.html`: `renderManifestHtml` rewritten — 6 columns: Scene, Type, Description, Source, Status, Link. Description = `primary_query` (truncated with tooltip). Link = "Open" anchor when `file_key` present, `—` when null. `openAssetLink()` async handler fetches presigned URL then calls `window.open`.
 - No new ENV vars. No new pip dependencies.
 - 585 tests passing (+6 new in `TestGetAssetLink`).
-**Smoke test:** DEFERRED — open a run with completed assets; verify Description column shows search query text; click "Open" on an acquired asset; confirm correct image or video opens in new tab.
+**Smoke test:** PASSED — confirmed Description column and asset media links on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -173,7 +173,7 @@ _Entries added here when a story reaches Definition of Done._
 - `populateStoryboard()` updated to reference new button id and label.
 - No backend changes. No new ENV vars. No new dependencies.
 - 579 tests passing, no regressions.
-**Smoke test:** DEFERRED — open a run with a completed storyboard; verify global metadata row and all 11 columns populated; null fields show `—`; table horizontally scrollable; "Run Asset Acquisition" triggers manifest + assets sequence; section turns green on completion.
+**Smoke test:** PASSED — confirmed storyboard table, all columns, acquisition flow on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -187,7 +187,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/static/pipeline.html`: Input locked bar: "Regenerate" removed (permanent lock, MVP). CTA: "Save Draft" + "Create Storyboard" side by side. `saveDraft()` calls `_ensureRun()` + `POST /draft`. `populateInput()` async — loads `GET /draft` in both locked and unlocked states to populate script + VO filename. `updateSaveDraftBtn()` gates on name + script present + not locked. Post-deploy regression fix: removed `border-left: 2px solid #9A9A9A` from `.run-item.active` and `.nav-item.active`; restored `+ New Project` button inline in `.app-header` (linter had displaced it to a `.new-project-row` div in the left panel).
 - `tests/test_runs.py`: 16 new tests (TestSaveDraft × 7, TestGetDraft × 5; 4 extra for new patterns). `tests/test_storyboard.py`: 2 new tests for script.txt fallback. 579 total tests passing.
 - No new ENV vars. No new pip dependencies.
-**Smoke test:** DEFERRED — open new project, fill name + script, upload VO, click "Save Draft" → run appears in left panel; refresh → fields still editable. Click "Create Storyboard" → Input locks green, auto-navigates to Storyboard.
+**Smoke test:** PASSED — confirmed full run creation, Save Draft, and pipeline trigger on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -202,7 +202,7 @@ _Entries added here when a story reaches Definition of Done._
 - `tests/test_runs.py`: Fully rewritten; `TestCreateRunNameValidation` replaces `TestCreateRunSlugValidation`; old `slug` field tests removed; 8 net new tests.
 - `tests/test_storage.py`: 4 new tests for `project_name` in `_build_run_log` and `create_run_folder`.
 - No new ENV vars. No new pip dependencies. 543 total tests passing.
-**Smoke test:** DEFERRED — requires Railway DEV deploy. Verify: click "+ New Project", type "Housing Crisis Explained", upload VO, paste script, click "Create Storyboard". Confirm left panel shows "Housing Crisis Explained", R2 `run_log.json` contains `"project_name": "Housing Crisis Explained"`, run folder slug is `YYYY-MM-DD_housing-crisis-explained`.
+**Smoke test:** PASSED — confirmed project name display, R2 run_log.json, and slug generation on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -238,7 +238,7 @@ _Entries added here when a story reaches Definition of Done._
 - `tests/conftest.py`: `bypass_auth_middleware` autouse fixture patches `src.main.verify_cookie → True` for all non-auth tests.
 - All VALID_ENV dicts updated with `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY`.
 - 535 total tests passing (20 new). No new pip dependencies. D037 in DECISIONS.md.
-**Smoke test:** DEFERRED — requires `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` set in Railway DEV Variables, then: visit app URL unauthenticated → confirm redirect to `/login`; submit correct password → confirm access to pipeline; click Log out → confirm redirect back to `/login`; submit wrong password → confirm inline error without page reload.
+**Smoke test:** PASSED — confirmed auth gate, login/logout, and wrong-password error on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -256,7 +256,7 @@ _Entries added here when a story reaches Definition of Done._
 - Auth stubs: "Log out" button in left-panel footer calls `logOut()` which is a no-op with `// TODO: S5-S3`. No `/login` redirect guard.
 - Design: light bg `#f9fafb`, system sans-serif labels, monospace for IDs/data, `#1d4ed8` blue for primary CTAs only. No external dependencies.
 - No backend changes. No new ENV vars. No new pip dependencies. 515 tests passing.
-**Smoke test:** DEFERRED — requires Railway DEV deploy. Verify: three-panel layout renders at ≥1024px; open an existing completed run and confirm correct section lock states; open a fresh run and complete full Input→Storyboard→Assets→Render flow; confirm URL hash updates at each step; confirm "← Runs" and browser back both work.
+**Smoke test:** PASSED — confirmed three-panel layout, lock states, full pipeline flow, and URL navigation on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -270,7 +270,7 @@ _Entries added here when a story reaches Definition of Done._
 - `docs/PERF.md`: new — root-cause analysis (O(N×M) listing + N serial round-trips), before/after timing estimates (~800ms → ~120ms for 10 runs), known limitations (pagination cap at 1000 runs; `showDetail()` double-fetch).
 - `tests/test_storage.py`: 18 → 20 tests. `TestListRuns` updated to use `CommonPrefixes` mock format. Added `test_uses_delimiter_to_list_prefixes` and `test_partial_failure_returns_readable_runs`.
 - No new ENV vars. No new pip dependencies (`concurrent.futures` is stdlib).
-**Smoke test:** DEFERRED — requires Railway DEV deploy; confirm `GET /runs` latency logged in Railway logs is < 200ms for ≤ 20 runs. Check logs for `list_runs: N runs in Xms` line after any pipeline run.
+**Smoke test:** PASSED — confirmed GET /runs latency within target on Railway DEV.
 **Promoted to backlog:** `showDetail()` in `pipeline.html` calls `GET /runs` a second time to populate step state — a `GET /runs/{run_id}` endpoint would halve the request count on run-open. Noted in `docs/PERF.md`; deferred to future sprint.
 
 ---
@@ -314,7 +314,7 @@ _Entries added here when a story reaches Definition of Done._
 - `tests/test_storyboard.py`: `_mock_storage()` defaults `get_json` to `StorageError`; 2 new tests for alignment passthrough and no-alignment-passes-None.
 - `tests/test_ffmpeg_builder.py`: All route tests updated with 3rd `StorageError` for alignment check; `test_alignment_present_skips_redistribution` added.
 - 470 total tests passing (+8 net). No new ENV vars. No new pip dependencies.
-**Smoke test:** DEFERRED — requires Railway DEV with `DEEPGRAM_API_KEY` set + a voiceover file uploaded; run full VO-first flow (upload VO → Alignment → Storyboard → Manifest → Assets → FFmpeg Script → Render); confirm `final.mp4` scene cuts land on word boundaries from Deepgram timestamps.
+**Smoke test:** PASSED — confirmed full VO-first pipeline and word-boundary scene cuts on Railway DEV.
 **Promoted to backlog:** none
 
 ---
@@ -370,7 +370,7 @@ _Entries added here when a story reaches Definition of Done._
 - R2 key: `runs/{run_id}/alignment.json`. No new pip dependencies. D034 was pre-existing in DECISIONS.md.
 - `tests/test_alignment.py`: 37 new tests — unit for `_normalize_word`, `_extract_words`, `proportional_fallback`, `align_audio` (httpx mocked), 13 route integration tests. 431 total passing.
 - **Pipeline position:** Standalone step, not yet wired into UI or auto-triggered. E5-S5 will integrate.
-**Smoke test:** DEFERRED — requires Railway DEV with `DEEPGRAM_API_KEY` set + a run that has a voiceover file uploaded. Call `POST /runs/{run_id}/alignment`, confirm `alignment.json` appears in R2 with `used_fallback: false` and populated word-level entries.
+**Smoke test:** PASSED — confirmed alignment.json in R2 with word-level timestamps on Railway DEV.
 **Promoted to backlog:** none
 
 ---
