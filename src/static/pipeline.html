@@ -477,7 +477,7 @@
       background: #FDFCFC;
       border: 1px solid #E8E5E4;
       border-radius: 8px;
-      padding: 12px 14px 14px;
+      padding: 9px 14px 14px;
       margin-bottom: 14px;
     }
     .field-card label {
@@ -496,6 +496,9 @@
       padding: 10px 0 0;
     }
     #section-input .field-card:has(textarea) { padding-bottom: 3px; }
+    #section-input .field-card:has(input[type="text"]) { padding-bottom: 6px; }
+    #section-input .field-card:has(.vo-widget) { padding-bottom: 9px; }
+    #section-input .vo-widget { align-items: flex-start; }
     #section-input .field-card input[type="text"]:focus,
     #section-input .field-card textarea:focus {
       border: none;
@@ -515,9 +518,9 @@
     /* ── Video settings controls ──────────────────────────────────────── */
     .settings-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       justify-content: space-between;
-      padding: 10px 0;
+      padding: 9px 0;
     }
     .settings-row + .settings-row { border-top: 1px solid #F0EDEC; }
     .field-card--tight-v { padding-top: 0; padding-bottom: 0; }
@@ -573,7 +576,8 @@
     .vo-widget {
       display: flex;
       align-items: center;
-      gap: 10px;
+      column-gap: 10px;
+      row-gap: 0;
       flex-wrap: wrap;
     }
     .vo-filename {
