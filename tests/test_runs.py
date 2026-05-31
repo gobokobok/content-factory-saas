@@ -771,6 +771,36 @@ class TestDeleteRun:
         assert "R2 connection error" in res.json()["detail"]
 
 
+class TestDeleteVoiceover:
+    """Tests for DELETE /runs/{run_id}/voiceover."""
+
+    RUN_ID = "2026-05-31_vo-delete-test"
+
+    def test_returns_204_when_files_deleted(self, client):
+        """DELETE /runs/{run_id}/voiceover returns HTTP 204 on success."""
+        m = MagicMock()
+        m.list_keys.return_value = [f"runs/{self.RUN_ID}/voiceover/narration.mp3"]
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}/voiceover")
+        assert res.status_code == 204
+
+    def test_returns_204_when_no_voiceover_exists(self, client):
+        """DELETE is a no-op when no voiceover files exist — still returns 204."""
+        m = MagicMock()
+        m.list_keys.return_value = []
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}/voiceover")
+        assert res.status_code == 204
+
+    def test_storage_error_listing_returns_500(self, client):
+        """StorageError from list_keys maps to HTTP 500."""
+        m = MagicMock()
+        m.list_keys.side_effect = StorageError("R2 unreachable")
+        with patch("src.routes.runs.R2Client", return_value=m):
+            res = client.delete(f"/runs/{self.RUN_ID}/voiceover")
+        assert res.status_code == 500
+
+
 class TestMusicUploadUrl:
     """Tests for POST /runs/{run_id}/music-upload-url."""
 

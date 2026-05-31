@@ -105,6 +105,25 @@ def voiceover_upload_url(
     return VoiceoverUploadUrlResponse(upload_url=url, key=key)
 
 
+@router.delete("/runs/{run_id}/voiceover", status_code=204)
+def delete_voiceover(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """Delete all voiceover files for a run. No-op if none exist."""
+    client = _make_r2_client(settings)
+    try:
+        keys = client.list_keys(f"runs/{run_id}/voiceover/")
+    except StorageError as exc:
+        logger.error("Storage error listing voiceover for run '%s': %s", run_id, exc)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    for key in keys:
+        try:
+            client._client.delete_object(Bucket=client._bucket, Key=key)
+        except Exception as exc:
+            logger.warning("Could not delete voiceover key '%s': %s", key, exc)
+
+
 @router.post("/runs/{run_id}/music-upload-url", response_model=MusicUploadUrlResponse)
 def music_upload_url(
     run_id: str,

@@ -827,6 +827,7 @@
               <button id="vo-pick-btn" onclick="document.getElementById('vo-file-input').click()">Choose a file</button>
               <span id="vo-filename" class="vo-filename"></span>
               <button class="btn btn-secondary btn-sm" id="vo-upload-btn" disabled onclick="uploadVoiceover()">Upload</button>
+              <button class="btn btn-secondary btn-sm" id="vo-delete-btn" style="display:none" onclick="deleteVoiceover()">Delete</button>
               <span id="vo-upload-status" class="muted" style="font-size:12px;"></span>
             </div>
             <button class="vo-mode-tab" id="vo-tab-generate" onclick="setVoMode('generate')" style="margin-top:10px;">Generate with ElevenLabs</button>
@@ -835,6 +836,18 @@
             <p class="muted" style="font-size:12px; margin:0 0 6px;">Voiceover will be generated from your script when you click Commit.</p>
             <span id="vo-generate-status" style="font-size:12px;"></span>
             <div><button class="vo-mode-tab" onclick="setVoMode('upload')" style="margin-top:8px;">↩ Switch to file upload</button></div>
+          </div>
+        </div>
+
+        <div class="field-card no-label-line">
+          <label>Background Music</label>
+          <div class="vo-widget">
+            <input type="file" id="music-file-input" accept=".mp3,.wav,.m4a" style="display:none" onchange="onMusicFileSelected()">
+            <button id="music-pick-btn" onclick="document.getElementById('music-file-input').click()">Choose a file</button>
+            <span id="music-filename" class="vo-filename"></span>
+            <button class="btn btn-secondary btn-sm" id="music-upload-btn" disabled style="display:none" onclick="uploadMusic()">Upload</button>
+            <button class="btn btn-secondary btn-sm" id="music-delete-btn" style="display:none" onclick="deleteMusic()">Delete</button>
+            <span id="music-upload-status" class="muted" style="font-size:12px;"></span>
           </div>
         </div>
       </div>
@@ -868,27 +881,6 @@
               <option value="TikTok">TikTok</option>
               <option value="Classic">Classic</option>
             </select>
-          </div>
-        </div>
-
-        <div class="field-card no-label-line">
-          <label>Background Music</label>
-          <div id="music-no-state">
-            <div class="vo-widget" style="padding-top:6px;">
-              <span class="muted" style="font-size:12px;">No background music</span>
-              <input type="file" id="music-file-input" accept=".mp3,.wav,.m4a" style="display:none" onchange="onMusicFileSelected()">
-              <button id="music-pick-btn" class="btn btn-secondary btn-sm" style="margin-left:8px;" onclick="document.getElementById('music-file-input').click()">Upload track</button>
-              <span id="music-pending-name" class="vo-filename"></span>
-              <button class="btn btn-secondary btn-sm" id="music-upload-btn" style="display:none" onclick="uploadMusic()">Upload</button>
-              <span id="music-upload-status" class="muted" style="font-size:12px;"></span>
-            </div>
-          </div>
-          <div id="music-preview-state" style="display:none; padding-top:6px;">
-            <audio id="music-preview-player" controls style="height:28px; width:100%; margin-bottom:6px;"></audio>
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span id="music-preview-name" class="muted" style="font-size:12px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
-              <button id="music-remove-btn" class="btn btn-secondary btn-sm" onclick="removeMusic()">Remove</button>
-            </div>
           </div>
         </div>
 
@@ -1099,6 +1091,8 @@
       const si = document.getElementById('script-input');
       if (si) { si.value = ''; si.style.height = ''; }
       document.getElementById('vo-upload-status').textContent = '';
+      document.getElementById('vo-upload-status').style.color = '';
+      document.getElementById('vo-delete-btn').style.display  = 'none';
       _resetMusicWidget();
 
       const sb = document.getElementById('storyboard-content');
@@ -1308,12 +1302,14 @@
       const nameInput   = document.getElementById('project-name-input');
       const voPickBtn   = document.getElementById('vo-pick-btn');
       const voUploadBtn = document.getElementById('vo-upload-btn');
+      const voDeleteBtn = document.getElementById('vo-delete-btn');
       const scriptInput = document.getElementById('script-input');
 
       // Project name is read-only once a run exists (name was set at creation time)
-      if (nameInput) nameInput.disabled = locked || !!currentRunId;
-      voPickBtn.disabled   = locked;
-      scriptInput.disabled = locked;
+      if (nameInput)   nameInput.disabled   = locked || !!currentRunId;
+      voPickBtn.disabled                    = locked;
+      if (voDeleteBtn) voDeleteBtn.disabled = locked;
+      scriptInput.disabled                  = locked;
 
       // Load saved draft script (locked or unlocked) so the textarea is pre-filled on reload
       if (currentRunId && !scriptInput.value) {
@@ -1330,20 +1326,19 @@
                 document.getElementById('vo-generate-status').style.color  = '#16a34a';
                 voUploaded = true;
               } else {
-                document.getElementById('vo-filename').textContent = data.vo_filename;
-                if (voUploadBtn) voUploadBtn.disabled = locked;
+                document.getElementById('vo-filename').textContent      = data.vo_filename;
+                document.getElementById('vo-upload-status').textContent = '✓ uploaded';
+                document.getElementById('vo-upload-status').style.color = '#16a34a';
+                if (voDeleteBtn) voDeleteBtn.style.display = locked ? 'none' : '';
                 voUploaded = true;
               }
             }
             if (data.music_filename) {
-              const musicKey = `runs/${currentRunId}/music/${data.music_filename}`;
-              try {
-                const linkRes = await fetch(`/runs/${currentRunId}/asset-link?key=${encodeURIComponent(musicKey)}`);
-                if (linkRes.ok) {
-                  const { url } = await linkRes.json();
-                  _showMusicPreview(data.music_filename, url);
-                }
-              } catch (_) { /* non-fatal */ }
+              document.getElementById('music-filename').textContent      = data.music_filename;
+              document.getElementById('music-upload-status').textContent = '✓ uploaded';
+              document.getElementById('music-upload-status').style.color = '#16a34a';
+              document.getElementById('music-delete-btn').style.display  = locked ? 'none' : '';
+              musicUploaded = true;
             }
             updateSaveDraftBtn();   // re-evaluate now that script is populated
             updateCommitBtn();
@@ -1954,12 +1949,15 @@
       voMode = mode;
       const uploadPanel   = document.getElementById('vo-upload-panel');
       const generatePanel = document.getElementById('vo-generate-panel');
+      const deleteBtn     = document.getElementById('vo-delete-btn');
       if (mode === 'generate') {
         uploadPanel.style.display   = 'none';
         generatePanel.style.display = '';
+        if (deleteBtn) deleteBtn.style.display = 'none';
       } else {
         uploadPanel.style.display   = '';
         generatePanel.style.display = 'none';
+        if (deleteBtn) deleteBtn.style.display = voUploaded ? '' : 'none';
       }
       updateCommitBtn();
     }
@@ -2013,6 +2011,7 @@
         }
         statusEl.textContent = '✓ uploaded'; statusEl.style.color = '#16a34a';
         voUploaded = true;
+        document.getElementById('vo-delete-btn').style.display = '';
         updateCommitBtn();
       } catch (err) {
         statusEl.textContent = `Network error: ${esc(err.message)}`;
@@ -2020,45 +2019,57 @@
       }
     }
 
+    async function deleteVoiceover() {
+      if (!currentRunId) return;
+      const btn = document.getElementById('vo-delete-btn');
+      if (btn) btn.disabled = true;
+      try {
+        await fetch(`/runs/${currentRunId}/voiceover`, { method: 'DELETE' });
+      } catch (_) { /* best-effort */ }
+      voUploaded = false;
+      document.getElementById('vo-filename').textContent      = '';
+      document.getElementById('vo-upload-status').textContent = '';
+      document.getElementById('vo-upload-status').style.color = '';
+      if (btn) { btn.style.display = 'none'; btn.disabled = false; }
+      document.getElementById('vo-upload-btn').disabled = true;
+      const fi = document.getElementById('vo-file-input');
+      if (fi) fi.value = '';
+      updateCommitBtn();
+    }
+
     // ─── Background music ─────────────────────────────────────────────────────
 
     function _resetMusicWidget() {
       musicUploaded = false;
-      document.getElementById('music-preview-state').style.display = 'none';
-      document.getElementById('music-no-state').style.display      = '';
-      document.getElementById('music-pending-name').textContent    = '';
+      document.getElementById('music-filename').textContent      = '';
+      document.getElementById('music-upload-status').textContent = '';
+      document.getElementById('music-upload-status').style.color = '';
       const uploadBtn = document.getElementById('music-upload-btn');
-      if (uploadBtn) uploadBtn.style.display = 'none';
-      document.getElementById('music-upload-status').textContent   = '';
-      const player = document.getElementById('music-preview-player');
-      if (player) player.src = '';
-    }
-
-    function _showMusicPreview(filename, url) {
-      musicUploaded = true;
-      document.getElementById('music-no-state').style.display       = 'none';
-      document.getElementById('music-preview-state').style.display  = '';
-      document.getElementById('music-preview-name').textContent     = filename;
-      const player = document.getElementById('music-preview-player');
-      if (player) player.src = url;
+      if (uploadBtn) { uploadBtn.style.display = 'none'; uploadBtn.disabled = true; }
+      const deleteBtn = document.getElementById('music-delete-btn');
+      if (deleteBtn)   deleteBtn.style.display = 'none';
+      const fi = document.getElementById('music-file-input');
+      if (fi) fi.value = '';
     }
 
     function _setMusicLocked(locked) {
       const pickBtn   = document.getElementById('music-pick-btn');
       const uploadBtn = document.getElementById('music-upload-btn');
-      const removeBtn = document.getElementById('music-remove-btn');
-      if (pickBtn)   pickBtn.disabled              = locked;
-      if (uploadBtn) uploadBtn.disabled            = locked;
-      if (removeBtn) removeBtn.style.display       = locked ? 'none' : '';
+      const deleteBtn = document.getElementById('music-delete-btn');
+      if (pickBtn)   pickBtn.disabled   = locked;
+      if (uploadBtn) uploadBtn.disabled = locked;
+      if (deleteBtn) deleteBtn.disabled = locked;
     }
 
     function onMusicFileSelected() {
       const file = document.getElementById('music-file-input')?.files?.[0];
       if (!file) return;
-      document.getElementById('music-pending-name').textContent  = file.name;
-      const uploadBtn = document.getElementById('music-upload-btn');
-      if (uploadBtn) uploadBtn.style.display = '';
+      document.getElementById('music-filename').textContent      = file.name;
       document.getElementById('music-upload-status').textContent = '';
+      document.getElementById('music-upload-status').style.color = '';
+      document.getElementById('music-delete-btn').style.display  = 'none';
+      const uploadBtn = document.getElementById('music-upload-btn');
+      if (uploadBtn) { uploadBtn.style.display = ''; uploadBtn.disabled = false; }
     }
 
     async function uploadMusic() {
@@ -2086,16 +2097,19 @@
           statusEl.textContent = `Upload failed (${putRes.status})`;
           statusEl.style.color = '#dc2626'; btn.disabled = false; return;
         }
-        _showMusicPreview(file.name, URL.createObjectURL(file));
+        statusEl.textContent = '✓ uploaded'; statusEl.style.color = '#16a34a';
+        musicUploaded = true;
+        btn.style.display = 'none';
+        document.getElementById('music-delete-btn').style.display = '';
       } catch (err) {
         statusEl.textContent = `Network error: ${esc(err.message)}`;
         statusEl.style.color = '#dc2626'; btn.disabled = false;
       }
     }
 
-    async function removeMusic() {
+    async function deleteMusic() {
       if (!currentRunId) return;
-      const btn = document.getElementById('music-remove-btn');
+      const btn = document.getElementById('music-delete-btn');
       if (btn) btn.disabled = true;
       try {
         await fetch(`/runs/${currentRunId}/music`, { method: 'DELETE' });
