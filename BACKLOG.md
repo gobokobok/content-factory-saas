@@ -2964,7 +2964,8 @@ Wire the stored video settings into the actual render pipeline. Aspect ratio cha
 ## [S12-S2] Publishing metadata generator
 **Epic:** E15 — Publishing Metadata
 **Sprint:** 12
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-06-01
 **Priority:** medium
 **Points:** 3
 **Depends on:** E5-S1 (render step)
@@ -2996,7 +2997,11 @@ After a video renders, a Claude API call (Haiku) generates publishing metadata: 
 - `tests/test_metadata_generator.py` — new
 
 ### Handover
-_filled on completion_
+- `src/metadata_generator.py`: `generate_metadata(project_name, storyboard, api_key, router) → tuple[PublishingMetadata, int, int, float]`
+- `src/routes/metadata.py`: `POST /runs/{run_id}/metadata` — reads run_log + storyboard from R2, calls Haiku, stores `metadata.json`, updates run_log step `metadata`
+- `src/models.py`: `PublishingMetadata`, `MetadataResponse`, `PIPELINE_STEPS` includes `"metadata"`
+- `src/exceptions.py`: `MetadataError`
+- No new ENV vars. 734 tests passing.
 
 ---
 

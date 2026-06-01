@@ -17,6 +17,7 @@ from src.routes import assets as assets_router
 from src.routes import auth as auth_router
 from src.routes import ffmpeg_script as ffmpeg_script_router
 from src.routes import manifest as manifest_router
+from src.routes import metadata as metadata_router
 from src.routes import render as render_router
 from src.routes import runs as runs_router
 from src.routes import storyboard as storyboard_router
@@ -64,6 +65,7 @@ app.include_router(alignment_router.router)
 app.include_router(tts_router.router)
 app.include_router(ffmpeg_script_router.router)
 app.include_router(render_router.router)
+app.include_router(metadata_router.router)
 
 
 @app.middleware("http")

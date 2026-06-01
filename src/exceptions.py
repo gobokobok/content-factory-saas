@@ -47,3 +47,7 @@ class AlignmentError(Exception):
 
 class TTSError(Exception):
     """Raised when ElevenLabs TTS API call, PCM concat, or ffmpeg MP3 encode fails."""
+
+
+class MetadataError(Exception):
+    """Raised when Claude API call or JSON parsing fails during metadata generation."""

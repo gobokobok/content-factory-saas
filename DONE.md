@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S12-S2] Publishing metadata generator
+**Completed:** 2026-06-01
+**Handover:**
+- `src/metadata_generator.py` (new): `generate_metadata(project_name, storyboard, api_key, router) → tuple[PublishingMetadata, int, int, float]`. Calls Claude Haiku via `TRANSFORM` task type. Strips markdown fences before JSON parse. Raises `MetadataError` on API failure or schema mismatch.
+- `src/routes/metadata.py` (new): `POST /runs/{run_id}/metadata`. Reads `run_log.json` for `project_name` (falls back to `run_id`), reads `storyboard.json`, calls `generate_metadata`, stores `runs/{run_id}/metadata.json`, marks `run_log.json` step `metadata → complete`. On failure: marks step `failed`, operator can retry via re-POST.
+- `src/models.py`: `PublishingMetadata` schema (`title`, `alt_titles: list[str]`, `youtube_description`, `instagram_description`, `hashtags: list[str]`, `seo_tags: list[str]`). `MetadataResponse` (`status`, `metadata_key`). `PIPELINE_STEPS` now includes `"metadata"` after `"render"`.
+- `src/exceptions.py`: `MetadataError` added.
+- `src/main.py`: `metadata_router` registered.
+- `tests/test_metadata_generator.py` (new): 20 tests — `_extract_json` parser, `_build_user_message`, `generate_metadata` happy/API error/bad JSON/schema mismatch, route success/404/500/failure-marks-run-log/project-name-fallback.
+- No new ENV vars. 734 tests passing.
+**Smoke test:** DEFERRED — requires a run with completed render step on Railway DEV. Batch with S12-S3 UI smoke test.
+**Promoted to backlog:** none
+
+---
+
 ## [BUG-002] Error message from Save Draft persists alongside "✓ Committed" status
 **Completed:** 2026-06-01
 **Handover:**
