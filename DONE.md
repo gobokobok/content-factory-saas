@@ -4,6 +4,17 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [BUG-002] Error message from Save Draft persists alongside "✓ Committed" status
+**Completed:** 2026-06-01
+**Handover:**
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars.
+- `runCommit()` now clears `#save-draft-status` text at the top of the function (alongside hiding `#input-error`), so any stale error from a prior failed `saveDraft()` call is wiped before the commit sequence runs.
+- `saveDraft()` success path already cleared `statusEl.textContent = ''` — no change needed there.
+**Smoke test:** DEFERRED — requires the BUG-001 scenario reproduced on Railway DEV (network error mid-commit → Save Draft attempted and fails with "storyboard already complete" → Commit retried successfully). Confirm "✓ Committed" appears with no error text beside it.
+**Promoted to backlog:** none
+
+---
+
 ## [BUG-001] Storyboard Commit: re-poll run log on fetch failure
 **Completed:** 2026-06-01
 **Handover:**

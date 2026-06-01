@@ -3072,8 +3072,9 @@ The UI trusts the client-side fetch result to determine step state. It should fa
 ---
 
 ## [BUG-002] Error message from Save Draft persists alongside "✓ Committed" status
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 12
+**Status:** done
+**Completed:** 2026-06-01
 **Priority:** medium
 **Points:** 1
 **Reported:** 2026-05-31
@@ -3082,11 +3083,16 @@ The UI trusts the client-side fetch result to determine step state. It should fa
 After BUG-001 scenario plays out (network error → user clicks Save Draft → error message displayed → user clicks Commit again and succeeds), the UI shows "✓ Committed  Error: Cannot save draft: storyboard is already complete" simultaneously. The error message from the failed Save Draft is not cleared when the subsequent Commit succeeds.
 
 ### Acceptance Criteria
-- [ ] Any displayed error message is cleared whenever a Commit or Save Draft operation transitions to a success state
-- [ ] The "✓ Committed" status is shown cleanly without stale error text beside it
+- [x] Any displayed error message is cleared whenever a Commit or Save Draft operation transitions to a success state
+- [x] The "✓ Committed" status is shown cleanly without stale error text beside it
 
 ### Files to modify
 - `src/static/pipeline.html` — clear error state on successful commit/draft transitions
+
+### Handover
+- `src/static/pipeline.html` only — one line added to `runCommit()`: clears `#save-draft-status` text at the start of every commit attempt, before the `runSequence` call.
+- No backend changes, no new ENV vars, no new dependencies.
+- `saveDraft()` success path already cleared `statusEl.textContent` — no change needed there.
 
 ---
 

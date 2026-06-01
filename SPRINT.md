@@ -329,7 +329,7 @@
 |----|-------|--------|--------|
 | S12-S1 | Video settings → pipeline — aspect ratio into ffmpeg output dimensions, visual style into Replicate `ai_generate_prompt`, subtitles toggle enables/disables caption burn steps | 4 | done |
 | BUG-001 | Storyboard commit: re-poll run log on fetch failure before showing error state | 2 | done |
-| BUG-002 | Clear stale Save Draft error message on successful commit transition | 1 | backlog |
+| BUG-002 | Clear stale Save Draft error message on successful commit transition | 1 | done |
 | S12-S2 | Publishing metadata generator — Claude Haiku post-render; title + 2 variants, YouTube description, Instagram description, hashtags, SEO tags; stored at `runs/{run_id}/metadata.json` | 3 | backlog |
 | S12-S3 | Publishing metadata UI — display below video player after render; copy-to-clipboard per field | 2 | backlog |
 
@@ -346,7 +346,7 @@
 ## Sprint 12 Definition of Done
 - [x] S12-S1: 9:16 project renders 1080×1920; 16:9 renders 1920×1080; 1:1 renders 1080×1080. Visual style value appended to Replicate `ai_generate_prompt` modifier (e.g. "cinematic, shallow depth of field"). Subtitles OFF skips both caption burn steps in ffmpeg script. Tests cover all aspect ratios and subtitle toggle.
 - [ ] BUG-001: After a fetch error during storyboard Commit, UI re-polls `run_log.json` to check actual step status. If backend shows `complete`, green dot and ✓ Committed shown — no error. If backend shows `failed`, shows real error from log.
-- [ ] BUG-002: Any displayed error message is cleared when a Commit or Save Draft operation transitions to success. `✓ Committed` shown cleanly without stale error text.
+- [x] BUG-002: Any displayed error message is cleared when a Commit or Save Draft operation transitions to success. `✓ Committed` shown cleanly without stale error text.
 - [ ] S12-S2: `POST /runs/{run_id}/metadata` endpoint calls Claude Haiku with storyboard + project name as context. Stores `{title, alt_titles: [str, str], youtube_description, instagram_description, hashtags: [str], seo_tags: [str]}` at `runs/{run_id}/metadata.json`. Step `metadata → complete` in run log.
 - [ ] S12-S3: After render completes, metadata section appears below video player. Each field has a "Copy" button — clicking writes to clipboard and briefly shows "Copied ✓". No auto-posting to any platform.
 - [ ] All existing tests pass.
