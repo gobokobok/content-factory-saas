@@ -318,7 +318,8 @@
 # Sprint 12 — Video Settings Pipeline Wiring + Publishing Metadata
 
 **Goal:** Wire the stored video settings into the actual render pipeline (aspect ratio, visual style, subtitles). Fix two user-facing commit flow bugs. Add post-render publishing metadata generation with copy-to-clipboard UI.
-**Status:** active
+**Status:** done
+**Velocity:** 12/12 pts (100%)
 **Points:** 12
 
 ---
@@ -331,7 +332,7 @@
 | BUG-001 | Storyboard commit: re-poll run log on fetch failure before showing error state | 2 | done |
 | BUG-002 | Clear stale Save Draft error message on successful commit transition | 1 | done |
 | S12-S2 | Publishing metadata generator — Claude Haiku post-render; title + 2 variants, YouTube description, Instagram description, hashtags, SEO tags; stored at `runs/{run_id}/metadata.json` | 3 | done |
-| S12-S3 | Publishing metadata UI — display below video player after render; copy-to-clipboard per field | 2 | backlog |
+| S12-S3 | Publishing metadata UI — display below video player after render; copy-to-clipboard per field | 2 | done |
 
 **Execution order:** S12-S1 → BUG-001 → BUG-002 → S12-S2 → S12-S3
 
@@ -348,8 +349,8 @@
 - [ ] BUG-001: After a fetch error during storyboard Commit, UI re-polls `run_log.json` to check actual step status. If backend shows `complete`, green dot and ✓ Committed shown — no error. If backend shows `failed`, shows real error from log.
 - [x] BUG-002: Any displayed error message is cleared when a Commit or Save Draft operation transitions to success. `✓ Committed` shown cleanly without stale error text.
 - [x] S12-S2: `POST /runs/{run_id}/metadata` endpoint calls Claude Haiku with storyboard + project name as context. Stores `{title, alt_titles: [str, str], youtube_description, instagram_description, hashtags: [str], seo_tags: [str]}` at `runs/{run_id}/metadata.json`. Step `metadata → complete` in run log.
-- [ ] S12-S3: After render completes, metadata section appears below video player. Each field has a "Copy" button — clicking writes to clipboard and briefly shows "Copied ✓". No auto-posting to any platform.
-- [ ] All existing tests pass.
+- [x] S12-S3: After render completes, metadata section appears below video player. Each field has a "Copy" button — clicking writes to clipboard and briefly shows "Copied ✓". No auto-posting to any platform.
+- [x] All existing tests pass (734 total).
 - [ ] **Human touchpoint 1:** operator renders a 16:9 project and downloads a wide-format video (1920×1080).
 - [ ] **Human touchpoint 2:** operator clicks "Copy" on the YouTube description and pastes it directly into YouTube Studio.
 

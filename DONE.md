@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S12-S3] Publishing metadata UI
+**Completed:** 2026-06-01
+**Handover:**
+- `src/routes/runs.py`: added `"metadata": ("runs/{run_id}/metadata.json", "application/json")` to `_STEP_ARTIFACT_KEYS` — enables `GET /runs/{run_id}/artifact/metadata` to return the stored metadata JSON content. No new route or model required.
+- `src/static/pipeline.html`: `<div id="render-metadata" style="display:none;">` added below `#render-content` in `#section-render`.
+- `populateMetadata()`: called from `populateRender()`. Hides section when render is not done. Shows "Generate Metadata" button when `stepSt('metadata') !== 'complete'`. When complete: fetches artifact, renders 7 labelled fields (Primary Title, Alt Title 1, Alt Title 2, YouTube Description, Instagram Description, Hashtags, SEO Tags) each with a Copy button.
+- `generateMetadata()`: POSTs to `POST /runs/{run_id}/metadata`, updates `currentSteps['metadata'] = 'complete'`, calls `renderNavItems()`, then re-runs `populateMetadata()`. Handles error + retry.
+- `copyField(btn, text)`: writes to clipboard, sets button text to "Copied ✓" + `.copied` CSS class (green) for 2s, falls back to "Failed" on rejection.
+- No new ENV vars. 734 tests passing — no regressions.
+**Smoke test:** DEFERRED — requires a run with completed render step on Railway DEV. Operator clicks "Generate Metadata" → waits for Haiku → 7 fields appear. Clicks "Copy" on YouTube Description → pastes into YouTube Studio → confirms correct content.
+**Promoted to backlog:** none
+
+---
+
 ## [S12-S2] Publishing metadata generator
 **Completed:** 2026-06-01
 **Handover:**

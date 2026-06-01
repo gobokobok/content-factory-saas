@@ -793,6 +793,17 @@
     .video-modal-box video { display: block; width: 100%; max-height: 80vh; object-fit: contain; }
     .video-modal-close { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.6); color: #fff; border: none; border-radius: 50%; width: 28px; height: 28px; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
+    /* ── Publishing metadata ──────────────────────────────────────────── */
+    .metadata-section { margin-top: 24px; }
+    .metadata-section-title { font-size: 11px; font-weight: 500; color: #9A9A9A; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
+    .metadata-field { margin-bottom: 14px; }
+    .metadata-label { font-size: 11px; color: #9A9A9A; margin-bottom: 4px; }
+    .metadata-value-row { display: flex; align-items: flex-start; gap: 8px; }
+    .metadata-value { flex: 1; font-size: 13px; color: #2D2D2D; background: #F6F4F3; border: 1px solid #E8E5E4; border-radius: 4px; padding: 6px 8px; white-space: pre-wrap; word-break: break-word; min-width: 0; }
+    .copy-btn { flex-shrink: 0; font-family: inherit; font-size: 12px; color: #2D2D2D; background: #EFECEB; border: 1px solid #E8E5E4; border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+    .copy-btn:hover { background: #E8E5E4; }
+    .copy-btn.copied { color: #16a34a; border-color: #bbf7d0; background: #f0fdf4; }
+
     /* ── Generic states ───────────────────────────────────────────────── */
     .state-empty   { color: #9A9A9A; font-size: 13px; padding: 20px 0; }
     .state-loading { color: #9A9A9A; font-size: 13px; }
@@ -1009,6 +1020,7 @@
       <div id="render-content">
         <div class="state-empty">No video yet — render one in Assets.</div>
       </div>
+      <div id="render-metadata" style="display:none;"></div>
     </div>
   </div><!-- end .panel-content -->
   </div><!-- end .panels -->
@@ -1570,9 +1582,10 @@
       const contentDiv = document.getElementById('render-content');
       if (!renderDone) {
         contentDiv.innerHTML = '<div class="state-empty">No video yet — render one in Assets.</div>';
+        populateMetadata();
         return;
       }
-      if (contentDiv.dataset.loadedFor === currentRunId) return;
+      if (contentDiv.dataset.loadedFor === currentRunId) { populateMetadata(); return; }
 
       contentDiv.innerHTML = '<div class="state-loading">Loading video…</div>';
       try {
@@ -1592,6 +1605,94 @@
       } catch (err) {
         contentDiv.innerHTML = `<div class="error-text">Network error: ${esc(err.message)}</div>`;
       }
+      populateMetadata();
+    }
+
+    async function populateMetadata() {
+      const el = document.getElementById('render-metadata');
+      if (!el) return;
+      if (stepSt('render') !== 'complete') { el.style.display = 'none'; return; }
+      el.style.display = '';
+
+      if (stepSt('metadata') !== 'complete') {
+        el.innerHTML = `
+          <div class="metadata-section">
+            <div class="metadata-section-title">Publishing Metadata</div>
+            <button class="btn btn-secondary" id="generate-metadata-btn" onclick="generateMetadata()">Generate Metadata</button>
+          </div>`;
+        return;
+      }
+
+      el.innerHTML = '<div class="state-loading">Loading metadata…</div>';
+      try {
+        const res  = await fetch(`/runs/${currentRunId}/artifact/metadata`);
+        const data = await res.json();
+        if (!res.ok) { el.innerHTML = `<div class="error-text">${esc(data.detail || 'Failed to load metadata')}</div>`; return; }
+        const m = data.content;
+        const fields = [
+          { label: 'Primary Title',         value: m.title },
+          { label: 'Alternative Title 1',   value: m.alt_titles?.[0] || '—' },
+          { label: 'Alternative Title 2',   value: m.alt_titles?.[1] || '—' },
+          { label: 'YouTube Description',   value: m.youtube_description },
+          { label: 'Instagram Description', value: m.instagram_description },
+          { label: 'Hashtags',              value: (m.hashtags || []).join(' ') },
+          { label: 'SEO Tags',              value: (m.seo_tags || []).join(', ') },
+        ];
+        el.innerHTML = `
+          <div class="metadata-section">
+            <div class="metadata-section-title">Publishing Metadata</div>
+            ${fields.map(f => `
+              <div class="metadata-field">
+                <div class="metadata-label">${esc(f.label)}</div>
+                <div class="metadata-value-row">
+                  <div class="metadata-value">${esc(f.value)}</div>
+                  <button class="copy-btn" onclick="copyField(this, ${JSON.stringify(f.value)})">Copy</button>
+                </div>
+              </div>`).join('')}
+          </div>`;
+      } catch (err) {
+        el.innerHTML = `<div class="error-text">Network error: ${esc(err.message)}</div>`;
+      }
+    }
+
+    async function generateMetadata() {
+      const el  = document.getElementById('render-metadata');
+      const btn = document.getElementById('generate-metadata-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+      try {
+        const res = await fetch(`/runs/${currentRunId}/metadata`, { method: 'POST' });
+        if (res.ok) {
+          currentSteps['metadata'] = 'complete';
+          renderNavItems();
+          await populateMetadata();
+        } else {
+          const data = await res.json().catch(() => null);
+          el.innerHTML = `
+            <div class="metadata-section">
+              <div class="metadata-section-title">Publishing Metadata</div>
+              <div class="error-text">${esc(data?.detail || 'Failed to generate metadata')}</div>
+              <button class="btn btn-secondary" style="margin-top:8px" onclick="generateMetadata()">Retry</button>
+            </div>`;
+        }
+      } catch (err) {
+        el.innerHTML = `
+          <div class="metadata-section">
+            <div class="metadata-section-title">Publishing Metadata</div>
+            <div class="error-text">Network error: ${esc(err.message)}</div>
+            <button class="btn btn-secondary" style="margin-top:8px" onclick="generateMetadata()">Retry</button>
+          </div>`;
+      }
+    }
+
+    function copyField(btn, text) {
+      navigator.clipboard.writeText(text).then(() => {
+        btn.textContent = 'Copied ✓';
+        btn.classList.add('copied');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+      }).catch(() => {
+        btn.textContent = 'Failed';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+      });
     }
 
     async function downloadVideo(btn, url, filename) {
