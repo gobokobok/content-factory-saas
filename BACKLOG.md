@@ -3038,8 +3038,9 @@ _filled on completion_
 ---
 
 ## [BUG-001] Storyboard Commit: network fetch failure marks step failed despite server success
-**Sprint:** unassigned
-**Status:** backlog
+**Sprint:** 12
+**Status:** done
+**Completed:** 2026-06-01
 **Priority:** high
 **Points:** 2
 **Reported:** 2026-05-31
@@ -3057,13 +3058,16 @@ When the user clicks **Commit** on the Project Details page, the backend generat
 The UI trusts the client-side fetch result to determine step state. It should fall back to re-fetching `run_log.json` (or `GET /runs/{run_id}`) to reconcile actual backend state when a network error occurs.
 
 ### Acceptance Criteria
-- [ ] After a fetch error during Commit, the UI re-polls the run log to check actual step status before displaying a failure state
-- [ ] If the run log shows the step is `complete`, the UI shows the green dot and "✓ Committed" — not an error
-- [ ] If the run log shows the step is `failed`, the UI shows the red dot and the actual error from the log
-- [ ] No regression on happy path
+- [x] After a fetch error during Commit, the UI re-polls the run log to check actual step status before displaying a failure state
+- [x] If the run log shows the step is `complete`, the UI shows the green dot and "✓ Committed" — not an error
+- [x] If the run log shows the step is `failed`, the UI shows the red dot and the actual error from the log
+- [x] No regression on happy path
 
 ### Files to modify
 - `src/static/pipeline.html` — storyboard commit error handler; add re-poll logic after fetch failure
+
+### Handover
+- `src/static/pipeline.html`: `runSequence` `catch` block extended with a re-poll via `GET /runs`. On any network-level fetch error: fetches run list, extracts the current run's step status, and routes to complete (continue loop) or failed (show message and return false) based on actual backend state. Applies to all steps run through `runSequence`. No backend changes. 714 tests passing.
 
 ---
 

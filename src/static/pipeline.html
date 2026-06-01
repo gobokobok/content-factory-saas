@@ -2044,9 +2044,28 @@
           }
         } catch (err) {
           stepRunning[step.key] = false;
+          // Re-poll run log to reconcile actual backend state — the request may have
+          // completed on the server but the response never reached the browser.
+          let actualStatus = null;
+          if (currentRunId) {
+            try {
+              const pollRes  = await fetch('/runs');
+              const pollData = await pollRes.json();
+              const pollRun  = (pollData.runs || []).find(r => r.run_id === currentRunId);
+              actualStatus   = pollRun?.steps?.[step.key] ?? null;
+            } catch (_) { /* secondary failure — fall through to network error */ }
+          }
+          if (actualStatus === 'complete') {
+            currentSteps[step.key] = 'complete';
+            if (row) row.innerHTML = `${dotHtml('complete')} <span>${esc(step.label)}</span>`;
+            renderNavItems();
+            continue;
+          }
           currentSteps[step.key] = 'failed';
           if (row) row.innerHTML = `${dotHtml('failed')} <span>${esc(step.label)}</span>`;
-          errorEl.textContent = `${step.label} network error: ${err.message}`;
+          errorEl.textContent = actualStatus === 'failed'
+            ? `${step.label} failed — see run log for details`
+            : `${step.label} network error: ${err.message}`;
           errorEl.style.display = '';
           renderNavItems();
           return false;

@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [BUG-001] Storyboard Commit: re-poll run log on fetch failure
+**Completed:** 2026-06-01
+**Handover:**
+- `src/static/pipeline.html` only — no backend changes, no new ENV vars, no new dependencies.
+- `runSequence` `catch` block extended: on any fetch-level network error, immediately re-polls `GET /runs` to read the actual backend step status before rendering a failure state.
+- If re-poll shows step is `complete` → green dot, sequence continues to the next step (user sees "✓ Committed" with no error).
+- If re-poll shows step is `failed` → red dot + "X failed — see run log for details".
+- If re-poll itself fails (secondary network outage) → falls back to original "network error: …" message.
+- Fix applies to all steps run through `runSequence` (alignment, storyboard, manifest, asset acquisition, ffmpeg-script, render).
+- 714 tests passing — no regressions.
+**Smoke test:** DEFERRED — requires Railway DEV under load or simulated connection drop during Commit. Trigger Commit, intercept the storyboard response at the network layer; confirm UI shows green "✓ Committed" rather than red error when backend log shows `storyboard: complete`.
+**Promoted to backlog:** none
+
+---
+
 ## [S12-S1] Video settings → pipeline wiring
 **Completed:** 2026-06-01
 **Handover:**

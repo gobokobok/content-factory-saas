@@ -328,7 +328,7 @@
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | S12-S1 | Video settings → pipeline — aspect ratio into ffmpeg output dimensions, visual style into Replicate `ai_generate_prompt`, subtitles toggle enables/disables caption burn steps | 4 | done |
-| BUG-001 | Storyboard commit: re-poll run log on fetch failure before showing error state | 2 | backlog |
+| BUG-001 | Storyboard commit: re-poll run log on fetch failure before showing error state | 2 | done |
 | BUG-002 | Clear stale Save Draft error message on successful commit transition | 1 | backlog |
 | S12-S2 | Publishing metadata generator — Claude Haiku post-render; title + 2 variants, YouTube description, Instagram description, hashtags, SEO tags; stored at `runs/{run_id}/metadata.json` | 3 | backlog |
 | S12-S3 | Publishing metadata UI — display below video player after render; copy-to-clipboard per field | 2 | backlog |
