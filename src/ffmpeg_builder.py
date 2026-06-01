@@ -9,12 +9,23 @@ from typing import Optional
 
 from src.captions import build_ass, build_captions_ass, build_word_synced_captions_ass
 from src.exceptions import FFmpegBuildError
-from src.models import AudioSettings, AssetManifest, ManifestEntry, Storyboard, StoryboardScene, WordTimestamp
+from src.models import AudioSettings, AssetManifest, ManifestEntry, Storyboard, StoryboardScene, VideoSettings, WordTimestamp
 
 _FPS = 25
-_OUT_W = 1080
-_OUT_H = 1920
+_OUT_W = 1080  # Default output width (9:16)
+_OUT_H = 1920  # Default output height (9:16)
 _DUCKING_FACTOR = 0.4  # Multiplier applied to music volume when ducking is enabled
+
+_ASPECT_DIMENSIONS: dict[str, tuple[int, int]] = {
+    "9:16": (1080, 1920),
+    "16:9": (1920, 1080),
+    "1:1": (1080, 1080),
+}
+
+
+def _dimensions_for_aspect_ratio(aspect_ratio: str) -> tuple[int, int]:
+    """Return (width, height) pixel dimensions for the given aspect ratio string."""
+    return _ASPECT_DIMENSIONS.get(aspect_ratio, (_OUT_W, _OUT_H))
 
 
 _MIN_SCENE_DURATION_S = 0.5
@@ -152,20 +163,33 @@ def build_ffmpeg_script(
     manifest: AssetManifest,
     scene_words: Optional[list[list[WordTimestamp]]] = None,
     audio: Optional[AudioSettings] = None,
+    video_settings: Optional[VideoSettings] = None,
 ) -> str:
     """
-    Build a self-contained bash script that assembles the run's assets into a 9:16 Short.
+    Build a self-contained bash script that assembles the run's assets into a Short.
+
+    video_settings controls:
+      - aspect_ratio: output dimensions (9:16 → 1080×1920, 16:9 → 1920×1080, 1:1 → 1080×1080)
+      - subtitles: 'TikTok' or 'Classic' selects ASS style; 'none' skips caption burn steps
+      - audio: music volume, ducking, and loop/fit playback mode
+    audio kwarg is still accepted for backwards compat; video_settings.audio takes precedence
+    when video_settings is provided.
 
     When scene_words is provided (Deepgram words grouped per scene), captions use
-    word-level sync with the active word highlighted in yellow and chunks that never
-    cross scene boundaries.  Falls back to scene-boundary captions derived from
-    voiceover_line when no alignment data is available.
-    When audio is provided, music volume, ducking, and loop/fit playback mode are applied;
-    defaults to AudioSettings() when omitted.
+    word-level sync with the active word highlighted in yellow.  Falls back to
+    scene-boundary captions derived from voiceover_line when no alignment data is available.
     Raises FFmpegBuildError if any scene lacks an acquired asset (file_key is None).
     """
+    if video_settings is None:
+        video_settings = VideoSettings()
+    # audio kwarg wins when passed directly; otherwise derive from video_settings
     if audio is None:
-        audio = AudioSettings()
+        audio = video_settings.audio
+
+    out_w, out_h = _dimensions_for_aspect_ratio(video_settings.aspect_ratio)
+    subtitles = video_settings.subtitles
+    subtitle_style = subtitles  # "TikTok" or "Classic" (ignored when "none")
+
     entries: dict[str, ManifestEntry] = {e.scene_id: e for e in manifest.entries}
 
     for scene in storyboard.scenes:
@@ -177,12 +201,14 @@ def build_ffmpeg_script(
 
     total_s = storyboard.summary.total_duration_s
     n_scenes = len(manifest.entries)
+
     # on-screen text overlay (build_ass / _write_captions_ass / _burn_captions) is
     # intentionally unwired — kept for future rewiring when revisited.
-    if scene_words:
-        captions_ass_content = build_word_synced_captions_ass(scene_words)
-    else:
-        captions_ass_content = build_captions_ass(storyboard.scenes)
+    if subtitles != "none":
+        if scene_words:
+            captions_ass_content = build_word_synced_captions_ass(scene_words, subtitle_style=subtitle_style)
+        else:
+            captions_ass_content = build_captions_ass(storyboard.scenes, subtitle_style=subtitle_style)
 
     parts = [
         _header(run_id, n_scenes, total_s),
@@ -190,13 +216,19 @@ def build_ffmpeg_script(
         _voiceover_check(),
         _music_check(audio),
         _debug_section(),
-        _scene_section(storyboard, entries, run_id),
+        _scene_section(storyboard, entries, run_id, out_w, out_h),
         _filter_complex_concat(n_scenes),
-        _write_voiceover_captions_ass(captions_ass_content),
-        _burn_voiceover_captions(),
-        _audio_section(storyboard, audio),
-        f'echo "Done: /tmp/{run_id}/output/final.mp4"',
     ]
+
+    if subtitles != "none":
+        parts.append(_write_voiceover_captions_ass(captions_ass_content))  # type: ignore[arg-type]
+        parts.append(_burn_voiceover_captions())
+        video_source = "$WORK/video_captioned.mp4"
+    else:
+        video_source = "$WORK/video_only.mp4"
+
+    parts.append(_audio_section(storyboard, audio, video_source=video_source))
+    parts.append(f'echo "Done: /tmp/{run_id}/output/final.mp4"')
     return "\n\n".join(parts) + "\n"
 
 
@@ -309,34 +341,44 @@ def _debug_section() -> str:
 
 
 def _scene_section(
-    storyboard: Storyboard, entries: dict[str, ManifestEntry], run_id: str
+    storyboard: Storyboard,
+    entries: dict[str, ManifestEntry],
+    run_id: str,
+    out_w: int = _OUT_W,
+    out_h: int = _OUT_H,
 ) -> str:
     """Generate one ffmpeg command per scene."""
     parts = ["# ── Per-scene processing ─────────────────────────────────"]
     for i, scene in enumerate(storyboard.scenes, 1):
         entry = entries[scene.scene]
-        parts.append(_render_scene(scene, entry, run_id, i))
+        parts.append(_render_scene(scene, entry, run_id, i, out_w, out_h))
     return "\n\n".join(parts)
 
 
 def _render_scene(
-    scene: StoryboardScene, entry: ManifestEntry, run_id: str, num: int
+    scene: StoryboardScene,
+    entry: ManifestEntry,
+    run_id: str,
+    num: int,
+    out_w: int = _OUT_W,
+    out_h: int = _OUT_H,
 ) -> str:
     """Generate the ffmpeg command for a single scene segment."""
     local = _local_path(run_id, entry.file_key)  # type: ignore[arg-type]
     out = f'"$WORK/scene_{num:02d}.mp4"'
     if scene.clip_type == "hard_cut":
-        return _render_video_scene(scene, local, out, num)
-    return _render_image_scene(scene, local, out, num)
+        return _render_video_scene(scene, local, out, num, out_w, out_h)
+    return _render_image_scene(scene, local, out, num, out_w, out_h)
 
 
 def _render_video_scene(
-    scene: StoryboardScene, local: str, out: str, num: int
+    scene: StoryboardScene, local: str, out: str, num: int,
+    out_w: int = _OUT_W, out_h: int = _OUT_H,
 ) -> str:
-    """Trim and scale a video clip to the output portrait format."""
+    """Trim and scale a video clip to the output dimensions."""
     vf = (
-        f"scale={_OUT_W}:{_OUT_H}:force_original_aspect_ratio=increase,"
-        f"crop={_OUT_W}:{_OUT_H},setsar=1:1"
+        f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
+        f"crop={out_w}:{out_h},setsar=1:1"
     )
     return (
         f"# Scene {num:02d} — {scene.scene} — hard_cut — {scene.duration_s}s\n"
@@ -349,7 +391,8 @@ def _render_video_scene(
 
 
 def _render_image_scene(
-    scene: StoryboardScene, local: str, out: str, num: int
+    scene: StoryboardScene, local: str, out: str, num: int,
+    out_w: int = _OUT_W, out_h: int = _OUT_H,
 ) -> str:
     """Animate a still image using zoompan and write it as a video segment."""
     frames = int(scene.duration_s * _FPS)
@@ -357,10 +400,10 @@ def _render_image_scene(
     if scene.motion_effect:
         clip_label += f" ({scene.motion_effect})"
     scale_vf = (
-        f"scale={_OUT_W}:{_OUT_H}:force_original_aspect_ratio=increase,"
-        f"crop={_OUT_W}:{_OUT_H}"
+        f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
+        f"crop={out_w}:{out_h}"
     )
-    zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames)
+    zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames, out_w, out_h)
     vf = f"{scale_vf},{zoompan_vf},setsar=1:1"
     return (
         f"# Scene {num:02d} — {scene.scene} — {clip_label} — {scene.duration_s}s\n"
@@ -456,7 +499,11 @@ def _burn_voiceover_captions() -> str:
     )
 
 
-def _audio_section(storyboard: Storyboard, audio: AudioSettings) -> str:
+def _audio_section(
+    storyboard: Storyboard,
+    audio: AudioSettings,
+    video_source: str = "$WORK/video_captioned.mp4",
+) -> str:
     """
     Build the audio assembly ffmpeg command.
 
@@ -515,7 +562,7 @@ def _audio_section(storyboard: Storyboard, audio: AudioSettings) -> str:
 
     lines.extend([
         'ffmpeg -y \\',
-        '  -i "$WORK/video_captioned.mp4" \\',
+        f'  -i "{video_source}" \\',
         '  -i "$VO" \\',
         '  "${MUSIC_ARGS[@]}" \\',
         '  "${_sfx_inputs[@]}" \\',
@@ -539,7 +586,11 @@ def _local_path(run_id: str, file_key: str) -> str:
 
 
 def _zoompan_filter(
-    clip_type: str, motion_effect: Optional[str], frames: int
+    clip_type: str,
+    motion_effect: Optional[str],
+    frames: int,
+    out_w: int = _OUT_W,
+    out_h: int = _OUT_H,
 ) -> str:
     """
     Return a zoompan filter expression for a still or animated clip.
@@ -547,8 +598,9 @@ def _zoompan_filter(
     still_with_motion: gentle zoom in 1.0→1.05 (always centered).
     animated: pronounced 1.0→1.1 or 1.1→1.0 zoom, or 1.1x pan, driven by motion_effect.
     Unknown motion_effect falls back to zoom_in.
+    out_w / out_h set the s= output size; default to module constants (9:16).
     """
-    s = f"{_OUT_W}x{_OUT_H}"
+    s = f"{out_w}x{out_h}"
     suffix = f":d={frames}:s={s}:fps={_FPS}"
     cx = "iw/2-(iw/zoom/2)"
     cy = "ih/2-(ih/zoom/2)"

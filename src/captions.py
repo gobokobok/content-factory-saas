@@ -37,6 +37,31 @@ _CAPTIONS_ASS_HEADER = (
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
 )
 
+# Classic subtitle style — smaller, clean, traditional appearance.
+_CAPTIONS_ASS_HEADER_CLASSIC = (
+    "[Script Info]\n"
+    "ScriptType: v4.00+\n"
+    "PlayResX: 1080\n"
+    "PlayResY: 1920\n"
+    "\n"
+    "[V4+ Styles]\n"
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
+    " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
+    " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+    "Style: VoiceCaption,Poppins,64,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "0,0,0,0,100,100,0,0,1,3,1,2,10,10,180,1\n"
+    "\n"
+    "[Events]\n"
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+)
+
+
+def _captions_header(subtitle_style: str) -> str:
+    """Return the ASS header for the given subtitle style ('TikTok' or 'Classic')."""
+    if subtitle_style == "Classic":
+        return _CAPTIONS_ASS_HEADER_CLASSIC
+    return _CAPTIONS_ASS_HEADER
+
 
 def format_ass_time(seconds: float) -> str:
     """Convert seconds to ASS time format H:MM:SS.cc (centiseconds, 0–99)."""
@@ -83,7 +108,9 @@ def build_ass(scenes: list[StoryboardScene]) -> str:
 
 
 def build_word_synced_captions_ass(
-    scene_words: list[list[WordTimestamp]], chunk_size: int = 5
+    scene_words: list[list[WordTimestamp]],
+    chunk_size: int = 5,
+    subtitle_style: str = "TikTok",
 ) -> str:
     """
     Build ASS captions with word-level sync from Deepgram timestamps.
@@ -93,6 +120,7 @@ def build_word_synced_captions_ass(
     boundaries.  For each word in a chunk one Dialogue event is emitted spanning
     that word's start_ms → end_ms.  The active word is highlighted in yellow via
     an ASS inline colour override; surrounding words remain white.
+    subtitle_style selects 'TikTok' (default, bold 92pt) or 'Classic' (64pt).
     """
     events: list[str] = []
 
@@ -123,9 +151,10 @@ def build_word_synced_captions_ass(
                     f"VoiceCaption,,0,0,0,,{text}"
                 )
 
+    header = _captions_header(subtitle_style)
     if events:
-        return _CAPTIONS_ASS_HEADER + "\n".join(events) + "\n"
-    return _CAPTIONS_ASS_HEADER
+        return header + "\n".join(events) + "\n"
+    return header
 
 
 def _chunk_text(text: str, chunk_size: int = 5) -> list[str]:
@@ -137,7 +166,10 @@ def _chunk_text(text: str, chunk_size: int = 5) -> list[str]:
     return chunks
 
 
-def build_captions_ass(scenes: list[StoryboardScene]) -> str:
+def build_captions_ass(
+    scenes: list[StoryboardScene],
+    subtitle_style: str = "TikTok",
+) -> str:
     """
     Generate an ASS subtitle file for voiceover captions.
 
@@ -146,7 +178,7 @@ def build_captions_ass(scenes: list[StoryboardScene]) -> str:
     of time. Timing is derived by accumulating duration_s values in order.
     Text is displayed as-is (natural sentence case, no quote stripping).
     Scenes with an empty voiceover_line produce no Dialogue event.
-    Style: Open Sans Regular, 64pt, white+black outline, bottom of screen, MarginV=288.
+    subtitle_style selects 'TikTok' (default, bold 92pt) or 'Classic' (64pt).
     """
     events: list[str] = []
     offset = 0.0
@@ -167,6 +199,7 @@ def build_captions_ass(scenes: list[StoryboardScene]) -> str:
                 f"VoiceCaption,,0,0,0,,{chunk}"
             )
 
+    header = _captions_header(subtitle_style)
     if events:
-        return _CAPTIONS_ASS_HEADER + "\n".join(events) + "\n"
-    return _CAPTIONS_ASS_HEADER
+        return header + "\n".join(events) + "\n"
+    return header

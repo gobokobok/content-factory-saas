@@ -27,6 +27,7 @@ from src.models import (
     StoryboardGlobal,
     StoryboardScene,
     StoryboardSummary,
+    VideoSettings,
     VisualPrompts,
     WordTimestamp,
 )
@@ -1367,3 +1368,94 @@ class TestFfmpegScriptRouteAudioSettings:
 
         uploaded_script = mock_storage.upload_text.call_args[0][1]
         assert "volume=0.060[music]" in uploaded_script
+
+
+# ── Unit: aspect ratio dimensions ────────────────────────────────────────────
+
+
+class TestAspectRatioDimensions:
+    """Verify build_ffmpeg_script uses the correct output dimensions per aspect_ratio."""
+
+    def _script(self, aspect_ratio: str) -> str:
+        vs = VideoSettings(aspect_ratio=aspect_ratio)
+        sb = _storyboard([_scene("01", "hard_cut")])
+        mf = _manifest([_entry("01", "hard_cut")])
+        return build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
+
+    def test_9_16_produces_1080x1920(self):
+        """Default 9:16 aspect ratio produces 1080×1920 scale/crop in scene commands."""
+        script = self._script("9:16")
+        assert "scale=1080:1920" in script
+        assert "crop=1080:1920" in script
+
+    def test_16_9_produces_1920x1080(self):
+        """16:9 aspect ratio produces 1920×1080 scale/crop in scene commands."""
+        script = self._script("16:9")
+        assert "scale=1920:1080" in script
+        assert "crop=1920:1080" in script
+
+    def test_1_1_produces_1080x1080(self):
+        """1:1 aspect ratio produces 1080×1080 scale/crop in scene commands."""
+        script = self._script("1:1")
+        assert "scale=1080:1080" in script
+        assert "crop=1080:1080" in script
+
+    def test_9_16_is_default_when_no_video_settings(self):
+        """Omitting video_settings defaults to 9:16 (1080×1920)."""
+        sb = _storyboard([_scene("01", "hard_cut")])
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "scale=1080:1920" in script
+
+    def test_16_9_zoompan_uses_correct_dimensions(self):
+        """16:9 image scenes use 1920×1080 in the zoompan s= parameter."""
+        vs = VideoSettings(aspect_ratio="16:9")
+        sb = _storyboard([_scene("01", "still_with_motion")])
+        mf = _manifest([_entry("01", "still_with_motion")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
+        assert "s=1920x1080" in script
+
+
+# ── Unit: subtitles setting ───────────────────────────────────────────────────
+
+
+class TestSubtitlesSetting:
+    """Verify subtitles='none' skips caption burn and routes audio correctly."""
+
+    def test_subtitles_none_omits_vcap_heredoc(self):
+        """subtitles='none' produces a script without the voiceover_captions.ass heredoc."""
+        vs = VideoSettings(subtitles="none")
+        scenes = [_scene("01", "hard_cut")]
+        sb = _storyboard(scenes)
+        sb = sb.model_copy(update={"scenes": [
+            scenes[0].model_copy(update={"voiceover_line": "Some text here."})
+        ]})
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
+        assert "__VCAP_EOF__" not in script
+
+    def test_subtitles_none_audio_reads_from_video_only(self):
+        """subtitles='none' routes audio assembly to video_only.mp4, not video_captioned.mp4."""
+        vs = VideoSettings(subtitles="none")
+        sb = _storyboard([_scene("01", "hard_cut")])
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
+        assert '"$WORK/video_only.mp4"' in script
+        assert '"$WORK/video_captioned.mp4"' not in script
+
+    def test_subtitles_tiktok_includes_vcap_heredoc(self):
+        """subtitles='TikTok' (default) produces the voiceover captions heredoc."""
+        vs = VideoSettings(subtitles="TikTok")
+        sb = _storyboard([_scene("01", "hard_cut")])
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
+        assert "__VCAP_EOF__" in script
+        assert '"$WORK/video_captioned.mp4"' in script
+
+    def test_subtitles_classic_includes_vcap_heredoc(self):
+        """subtitles='Classic' also produces the voiceover captions heredoc."""
+        vs = VideoSettings(subtitles="Classic")
+        sb = _storyboard([_scene("01", "hard_cut")])
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
+        assert "__VCAP_EOF__" in script

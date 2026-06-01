@@ -341,7 +341,7 @@ class AudioSettings(BaseModel):
 
 
 class VideoSettings(BaseModel):
-    """Video production settings stored in settings.json — no pipeline wiring yet (see S12-S1)."""
+    """Video production settings stored in settings.json and wired into the render pipeline."""
 
     aspect_ratio: Literal["9:16", "16:9", "1:1"] = "9:16"
     visual_style: Literal[

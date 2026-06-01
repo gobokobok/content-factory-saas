@@ -8,7 +8,7 @@ from src import pipeline
 from src.acquisition import MIN_ACQUIRED_FOR_COMPLETE, run_acquisition
 from src.config import Settings, get_settings
 from src.exceptions import StorageError
-from src.models import AcquisitionResponse, AssetManifest
+from src.models import AcquisitionResponse, AssetManifest, VideoSettings
 from src.pexels import PexelsClient
 from src.replicate_client import ReplicateClient
 from src.storage import R2Client
@@ -47,6 +47,15 @@ def acquire_assets(
 
     manifest = AssetManifest(**manifest_data)
 
+    # Load visual_style from run settings so Replicate prompts reflect the operator's choice.
+    settings_key = f"runs/{run_id}/settings.json"
+    try:
+        settings_data = storage.get_json(settings_key)
+        video_settings = VideoSettings.model_validate(settings_data)
+    except StorageError:
+        video_settings = VideoSettings()
+        logger.debug("No settings.json for run=%s — using defaults for asset acquisition", run_id)
+
     pexels = PexelsClient(
         api_key=settings.PEXELS_API_KEY,
         per_page=settings.PEXELS_PER_PAGE,
@@ -59,7 +68,10 @@ def acquire_assets(
     )
 
     try:
-        summary = run_acquisition(run_id, manifest, pexels, replicate, storage)
+        summary = run_acquisition(
+            run_id, manifest, pexels, replicate, storage,
+            visual_style=video_settings.visual_style,
+        )
     except Exception as exc:
         logger.error("Acquisition loop failed unexpectedly: run=%s error=%s", run_id, exc)
         storage.update_run_log(run_id, "asset_acquisition", "failed", error=str(exc))

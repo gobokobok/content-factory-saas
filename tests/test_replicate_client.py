@@ -6,7 +6,7 @@ import pytest
 
 from src.exceptions import ReplicateError
 from src.models import ManifestEntry, ReplicateAcquireResult
-from src.replicate_client import ReplicateClient
+from src.replicate_client import ReplicateClient, _STYLE_MODIFIERS
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -365,3 +365,76 @@ def test_storage_upload_bytes_called_with_correct_args():
         FAKE_IMAGE_BYTES,
         content_type="image/webp",
     )
+
+
+# ── Visual style modifier ─────────────────────────────────────────────────────
+
+
+class TestVisualStyleModifier:
+    """Verify visual_style appends the correct modifier to the Replicate prompt."""
+
+    BASE_PROMPT = "Aerial view of suburban housing development"
+
+    def _prompt_sent_to_replicate(self, visual_style: str) -> str:
+        """Run acquire_for_entry with the given visual_style and return the prompt used."""
+        with patch("src.replicate_client.replicate.Client") as mock_client_class:
+            mock_client = mock_client_class.return_value
+            pred = _make_succeeded_prediction()
+            mock_client.predictions.create.return_value = pred
+            client = ReplicateClient(FAKE_TOKEN, FAKE_MODEL, poll_interval_seconds=0)
+
+        entry = _make_entry(ai_generate_prompt=self.BASE_PROMPT)
+        with patch("src.replicate_client.requests.get") as mock_get:
+            mock_get.return_value = Mock(status_code=200, content=FAKE_IMAGE_BYTES)
+            client.acquire_for_entry(_make_entry(ai_generate_prompt=self.BASE_PROMPT), "run-id", _make_storage(), visual_style=visual_style)
+
+        return mock_client.predictions.create.call_args[1]["input"]["prompt"]
+
+    def test_realistic_appends_no_modifier(self):
+        """Realistic visual_style leaves the prompt unchanged."""
+        prompt = self._prompt_sent_to_replicate("Realistic")
+        assert prompt == self.BASE_PROMPT
+
+    def test_cinematic_appends_modifier(self):
+        """Cinematic visual_style appends its modifier to the prompt."""
+        prompt = self._prompt_sent_to_replicate("Cinematic")
+        assert prompt.startswith(self.BASE_PROMPT + ", ")
+        assert "cinematic" in prompt.lower()
+
+    def test_cartoonish_appends_modifier(self):
+        """Cartoonish visual_style appends its modifier to the prompt."""
+        prompt = self._prompt_sent_to_replicate("Cartoonish")
+        assert "cartoon" in prompt.lower()
+
+    def test_documentary_appends_modifier(self):
+        """Documentary visual_style appends its modifier to the prompt."""
+        prompt = self._prompt_sent_to_replicate("Documentary")
+        assert "documentary" in prompt.lower()
+
+    def test_minimalist_appends_modifier(self):
+        """Minimalist visual_style appends its modifier to the prompt."""
+        prompt = self._prompt_sent_to_replicate("Minimalist")
+        assert "minimalist" in prompt.lower()
+
+    def test_default_visual_style_is_realistic(self):
+        """When visual_style is omitted, no modifier is appended (Realistic default)."""
+        with patch("src.replicate_client.replicate.Client") as mock_client_class:
+            mock_client = mock_client_class.return_value
+            mock_client.predictions.create.return_value = _make_succeeded_prediction()
+            client = ReplicateClient(FAKE_TOKEN, FAKE_MODEL, poll_interval_seconds=0)
+
+        entry = _make_entry(ai_generate_prompt=self.BASE_PROMPT)
+        with patch("src.replicate_client.requests.get") as mock_get:
+            mock_get.return_value = Mock(status_code=200, content=FAKE_IMAGE_BYTES)
+            client.acquire_for_entry(entry, "run-id", _make_storage())
+
+        prompt = mock_client.predictions.create.call_args[1]["input"]["prompt"]
+        assert prompt == self.BASE_PROMPT
+
+    def test_style_modifiers_dict_has_four_entries(self):
+        """_STYLE_MODIFIERS covers the four non-Realistic visual styles."""
+        assert set(_STYLE_MODIFIERS.keys()) == {"Cinematic", "Cartoonish", "Documentary", "Minimalist"}
+
+    def test_realistic_not_in_style_modifiers(self):
+        """Realistic is intentionally absent from _STYLE_MODIFIERS (handled by dict.get default)."""
+        assert "Realistic" not in _STYLE_MODIFIERS

@@ -31,6 +31,15 @@ _IMAGE_EXT = ".webp"
 _IMAGE_CONTENT_TYPE = "image/webp"
 _TERMINAL_STATUSES = {"succeeded", "failed", "canceled"}
 
+# Appended to ai_generate_prompt when a non-default visual style is configured.
+# "Realistic" has no modifier — the base prompts already target realistic footage.
+_STYLE_MODIFIERS: dict[str, str] = {
+    "Cinematic": "cinematic, shallow depth of field, golden hour lighting",
+    "Cartoonish": "cartoon style, illustrated, vibrant colors",
+    "Documentary": "documentary photography, photojournalism, natural light",
+    "Minimalist": "minimalist, clean composition, simple background",
+}
+
 
 class ReplicateClient:
     """Client for Replicate Flux image generation — fallback asset source."""
@@ -116,21 +125,28 @@ class ReplicateClient:
         entry: ManifestEntry,
         run_id: str,
         storage: R2Client,
+        visual_style: str = "Realistic",
     ) -> ReplicateAcquireResult:
         """
         Generate a Flux image for one manifest entry and upload to R2.
 
-        Uses entry.ai_generate_prompt as the generation prompt. Uploads
-        result to runs/{run_id}/images/{scene_id}.webp. Returns
+        Uses entry.ai_generate_prompt as the generation prompt, with an optional
+        style modifier appended based on visual_style (e.g. 'Cinematic' adds
+        'cinematic, shallow depth of field, golden hour lighting').
+        Uploads result to runs/{run_id}/images/{scene_id}.webp. Returns
         ReplicateAcquireResult on success. Raises ReplicateError on any
         generation, download, or upload failure.
         """
+        prompt = entry.ai_generate_prompt
+        modifier = _STYLE_MODIFIERS.get(visual_style, "")
+        if modifier:
+            prompt = f"{prompt}, {modifier}"
         logger.info(
             "Replicate generation: scene=%s prompt='%.80s'",
             entry.scene_id,
-            entry.ai_generate_prompt,
+            prompt,
         )
-        data = self._generate_image(entry.ai_generate_prompt)
+        data = self._generate_image(prompt)
         key = f"runs/{run_id}/images/{entry.scene_id}{_IMAGE_EXT}"
         storage.upload_bytes(key, data, content_type=_IMAGE_CONTENT_TYPE)
         logger.info("Replicate image uploaded: scene=%s key=%s", entry.scene_id, key)

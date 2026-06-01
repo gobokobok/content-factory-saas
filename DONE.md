@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S12-S1] Video settings → pipeline wiring
+**Completed:** 2026-06-01
+**Handover:**
+- `src/ffmpeg_builder.py`: `_ASPECT_DIMENSIONS` dict + `_dimensions_for_aspect_ratio(aspect_ratio) → (w, h)` added. `build_ffmpeg_script` gains `video_settings: Optional[VideoSettings] = None`; `audio` kwarg retained for backwards compat but `video_settings.audio` wins when provided. `_scene_section`, `_render_scene`, `_render_video_scene`, `_render_image_scene`, and `_zoompan_filter` all accept `out_w`/`out_h` params (default 1080×1920). When `subtitles == "none"`, caption heredoc + burn step are skipped; `_audio_section` receives `video_source="$WORK/video_only.mp4"` instead of `"$WORK/video_captioned.mp4"`.
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER_CLASSIC` added (Poppins, 64pt, Bold=0, Outline=3, MarginV=180). `_captions_header(subtitle_style) → str` selects header. `build_word_synced_captions_ass` and `build_captions_ass` gain `subtitle_style: str = "TikTok"` param.
+- `src/replicate_client.py`: `_STYLE_MODIFIERS` maps Cinematic/Cartoonish/Documentary/Minimalist to prompt modifier strings. `acquire_for_entry` gains `visual_style: str = "Realistic"`; appends modifier when non-empty.
+- `src/acquisition.py`: `acquire_scene` and `run_acquisition` gain `visual_style: str = "Realistic"` and pass it to `replicate.acquire_for_entry`.
+- `src/routes/assets.py`: loads `settings.json` → `VideoSettings`; passes `visual_style` to `run_acquisition`; falls back to defaults on `StorageError`.
+- `src/routes/ffmpeg_script.py`: passes `video_settings=video_settings` to `build_ffmpeg_script`.
+- 714 total tests passing (28 new: `TestAspectRatioDimensions` ×5, `TestSubtitlesSetting` ×4, `TestSubtitleStyleVariants` ×9, `TestVisualStyleModifier` ×8). No new ENV vars. No new dependencies.
+**Smoke test:** DEFERRED — requires Railway DEV deploy. Set aspect_ratio=16:9, render a video, confirm 1920×1080 output. Set subtitles=none, confirm no captions. Set visual_style=Cinematic, confirm Replicate prompt ends with "cinematic, shallow depth of field, golden hour lighting".
+**Promoted to backlog:** none
+
+---
+
 ## [S11-S3] Audio → ffmpeg integration
 **Completed:** 2026-05-31
 **Handover:**

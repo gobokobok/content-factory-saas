@@ -2918,7 +2918,8 @@ Pass background music key, volume, and ducking settings from run config into the
 ## [S12-S1] Video settings → pipeline wiring
 **Epic:** E12 — Video Settings
 **Sprint:** 12
-**Status:** backlog
+**Status:** done
+**Completed:** 2026-06-01
 **Priority:** high
 **Points:** 4
 **Depends on:** S9-S3, S11-S3
@@ -2948,7 +2949,15 @@ Wire the stored video settings into the actual render pipeline. Aspect ratio cha
 - `tests/test_ffmpeg_builder.py`, `tests/test_captions.py` — new variant tests
 
 ### Handover
-_filled on completion_
+- `src/ffmpeg_builder.py`: `_ASPECT_DIMENSIONS` dict + `_dimensions_for_aspect_ratio(aspect_ratio) → (w, h)` added. `build_ffmpeg_script` gains `video_settings: Optional[VideoSettings] = None`; `audio` kwarg retained for backwards compat but `video_settings.audio` wins when `video_settings` is provided. `_scene_section`, `_render_scene`, `_render_video_scene`, `_render_image_scene`, and `_zoompan_filter` all accept `out_w`/`out_h` params (defaulting to `_OUT_W`/`_OUT_H` = 1080×1920). When `subtitles == "none"`, caption heredoc + burn step are skipped and `_audio_section` receives `video_source="$WORK/video_only.mp4"` instead of `"$WORK/video_captioned.mp4"`.
+- `src/captions.py`: `_CAPTIONS_ASS_HEADER_CLASSIC` added (Poppins, 64pt, Bold=0, Outline=3, MarginV=180). `_captions_header(subtitle_style) → str` helper selects TikTok or Classic header. `build_word_synced_captions_ass` and `build_captions_ass` both gain `subtitle_style: str = "TikTok"` param.
+- `src/replicate_client.py`: `_STYLE_MODIFIERS` dict maps Cinematic/Cartoonish/Documentary/Minimalist to prompt modifier strings. `acquire_for_entry` gains `visual_style: str = "Realistic"`; appends modifier when non-empty.
+- `src/acquisition.py`: `acquire_scene` and `run_acquisition` gain `visual_style: str = "Realistic"` and pass it through to `replicate.acquire_for_entry`.
+- `src/routes/assets.py`: loads `settings.json` → `VideoSettings`; passes `visual_style=video_settings.visual_style` to `run_acquisition`. Falls back to `VideoSettings()` defaults on `StorageError`.
+- `src/routes/ffmpeg_script.py`: passes `video_settings=video_settings` to `build_ffmpeg_script` (was `audio=video_settings.audio`).
+- 714 total tests passing (28 new in `TestAspectRatioDimensions`, `TestSubtitlesSetting`, `TestSubtitleStyleVariants`, `TestVisualStyleModifier`).
+- No new ENV vars. No new dependencies.
+**Promoted to backlog:** none
 
 ---
 

@@ -124,7 +124,7 @@ def generate_ffmpeg_script(
         logger.debug("No settings.json for run=%s — using audio defaults", run_id)
 
     try:
-        script = build_ffmpeg_script(run_id, storyboard, manifest, scene_words, audio=video_settings.audio)
+        script = build_ffmpeg_script(run_id, storyboard, manifest, scene_words, video_settings=video_settings)
     except FFmpegBuildError as exc:
         logger.error("FFmpeg script build failed for run=%s: %s", run_id, exc)
         storage.update_run_log(run_id, "ffmpeg_script", "failed", error=str(exc))
