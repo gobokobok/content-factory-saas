@@ -54,3 +54,31 @@ Each pipeline step is displayed as a row:
 - Monospace or technical sans-serif font
 - Status colors: green (#22c55e), red (#ef4444), grey (#6b7280)
 - Minimal borders, no gradients, no animations
+
+## File downloads
+
+**Never use `<a href="..." download="filename">` for cross-origin URLs.**
+
+The HTML `download` attribute is silently ignored by all browsers when the `href` points to a different origin (e.g. presigned R2/S3 URLs). Clicking such a link opens the file inline or navigates to it instead of triggering a save dialog.
+
+**Required pattern for all file download buttons:**
+
+```js
+async function downloadFile(btn, url, filename) {
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Downloading…';
+  try {
+    const blob = await fetch(url).then(r => r.blob());
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  } catch (e) { alert('Download failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+```
+
+This applies to: rendered video, generated audio, any artifact served via presigned URL.
