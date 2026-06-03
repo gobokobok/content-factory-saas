@@ -118,6 +118,11 @@ async def validate_storyboard(
             # Haiku incorrectly requires motion_effect for animated scenes;
             # schema only requires it for still_with_motion.
             and not ("animated" in e and "motion_effect" in e)
+            # Haiku compares total_scenes summary field against actual scene count
+            # and flags "missing" scenes. total_scenes is a metadata annotation only;
+            # the scenes array is the source of truth for the pipeline.
+            and "missing from scenes array" not in e
+            and "total_scenes" not in e
         ]
         valid = len(errors) == 0
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
