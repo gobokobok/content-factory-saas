@@ -1247,7 +1247,18 @@
       currentRunId  = runId;
       stepRunning   = {};
       voUploaded    = false;
+      musicUploaded = false;
       voMode        = 'upload';
+
+      // Clear stale VO widget state from previous project
+      document.getElementById('vo-filename').textContent      = '';
+      document.getElementById('vo-upload-status').textContent = '';
+      document.getElementById('vo-upload-status').style.color = '';
+      document.getElementById('vo-delete-btn').style.display  = 'none';
+      const voFileInput = document.getElementById('vo-file-input');
+      if (voFileInput) voFileInput.value = '';
+      _applyVoMode('upload');
+      _resetMusicWidget();
 
       const targetSection = section || 'input';
       history.pushState(null, '', `#run/${encodeURIComponent(runId)}/${targetSection}`);
@@ -1911,28 +1922,29 @@
 
     /** Load stored video+audio settings from R2 and populate all Settings controls. */
     async function loadVideoSettings() {
-      if (!currentRunId) return;
       const locked = sectionLocked.input;
-      try {
-        const res  = await fetch(`/runs/${currentRunId}/settings`);
-        const data = await res.json();
-        if (res.ok && data.settings) {
-          const s = data.settings;
-          const selAspect = document.getElementById('setting-aspect-ratio');
-          const selStyle  = document.getElementById('setting-visual-style');
-          const selSubs   = document.getElementById('setting-subtitles');
-          if (selAspect) selAspect.value = s.aspect_ratio  || '9:16';
-          if (selStyle)  selStyle.value  = s.visual_style  || 'Realistic';
-          if (selSubs)   selSubs.value   = s.subtitles     || 'TikTok';
-          const a = s.audio || {};
-          const slider   = document.getElementById('setting-music-volume');
-          const ducking  = document.getElementById('setting-ducking');
-          const playback = document.getElementById('setting-playback-mode');
-          if (slider)   { slider.value    = a.music_volume    != null ? a.music_volume   : 15; updateVolumeDisplay(); }
-          if (ducking)    ducking.checked  = a.ducking_enabled != null ? a.ducking_enabled : true;
-          if (playback)   playback.value   = a.playback_mode  || 'fit';
-        }
-      } catch (_) { /* non-fatal — HTML defaults remain */ }
+      if (currentRunId) {
+        try {
+          const res  = await fetch(`/runs/${currentRunId}/settings`);
+          const data = await res.json();
+          if (res.ok && data.settings) {
+            const s = data.settings;
+            const selAspect = document.getElementById('setting-aspect-ratio');
+            const selStyle  = document.getElementById('setting-visual-style');
+            const selSubs   = document.getElementById('setting-subtitles');
+            if (selAspect) selAspect.value = s.aspect_ratio  || '9:16';
+            if (selStyle)  selStyle.value  = s.visual_style  || 'Realistic';
+            if (selSubs)   selSubs.value   = s.subtitles     || 'TikTok';
+            const a = s.audio || {};
+            const slider   = document.getElementById('setting-music-volume');
+            const ducking  = document.getElementById('setting-ducking');
+            const playback = document.getElementById('setting-playback-mode');
+            if (slider)   { slider.value    = a.music_volume    != null ? a.music_volume   : 15; updateVolumeDisplay(); }
+            if (ducking)    ducking.checked  = a.ducking_enabled != null ? a.ducking_enabled : true;
+            if (playback)   playback.value   = a.playback_mode  || 'fit';
+          }
+        } catch (_) { /* non-fatal — HTML defaults remain */ }
+      }
       ['setting-aspect-ratio', 'setting-visual-style', 'setting-subtitles',
        'setting-playback-mode'].forEach(id => {
         const el = document.getElementById(id);
@@ -2035,6 +2047,14 @@
       if (!script) { alert('VO script is required'); return; }
 
       if (!await _ensureRun()) return;
+
+      // Persist script so it survives page reload (best-effort, non-blocking)
+      const draftName = document.getElementById('project-name-input')?.value.trim() || '';
+      fetch(`/runs/${currentRunId}/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_name: draftName, script }),
+      }).catch(() => {});
 
       const progressEl = document.getElementById('input-step-progress');
       const errorEl    = document.getElementById('input-error');
