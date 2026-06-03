@@ -2358,12 +2358,42 @@ Delete a project from the UI with a confirmation modal and a backend purge of R2
 ---
 
 ## EPIC 17 — Scene-Based Storyboard Editor (Phase 2 — future)
-Storyboard evolves from read-only table to editable scene graph. Per-scene editing, regeneration, asset type override. Not scheduled.
+Storyboard evolves from read-only table to editable scene graph. Per-scene editing, regeneration, asset type override. Partially addressed in Sprint 13 (inline AI prompt editing + Asset Mode column).
 
 ---
 
 ## EPIC 18 — Scene-Level Asset & Regeneration System (Phase 2 — future)
-Scene-level asset refresh, partial re-render, and "video outdated" state when a scene changes. Depends on E17. Not scheduled.
+Scene-level asset refresh, partial re-render, and "video outdated" state when a scene changes. Depends on E17. Partially addressed in Sprint 15 (per-asset upload replacement).
+
+---
+
+## EPIC 19 — Creative Draft Architecture
+Storyboard becomes an editable working layer. Asset strategy moves to per-scene control. Visual Style Prompt gives the operator direct control over AI generation style injection.
+
+---
+
+## EPIC 20 — Stock Source Expansion
+Add Pixabay as a second parallel stock source. Add Wikimedia Commons for historic/archival scenes. AI-driven source type classification routes scenes automatically based on script context.
+
+---
+
+## EPIC 21 — Assets UX + Replacement
+Full assets table overhaul: per-asset upload replacement, full description visibility, Voice Over column, human-readable type labels, remove Status column noise.
+
+---
+
+## EPIC 22 — Project Report + Token Tracking
+Token cost logging per Claude API call. Project Report as the final pipeline step — aggregating cost, asset sources, render time, and video stats.
+
+---
+
+## EPIC 23 — External API + Webhook
+API-first pipeline endpoint for N8N and external tool integration. Bearer auth. Webhook callback when video is ready. Enables fully automated content factory workflows.
+
+---
+
+## EPIC 24 — Multi-tenant + Google OAuth
+Google OAuth replaces the single-operator password gate. Per-user run isolation in R2. Lightweight user registry.
 
 ---
 
@@ -3122,3 +3152,731 @@ Status: idea, not scheduled — planned for Phase 2 after Sprint 12
 ### IDEA-004 — Scene-Level Asset & Regeneration System (Phase 2)
 Refresh assets for a single scene, partial re-render, "video outdated" indicator when a scene changes. Depends on IDEA-003 (scene graph). See EPIC 18.
 Status: idea, not scheduled — planned for Phase 2 after Sprint 12
+
+---
+
+# Sprint 13 — Creative Draft Foundation
+
+---
+
+## [S13-S1] Notion-like feature
+**Epic:** E19 — Creative Draft Architecture
+**Sprint:** 13
+**Status:** blocked
+**Priority:** medium
+**Points:** TBD
+**Depends on:** operator screenshot
+
+### Goal
+TBD — operator will provide a Notion screenshot showing the desired pattern before this story can be scoped.
+
+### Acceptance Criteria
+- [ ] To be defined once screenshot is reviewed.
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests written and passing
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S13-S2] Editable AI Prompt in storyboard table
+**Epic:** E19 — Creative Draft Architecture
+**Sprint:** 13
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** none
+
+### Goal
+Make the `ai_generate_prompt` cell in the storyboard table click-to-edit. The `primary_query` cell remains read-only. Changes are persisted to R2 via a new PATCH endpoint so edits survive page reload.
+
+### Acceptance Criteria
+- [ ] Clicking `ai_generate_prompt` cell enters edit mode (contenteditable or inline `<textarea>`)
+- [ ] On blur or Enter: `PATCH /runs/{run_id}/storyboard` with `{scene_id, field: "ai_generate_prompt", value: "<new_value>"}` persists the change
+- [ ] `primary_query` cell renders as plain non-editable text
+- [ ] Edit does not trigger asset re-acquisition automatically — operator re-runs the Assets step manually
+- [ ] Unsaved changes indicator (e.g. cell border) cleared after successful PATCH
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: PATCH endpoint updates `storyboard.json` in R2; returns 404 on unknown run; returns 422 on unknown scene_id or disallowed field
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/routes/storyboard.py` — add `PATCH /runs/{run_id}/storyboard`
+- `src/storyboard.py` — `patch_scene_field(run_id, scene_id, field, value, storage)` helper
+- `src/static/pipeline.html` — inline editing UX for `ai_generate_prompt` cells
+- `tests/test_storyboard.py` — new PATCH tests
+
+### Handover
+_filled on completion_
+
+---
+
+## [S13-S3] Asset Mode column in storyboard table
+**Epic:** E19 — Creative Draft Architecture
+**Sprint:** 13
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** S13-S2
+
+### Goal
+Add a "Source" dropdown column to the storyboard table. Selecting "Stock" highlights the `primary_query` cell in that row; selecting "AI Generated" highlights the `ai_generate_prompt` cell. The selection drives the acquisition orchestrator — no Replicate call when Stock is chosen for a scene, no Pexels call when AI Generated is chosen.
+
+### Acceptance Criteria
+- [ ] New column "Source" renders a `<select>` with "Stock" and "AI Generated" per row
+- [ ] Default value derived from current `clip_type`: `hard_cut` defaults to "Stock"; `still_with_motion` / `animated` defaults to "AI Generated"
+- [ ] Selecting "Stock" applies a `highlight-active` CSS class to the `primary_query` cell in that row; removes it from the `ai_generate_prompt` cell
+- [ ] Selecting "AI Generated" applies `highlight-active` to `ai_generate_prompt` cell; removes from `primary_query`
+- [ ] Selection persisted in `asset_manifest.json` as `asset_mode: "stock" | "ai_generated"` via `PATCH /runs/{run_id}/manifest`
+- [ ] Acquisition orchestrator: `stock` mode → Pexels → Pixabay (S14-S3) → skip Replicate; `ai_generated` mode → Replicate only, skip Pexels
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: PATCH manifest endpoint; acquisition orchestrator branches on `asset_mode`; both modes produce correct result
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/models.py` — `ManifestEntry.asset_mode: Literal["stock", "ai_generated"]`
+- `src/routes/manifest.py` — add `PATCH /runs/{run_id}/manifest` for per-entry field updates
+- `src/acquisition.py` — branch on `asset_mode`
+- `src/static/pipeline.html` — Source column, highlight logic
+- `tests/test_acquisition.py` — new `asset_mode` branch tests
+
+### Handover
+_filled on completion_
+
+---
+
+## [S13-S4] Visual Style Prompt field
+**Epic:** E19 — Creative Draft Architecture
+**Sprint:** 13
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** none
+
+### Goal
+Add a free-text "Visual Style Prompt" field to Project Settings. The operator enters a reusable style string (e.g. "cinematic, shallow depth of field, golden hour lighting, 9:16 vertical"). This string is automatically appended to every Replicate/Flux `ai_generate_prompt` call during asset acquisition.
+
+### Acceptance Criteria
+- [ ] `<textarea>` labelled "Visual Style Prompt" in Project Settings section
+- [ ] Saved to run config as `visual_style_prompt` via existing `POST /runs/{run_id}/settings`
+- [ ] `ReplicateClient.acquire_for_entry` appends `visual_style_prompt` to `ai_generate_prompt` when the setting is non-empty
+- [ ] Field survives page reload (loaded from run config on page load)
+- [ ] Field is editable before Commit; read-only after Commit (consistent with other Project Settings fields)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: settings endpoint stores `visual_style_prompt`; `ReplicateClient` appends it correctly; empty/missing value produces no change to prompt
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/config.py` / `src/models.py` — `visual_style_prompt` in run settings schema
+- `src/replicate_client.py` — append `visual_style_prompt` to prompt
+- `src/static/pipeline.html` — Visual Style Prompt textarea in settings section
+- `tests/test_replicate_client.py` — prompt injection tests
+
+### Handover
+_filled on completion_
+
+---
+
+## [S13-S5] Global Values panel in Project Settings
+**Epic:** E19 — Creative Draft Architecture
+**Sprint:** 13
+**Status:** planned
+**Priority:** medium
+**Points:** 3
+**Depends on:** S13-S4
+
+### Goal
+Replace the current collapsible storyboard settings header (S8-S4) with a comprehensive "Global Values" panel that consolidates every project-level configuration value. Duration is auto-populated from the Deepgram alignment result. Visual Style Prompt (S13-S4) is included as an editable field.
+
+### Acceptance Criteria
+- [ ] Panel labelled "Global Values" shows: Aspect Ratio, Visual Style (enum), Visual Style Prompt (editable textarea), Duration (from `alignment.json` total word span — read-only), Rhythm (placeholder "—"), Subtitles, Music
+- [ ] Editable fields: Visual Style Prompt, Visual Style enum, Aspect Ratio
+- [ ] Duration auto-populated when alignment step is complete; shows "—" before alignment
+- [ ] All values survive page reload (loaded from run config)
+- [ ] Replaces the S8-S4 collapsible header — same data, better layout
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: duration extraction from `alignment.json`; all run config fields round-trip correctly
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/static/pipeline.html` — Global Values panel; duration extraction from alignment artifact
+- `src/routes/settings.py` (or existing settings route) — ensure all new fields are persisted
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 14 — Storyboard UX + Source Expansion
+
+---
+
+## [S14-S1] Sticky table headers
+**Epic:** E19 — Creative Draft Architecture
+**Sprint:** 14
+**Status:** planned
+**Priority:** medium
+**Points:** 2
+**Depends on:** none
+
+### Goal
+Storyboard and assets table headers remain visible while the operator scrolls down through long scene lists.
+
+### Acceptance Criteria
+- [ ] `<thead>` in storyboard table has `position: sticky; top: 0` with appropriate z-index
+- [ ] `<thead>` in assets table has the same sticky behaviour
+- [ ] Horizontal scroll still works; sticky header does not break layout at any viewport width
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] No existing test regressions
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S14-S2] Rename ID → Scene; hide Fallback Query column
+**Epic:** E19 — Creative Draft Architecture
+**Sprint:** 14
+**Status:** planned
+**Priority:** low
+**Points:** 1
+**Depends on:** none
+
+### Goal
+Two small storyboard table cleanup items: rename the ID column header to "Scene", and remove the Fallback Query column from the UI. The `fallback_query` field is retained in the backend data model and used by the acquisition orchestrator.
+
+### Acceptance Criteria
+- [ ] Column header reads "Scene" (was "ID")
+- [ ] `fallback_query` column not rendered in the storyboard table
+- [ ] `fallback_query` field remains in `ManifestEntry` schema and acquisition logic unchanged
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] No existing test regressions
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S14-S3] Pixabay as second stock source
+**Epic:** E20 — Stock Source Expansion
+**Sprint:** 14
+**Status:** planned
+**Priority:** high
+**Points:** 4
+**Depends on:** S13-S3
+
+### Goal
+Add Pixabay as a parallel stock footage/photo source. When Pexels returns no usable result for a scene, Pixabay is tried before falling back to Replicate. The acquisition chain for `stock` mode becomes: Pexels → Pixabay → Replicate.
+
+### Acceptance Criteria
+- [ ] `src/pixabay.py` — `PixabayClient(api_key)` with `acquire_for_entry(entry, run_id, storage) → Optional[PixabayAcquireResult]`; queries videos API for `hard_cut`, photos API for `still_with_motion`/`animated`
+- [ ] `PIXABAY_API_KEY` ENV var in `config.py` and `ENV.md`
+- [ ] Acquisition orchestrator updated: Pexels miss → Pixabay → Replicate (for `stock` mode)
+- [ ] `ManifestEntry.source` gains `"pixabay"` as a valid value
+- [ ] Handles Pixabay API errors gracefully; falls through to next source
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: Pixabay API mocked; fallback chain covered (Pexels hit, Pexels miss → Pixabay hit, both miss → Replicate)
+- [ ] DECISIONS.md entry for Pixabay added
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/pixabay.py` — new
+- `src/acquisition.py` — extend fallback chain
+- `src/models.py` — `PixabayAcquireResult`; `source` field gains "pixabay"
+- `src/exceptions.py` — `PixabayError`
+- `src/config.py` — `PIXABAY_API_KEY`
+- `ENV.md` — document `PIXABAY_API_KEY`
+- `DECISIONS.md` — Pixabay source rationale
+- `tests/test_pixabay.py` — new
+- `tests/test_acquisition.py` — updated chain tests
+
+### Handover
+_filled on completion_
+
+---
+
+## [S14-S4] AI-driven source type classification
+**Epic:** E20 — Stock Source Expansion
+**Sprint:** 14
+**Status:** planned
+**Priority:** high
+**Points:** 4
+**Depends on:** S14-S3
+
+### Goal
+During storyboard generation, Claude classifies each scene as `realistic_stock` or `historic_archival` based on script context. For historic scenes, Wikimedia Commons becomes the primary source; Pexels and Pixabay are fallbacks. For realistic scenes the chain is unchanged. This happens automatically — the operator does not choose.
+
+### Acceptance Criteria
+- [ ] Storyboard prompt updated: each scene must include `"source_type": "realistic_stock" | "historic_archival"`
+- [ ] `StoryboardScene.source_type` field added to model
+- [ ] `ManifestEntry.source_type` propagated from storyboard during manifest generation
+- [ ] `src/wikimedia.py` — `WikimediaClient` with `acquire_for_entry(entry, run_id, storage) → Optional[WikimediaAcquireResult]`; searches Wikimedia Commons API by `primary_query`
+- [ ] Acquisition orchestrator: `historic_archival` → Wikimedia → Pexels → Pixabay (no Replicate — AI generation is inappropriate for archival scenes); `realistic_stock` → Pexels → Pixabay → Replicate
+- [ ] `asset_mode` (S13-S3) overrides `source_type` — if operator manually selects "AI Generated", Replicate is used regardless of `source_type`
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: prompt classification field present in parsed output; both acquisition chains covered; `asset_mode` override tested
+- [ ] DECISIONS.md entry for Wikimedia + source_type routing
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/storyboard.py` — prompt update (bump version); `StoryboardScene.source_type`
+- `docs/PROMPTS.md` — new prompt version changelog
+- `src/wikimedia.py` — new
+- `src/manifest.py` — propagate `source_type`
+- `src/models.py` — `WikimediaAcquireResult`; `source_type` fields
+- `src/exceptions.py` — `WikimediaError`
+- `src/acquisition.py` — source_type routing; asset_mode override
+- `DECISIONS.md` — D new: Wikimedia + source_type classification rationale
+- `tests/test_wikimedia.py` — new
+- `tests/test_storyboard.py` — source_type parsing tests
+- `tests/test_acquisition.py` — historic and asset_mode override tests
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 15 — Assets Overhaul + Replacement
+
+---
+
+## [S15-S1] Per-asset upload replacement
+**Epic:** E21 — Assets UX + Replacement
+**Sprint:** 15
+**Status:** planned
+**Priority:** high
+**Points:** 4
+**Depends on:** none
+
+### Goal
+Give the operator the ability to replace any acquired asset with their own file. A "Replace" button per row opens a file picker; the selected file is uploaded to R2 via presigned PUT, replacing the existing asset key. The manifest is updated so subsequent render steps use the new file.
+
+### Acceptance Criteria
+- [ ] Each asset row has a "Replace" button
+- [ ] Clicking "Replace" triggers `GET /runs/{run_id}/assets/{scene_id}/upload-url` → returns a presigned PUT URL for the replacement file
+- [ ] File is uploaded from the browser directly to R2 (same pattern as voiceover upload in E6-S3)
+- [ ] After successful upload: `PATCH /runs/{run_id}/manifest` updates the entry's `file_key` to the new R2 key and resets `source` to `"uploaded"`
+- [ ] UI shows the new asset (thumbnail or filename) after replacement
+- [ ] Replaced asset is marked in the manifest (`source: "uploaded"`) for the Project Report
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: presigned URL generation; manifest PATCH; `source: "uploaded"` persisted
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/routes/assets.py` — `GET /runs/{run_id}/assets/{scene_id}/upload-url`
+- `src/routes/manifest.py` — `PATCH /runs/{run_id}/manifest` (or extend existing)
+- `src/storage.py` — presigned PUT URL generation (may already exist from E6-S3)
+- `src/static/pipeline.html` — Replace button + file picker + upload flow in assets table
+- `tests/test_assets.py` — new presigned URL and manifest update tests
+
+### Handover
+_filled on completion_
+
+---
+
+## [S15-S2] Full description visibility in assets table
+**Epic:** E21 — Assets UX + Replacement
+**Sprint:** 15
+**Status:** planned
+**Priority:** medium
+**Points:** 2
+**Depends on:** none
+
+### Goal
+Remove all ellipsis truncation from the assets table. Description and text cells wrap to full content; row height expands automatically.
+
+### Acceptance Criteria
+- [ ] No `text-overflow: ellipsis`, `white-space: nowrap`, or `overflow: hidden` on any assets table cell
+- [ ] All description/text cells use `white-space: normal; word-wrap: break-word`
+- [ ] Row height expands with content — no fixed `height` or `max-height` on rows
+- [ ] Horizontal scroll preserved; layout does not break
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] No existing test regressions
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S15-S3] Assets table cleanup
+**Epic:** E21 — Assets UX + Replacement
+**Sprint:** 15
+**Status:** planned
+**Priority:** medium
+**Points:** 2
+**Depends on:** none
+
+### Goal
+Three small assets table improvements: add a Voice Over column showing the narration text per scene, convert asset type values to human-readable Title Case labels, and remove the Status column.
+
+### Acceptance Criteria
+- [ ] "Voice Over" column added as the second column (after Scene); shows `voiceover_line` from `storyboard.json` for the matching `scene_id`
+- [ ] Asset Type cell renders human-readable label: `still_with_motion` → "Still With Motion", `animated` → "Animated", `hard_cut` → "Hard Cut"
+- [ ] Status column removed from the rendered table
+- [ ] `voiceover_line` data joined client-side from the storyboard artifact (no backend change required)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] No existing test regressions
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 16 — Project Report + Token Tracking
+
+---
+
+## [S16-S1] Token cost tracking per Claude call
+**Epic:** E22 — Project Report + Token Tracking
+**Sprint:** 16
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** none
+
+### Goal
+Every Claude API call logs its token usage and estimated cost to `run_log.json`. The `ModelRouter` is extended to capture and persist `{step, model, input_tokens, output_tokens, cost_usd}` after each call.
+
+### Acceptance Criteria
+- [ ] `run_log.json` gains a `cost_log: list[CostEntry]` array
+- [ ] `CostEntry`: `{step: str, model: str, input_tokens: int, output_tokens: int, cost_usd: float}`
+- [ ] `ModelRouter` updated: after each call, appends `CostEntry` to `run_log.json` via `storage.append_cost_log(run_id, entry)`
+- [ ] Cost per token derived from a `MODEL_COSTS` dict in `model_router.py` (configurable; based on current Anthropic pricing)
+- [ ] Existing calls: storyboard generation, metadata generation — both captured
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: `ModelRouter` appends cost entry; `CostEntry` schema validates; cost calculation correct for known models
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S16-S2] Project Report pipeline step
+**Epic:** E22 — Project Report + Token Tracking
+**Sprint:** 16
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** S16-S1
+
+### Goal
+Add a Project Report as the final pipeline step. It aggregates token cost, asset source breakdown, render duration, video duration, word count, and scene count into a single `report.json`.
+
+### Acceptance Criteria
+- [ ] `POST /runs/{run_id}/report` — reads `run_log.json` (cost_log), `asset_manifest.json` (source breakdown), `alignment.json` (word count, duration), `storyboard.json` (scene count)
+- [ ] Output schema: `{total_cost_usd, cost_by_step, assets_by_source: {pexels, pixabay, wikimedia, replicate, uploaded}, video_duration_s, word_count, scene_count, render_duration_s}`
+- [ ] Stored at `runs/{run_id}/report.json`; `run_log.json` step `report` → `complete`
+- [ ] `PIPELINE_STEPS` gains `"report"` after `"metadata"`
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: report aggregation from mocked artifacts; all fields computed correctly
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S16-S3] Project Report UI
+**Epic:** E22 — Project Report + Token Tracking
+**Sprint:** 16
+**Status:** planned
+**Priority:** medium
+**Points:** 2
+**Depends on:** S16-S2
+
+### Goal
+Display the Project Report as the final pipeline step in the UI — a clean summary card showing cost, asset breakdown, and video stats.
+
+### Acceptance Criteria
+- [ ] "Project Report" appears as the final step in the pipeline (after Metadata)
+- [ ] Report card shows: Total AI cost (USD), cost per step breakdown, assets by source (counts), video duration, scene count, render time
+- [ ] "Generate Report" button triggers `POST /runs/{run_id}/report`
+- [ ] Card layout matches existing design system (same card style as metadata section)
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] No existing test regressions
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 17 — API-First Pipeline
+
+---
+
+## [S17-S1] Pipeline trigger endpoint
+**Epic:** E23 — External API + Webhook
+**Sprint:** 17
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** S17-S3
+
+### Goal
+`POST /api/pipeline` accepts a script and project settings, creates a run, and queues the full pipeline asynchronously. Returns immediately with a `run_id` and `status_url` so the caller can poll or wait for a webhook.
+
+### Acceptance Criteria
+- [ ] `POST /api/pipeline` body: `{script: str, project_name: str, settings: RunSettings, webhook_url: Optional[str]}`
+- [ ] Creates run via existing `POST /runs` logic
+- [ ] Queues full pipeline as a background task: alignment → storyboard → manifest → assets → ffmpeg-script → render → metadata → report
+- [ ] Returns HTTP 202: `{run_id: str, status_url: str}`
+- [ ] `webhook_url` stored in run config for use by S17-S4
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: run creation; background task kicked off; 202 response with correct fields
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S17-S2] Pipeline status + result endpoint
+**Epic:** E23 — External API + Webhook
+**Sprint:** 17
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** S17-S1
+
+### Goal
+`GET /api/pipeline/{run_id}` returns the current step-level status and a download URL when rendering is complete. The caller (N8N, etc.) can poll this until `download_url` is populated.
+
+### Acceptance Criteria
+- [ ] `GET /api/pipeline/{run_id}` returns: `{run_id, status: "running"|"complete"|"failed", steps: {step: status}, download_url: Optional[str]}`
+- [ ] `download_url` is a presigned R2 URL (1h TTL) when `render: complete`; `null` otherwise
+- [ ] Returns 404 if `run_id` unknown or not owned by the API key's scope
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: running, complete, failed states; download_url present only when render complete
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S17-S3] API key authentication
+**Epic:** E23 — External API + Webhook
+**Sprint:** 17
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** none
+
+### Goal
+All `/api/*` routes require a Bearer token. The token is set via an `API_KEY` ENV var. This is separate from the operator session cookie used by the UI.
+
+### Acceptance Criteria
+- [ ] `API_KEY: str` in `config.py` and `ENV.md`
+- [ ] FastAPI dependency `require_api_key` checks `Authorization: Bearer <API_KEY>` header on all `/api/*` routes
+- [ ] Missing or invalid token returns 401 with `{"detail": "Unauthorized"}`
+- [ ] Session cookie auth (operator UI) unaffected
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: valid key passes; missing key 401; wrong key 401; UI routes unaffected
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S17-S4] Webhook callback on render complete
+**Epic:** E23 — External API + Webhook
+**Sprint:** 17
+**Status:** planned
+**Priority:** medium
+**Points:** 1
+**Depends on:** S17-S1, S17-S2
+
+### Goal
+When a pipeline triggered via `/api/pipeline` completes rendering, POST a callback to the `webhook_url` provided at trigger time. Non-blocking — webhook failure does not affect the pipeline.
+
+### Acceptance Criteria
+- [ ] When render step completes (success or failure), POST to `webhook_url` if present in run config
+- [ ] Payload: `{run_id, status: "complete"|"failed", download_url: Optional[str]}`
+- [ ] HTTP POST uses `httpx` with a 10s timeout; failure logged but does not raise
+- [ ] Webhook not called if `webhook_url` was not provided
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: callback sent on complete; callback sent on failure; no-op when webhook_url absent; timeout does not crash pipeline
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 18 — Multi-tenant + Google OAuth
+
+---
+
+## [S18-S1] Google OAuth login
+**Epic:** E24 — Multi-tenant + Google OAuth
+**Sprint:** 18
+**Status:** planned
+**Priority:** high
+**Points:** 4
+**Depends on:** none
+
+### Goal
+Replace the single-operator password gate (S5-S5) with Google OAuth. Any Google account can log in; session stores `user_id` (Google `sub`) and email. Logout clears the session.
+
+### Acceptance Criteria
+- [ ] Google OAuth flow works end-to-end: redirect to Google → callback → session set
+- [ ] `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` ENV vars in `config.py` and `ENV.md`
+- [ ] Session cookie stores `user_id` and `email` (encrypted, same session middleware as S5-S5)
+- [ ] All pipeline routes return 302 to login when unauthenticated
+- [ ] `GET /logout` clears session and redirects to login
+- [ ] Password gate removed
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: auth middleware mocked; login success/failure; logout clears session; unauthenticated redirect
+- [ ] DECISIONS.md entry for Google OAuth choice
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S18-S2] Per-user run isolation
+**Epic:** E24 — Multi-tenant + Google OAuth
+**Sprint:** 18
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** S18-S1
+
+### Goal
+Runs in R2 are namespaced by `user_id` so each user sees only their own projects. `GET /runs` is scoped to the authenticated user. Existing single-user runs (at the old prefix) are treated as belonging to a legacy "default" user.
+
+### Acceptance Criteria
+- [ ] All R2 reads/writes use prefix `runs/{user_id}/{run_id}/`
+- [ ] `POST /runs` creates the run under the authenticated user's prefix
+- [ ] `GET /runs` lists only runs at `runs/{user_id}/`
+- [ ] All artifact endpoints (`/runs/{run_id}/...`) scope reads to `runs/{user_id}/{run_id}/`
+- [ ] Existing runs at `runs/{run_id}/` (no user prefix) accessible only to a legacy `default` user or migrated on first access
+- [ ] API key routes (`/api/*`) use a designated API user scope
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: user A cannot access user B's runs; legacy prefix fallback; API scope isolation
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [S18-S3] User registry
+**Epic:** E24 — Multi-tenant + Google OAuth
+**Sprint:** 18
+**Status:** planned
+**Priority:** low
+**Points:** 1
+**Depends on:** S18-S1
+
+### Goal
+On first login, write a lightweight user profile to R2. No admin UI required for POC.
+
+### Acceptance Criteria
+- [ ] On first successful Google OAuth login: write `users/{user_id}/profile.json` → `{user_id, email, created_at}`
+- [ ] On subsequent logins: no-op (profile already exists)
+- [ ] Profile read is non-blocking — failure does not prevent login
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: profile written on first login; not overwritten on repeat login
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
