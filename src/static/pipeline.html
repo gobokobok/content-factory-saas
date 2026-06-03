@@ -1250,7 +1250,9 @@
       musicUploaded = false;
       voMode        = 'upload';
 
-      // Clear stale VO widget state from previous project
+      // Clear stale widget state from previous project
+      const si = document.getElementById('script-input');
+      if (si) { si.value = ''; si.style.height = ''; }
       document.getElementById('vo-filename').textContent      = '';
       document.getElementById('vo-upload-status').textContent = '';
       document.getElementById('vo-upload-status').style.color = '';

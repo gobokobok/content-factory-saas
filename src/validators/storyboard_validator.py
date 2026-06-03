@@ -115,6 +115,9 @@ async def validate_storyboard(
             and "bg_music" not in e
             and "visual_style" not in e
             and " is empty" not in e
+            # Haiku incorrectly requires motion_effect for animated scenes;
+            # schema only requires it for still_with_motion.
+            and not ("animated" in e and "motion_effect" in e)
         ]
         valid = len(errors) == 0
     except (json.JSONDecodeError, KeyError, TypeError) as exc:
