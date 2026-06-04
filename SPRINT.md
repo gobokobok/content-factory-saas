@@ -385,7 +385,7 @@ _(new threshold: 3 outstanding triggers integration session)_
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| S13-S1 | Chunked storyboard generation — split script at paragraph boundaries into ~10-para chunks; run each as a separate parallel Claude call; re-number and merge into one `storyboard.json` | 5 | planned |
+| S13-S1 | Chunked storyboard generation — split script at paragraph boundaries into ~10-para chunks; run each as a separate parallel Claude call; re-number and merge into one `storyboard.json` | 5 | done |
 | S13-S2 | Parallel asset acquisition — replace sequential per-scene loop with `asyncio.gather` in batches of 20; reduces 300-scene acquisition from ~15 min to ~30 s | 3 | planned |
 | S13-S3 | Background render task + polling — decouple `POST /runs/{run_id}/render` into an async background task; add `GET /runs/{run_id}/render/status` polling endpoint; UI already polls step status so no UI changes needed | 5 | planned |
 

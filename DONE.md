@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S13-S1] Chunked storyboard generation
+**Completed:** 2026-06-04
+**Handover:**
+- `src/storyboard.py`: `_split_script_into_chunks(script, max_paragraphs) → list[str]` — splits on blank-line paragraph boundaries; returns `[script]` when within limit; last chunk absorbs remainder.
+- `src/storyboard.py`: `_slice_alignment_for_chunk(words, chunk_idx, chunks) → list[WordTimestamp]` — proportional character-count slicing; last chunk always gets remaining words.
+- `src/storyboard.py`: `_merge_storyboard_chunks(storyboards) → Storyboard` — extends all scene lists, reassigns scene IDs as contiguous integers 1…N, recomputes summary (total_scenes, total_duration_s, rhythm joined with " / "), preserves GLOBAL from first storyboard. Raises `StoryboardParseError` on empty input; returns unchanged when called with one storyboard.
+- `src/storyboard.py`: `generate_storyboard` refactored — calls `_split_script_into_chunks` first. Single-chunk path identical to previous behavior. Chunked path: `asyncio.gather(*api_calls)` fires one `_call_claude_api` per chunk in parallel; results parsed and merged before Haiku validation. No behavioral change for scripts ≤ `STORYBOARD_CHUNK_SIZE` paragraphs.
+- `src/config.py`: `STORYBOARD_CHUNK_SIZE: int = 10` added.
+- `ENV.md`: `STORYBOARD_CHUNK_SIZE` documented.
+- `DECISIONS.md`: D043 added (rationale, no new deps).
+- `tests/test_storyboard.py`: 24 new tests — `TestSplitScriptIntoChunks` (7), `TestSliceAlignmentForChunk` (6), `TestMergeStoryboardChunks` (7), `TestGenerateStoryboardChunked` (4 async via `@pytest.mark.asyncio`). 758 total passing.
+**Smoke test:** DEFERRED — requires a 30+ paragraph script submitted on Railway DEV. Verify `storyboard.json` scene count > 50 and scene IDs are contiguous in the downloaded artifact.
+**Promoted to backlog:** none
+
+---
+
 ## [S12-S3] Publishing metadata UI
 **Completed:** 2026-06-01
 **Handover:**

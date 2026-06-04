@@ -3191,7 +3191,8 @@ Status: planned for Sprint 20+. Prerequisite: Sprint 19 (multi-tenant).
 ## [S13-S1] Chunked storyboard generation
 **Epic:** E25 — Scale Foundation
 **Sprint:** 13
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-04
 **Priority:** critical
 **Points:** 5
 **Depends on:** none
@@ -3200,20 +3201,20 @@ Status: planned for Sprint 20+. Prerequisite: Sprint 19 (multi-tenant).
 Remove the ~50-scene ceiling imposed by the 8 192-token Claude output limit. Split the script at paragraph boundaries into chunks of ~10 paragraphs, run each chunk as a parallel Claude API call, then re-number and merge all scenes into a single `storyboard.json`. Alignment timestamps from `alignment.json` are sliced per-chunk so scene durations remain anchored to real audio timing.
 
 ### Acceptance Criteria
-- [ ] `_split_script_into_chunks(script, max_paragraphs=10) → list[str]` — splits on blank-line paragraph boundaries; never cuts mid-sentence; last chunk absorbs remainder
-- [ ] Each chunk is sent to Claude with its corresponding word timestamp slice from `alignment.json`
-- [ ] All chunk calls are issued concurrently via `asyncio.gather`
-- [ ] Scenes from each chunk are renumbered to be globally contiguous (chunk 1 → scenes 1–N, chunk 2 → scenes N+1–M, …)
-- [ ] Merged result passes the existing `Storyboard` Pydantic schema validation
-- [ ] Falls back to single-call path when script fits in one chunk (backward compatible)
-- [ ] `STORYBOARD_CHUNK_SIZE` ENV var (default `10`) controls paragraph count per chunk
+- [x] `_split_script_into_chunks(script, max_paragraphs=10) → list[str]` — splits on blank-line paragraph boundaries; never cuts mid-sentence; last chunk absorbs remainder
+- [x] Each chunk is sent to Claude with its corresponding word timestamp slice from `alignment.json`
+- [x] All chunk calls are issued concurrently via `asyncio.gather`
+- [x] Scenes from each chunk are renumbered to be globally contiguous (chunk 1 → scenes 1–N, chunk 2 → scenes N+1–M, …)
+- [x] Merged result passes the existing `Storyboard` Pydantic schema validation
+- [x] Falls back to single-call path when script fits in one chunk (backward compatible)
+- [x] `STORYBOARD_CHUNK_SIZE` ENV var (default `10`) controls paragraph count per chunk
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests: `_split_script_into_chunks` edge cases (short script, exact boundary, trailing blank lines); parallel call mock; renumbering logic; merge validation; single-chunk fallback
+- [x] All AC checked
+- [x] Tests: `_split_script_into_chunks` edge cases (short script, exact boundary, trailing blank lines); parallel call mock; renumbering logic; merge validation; single-chunk fallback
 - [ ] CI green
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Files to create or modify
 - `src/storyboard.py` — `_split_script_into_chunks`, `_slice_alignment_for_chunk`, `_merge_storyboard_chunks`, refactor `generate_storyboard` to use chunked path
@@ -3223,7 +3224,11 @@ Remove the ~50-scene ceiling imposed by the 8 192-token Claude output limit. Spl
 - `DECISIONS.md` — rationale for chunked generation approach
 
 ### Handover
-_filled on completion_
+- `src/storyboard.py`: `_split_script_into_chunks(script, max_paragraphs) → list[str]` — public, tested. `_slice_alignment_for_chunk(words, chunk_idx, chunks) → list[WordTimestamp]` — proportional character-count slicing. `_merge_storyboard_chunks(storyboards) → Storyboard` — contiguous renumber, recomputed summary, GLOBAL from first storyboard. `generate_storyboard` unchanged signature — chunked path transparent to callers.
+- `src/config.py`: `STORYBOARD_CHUNK_SIZE: int = 10` added.
+- `ENV.md`: `STORYBOARD_CHUNK_SIZE` documented.
+- `DECISIONS.md`: D043 added.
+- `tests/test_storyboard.py`: 24 new tests; 758 total passing.
 
 ---
 

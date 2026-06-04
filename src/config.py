@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     ELEVENLABS_API_KEY: str = ""
     ELEVENLABS_VOICE_ID: str = ""
 
+    # Storyboard chunking (S13-S1)
+    STORYBOARD_CHUNK_SIZE: int = 10
+
     # Auth (S5-S5)
     OPERATOR_PASSWORD: str
     SESSION_SECRET_KEY: str

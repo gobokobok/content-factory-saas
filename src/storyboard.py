@@ -1,5 +1,6 @@
 """Claude API storyboard generation — calls v0.8 prompt and parses response into storyboard.json."""
 
+import asyncio
 import logging
 import re
 from typing import Optional
@@ -228,6 +229,94 @@ def _format_timestamps(words: list[WordTimestamp]) -> str:
     return "\n".join(f'[{w.start_ms}ms–{w.end_ms}ms] "{w.word}"' for w in words)
 
 
+def _split_script_into_chunks(script: str, max_paragraphs: int = 10) -> list[str]:
+    """Split a voiceover script into chunks of at most max_paragraphs paragraphs.
+
+    Splits on blank-line boundaries. Returns [script] when the script fits in one
+    chunk (paragraph count ≤ max_paragraphs). The last chunk absorbs any remainder.
+    Never cuts mid-sentence because splits happen only at paragraph boundaries.
+    """
+    paragraphs = re.split(r"\n\s*\n", script.strip())
+    paragraphs = [p.strip() for p in paragraphs if p.strip()]
+
+    if len(paragraphs) <= max_paragraphs:
+        return [script.strip()]
+
+    chunks = []
+    for i in range(0, len(paragraphs), max_paragraphs):
+        chunks.append("\n\n".join(paragraphs[i : i + max_paragraphs]))
+
+    return chunks
+
+
+def _slice_alignment_for_chunk(
+    words: list[WordTimestamp],
+    chunk_idx: int,
+    chunks: list[str],
+) -> list[WordTimestamp]:
+    """Return the word timestamp slice corresponding to the chunk at chunk_idx.
+
+    Divides the global word list proportionally by each chunk's character count.
+    The last chunk always receives any remaining words to avoid truncation.
+    Returns an empty list when words is empty or all chunks have zero length.
+    """
+    if not words or not chunks:
+        return []
+
+    total_chars = sum(len(c) for c in chunks)
+    if total_chars == 0:
+        return []
+
+    cumulative = 0
+    for i, chunk in enumerate(chunks):
+        start_idx = round(cumulative / total_chars * len(words))
+        cumulative += len(chunk)
+        if i == len(chunks) - 1:
+            end_idx = len(words)
+        else:
+            end_idx = round(cumulative / total_chars * len(words))
+
+        if i == chunk_idx:
+            return words[start_idx:end_idx]
+
+    return []
+
+
+def _merge_storyboard_chunks(storyboards: list[Storyboard]) -> Storyboard:
+    """Merge multiple per-chunk storyboards into one with globally contiguous scene numbers.
+
+    Scene numbers are reassigned as 1, 2, 3 … N across all chunks.
+    The GLOBAL block from the first storyboard is preserved.
+    SUMMARY is recomputed: total_scenes = N, total_duration_s = sum of all scene durations.
+    Raises StoryboardParseError when called with an empty list.
+    """
+    if not storyboards:
+        raise StoryboardParseError("Cannot merge an empty storyboard list")
+
+    if len(storyboards) == 1:
+        return storyboards[0]
+
+    all_scenes: list[StoryboardScene] = []
+    for sb in storyboards:
+        all_scenes.extend(sb.scenes)
+
+    renumbered = [
+        scene.model_copy(update={"scene": str(i + 1)})
+        for i, scene in enumerate(all_scenes)
+    ]
+
+    total_duration = round(sum(s.duration_s for s in renumbered), 2)
+    rhythm_parts = [sb.summary.rhythm for sb in storyboards if sb.summary.rhythm]
+
+    summary = StoryboardSummary(
+        total_scenes=len(renumbered),
+        total_duration_s=total_duration,
+        rhythm=" / ".join(rhythm_parts),
+    )
+
+    return Storyboard(global_=storyboards[0].global_, scenes=renumbered, summary=summary)
+
+
 async def generate_storyboard(
     script: str,
     settings: Settings,
@@ -236,19 +325,43 @@ async def generate_storyboard(
     """
     Call Claude API with v0.8 prompt, parse, then validate with Haiku.
 
-    When word_timestamps are provided (from Deepgram alignment), they are injected into
-    the user message so Claude can derive scene durations from actual speech timing.
+    For long scripts (paragraph count > STORYBOARD_CHUNK_SIZE), splits the script
+    into chunks and runs each as a concurrent Claude call via asyncio.gather.
+    Results are renumbered and merged before validation.
+    Falls back to a single call when the script fits in one chunk.
     Model selection and cost logging go through ModelRouter so ENV overrides apply.
     Returns (storyboard, validation_result). Raises StoryboardValidationError if
     Haiku finds schema violations in the generated storyboard.
     """
+    chunks = _split_script_into_chunks(script, max_paragraphs=settings.STORYBOARD_CHUNK_SIZE)
     router = ModelRouter(settings)
     model = router.model_for(GENERATE)
-    raw_text, input_tokens, output_tokens = await _call_claude_api(
-        script, settings.ANTHROPIC_API_KEY, model, word_timestamps
-    )
-    router.log_cost(GENERATE, model, input_tokens, output_tokens)
-    storyboard = _parse_storyboard_response(raw_text)
+
+    if len(chunks) == 1:
+        raw_text, input_tokens, output_tokens = await _call_claude_api(
+            script, settings.ANTHROPIC_API_KEY, model, word_timestamps
+        )
+        router.log_cost(GENERATE, model, input_tokens, output_tokens)
+        storyboard = _parse_storyboard_response(raw_text)
+    else:
+        api_calls = [
+            _call_claude_api(
+                chunk,
+                settings.ANTHROPIC_API_KEY,
+                model,
+                _slice_alignment_for_chunk(word_timestamps or [], i, chunks) or None,
+            )
+            for i, chunk in enumerate(chunks)
+        ]
+        results = await asyncio.gather(*api_calls)
+
+        chunk_storyboards = []
+        for raw_text, in_tok, out_tok in results:
+            router.log_cost(GENERATE, model, in_tok, out_tok)
+            chunk_storyboards.append(_parse_storyboard_response(raw_text))
+
+        storyboard = _merge_storyboard_chunks(chunk_storyboards)
+
     validation = await validate_storyboard(storyboard, settings.ANTHROPIC_API_KEY, router=router)
     if not validation.valid:
         error_summary = "; ".join(validation.errors)

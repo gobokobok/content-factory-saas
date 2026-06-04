@@ -9,11 +9,22 @@ from src.config import Settings, get_settings
 from src.exceptions import StoryboardAPIError, StoryboardParseError, StoryboardValidationError, StorageError
 from src.main import app
 from src.models import ValidationResult, WordTimestamp
+from src.models import (
+    Storyboard,
+    StoryboardGlobal,
+    StoryboardScene,
+    StoryboardSummary,
+    VisualPrompts,
+)
 from src.storyboard import (
+    _merge_storyboard_chunks,
     _parse_global,
     _parse_scene,
     _parse_storyboard_response,
     _parse_summary,
+    _slice_alignment_for_chunk,
+    _split_script_into_chunks,
+    generate_storyboard,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -623,3 +634,257 @@ class TestStoryboardRoute:
 
         assert response.status_code == 422
         assert "script is required" in response.json()["detail"]
+
+
+# ── Chunked storyboard helpers ────────────────────────────────────────────────
+
+
+def _make_simple_storyboard(scene_ids: list[str], duration: float = 2.0) -> Storyboard:
+    """Build a minimal Storyboard with the given scene IDs for use in merge tests."""
+    scenes = [
+        StoryboardScene(
+            scene=sid,
+            clip_type="still_with_motion",
+            duration_s=duration,
+            voiceover_line=f"Line {sid}",
+            visual_prompts=VisualPrompts(
+                primary_stk="housing market",
+                fallback_stk="house",
+                ai_generate="cinematic house photo",
+            ),
+            motion_effect="zoom_in",
+            on_screen_text=None,
+            sfx="silence",
+            sfx_timing="on cut",
+        )
+        for sid in scene_ids
+    ]
+    return Storyboard(
+        global_=StoryboardGlobal(subtitle_style="", bg_music="", visual_style=""),
+        scenes=scenes,
+        summary=StoryboardSummary(
+            total_scenes=len(scenes),
+            total_duration_s=round(len(scenes) * duration, 2),
+            rhythm="SM",
+        ),
+    )
+
+
+class TestSplitScriptIntoChunks:
+    def test_short_script_returns_single_chunk(self):
+        """A script with fewer paragraphs than max is returned as one chunk."""
+        script = "Para 1.\n\nPara 2.\n\nPara 3."
+        chunks = _split_script_into_chunks(script, max_paragraphs=10)
+        assert len(chunks) == 1
+
+    def test_exact_boundary_returns_single_chunk(self):
+        """Script with exactly max_paragraphs paragraphs fits in one chunk."""
+        paras = [f"Paragraph {i}." for i in range(10)]
+        script = "\n\n".join(paras)
+        chunks = _split_script_into_chunks(script, max_paragraphs=10)
+        assert len(chunks) == 1
+
+    def test_exceeds_boundary_splits_into_two_chunks(self):
+        """11 paragraphs with max=10 yields 2 chunks."""
+        paras = [f"Paragraph {i}." for i in range(11)]
+        script = "\n\n".join(paras)
+        chunks = _split_script_into_chunks(script, max_paragraphs=10)
+        assert len(chunks) == 2
+
+    def test_trailing_blank_lines_are_ignored(self):
+        """Trailing blank lines do not create spurious empty paragraphs."""
+        script = "Para 1.\n\nPara 2.\n\n\n"
+        chunks = _split_script_into_chunks(script, max_paragraphs=10)
+        assert len(chunks) == 1
+        assert chunks[0] == "Para 1.\n\nPara 2."
+
+    def test_chunks_contain_correct_paragraphs(self):
+        """With 25 paras and max=10, chunks partition paragraphs correctly."""
+        paras = [f"Paragraph {i}." for i in range(25)]
+        script = "\n\n".join(paras)
+        chunks = _split_script_into_chunks(script, max_paragraphs=10)
+        assert len(chunks) == 3
+        assert "Paragraph 0." in chunks[0]
+        assert "Paragraph 9." in chunks[0]
+        assert "Paragraph 10." in chunks[1]
+        assert "Paragraph 19." in chunks[1]
+        assert "Paragraph 20." in chunks[2]
+        assert "Paragraph 24." in chunks[2]
+
+    def test_last_chunk_absorbs_remainder(self):
+        """When paragraphs don't divide evenly, the last chunk is smaller."""
+        paras = [f"Para {i}." for i in range(22)]
+        script = "\n\n".join(paras)
+        chunks = _split_script_into_chunks(script, max_paragraphs=10)
+        assert len(chunks) == 3
+        last_paras = [p for p in chunks[2].split("\n\n") if p.strip()]
+        assert len(last_paras) == 2
+
+    def test_empty_script_returns_single_element(self):
+        """Empty script yields a single-element list without crashing."""
+        chunks = _split_script_into_chunks("", max_paragraphs=10)
+        assert len(chunks) == 1
+
+
+class TestSliceAlignmentForChunk:
+    def _words(self, n: int) -> list[WordTimestamp]:
+        return [
+            WordTimestamp(word=f"word{i}", start_ms=i * 100, end_ms=i * 100 + 80, confidence=0.99)
+            for i in range(n)
+        ]
+
+    def test_empty_words_returns_empty(self):
+        chunks = ["chunk A", "chunk B"]
+        result = _slice_alignment_for_chunk([], 0, chunks)
+        assert result == []
+
+    def test_empty_chunks_returns_empty(self):
+        words = self._words(10)
+        result = _slice_alignment_for_chunk(words, 0, [])
+        assert result == []
+
+    def test_single_chunk_returns_all_words(self):
+        words = self._words(10)
+        result = _slice_alignment_for_chunk(words, 0, ["full script"])
+        assert result == words
+
+    def test_two_equal_chunks_split_evenly(self):
+        words = self._words(10)
+        chunks = ["A" * 50, "B" * 50]  # equal length
+        slice0 = _slice_alignment_for_chunk(words, 0, chunks)
+        slice1 = _slice_alignment_for_chunk(words, 1, chunks)
+        assert len(slice0) + len(slice1) == len(words)
+        assert slice0[0] is words[0]
+        assert slice1[-1] is words[-1]
+
+    def test_last_chunk_always_receives_remaining_words(self):
+        """The last slice always extends to the end of the word list."""
+        words = self._words(11)
+        chunks = ["A" * 50, "B" * 50]
+        slice1 = _slice_alignment_for_chunk(words, 1, chunks)
+        assert slice1[-1] is words[-1]
+
+    def test_slices_are_non_overlapping_and_cover_all_words(self):
+        words = self._words(20)
+        chunks = ["chunk one text", "chunk two text", "chunk three text"]
+        slices = [_slice_alignment_for_chunk(words, i, chunks) for i in range(3)]
+        combined = [w for s in slices for w in s]
+        assert len(combined) == len(words)
+        assert [w.word for w in combined] == [w.word for w in words]
+
+
+class TestMergeStoryboardChunks:
+    def test_single_storyboard_returned_unchanged(self):
+        sb = _make_simple_storyboard(["1", "2"])
+        result = _merge_storyboard_chunks([sb])
+        assert result is sb
+
+    def test_scenes_renumbered_contiguously(self):
+        sb1 = _make_simple_storyboard(["1", "2", "3"])
+        sb2 = _make_simple_storyboard(["1", "2"])
+        merged = _merge_storyboard_chunks([sb1, sb2])
+        assert [s.scene for s in merged.scenes] == ["1", "2", "3", "4", "5"]
+
+    def test_total_scenes_is_sum_of_all_scenes(self):
+        sb1 = _make_simple_storyboard(["1", "2"])
+        sb2 = _make_simple_storyboard(["1", "3"])
+        merged = _merge_storyboard_chunks([sb1, sb2])
+        assert merged.summary.total_scenes == 4
+
+    def test_total_duration_is_sum_of_all_scene_durations(self):
+        sb1 = _make_simple_storyboard(["1"], duration=2.5)
+        sb2 = _make_simple_storyboard(["1", "2"], duration=1.5)
+        merged = _merge_storyboard_chunks([sb1, sb2])
+        assert merged.summary.total_duration_s == pytest.approx(2.5 + 1.5 + 1.5)
+
+    def test_global_block_from_first_storyboard(self):
+        sb1 = _make_simple_storyboard(["1"])
+        sb1.global_.visual_style = "Dark cinematic"
+        sb2 = _make_simple_storyboard(["1"])
+        sb2.global_.visual_style = "Bright"
+        merged = _merge_storyboard_chunks([sb1, sb2])
+        assert merged.global_.visual_style == "Dark cinematic"
+
+    def test_merged_result_passes_pydantic_serialization(self):
+        """Merged storyboard serialises correctly with the 'global' alias."""
+        sb1 = _make_simple_storyboard(["1", "2"])
+        sb2 = _make_simple_storyboard(["1"])
+        merged = _merge_storyboard_chunks([sb1, sb2])
+        data = merged.model_dump(by_alias=True, mode="json")
+        assert "global" in data
+        assert len(data["scenes"]) == 3
+
+    def test_empty_list_raises_parse_error(self):
+        with pytest.raises(StoryboardParseError):
+            _merge_storyboard_chunks([])
+
+
+class TestGenerateStoryboardChunked:
+    @pytest.mark.asyncio
+    async def test_single_chunk_fallback_uses_one_claude_call(self):
+        """Script with ≤10 paragraphs goes through a single Claude API call."""
+        script = "Short para 1.\n\nShort para 2."
+        settings = _make_settings()
+
+        with (
+            patch("src.storyboard._call_claude_api", new_callable=AsyncMock) as mock_api,
+            patch("src.storyboard.validate_storyboard", new_callable=AsyncMock) as mock_val,
+        ):
+            mock_api.return_value = (SAMPLE_FULL_RESPONSE, 100, 50)
+            mock_val.return_value = _MOCK_VALIDATION
+            await generate_storyboard(script, settings)
+
+        assert mock_api.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_chunked_path_issues_one_call_per_chunk(self):
+        """Script with 15 paragraphs (>10 default) issues 2 parallel Claude calls."""
+        paras = [f"Housing paragraph {i}. This text discusses housing economics." for i in range(15)]
+        script = "\n\n".join(paras)
+        settings = _make_settings()
+
+        with (
+            patch("src.storyboard._call_claude_api", new_callable=AsyncMock) as mock_api,
+            patch("src.storyboard.validate_storyboard", new_callable=AsyncMock) as mock_val,
+        ):
+            mock_api.return_value = (SAMPLE_FULL_RESPONSE, 100, 50)
+            mock_val.return_value = _MOCK_VALIDATION
+            await generate_storyboard(script, settings)
+
+        assert mock_api.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_chunked_renumbers_scenes_contiguously(self):
+        """Merged result has scene IDs 1 … N with no gaps."""
+        paras = [f"Para {i}." for i in range(15)]
+        script = "\n\n".join(paras)
+        settings = _make_settings()
+
+        with (
+            patch("src.storyboard._call_claude_api", new_callable=AsyncMock) as mock_api,
+            patch("src.storyboard.validate_storyboard", new_callable=AsyncMock) as mock_val,
+        ):
+            # SAMPLE_FULL_RESPONSE has 2 scenes; both chunks return it → 4 total scenes
+            mock_api.return_value = (SAMPLE_FULL_RESPONSE, 100, 50)
+            mock_val.return_value = _MOCK_VALIDATION
+            storyboard, _ = await generate_storyboard(script, settings)
+
+        scene_ids = [s.scene for s in storyboard.scenes]
+        assert scene_ids == [str(i) for i in range(1, len(scene_ids) + 1)]
+
+    @pytest.mark.asyncio
+    async def test_chunk_size_env_var_controls_split(self):
+        """STORYBOARD_CHUNK_SIZE=5 causes a 6-paragraph script to split into 2 chunks."""
+        paras = [f"Para {i}." for i in range(6)]
+        script = "\n\n".join(paras)
+        settings = _make_settings(STORYBOARD_CHUNK_SIZE=5)
+
+        with (
+            patch("src.storyboard._call_claude_api", new_callable=AsyncMock) as mock_api,
+            patch("src.storyboard.validate_storyboard", new_callable=AsyncMock) as mock_val,
+        ):
+            mock_api.return_value = (SAMPLE_FULL_RESPONSE, 100, 50)
+            mock_val.return_value = _MOCK_VALIDATION
+            await generate_storyboard(script, settings)
+
+        assert mock_api.call_count == 2

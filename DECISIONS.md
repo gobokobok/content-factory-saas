@@ -5,6 +5,19 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D043 — Chunked parallel storyboard generation (S13-S1)
+**Date:** 2026-06-04
+**Decision:** When a script exceeds `STORYBOARD_CHUNK_SIZE` paragraphs (default 10), split it into chunks at blank-line boundaries and call Claude concurrently for each chunk via `asyncio.gather`. Merge and renumber results before Haiku validation.
+**Rationale:**
+- Claude's `max_tokens=8192` cap means a 30-paragraph script (~50+ scenes) will be silently truncated mid-storyboard. Chunking removes this ceiling entirely.
+- Parallel calls (asyncio.gather) keep wall-clock latency proportional to the longest single chunk, not the total script length.
+- Splitting at blank-line paragraph boundaries guarantees no sentence is cut mid-phrase — each chunk is a coherent segment of the script.
+- Alignment timestamps are sliced proportionally by character count per chunk so scene durations remain anchored to real audio timing even in the chunked path.
+- Single-chunk path is preserved exactly — no behavioral change for scripts ≤ STORYBOARD_CHUNK_SIZE paragraphs.
+**No new dependencies** — uses only stdlib `asyncio`.
+
+---
+
 ## D042 — Inngest as durable workflow engine for Sprint 20+
 **Date:** 2026-06-04
 **Decision:** When the pipeline transitions from human-triggered steps to autonomous multi-agent orchestration (Sprint 20+), the orchestration layer will be **Inngest** (managed durable workflow engine).
