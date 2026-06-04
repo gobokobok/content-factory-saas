@@ -966,7 +966,6 @@
       </div>
 
       <div class="cta-area">
-        <div id="input-step-progress" class="step-progress" style="display:none;"></div>
         <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
           <button class="btn btn-secondary" id="save-draft-btn" disabled onclick="saveDraft()">
             Save Draft
@@ -990,7 +989,6 @@
       </div>
 
       <div class="cta-area" id="storyboard-cta-area" style="display:none;">
-        <div id="storyboard-step-progress" class="step-progress" style="display:none;"></div>
         <button class="btn btn-primary" id="create-storyboard-btn" onclick="runStoryboard()">
           Create Storyboard
         </button>
@@ -1007,7 +1005,6 @@
       </div>
 
       <div class="cta-area" id="assets-cta-area" style="display:none;">
-        <div id="assets-step-progress" class="step-progress" style="display:none;"></div>
         <button class="btn btn-primary" id="run-acquisition-btn" onclick="runAssetAcquisition()">
           Run Asset Acquisition
         </button>
@@ -1022,7 +1019,6 @@
         <div class="state-empty">No video yet — acquire assets first.</div>
       </div>
       <div class="cta-area" id="render-cta-area" style="display:none;">
-        <div id="render-step-progress" class="step-progress" style="display:none;"></div>
         <button class="btn btn-primary" id="render-btn" onclick="runRenderVideo()">
           Render Video
         </button>
@@ -2087,7 +2083,7 @@
         body: JSON.stringify({ project_name: draftName, script }),
       }).catch(() => {});
 
-      const progressEl = document.getElementById('input-step-progress');
+      const progressEl = document.createElement('div'); // off-DOM — sub-steps not shown to user
       const errorEl    = document.getElementById('input-error');
       errorEl.style.display = 'none';
       document.getElementById('save-draft-status').textContent = '';
@@ -2115,7 +2111,7 @@
 
     // ─── CTA: Create Storyboard ───────────────────────────────────────────────
     async function runStoryboard() {
-      const progressEl = document.getElementById('storyboard-step-progress');
+      const progressEl = document.createElement('div'); // off-DOM — sub-steps not shown to user
       const errorEl    = document.getElementById('storyboard-error');
       errorEl.style.display = 'none';
 
@@ -2155,7 +2151,7 @@
 
     // ─── CTA: Run Asset Acquisition (manifest → asset_acquisition) ───────────
     async function runAssetAcquisition() {
-      const progressEl = document.getElementById('assets-step-progress');
+      const progressEl = document.createElement('div'); // off-DOM — sub-steps not shown to user
       const errorEl    = document.getElementById('assets-error');
       errorEl.style.display = 'none';
 
@@ -2181,7 +2177,7 @@
 
     // ─── CTA: Render Video (ffmpeg-script → render) ───────────────────────────
     async function runRenderVideo() {
-      const progressEl = document.getElementById('render-step-progress');
+      const progressEl = document.createElement('div'); // off-DOM — sub-steps not shown to user
       const errorEl    = document.getElementById('render-error');
       errorEl.style.display = 'none';
 
