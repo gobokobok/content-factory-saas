@@ -260,6 +260,22 @@ class RenderResponse(BaseModel):
     exit_code: int
 
 
+class RenderAcceptedResponse(BaseModel):
+    """202 response body for POST /runs/{run_id}/render."""
+
+    status: str  # always "running"
+    poll_url: str
+
+
+class RenderStatusResponse(BaseModel):
+    """Response body for GET /runs/{run_id}/render/status."""
+
+    status: str  # "running" | "complete" | "failed"
+    progress_pct: int
+    output_key: Optional[str] = None
+    error: Optional[str] = None
+
+
 class WordTimestamp(BaseModel):
     """Word-level timestamp entry produced by Deepgram alignment or proportional fallback."""
 

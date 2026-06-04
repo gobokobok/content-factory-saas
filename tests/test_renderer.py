@@ -1,8 +1,8 @@
-"""Tests for src/renderer.py and the POST /runs/{run_id}/render route."""
+"""Tests for src/renderer.py and the render routes."""
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -639,35 +639,35 @@ _FAILED_RESULT = {
 }
 
 _MANIFEST_DATA = {"run_id": RUN_ID, "entries": []}
+_STORYBOARD_DATA = {"summary": {"total_duration_s": 60, "total_scenes": 3, "rhythm": "fast"}}
 
 
 class TestRenderRoute:
-    def test_success_returns_200_with_complete_body(self, client):
+    def _mock_get_json(self, manifest_data=_MANIFEST_DATA, storyboard_data=None):
+        """Return side_effect list for storage.get_json: manifest first, then storyboard."""
+        sd = storyboard_data or _STORYBOARD_DATA
+
+        def _get_json(key):
+            if "asset_manifest" in key:
+                return manifest_data
+            if "storyboard" in key:
+                return sd
+            raise StorageError("unknown key")
+
+        return _get_json
+
+    def test_returns_202_accepted(self, client):
         with (
             patch("src.routes.render.R2Client") as MockR2,
             patch("src.routes.render.render_run", return_value=_SUCCESS_RESULT),
         ):
-            MockR2.return_value.get_json.return_value = _MANIFEST_DATA
+            MockR2.return_value.get_json.side_effect = self._mock_get_json()
             resp = client.post(f"/runs/{RUN_ID}/render")
 
-        assert resp.status_code == 200
+        assert resp.status_code == 202
         body = resp.json()
-        assert body["status"] == "complete"
-        assert body["output_key"] == f"runs/{RUN_ID}/output/final.mp4"
-        assert body["exit_code"] == 0
-        assert body["duration_seconds"] == 12.34
-
-    def test_failed_render_returns_200_with_failed_status(self, client):
-        with (
-            patch("src.routes.render.R2Client") as MockR2,
-            patch("src.routes.render.render_run", return_value=_FAILED_RESULT),
-        ):
-            MockR2.return_value.get_json.return_value = _MANIFEST_DATA
-            resp = client.post(f"/runs/{RUN_ID}/render")
-
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "failed"
-        assert resp.json()["exit_code"] == 1
+        assert body["status"] == "running"
+        assert body["poll_url"] == f"/runs/{RUN_ID}/render/status"
 
     def test_manifest_not_found_returns_404(self, client):
         with patch("src.routes.render.R2Client") as MockR2:
@@ -677,23 +677,14 @@ class TestRenderRoute:
         assert resp.status_code == 404
         assert "missing-run" in resp.json()["detail"]
 
-    def test_storage_error_in_render_returns_500(self, client):
-        with (
-            patch("src.routes.render.R2Client") as MockR2,
-            patch("src.routes.render.render_run", side_effect=StorageError("R2 down")),
-        ):
-            MockR2.return_value.get_json.return_value = _MANIFEST_DATA
-            resp = client.post(f"/runs/{RUN_ID}/render")
-
-        assert resp.status_code == 500
-
-    def test_run_log_updated_complete_on_success(self, client):
+    def test_background_task_updates_run_log_on_success(self, client):
+        """TestClient runs background tasks synchronously before returning the response."""
         with (
             patch("src.routes.render.R2Client") as MockR2,
             patch("src.routes.render.render_run", return_value=_SUCCESS_RESULT),
         ):
             mock_storage = MockR2.return_value
-            mock_storage.get_json.return_value = _MANIFEST_DATA
+            mock_storage.get_json.side_effect = self._mock_get_json()
             client.post(f"/runs/{RUN_ID}/render")
 
         mock_storage.update_run_log.assert_called_once_with(
@@ -704,13 +695,13 @@ class TestRenderRoute:
             error=None,
         )
 
-    def test_run_log_updated_failed_with_error_message(self, client):
+    def test_background_task_updates_run_log_on_failure(self, client):
         with (
             patch("src.routes.render.R2Client") as MockR2,
             patch("src.routes.render.render_run", return_value=_FAILED_RESULT),
         ):
             mock_storage = MockR2.return_value
-            mock_storage.get_json.return_value = _MANIFEST_DATA
+            mock_storage.get_json.side_effect = self._mock_get_json()
             client.post(f"/runs/{RUN_ID}/render")
 
         mock_storage.update_run_log.assert_called_once_with(
@@ -720,3 +711,166 @@ class TestRenderRoute:
             output_url=None,
             error="FFmpeg exit code 1",
         )
+
+    def test_storage_error_in_background_task_marks_failed(self, client):
+        """StorageError during render is caught by background task — status endpoint shows failed."""
+        import src.renderer as renderer_module
+
+        with (
+            patch("src.routes.render.R2Client") as MockR2,
+            patch("src.routes.render.render_run", side_effect=StorageError("R2 down")),
+        ):
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = self._mock_get_json()
+            client.post(f"/runs/{RUN_ID}/render")
+
+        assert renderer_module._RENDER_STATE.get(RUN_ID, {}).get("status") == "failed"
+
+    def test_total_frames_derived_from_storyboard(self, client):
+        """render_run is called with total_frames = total_duration_s * 25."""
+        with (
+            patch("src.routes.render.R2Client") as MockR2,
+            patch("src.routes.render.render_run", return_value=_SUCCESS_RESULT) as mock_rr,
+        ):
+            mock_storage = MockR2.return_value
+            # storyboard has 60s → 1500 frames
+            mock_storage.get_json.side_effect = self._mock_get_json(
+                storyboard_data={"summary": {"total_duration_s": 60}}
+            )
+            client.post(f"/runs/{RUN_ID}/render")
+
+        _, kwargs = mock_rr.call_args
+        assert kwargs.get("total_frames", mock_rr.call_args[0][4] if len(mock_rr.call_args[0]) > 4 else 0) == 1500
+
+    def test_total_frames_defaults_to_zero_when_storyboard_missing(self, client):
+        """Missing storyboard does not block render — total_frames falls back to 0."""
+        with (
+            patch("src.routes.render.R2Client") as MockR2,
+            patch("src.routes.render.render_run", return_value=_SUCCESS_RESULT) as mock_rr,
+        ):
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = lambda key: (
+                _MANIFEST_DATA if "asset_manifest" in key else (_ for _ in ()).throw(StorageError("missing"))
+            )
+            client.post(f"/runs/{RUN_ID}/render")
+
+        assert mock_rr.called
+
+
+# ── render/status endpoint ─────────────────────────────────────────────────────
+
+
+class TestRenderStatusRoute:
+    def test_returns_running_while_task_in_progress(self, client):
+        """Manually set state to running and confirm the endpoint reflects it."""
+        import src.renderer as renderer_module
+
+        renderer_module._RENDER_STATE[RUN_ID] = {
+            "status": "running",
+            "progress_pct": 0,
+            "output_key": None,
+            "error": None,
+        }
+        resp = client.get(f"/runs/{RUN_ID}/render/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "running"
+        assert body["progress_pct"] == 0
+
+    def test_returns_complete_after_successful_render(self, client):
+        import src.renderer as renderer_module
+
+        renderer_module._RENDER_STATE[RUN_ID] = {
+            "status": "complete",
+            "progress_pct": 100,
+            "output_key": f"runs/{RUN_ID}/output/final.mp4",
+            "error": None,
+        }
+        resp = client.get(f"/runs/{RUN_ID}/render/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "complete"
+        assert body["progress_pct"] == 100
+        assert body["output_key"] == f"runs/{RUN_ID}/output/final.mp4"
+        assert body["error"] is None
+
+    def test_returns_failed_with_error_message(self, client):
+        import src.renderer as renderer_module
+
+        renderer_module._RENDER_STATE[RUN_ID] = {
+            "status": "failed",
+            "progress_pct": 0,
+            "output_key": None,
+            "error": "FFmpeg exit code 1",
+        }
+        resp = client.get(f"/runs/{RUN_ID}/render/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "failed"
+        assert body["error"] == "FFmpeg exit code 1"
+
+    def test_returns_404_when_no_render_started(self, client):
+        import src.renderer as renderer_module
+
+        renderer_module._RENDER_STATE.pop("nonexistent-run", None)
+        resp = client.get("/runs/nonexistent-run/render/status")
+        assert resp.status_code == 404
+
+    def test_status_reflects_state_set_by_post(self, client):
+        """Full round-trip: POST → 202 then GET /status → complete."""
+        with (
+            patch("src.routes.render.R2Client") as MockR2,
+            patch("src.routes.render.render_run", return_value=_SUCCESS_RESULT),
+        ):
+            mock_storage = MockR2.return_value
+            mock_storage.get_json.side_effect = lambda key: (
+                _MANIFEST_DATA if "asset_manifest" in key else _STORYBOARD_DATA
+            )
+            client.post(f"/runs/{RUN_ID}/render")
+
+        resp = client.get(f"/runs/{RUN_ID}/render/status")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "complete"
+
+
+# ── parse_ffmpeg_progress ──────────────────────────────────────────────────────
+
+
+class TestParseFfmpegProgress:
+    def test_returns_0_when_total_frames_zero(self):
+        from src.renderer import parse_ffmpeg_progress
+
+        assert parse_ffmpeg_progress("frame=  500", 0) == 0
+
+    def test_returns_0_when_no_frame_line(self):
+        from src.renderer import parse_ffmpeg_progress
+
+        assert parse_ffmpeg_progress("no progress info here", 1000) == 0
+
+    def test_parses_frame_count_correctly(self):
+        from src.renderer import parse_ffmpeg_progress
+
+        # 250 frames out of 1000 = 25%
+        assert parse_ffmpeg_progress("frame=  250 fps=25 q=...", 1000) == 25
+
+    def test_uses_last_frame_line(self):
+        from src.renderer import parse_ffmpeg_progress
+
+        stderr = "frame=  100 fps=25\nframe=  500 fps=25"
+        assert parse_ffmpeg_progress(stderr, 1000) == 50
+
+    def test_caps_at_99_never_returns_100(self):
+        from src.renderer import parse_ffmpeg_progress
+
+        # Completion is signalled by status=complete, not progress_pct=100
+        assert parse_ffmpeg_progress("frame= 1000 fps=25", 1000) == 99
+
+    def test_handles_no_spaces_around_equals(self):
+        from src.renderer import parse_ffmpeg_progress
+
+        assert parse_ffmpeg_progress("frame=750", 1000) == 75
+
+    def test_returns_0_when_total_frames_negative(self):
+        from src.renderer import parse_ffmpeg_progress
+
+        assert parse_ffmpeg_progress("frame=500", -1) == 0

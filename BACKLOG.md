@@ -3277,7 +3277,8 @@ Replace the sequential per-scene acquisition loop with batched `asyncio.gather`.
 ## [S13-S3] Background render task + polling
 **Epic:** E25 — Scale Foundation
 **Sprint:** 13
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-05
 **Priority:** high
 **Points:** 5
 **Depends on:** none
@@ -3308,7 +3309,12 @@ Decouple the render step from Railway's ~60s HTTP request timeout. `POST /runs/{
 - `DECISIONS.md` — background task rationale vs job queue
 
 ### Handover
-_filled on completion_
+- `src/renderer.py`: `_RENDER_STATE: dict[str, dict]` module-level dict keyed by run_id. `parse_ffmpeg_progress(stderr_text, total_frames) → int` — finds last `frame=N` in accumulated ffmpeg stderr; returns 0–99 (never 100, capped to avoid confusion with completion); falls back to 0 when `total_frames <= 0` or no match. `render_run` gains `total_frames: int = 0` parameter; sets `_RENDER_STATE[run_id]` to `running` at start and `complete/failed` at end with `progress_pct` derived from parsed stderr.
+- `src/routes/render.py`: rewritten. `POST /runs/{run_id}/render` is now `async`, returns HTTP 202 `{status: "running", poll_url: "/runs/{run_id}/render/status"}`. Fetches storyboard to derive `total_frames = int(total_duration_s * 25)`; falls back to 0 on `StorageError`. Initialises `_RENDER_STATE[run_id]` before returning 202 (so status endpoint never 404s in the gap before the task starts). Registers `_background_render` via `background_tasks.add_task`. `_background_render` is async and calls `await asyncio.to_thread(render_run, ...)` to keep the event loop unblocked. Also writes final state to `_RENDER_STATE` (for correctness when `render_run` is mocked in tests), then updates `run_log.json` and calls `pipeline.summarize_step`. `GET /runs/{run_id}/render/status` reads `_RENDER_STATE` and returns `RenderStatusResponse`; 404 if run_id not present.
+- `src/models.py`: `RenderAcceptedResponse(status, poll_url)` and `RenderStatusResponse(status, progress_pct, output_key?, error?)` added. `RenderResponse` retained for backwards compat.
+- `DECISIONS.md`: D044 added.
+- `tests/test_renderer.py`: `TestRenderRoute` updated — POST now asserts 202; two new tests assert `update_run_log` call via background task; storage-error test checks `_RENDER_STATE` instead of HTTP 500; two total_frames derivation tests added. `TestRenderStatusRoute` (5 tests): running/complete/failed states, 404 unknown run, round-trip POST→GET. `TestParseFfmpegProgress` (7 tests). 775 total passing.
+- **Smoke test:** DEFERRED — requires Railway DEV deploy. POST to `/runs/{run_id}/render`; confirm 202 received immediately; poll `GET /runs/{run_id}/render/status` until status=complete; download video.
 
 ---
 

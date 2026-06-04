@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S13-S3] Background render task + polling
+**Completed:** 2026-06-05
+**Handover:**
+- `src/renderer.py`: `_RENDER_STATE: dict[str, dict]` module-level dict keyed by run_id. `parse_ffmpeg_progress(stderr_text, total_frames) → int` — finds last `frame=N` in accumulated ffmpeg stderr; returns 0–99 (capped; never 100 — completion signalled by `status="complete"`); falls back to 0 when `total_frames <= 0` or no match. `render_run` gains `total_frames: int = 0` param; initialises and finalises `_RENDER_STATE[run_id]`.
+- `src/routes/render.py`: fully rewritten. `POST /runs/{run_id}/render` async, returns HTTP 202 `{status: "running", poll_url}` immediately. Route reads storyboard for `total_frames` (fallback 0), initialises state, registers `_background_render` via `BackgroundTasks`. `_background_render` is async, calls `await asyncio.to_thread(render_run, ...)`, then writes final `_RENDER_STATE`, updates `run_log.json`, and calls `pipeline.summarize_step`. `GET /runs/{run_id}/render/status` reads `_RENDER_STATE`; 404 if not started.
+- `src/models.py`: `RenderAcceptedResponse(status, poll_url)` and `RenderStatusResponse(status, progress_pct, output_key?, error?)` added.
+- `DECISIONS.md`: D044 added (BackgroundTasks rationale vs job queue).
+- `tests/test_renderer.py`: route tests updated for 202; `TestRenderStatusRoute` (5 tests), `TestParseFfmpegProgress` (7 tests) added. 775 total passing.
+**Smoke test:** DEFERRED — POST to `/runs/{run_id}/render` on Railway DEV; confirm immediate 202; poll `GET /runs/{run_id}/render/status` until `status=complete`; download video.
+**Promoted to backlog:** none
+
+---
+
 ## [S13-S2] Parallel asset acquisition
 **Completed:** 2026-06-05
 **Handover:**

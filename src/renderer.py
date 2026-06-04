@@ -1,6 +1,7 @@
 """FFmpeg renderer — downloads assets from R2, executes ffmpeg_script.sh, uploads output."""
 
 import logging
+import re
 import shutil
 import subprocess
 import time
@@ -13,6 +14,25 @@ from src.models import AssetManifest
 from src.storage import R2Client
 
 logger = logging.getLogger(__name__)
+
+# In-process render state, keyed by run_id.  Persists across requests within a
+# single Railway deployment instance — sufficient for single-operator POC use.
+_RENDER_STATE: dict[str, dict] = {}
+
+
+def parse_ffmpeg_progress(stderr_text: str, total_frames: int) -> int:
+    """
+    Parse the last frame= line from accumulated ffmpeg stderr text.
+
+    Returns 0–99 (never 100 — completion is signalled by status="complete").
+    Returns 0 if total_frames <= 0 or no frame= line is found (fallback).
+    """
+    if total_frames <= 0:
+        return 0
+    matches = re.findall(r"frame=\s*(\d+)", stderr_text)
+    if not matches:
+        return 0
+    return min(99, int(int(matches[-1]) * 100 / total_frames))
 
 
 def download_asset(key: str, run_id: str, storage: R2Client) -> None:
@@ -144,14 +164,23 @@ def render_run(
     manifest: AssetManifest,
     storage: R2Client,
     timeout_seconds: int,
+    total_frames: int = 0,
 ) -> dict:
     """
     Full render pipeline: download assets → execute ffmpeg_script.sh → upload output → cleanup.
 
+    Updates _RENDER_STATE[run_id] at start (running) and on completion (complete/failed).
     Returns a dict with keys: status, output_key, duration_seconds, exit_code.
     Always deletes /tmp/{run_id}/ in a finally block regardless of outcome.
     Raises StorageError on unexpected R2 failures (download or upload).
     """
+    _RENDER_STATE[run_id] = {
+        "status": "running",
+        "progress_pct": 0,
+        "output_key": None,
+        "error": None,
+    }
+
     start = time.monotonic()
     exit_code = -1
     output_key: Optional[str] = None
@@ -189,6 +218,15 @@ def render_run(
     logger.info(
         "Render %s: run=%s duration=%.2fs exit_code=%d", status, run_id, duration, exit_code
     )
+
+    progress_pct = 100 if status == "complete" else parse_ffmpeg_progress(ffmpeg_output, total_frames)
+    error_msg = None if status == "complete" else f"FFmpeg exit code {exit_code}"
+    _RENDER_STATE[run_id] = {
+        "status": status,
+        "progress_pct": progress_pct,
+        "output_key": output_key or None,
+        "error": error_msg,
+    }
 
     return {
         "status": status,

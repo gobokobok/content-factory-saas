@@ -5,6 +5,15 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D044 — FastAPI BackgroundTasks for render decoupling (S13-S3)
+**Date:** 2026-06-05
+**Decision:** Use `fastapi.BackgroundTasks` to decouple `POST /runs/{run_id}/render` from Railway's HTTP request timeout. The route returns 202 immediately; the render executes in a background task via `asyncio.to_thread` (blocking subprocess kept off the event loop). An in-process `_RENDER_STATE` dict tracks status per run_id; `GET /runs/{run_id}/render/status` exposes it for polling.
+**Rationale:** Railway's free-tier HTTP timeout (~60 s) is shorter than a typical FFmpeg render. A job queue (Redis + Celery/RQ) adds operational complexity and cost that is unjustified for a single-operator POC on a single Railway instance. `BackgroundTasks` requires zero new dependencies and survives the current single-process deployment model.
+**Limitations:** In-process state is lost on Railway redeploy/restart — the status endpoint returns 404 for runs started before the restart. Acceptable for POC; a durable state store (Redis, R2 polling) can replace `_RENDER_STATE` in a future sprint without changing the API contract.
+**No new dependencies added.**
+
+---
+
 ## D043 — Chunked parallel storyboard generation (S13-S1)
 **Date:** 2026-06-04
 **Decision:** When a script exceeds `STORYBOARD_CHUNK_SIZE` paragraphs (default 10), split it into chunks at blank-line boundaries and call Claude concurrently for each chunk via `asyncio.gather`. Merge and renumber results before Haiku validation.
