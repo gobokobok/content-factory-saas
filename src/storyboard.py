@@ -280,7 +280,7 @@ async def _call_claude_api(
     try:
         message = await client.messages.create(
             model=model,
-            max_tokens=4096,
+            max_tokens=8192,
             system=[
                 {
                     "type": "text",
