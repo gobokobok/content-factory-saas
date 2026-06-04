@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S13-S2] Parallel asset acquisition
+**Completed:** 2026-06-05
+**Handover:**
+- `src/acquisition.py`: `run_acquisition` is now `async`. Pending entries filtered up front, then processed in batches of `batch_size` (default 20) via `asyncio.gather(*[asyncio.to_thread(acquire_scene, ...) for entry in batch], return_exceptions=True)`. Per-scene exceptions caught inside the gather result loop — entry marked `failed`, batch continues uninterrupted. `acquire_scene` remains synchronous (sync core, easy to unit-test).
+- `src/routes/assets.py`: route is now `async def acquire_assets`; calls `await run_acquisition(..., batch_size=settings.ACQUISITION_BATCH_SIZE)`.
+- `src/config.py`: `ACQUISITION_BATCH_SIZE: int = 20` added.
+- `ENV.md`: `ACQUISITION_BATCH_SIZE` documented in Pipeline config table.
+- `tests/test_acquisition.py`: all `TestRunAcquisition` unit tests upgraded to `@pytest.mark.asyncio`; route tests use `new_callable=AsyncMock`; `TestRunAcquisitionBatching` class (4 tests: batch grouping, partial failure isolation, batch-size-1 sequential fallback, idempotent mixed-state). 762 total passing.
+- No new pip dependencies.
+**Smoke test:** DEFERRED — requires POST /runs/{run_id}/assets on Railway DEV with a 50+ scene manifest. Confirm acquisition completes in under 60 s and all scenes are acquired or explicitly failed with no partial hangs.
+**Promoted to backlog:** none
+
+---
+
 ## [S13-S1] Chunked storyboard generation
 **Completed:** 2026-06-04
 **Handover:**

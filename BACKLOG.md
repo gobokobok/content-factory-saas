@@ -3235,7 +3235,8 @@ Remove the ~50-scene ceiling imposed by the 8 192-token Claude output limit. Spl
 ## [S13-S2] Parallel asset acquisition
 **Epic:** E25 — Scale Foundation
 **Sprint:** 13
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-06-05
 **Priority:** high
 **Points:** 3
 **Depends on:** none
@@ -3244,18 +3245,18 @@ Remove the ~50-scene ceiling imposed by the 8 192-token Claude output limit. Spl
 Replace the sequential per-scene acquisition loop with batched `asyncio.gather`. 300 scenes currently take ~15 minutes in series; batches of 20 concurrent calls reduce this to ~30 seconds. Errors in one batch do not cancel other batches.
 
 ### Acceptance Criteria
-- [ ] `run_acquisition` in `src/acquisition.py` processes scenes in batches of `ACQUISITION_BATCH_SIZE` (default 20) using `asyncio.gather`
-- [ ] `PexelsClient` and `ReplicateClient` methods called via `asyncio.to_thread` (they are currently synchronous) or converted to async
-- [ ] A failure in one scene is caught and logged; the batch continues; the manifest entry is marked `failed`
-- [ ] Already-`acquired` scenes skipped (existing idempotent behaviour preserved)
-- [ ] `ACQUISITION_BATCH_SIZE` ENV var in `config.py` and `ENV.md`
+- [x] `run_acquisition` in `src/acquisition.py` processes scenes in batches of `ACQUISITION_BATCH_SIZE` (default 20) using `asyncio.gather`
+- [x] `PexelsClient` and `ReplicateClient` methods called via `asyncio.to_thread` (they are currently synchronous) or converted to async
+- [x] A failure in one scene is caught and logged; the batch continues; the manifest entry is marked `failed`
+- [x] Already-`acquired` scenes skipped (existing idempotent behaviour preserved)
+- [x] `ACQUISITION_BATCH_SIZE` ENV var in `config.py` and `ENV.md`
 
 ### Definition of Done
-- [ ] All AC checked
-- [ ] Tests: batch grouping; partial failure in batch; all-acquired idempotent run; batch size of 1 (sequential fallback)
+- [x] All AC checked
+- [x] Tests: batch grouping; partial failure in batch; all-acquired idempotent run; batch size of 1 (sequential fallback)
 - [ ] CI green
-- [ ] DONE.md updated
-- [ ] BACKLOG.md status updated to `done`
+- [x] DONE.md updated
+- [x] BACKLOG.md status updated to `done`
 
 ### Files to create or modify
 - `src/acquisition.py` — `run_acquisition` refactored to batched async; `acquire_scene` wrapped for async execution
@@ -3264,7 +3265,12 @@ Replace the sequential per-scene acquisition loop with batched `asyncio.gather`.
 - `tests/test_acquisition.py` — updated for async; new batch tests
 
 ### Handover
-_filled on completion_
+- `src/acquisition.py`: `run_acquisition` is now `async`. Filters pending entries first, then processes them in batches of `batch_size` via `asyncio.gather(*[asyncio.to_thread(acquire_scene, ...) for entry in batch], return_exceptions=True)`. Unexpected exceptions from `asyncio.gather` are caught, logged, and the entry is marked `failed`. `acquire_scene` remains synchronous — it is the unit-testable sync core.
+- `src/routes/assets.py`: route changed to `async def acquire_assets`; calls `await run_acquisition(..., batch_size=settings.ACQUISITION_BATCH_SIZE)`.
+- `src/config.py`: `ACQUISITION_BATCH_SIZE: int = 20` added (S13-S2 section).
+- `ENV.md`: `ACQUISITION_BATCH_SIZE` documented in Pipeline config table.
+- `tests/test_acquisition.py`: all `TestRunAcquisition` tests now `@pytest.mark.asyncio`; route tests updated to `new_callable=AsyncMock`; `TestRunAcquisitionBatching` class added (4 tests: batch grouping, partial failure isolation, batch-size-1, idempotent mixed-state). 762 total passing.
+- No new pip dependencies. No new ENV vars beyond `ACQUISITION_BATCH_SIZE`.
 
 ---
 
