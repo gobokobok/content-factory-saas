@@ -12,11 +12,10 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint 13** — Creative Draft Foundation
+**Sprint 13** — Scale Foundation
 
 ## Active story
-**S13-S2** — Editable AI Prompt in storyboard table — start here
-*(S13-S1 blocked — awaiting Notion screenshot from operator)*
+**S13-S1** — Chunked storyboard generation — start here
 
 ## Environments
 
@@ -74,6 +73,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 - **No UI frameworks** — plain HTML/JS only for operator UI
 - **Free-tier APIs only** for POC (Pexels, Replicate, Freesound)
 - CI must be green before marking a story complete
+- **Pipeline step functions must be pure async** — take explicit inputs, return explicit outputs, no coupling to HTTP request context. Routes are thin wrappers only. See CONVENTIONS.md § Async function discipline and DECISIONS.md D040.
 
 ## Human Touchpoint Rule
 Every sprint must include or culminate in a human-testable artifact. If the sprint is purely infrastructure, scope a minimal UI shim or smoke-test endpoint that a non-technical stakeholder can interact with. Never go more than one sprint without something a human can touch.

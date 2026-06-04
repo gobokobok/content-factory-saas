@@ -128,3 +128,51 @@ def call_storyboard_api(script: str, system_prompt: str) -> dict:
 - Route files in `src/routes/` — one file per epic/resource.
 - Use `Depends()` to inject `Settings` config into routes.
 - Response models defined in `src/models.py` and referenced in route decorators.
+
+---
+
+## Async function discipline (agent-ready pipeline)
+
+**Every pipeline step function must be a pure async function that takes explicit inputs and returns explicit outputs. It must not read from global state, session context, or the HTTP request object.**
+
+This is a hard architectural constraint, not a style preference. It is required because:
+- Sprints 13–19 introduce chunked storyboard generation, parallel acquisition, and background render tasks — all of which call the same functions from outside an HTTP request context.
+- Sprints 20+ will wrap these functions in a durable workflow engine (Inngest). Functions that are tightly coupled to FastAPI's request lifecycle cannot be orchestrated externally.
+
+### Rules
+
+1. **Pure inputs, pure outputs.** The function signature carries everything it needs.
+   ```python
+   # ✅ correct
+   async def generate_storyboard(
+       script: str,
+       alignment: list[WordTimestamp],
+       settings: StoryboardSettings,
+       storage: R2Client,
+   ) -> Storyboard:
+       ...
+
+   # ❌ wrong — reads request state, not portable
+   async def generate_storyboard(request: Request) -> Storyboard:
+       script = await request.json()
+       ...
+   ```
+
+2. **Routes are thin wrappers.** The route handler reads the request, calls the domain function, and writes the response. No business logic in route files.
+   ```python
+   # ✅ correct route handler
+   @router.post("/runs/{run_id}/storyboard")
+   async def storyboard_route(run_id: str, body: StoryboardRequest, ...):
+       result = await generate_storyboard(body.script, alignment, settings, storage)
+       await storage.upload_json(f"runs/{run_id}/storyboard.json", result.model_dump())
+       return StoryboardResponse(status="complete", ...)
+   ```
+
+3. **No `asyncio.run()` inside functions.** If a function is sync today but will be called from an async context, mark it `async` and use `await asyncio.to_thread()` at the call site to wrap sync I/O.
+
+4. **Sync clients wrapped at the call site.** `PexelsClient` and `ReplicateClient` are synchronous (HTTP via `requests`). When called from async acquisition batches, wrap with `asyncio.to_thread(client.acquire_for_entry, entry, run_id, storage)` — do not convert the client itself to async unless rewriting it.
+
+5. **No side effects on failure mid-function.** If a function fails halfway, it must not leave partial state in R2 or `run_log.json`. Write atomically: compute the full result first, then write once.
+
+### Rationale
+Logged as D040 in DECISIONS.md.

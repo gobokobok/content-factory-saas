@@ -5,6 +5,62 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D042 — Inngest as durable workflow engine for Sprint 20+
+**Date:** 2026-06-04
+**Decision:** When the pipeline transitions from human-triggered steps to autonomous multi-agent orchestration (Sprint 20+), the orchestration layer will be **Inngest** (managed durable workflow engine).
+**Rationale:**
+- FastAPI `BackgroundTasks` (Sprint 13) solves the Railway 60s timeout problem but is not durable — it dies with the process. A 15-minute agentic pipeline needs checkpointed state that survives Railway deploys and restarts.
+- Inngest is managed (no infrastructure to run), Railway-compatible (HTTPS endpoint registration), event-driven (each agent fires an event; the next picks it up), and has a generous free tier sufficient for POC.
+- `step.waitForEvent()` provides native human-in-the-loop gates with configurable timeouts — the review pattern needed for asset candidate approval and script approval.
+- Alternative considered: Temporal (most powerful, best guarantees, but self-hosted or expensive cloud). Rejected for POC — Inngest is simpler to operate.
+- Alternative considered: DIY (Redis + BullMQ). Rejected — adds infra; Inngest is purpose-built.
+**Migration path:** Sprint 13 `BackgroundTasks` → Sprint 20 Inngest functions. The route handler changes from `background_tasks.add_task(render_run, ...)` to `inngest_client.send_event("pipeline/render.requested", ...)`. The `render_run` function itself is **unchanged** because it is a pure async function (D040).
+**Constraint:** Do not add Inngest to `requirements.txt` until Sprint 20 planning begins. Do not design Sprint 13–19 code assuming Inngest is present.
+
+---
+
+## D041 — Target architecture: multi-agent autonomous content factory (Sprint 20+)
+**Date:** 2026-06-04
+**Decision:** The long-term product direction is a fully autonomous content factory where a topic string as input produces published video on social platforms as output. Sprints 13–19 are explicitly designed as its foundation — nothing built in those sprints is discarded.
+**Agent graph (Sprint 20+):**
+- Agent 0 — Trend Research: web_search + Reddit + Google Trends + NewsAPI → viral ideas
+- Agent 1 — Script Writer: write × 3 → score → fact-check loop → polished script
+- Agent 2 — Storyboard: generate → self-critique → refine loop → storyboard.json
+- Agent 3 — Asset Acquisition: multi-source search → CLIP scoring → 2–3 candidates per scene → optional human review gate
+- Agent 4 — Render + Publish: FFmpeg → social platform APIs (YouTube / Instagram / TikTok)
+**Entry point:** `POST /api/pipeline` (Sprint 18) fires an Inngest event. All agents are Inngest functions chained by events.
+**Human-in-the-loop:** Optional review gates at script approval and asset selection. Gates use `step.waitForEvent()` with configurable timeout (default 24h); auto-approve on timeout for fully autonomous mode.
+**Sprints 13–19 as foundation:**
+
+| Sprint 13–19 | Role in Sprint 20+ |
+|--------------|--------------------|
+| Chunked storyboard | Parallel Agent 2 calls per script chunk |
+| Parallel acquisition | Agent 3 batched multi-source search |
+| Background render | Inngest wraps the same render function |
+| API-first pipeline | External entry point for all agents |
+| Webhook | Inter-agent event notification |
+| Google OAuth | Identity for per-user social platform tokens |
+| Per-user R2 | Per-creator content isolation at scale |
+
+**See:** docs/ARCHITECTURE.md § 3 for full target architecture diagram.
+
+---
+
+## D040 — Pure async function discipline (agent-ready pipeline)
+**Date:** 2026-06-04
+**Decision:** Every pipeline step function must be a pure async function — it takes all its inputs as explicit parameters and returns its output as a return value. It must not read from HTTP request context, global state, or any object that is tied to the FastAPI request lifecycle.
+**Rationale:**
+- Sprints 13–19 call pipeline functions from contexts other than HTTP route handlers: background tasks, parallel `asyncio.gather` batches, chunked storyboard merges.
+- Sprint 20+ will call the same functions from Inngest workflow steps, which are completely outside the HTTP layer.
+- A function coupled to `Request`, `Depends()`, or `BackgroundTasks` cannot be called from any of these contexts without modification.
+- Writing pure functions now costs nothing. Refactoring tightly coupled functions later costs a sprint.
+**Rule:** Routes are thin wrappers. The pattern is: route reads request → calls pure domain function → writes response. No business logic in route files.
+**Enforcement:** Enforced in code review. Any function whose signature includes `Request`, `BackgroundTasks`, or any FastAPI `Depends()` object (other than `Settings`) is a violation.
+**Exception:** `Settings` may be injected via `Depends(get_settings)` in route handlers only. Domain functions receive config values as plain Python types, not the `Settings` object itself, unless the full settings object is genuinely needed.
+**See:** CONVENTIONS.md § Async function discipline for code examples.
+
+---
+
 ## D037 — Stdlib HMAC cookie for single-operator auth (no new dependency)
 **Date:** 2026-05-28
 **Decision:** Use stdlib `hmac` + `hashlib` for session cookie signing. Cookie value is a constant HMAC-SHA256 digest of the string `"authenticated"` keyed on `SESSION_SECRET_KEY`. No session ID, no server-side session store.

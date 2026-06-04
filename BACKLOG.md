@@ -2397,6 +2397,11 @@ Google OAuth replaces the single-operator password gate. Per-user run isolation 
 
 ---
 
+## EPIC 25 — Scale Foundation
+Remove hard ceilings on video length. Chunked storyboard generation, parallel asset acquisition, and background render decoupling enable reliable production of 10–15 minute videos on Railway.
+
+---
+
 # Sprint 8 — UI Polish & Workspace
 
 ---
@@ -3147,21 +3152,162 @@ Status: idea, not scheduled
 
 ### IDEA-003 — Scene-Based Storyboard Editor (Phase 2)
 Storyboard evolves from read-only table into editable scene graph. Per-scene text editing, visual description override, asset type selection, keyword override, regenerate single scene. See EPIC 17.
-Status: idea, not scheduled — planned for Phase 2 after Sprint 12
+Status: partially addressed in Sprint 14 (inline AI prompt editing + Asset Mode column). Full scene graph (add/remove/reorder scenes) remains unscheduled.
 
 ### IDEA-004 — Scene-Level Asset & Regeneration System (Phase 2)
 Refresh assets for a single scene, partial re-render, "video outdated" indicator when a scene changes. Depends on IDEA-003 (scene graph). See EPIC 18.
-Status: idea, not scheduled — planned for Phase 2 after Sprint 12
+Status: partially addressed in Sprint 16 (per-asset upload replacement). Automated scene-level regeneration remains unscheduled.
+
+### IDEA-005 — Durable workflow orchestration (Sprint 20)
+Replace FastAPI BackgroundTasks with Inngest durable workflow engine. Each pipeline step becomes an Inngest function — survives Railway restarts, supports human-in-the-loop review gates (`step.waitForEvent`), and chains agents via events. No pipeline function changes required (D040 ensures they are pure). D042 documents the decision and migration path.
+Status: planned for Sprint 20. Prerequisite: Sprint 18 (API-first pipeline) complete.
+
+### IDEA-006 — Trend Research Agent (Sprint 20+, Agent 0)
+Autonomous agent that researches viral content ideas within a given niche. Tools: web_search (Claude native), Reddit API, Google Trends (pytrends), NewsAPI. Output: top 3 viral ideas with supporting context passed to Script Agent.
+Status: planned for Sprint 20+. Prerequisite: Inngest (IDEA-005).
+
+### IDEA-007 — Script Writer Agent with fact-checking (Sprint 20+, Agent 1)
+Multi-turn Claude agent that writes 3 script variants, scores each for virality, fact-checks the winner using web_search tool calls, and returns one polished script with source citations. Replaces the human-written script input.
+Status: planned for Sprint 20+. Prerequisite: Inngest (IDEA-005).
+
+### IDEA-008 — Storyboard self-critique loop (Sprint 20+, Agent 2)
+Wrap storyboard generation in a score → critique → refine loop. Claude generates a storyboard, then evaluates it against quality criteria (scene variety, motion diversity, query specificity), then refines until score exceeds threshold or max iterations reached. Extends the chunked generation from Sprint 13.
+Status: planned for Sprint 20+. Prerequisite: S13-S1 (chunked storyboard).
+
+### IDEA-009 — Asset candidate review API (Sprint 20+, Agent 3)
+Each scene returns 2–3 CLIP-ranked asset candidates instead of auto-selecting the top result. Human or review agent selects the best candidate. New endpoints: GET /runs/{run_id}/scenes/{scene_id}/candidates, POST .../select. Human-in-the-loop gate via Inngest waitForEvent.
+Status: planned for Sprint 20+. Prerequisite: Sprint 16 (assets overhaul), Inngest (IDEA-005).
+
+### IDEA-010 — Social platform publishing (Sprint 20+)
+Post-render upload to YouTube, Instagram, and TikTok using per-user OAuth tokens. Tokens stored alongside user profile in R2. Requires Sprint 19 (Google OAuth + per-user isolation) as prerequisite for user identity layer.
+Status: planned for Sprint 20+. Prerequisite: Sprint 19 (multi-tenant).
 
 ---
 
-# Sprint 13 — Creative Draft Foundation
+# Sprint 13 — Scale Foundation
 
 ---
 
-## [S13-S1] Notion-like feature
-**Epic:** E19 — Creative Draft Architecture
+## [S13-S1] Chunked storyboard generation
+**Epic:** E25 — Scale Foundation
 **Sprint:** 13
+**Status:** planned
+**Priority:** critical
+**Points:** 5
+**Depends on:** none
+
+### Goal
+Remove the ~50-scene ceiling imposed by the 8 192-token Claude output limit. Split the script at paragraph boundaries into chunks of ~10 paragraphs, run each chunk as a parallel Claude API call, then re-number and merge all scenes into a single `storyboard.json`. Alignment timestamps from `alignment.json` are sliced per-chunk so scene durations remain anchored to real audio timing.
+
+### Acceptance Criteria
+- [ ] `_split_script_into_chunks(script, max_paragraphs=10) → list[str]` — splits on blank-line paragraph boundaries; never cuts mid-sentence; last chunk absorbs remainder
+- [ ] Each chunk is sent to Claude with its corresponding word timestamp slice from `alignment.json`
+- [ ] All chunk calls are issued concurrently via `asyncio.gather`
+- [ ] Scenes from each chunk are renumbered to be globally contiguous (chunk 1 → scenes 1–N, chunk 2 → scenes N+1–M, …)
+- [ ] Merged result passes the existing `Storyboard` Pydantic schema validation
+- [ ] Falls back to single-call path when script fits in one chunk (backward compatible)
+- [ ] `STORYBOARD_CHUNK_SIZE` ENV var (default `10`) controls paragraph count per chunk
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: `_split_script_into_chunks` edge cases (short script, exact boundary, trailing blank lines); parallel call mock; renumbering logic; merge validation; single-chunk fallback
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/storyboard.py` — `_split_script_into_chunks`, `_slice_alignment_for_chunk`, `_merge_storyboard_chunks`, refactor `generate_storyboard` to use chunked path
+- `src/config.py` — `STORYBOARD_CHUNK_SIZE: int = 10`
+- `ENV.md` — document `STORYBOARD_CHUNK_SIZE`
+- `tests/test_storyboard.py` — new chunking and merge tests
+- `DECISIONS.md` — rationale for chunked generation approach
+
+### Handover
+_filled on completion_
+
+---
+
+## [S13-S2] Parallel asset acquisition
+**Epic:** E25 — Scale Foundation
+**Sprint:** 13
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** none
+
+### Goal
+Replace the sequential per-scene acquisition loop with batched `asyncio.gather`. 300 scenes currently take ~15 minutes in series; batches of 20 concurrent calls reduce this to ~30 seconds. Errors in one batch do not cancel other batches.
+
+### Acceptance Criteria
+- [ ] `run_acquisition` in `src/acquisition.py` processes scenes in batches of `ACQUISITION_BATCH_SIZE` (default 20) using `asyncio.gather`
+- [ ] `PexelsClient` and `ReplicateClient` methods called via `asyncio.to_thread` (they are currently synchronous) or converted to async
+- [ ] A failure in one scene is caught and logged; the batch continues; the manifest entry is marked `failed`
+- [ ] Already-`acquired` scenes skipped (existing idempotent behaviour preserved)
+- [ ] `ACQUISITION_BATCH_SIZE` ENV var in `config.py` and `ENV.md`
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: batch grouping; partial failure in batch; all-acquired idempotent run; batch size of 1 (sequential fallback)
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/acquisition.py` — `run_acquisition` refactored to batched async; `acquire_scene` wrapped for async execution
+- `src/config.py` — `ACQUISITION_BATCH_SIZE: int = 20`
+- `ENV.md` — document `ACQUISITION_BATCH_SIZE`
+- `tests/test_acquisition.py` — updated for async; new batch tests
+
+### Handover
+_filled on completion_
+
+---
+
+## [S13-S3] Background render task + polling
+**Epic:** E25 — Scale Foundation
+**Sprint:** 13
+**Status:** planned
+**Priority:** high
+**Points:** 5
+**Depends on:** none
+
+### Goal
+Decouple the render step from Railway's ~60s HTTP request timeout. `POST /runs/{run_id}/render` returns 202 immediately and kicks off the render as a FastAPI background task. A new polling endpoint lets the UI (and future API callers) check render progress without holding a connection open.
+
+### Acceptance Criteria
+- [ ] `POST /runs/{run_id}/render` returns HTTP 202 `{"status": "running", "poll_url": "/runs/{run_id}/render/status"}` immediately
+- [ ] Render executes as a `fastapi.BackgroundTasks` task; `run_log.json` updated to `render: complete` or `render: failed` on finish
+- [ ] `GET /runs/{run_id}/render/status` returns `{status: "running"|"complete"|"failed", progress_pct: int, output_key: Optional[str], error: Optional[str]}`
+- [ ] `progress_pct` derived from ffmpeg stderr progress lines (frame count / total frames); falls back to 0/100 if unparseable
+- [ ] UI requires no changes — the existing step-status polling already handles the `running` → `complete` transition
+- [ ] Existing tests that assert on the render route response updated for 202
+
+### Definition of Done
+- [ ] All AC checked
+- [ ] Tests: 202 immediate response; background task invoked; status endpoint returns correct states; progress parsing; failure propagation to run_log
+- [ ] CI green
+- [ ] DONE.md updated
+- [ ] BACKLOG.md status updated to `done`
+
+### Files to create or modify
+- `src/routes/render.py` — switch to `BackgroundTasks`; add `GET /runs/{run_id}/render/status`
+- `src/renderer.py` — add ffmpeg stderr progress parsing
+- `src/models.py` — `RenderStatusResponse`
+- `tests/test_renderer.py` — updated assertions; new status-polling tests
+- `DECISIONS.md` — background task rationale vs job queue
+
+### Handover
+_filled on completion_
+
+---
+
+# Sprint 14 — Creative Draft Foundation
+
+---
+
+## [S14-S1] Notion-like feature
+**Epic:** E19 — Creative Draft Architecture
+**Sprint:** 14
 **Status:** blocked
 **Priority:** medium
 **Points:** TBD
@@ -3185,9 +3331,9 @@ _filled on completion_
 
 ---
 
-## [S13-S2] Editable AI Prompt in storyboard table
+## [S14-S2] Editable AI Prompt in storyboard table
 **Epic:** E19 — Creative Draft Architecture
-**Sprint:** 13
+**Sprint:** 14
 **Status:** planned
 **Priority:** high
 **Points:** 2
@@ -3221,13 +3367,13 @@ _filled on completion_
 
 ---
 
-## [S13-S3] Asset Mode column in storyboard table
+## [S14-S3] Asset Mode column in storyboard table
 **Epic:** E19 — Creative Draft Architecture
-**Sprint:** 13
+**Sprint:** 14
 **Status:** planned
 **Priority:** high
 **Points:** 3
-**Depends on:** S13-S2
+**Depends on:** S14-S2
 
 ### Goal
 Add a "Source" dropdown column to the storyboard table. Selecting "Stock" highlights the `primary_query` cell in that row; selecting "AI Generated" highlights the `ai_generate_prompt` cell. The selection drives the acquisition orchestrator — no Replicate call when Stock is chosen for a scene, no Pexels call when AI Generated is chosen.
@@ -3238,7 +3384,7 @@ Add a "Source" dropdown column to the storyboard table. Selecting "Stock" highli
 - [ ] Selecting "Stock" applies a `highlight-active` CSS class to the `primary_query` cell in that row; removes it from the `ai_generate_prompt` cell
 - [ ] Selecting "AI Generated" applies `highlight-active` to `ai_generate_prompt` cell; removes from `primary_query`
 - [ ] Selection persisted in `asset_manifest.json` as `asset_mode: "stock" | "ai_generated"` via `PATCH /runs/{run_id}/manifest`
-- [ ] Acquisition orchestrator: `stock` mode → Pexels → Pixabay (S14-S3) → skip Replicate; `ai_generated` mode → Replicate only, skip Pexels
+- [ ] Acquisition orchestrator: `stock` mode → Pexels → Pixabay (S15-S3) → skip Replicate; `ai_generated` mode → Replicate only, skip Pexels
 
 ### Definition of Done
 - [ ] All AC checked
@@ -3259,9 +3405,9 @@ _filled on completion_
 
 ---
 
-## [S13-S4] Visual Style Prompt field
+## [S14-S4] Visual Style Prompt field
 **Epic:** E19 — Creative Draft Architecture
-**Sprint:** 13
+**Sprint:** 14
 **Status:** planned
 **Priority:** high
 **Points:** 2
@@ -3295,16 +3441,16 @@ _filled on completion_
 
 ---
 
-## [S13-S5] Global Values panel in Project Settings
+## [S14-S5] Global Values panel in Project Settings
 **Epic:** E19 — Creative Draft Architecture
-**Sprint:** 13
+**Sprint:** 14
 **Status:** planned
 **Priority:** medium
 **Points:** 3
-**Depends on:** S13-S4
+**Depends on:** S14-S4
 
 ### Goal
-Replace the current collapsible storyboard settings header (S8-S4) with a comprehensive "Global Values" panel that consolidates every project-level configuration value. Duration is auto-populated from the Deepgram alignment result. Visual Style Prompt (S13-S4) is included as an editable field.
+Replace the current collapsible storyboard settings header (S8-S4) with a comprehensive "Global Values" panel that consolidates every project-level configuration value. Duration is auto-populated from the Deepgram alignment result. Visual Style Prompt (S14-S4) is included as an editable field.
 
 ### Acceptance Criteria
 - [ ] Panel labelled "Global Values" shows: Aspect Ratio, Visual Style (enum), Visual Style Prompt (editable textarea), Duration (from `alignment.json` total word span — read-only), Rhythm (placeholder "—"), Subtitles, Music
@@ -3329,13 +3475,13 @@ _filled on completion_
 
 ---
 
-# Sprint 14 — Storyboard UX + Source Expansion
+# Sprint 15 — Storyboard UX + Source Expansion
 
 ---
 
-## [S14-S1] Sticky table headers
+## [S15-S1] Sticky table headers
 **Epic:** E19 — Creative Draft Architecture
-**Sprint:** 14
+**Sprint:** 15
 **Status:** planned
 **Priority:** medium
 **Points:** 2
@@ -3361,9 +3507,9 @@ _filled on completion_
 
 ---
 
-## [S14-S2] Rename ID → Scene; hide Fallback Query column
+## [S15-S2] Rename ID → Scene; hide Fallback Query column
 **Epic:** E19 — Creative Draft Architecture
-**Sprint:** 14
+**Sprint:** 15
 **Status:** planned
 **Priority:** low
 **Points:** 1
@@ -3389,13 +3535,13 @@ _filled on completion_
 
 ---
 
-## [S14-S3] Pixabay as second stock source
+## [S15-S3] Pixabay as second stock source
 **Epic:** E20 — Stock Source Expansion
-**Sprint:** 14
+**Sprint:** 15
 **Status:** planned
 **Priority:** high
 **Points:** 4
-**Depends on:** S13-S3
+**Depends on:** S14-S3
 
 ### Goal
 Add Pixabay as a parallel stock footage/photo source. When Pexels returns no usable result for a scene, Pixabay is tried before falling back to Replicate. The acquisition chain for `stock` mode becomes: Pexels → Pixabay → Replicate.
@@ -3431,13 +3577,13 @@ _filled on completion_
 
 ---
 
-## [S14-S4] AI-driven source type classification
+## [S15-S4] AI-driven source type classification
 **Epic:** E20 — Stock Source Expansion
-**Sprint:** 14
+**Sprint:** 15
 **Status:** planned
 **Priority:** high
 **Points:** 4
-**Depends on:** S14-S3
+**Depends on:** S15-S3
 
 ### Goal
 During storyboard generation, Claude classifies each scene as `realistic_stock` or `historic_archival` based on script context. For historic scenes, Wikimedia Commons becomes the primary source; Pexels and Pixabay are fallbacks. For realistic scenes the chain is unchanged. This happens automatically — the operator does not choose.
@@ -3448,7 +3594,7 @@ During storyboard generation, Claude classifies each scene as `realistic_stock` 
 - [ ] `ManifestEntry.source_type` propagated from storyboard during manifest generation
 - [ ] `src/wikimedia.py` — `WikimediaClient` with `acquire_for_entry(entry, run_id, storage) → Optional[WikimediaAcquireResult]`; searches Wikimedia Commons API by `primary_query`
 - [ ] Acquisition orchestrator: `historic_archival` → Wikimedia → Pexels → Pixabay (no Replicate — AI generation is inappropriate for archival scenes); `realistic_stock` → Pexels → Pixabay → Replicate
-- [ ] `asset_mode` (S13-S3) overrides `source_type` — if operator manually selects "AI Generated", Replicate is used regardless of `source_type`
+- [ ] `asset_mode` (S14-S3) overrides `source_type` — if operator manually selects "AI Generated", Replicate is used regardless of `source_type`
 
 ### Definition of Done
 - [ ] All AC checked
@@ -3476,13 +3622,13 @@ _filled on completion_
 
 ---
 
-# Sprint 15 — Assets Overhaul + Replacement
+# Sprint 16 — Assets Overhaul + Replacement
 
 ---
 
-## [S15-S1] Per-asset upload replacement
+## [S16-S1] Per-asset upload replacement
 **Epic:** E21 — Assets UX + Replacement
-**Sprint:** 15
+**Sprint:** 16
 **Status:** planned
 **Priority:** high
 **Points:** 4
@@ -3518,9 +3664,9 @@ _filled on completion_
 
 ---
 
-## [S15-S2] Full description visibility in assets table
+## [S16-S2] Full description visibility in assets table
 **Epic:** E21 — Assets UX + Replacement
-**Sprint:** 15
+**Sprint:** 16
 **Status:** planned
 **Priority:** medium
 **Points:** 2
@@ -3547,9 +3693,9 @@ _filled on completion_
 
 ---
 
-## [S15-S3] Assets table cleanup
+## [S16-S3] Assets table cleanup
 **Epic:** E21 — Assets UX + Replacement
-**Sprint:** 15
+**Sprint:** 16
 **Status:** planned
 **Priority:** medium
 **Points:** 2
@@ -3576,13 +3722,13 @@ _filled on completion_
 
 ---
 
-# Sprint 16 — Project Report + Token Tracking
+# Sprint 17 — Project Report + Token Tracking
 
 ---
 
-## [S16-S1] Token cost tracking per Claude call
+## [S17-S1] Token cost tracking per Claude call
 **Epic:** E22 — Project Report + Token Tracking
-**Sprint:** 16
+**Sprint:** 17
 **Status:** planned
 **Priority:** high
 **Points:** 2
@@ -3610,13 +3756,13 @@ _filled on completion_
 
 ---
 
-## [S16-S2] Project Report pipeline step
+## [S17-S2] Project Report pipeline step
 **Epic:** E22 — Project Report + Token Tracking
-**Sprint:** 16
+**Sprint:** 17
 **Status:** planned
 **Priority:** high
 **Points:** 3
-**Depends on:** S16-S1
+**Depends on:** S17-S1
 
 ### Goal
 Add a Project Report as the final pipeline step. It aggregates token cost, asset source breakdown, render duration, video duration, word count, and scene count into a single `report.json`.
@@ -3639,13 +3785,13 @@ _filled on completion_
 
 ---
 
-## [S16-S3] Project Report UI
+## [S17-S3] Project Report UI
 **Epic:** E22 — Project Report + Token Tracking
-**Sprint:** 16
+**Sprint:** 17
 **Status:** planned
 **Priority:** medium
 **Points:** 2
-**Depends on:** S16-S2
+**Depends on:** S17-S2
 
 ### Goal
 Display the Project Report as the final pipeline step in the UI — a clean summary card showing cost, asset breakdown, and video stats.
@@ -3668,17 +3814,17 @@ _filled on completion_
 
 ---
 
-# Sprint 17 — API-First Pipeline
+# Sprint 18 — API-First Pipeline
 
 ---
 
-## [S17-S1] Pipeline trigger endpoint
+## [S18-S1] Pipeline trigger endpoint
 **Epic:** E23 — External API + Webhook
-**Sprint:** 17
+**Sprint:** 18
 **Status:** planned
 **Priority:** high
 **Points:** 3
-**Depends on:** S17-S3
+**Depends on:** S18-S3
 
 ### Goal
 `POST /api/pipeline` accepts a script and project settings, creates a run, and queues the full pipeline asynchronously. Returns immediately with a `run_id` and `status_url` so the caller can poll or wait for a webhook.
@@ -3688,7 +3834,7 @@ _filled on completion_
 - [ ] Creates run via existing `POST /runs` logic
 - [ ] Queues full pipeline as a background task: alignment → storyboard → manifest → assets → ffmpeg-script → render → metadata → report
 - [ ] Returns HTTP 202: `{run_id: str, status_url: str}`
-- [ ] `webhook_url` stored in run config for use by S17-S4
+- [ ] `webhook_url` stored in run config for use by S18-S4
 
 ### Definition of Done
 - [ ] All AC checked
@@ -3702,13 +3848,13 @@ _filled on completion_
 
 ---
 
-## [S17-S2] Pipeline status + result endpoint
+## [S18-S2] Pipeline status + result endpoint
 **Epic:** E23 — External API + Webhook
-**Sprint:** 17
+**Sprint:** 18
 **Status:** planned
 **Priority:** high
 **Points:** 2
-**Depends on:** S17-S1
+**Depends on:** S18-S1
 
 ### Goal
 `GET /api/pipeline/{run_id}` returns the current step-level status and a download URL when rendering is complete. The caller (N8N, etc.) can poll this until `download_url` is populated.
@@ -3730,9 +3876,9 @@ _filled on completion_
 
 ---
 
-## [S17-S3] API key authentication
+## [S18-S3] API key authentication
 **Epic:** E23 — External API + Webhook
-**Sprint:** 17
+**Sprint:** 18
 **Status:** planned
 **Priority:** high
 **Points:** 2
@@ -3759,13 +3905,13 @@ _filled on completion_
 
 ---
 
-## [S17-S4] Webhook callback on render complete
+## [S18-S4] Webhook callback on render complete
 **Epic:** E23 — External API + Webhook
-**Sprint:** 17
+**Sprint:** 18
 **Status:** planned
 **Priority:** medium
 **Points:** 1
-**Depends on:** S17-S1, S17-S2
+**Depends on:** S18-S1, S18-S2
 
 ### Goal
 When a pipeline triggered via `/api/pipeline` completes rendering, POST a callback to the `webhook_url` provided at trigger time. Non-blocking — webhook failure does not affect the pipeline.
@@ -3788,13 +3934,13 @@ _filled on completion_
 
 ---
 
-# Sprint 18 — Multi-tenant + Google OAuth
+# Sprint 19 — Multi-tenant + Google OAuth
 
 ---
 
-## [S18-S1] Google OAuth login
+## [S19-S1] Google OAuth login
 **Epic:** E24 — Multi-tenant + Google OAuth
-**Sprint:** 18
+**Sprint:** 19
 **Status:** planned
 **Priority:** high
 **Points:** 4
@@ -3824,13 +3970,13 @@ _filled on completion_
 
 ---
 
-## [S18-S2] Per-user run isolation
+## [S19-S2] Per-user run isolation
 **Epic:** E24 — Multi-tenant + Google OAuth
-**Sprint:** 18
+**Sprint:** 19
 **Status:** planned
 **Priority:** high
 **Points:** 3
-**Depends on:** S18-S1
+**Depends on:** S19-S1
 
 ### Goal
 Runs in R2 are namespaced by `user_id` so each user sees only their own projects. `GET /runs` is scoped to the authenticated user. Existing single-user runs (at the old prefix) are treated as belonging to a legacy "default" user.
@@ -3855,13 +4001,13 @@ _filled on completion_
 
 ---
 
-## [S18-S3] User registry
+## [S19-S3] User registry
 **Epic:** E24 — Multi-tenant + Google OAuth
-**Sprint:** 18
+**Sprint:** 19
 **Status:** planned
 **Priority:** low
 **Points:** 1
-**Depends on:** S18-S1
+**Depends on:** S19-S1
 
 ### Goal
 On first login, write a lightweight user profile to R2. No admin UI required for POC.
