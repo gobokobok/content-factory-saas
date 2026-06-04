@@ -1,6 +1,6 @@
 """Tests for src/acquisition.py and src/routes/assets.py."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -116,14 +116,15 @@ class TestAcquireScene:
         assert entry.status == "failed"
 
 
-# ── Unit: run_acquisition ─────────────────────────────────────────────────────
+# ── Unit: run_acquisition (async) ─────────────────────────────────────────────
 
 
 class TestRunAcquisition:
     def _clients(self):
         return MagicMock(), MagicMock(), MagicMock()
 
-    def test_all_pending_all_pexels(self):
+    @pytest.mark.asyncio
+    async def test_all_pending_all_pexels(self):
         entries = [_entry("01"), _entry("02")]
         manifest = _manifest(entries)
         pexels, replicate, storage = self._clients()
@@ -132,13 +133,14 @@ class TestRunAcquisition:
             _pexels_result("02", "runs/r/video/02.mp4"),
         ]
 
-        summary = run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
 
         assert summary["acquired"] == 2
         assert summary["failed"] == 0
         assert summary["sources"] == {"pexels": 2}
 
-    def test_skips_already_acquired_entries(self):
+    @pytest.mark.asyncio
+    async def test_skips_already_acquired_entries(self):
         pre = _entry("01", status="acquired")
         pre.source = "pexels"
         pre.file_key = "runs/r/video/01.mp4"
@@ -147,13 +149,14 @@ class TestRunAcquisition:
         pexels, replicate, storage = self._clients()
         pexels.acquire_for_entry.return_value = _pexels_result("02", "runs/r/video/02.mp4")
 
-        summary = run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
 
         assert pexels.acquire_for_entry.call_count == 1
         assert summary["acquired"] == 2  # both entries are acquired
         assert summary["sources"] == {"pexels": 2}
 
-    def test_all_pre_acquired_returns_full_count(self):
+    @pytest.mark.asyncio
+    async def test_all_pre_acquired_returns_full_count(self):
         """Idempotent call where all entries were already acquired."""
         entries = [_entry("01", status="acquired"), _entry("02", status="acquired")]
         entries[0].source = "pexels"
@@ -163,49 +166,122 @@ class TestRunAcquisition:
         manifest = _manifest(entries)
         pexels, replicate, storage = self._clients()
 
-        summary = run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
 
         pexels.acquire_for_entry.assert_not_called()
         assert summary["acquired"] == 2
         assert summary["failed"] == 0
         assert summary["sources"] == {"pexels": 1, "replicate": 1}
 
-    def test_mixed_pexels_and_replicate(self):
+    @pytest.mark.asyncio
+    async def test_mixed_pexels_and_replicate(self):
         entries = [_entry("01"), _entry("02", clip_type="still_with_motion")]
         manifest = _manifest(entries)
         pexels, replicate, storage = self._clients()
         pexels.acquire_for_entry.side_effect = [_pexels_result("01"), None]
         replicate.acquire_for_entry.return_value = _replicate_result("02")
 
-        summary = run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
 
         assert summary["acquired"] == 2
         assert summary["sources"] == {"pexels": 1, "replicate": 1}
 
-    def test_all_fail_returns_zero_acquired(self):
+    @pytest.mark.asyncio
+    async def test_all_fail_returns_zero_acquired(self):
         entries = [_entry("01"), _entry("02")]
         manifest = _manifest(entries)
         pexels, replicate, storage = self._clients()
         pexels.acquire_for_entry.return_value = None
         replicate.acquire_for_entry.side_effect = ReplicateError("fail")
 
-        summary = run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
 
         assert summary["acquired"] == 0
         assert summary["failed"] == 2
         assert summary["sources"] == {}
 
-    def test_partial_acquisition(self):
+    @pytest.mark.asyncio
+    async def test_partial_acquisition(self):
         entries = [_entry("01"), _entry("02")]
         manifest = _manifest(entries)
         pexels, replicate, storage = self._clients()
         pexels.acquire_for_entry.side_effect = [_pexels_result("01"), None]
         replicate.acquire_for_entry.side_effect = ReplicateError("fail")
 
-        summary = run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
 
         assert summary["acquired"] == 1
         assert summary["failed"] == 1
+
+
+# ── Unit: run_acquisition — batch behaviour ────────────────────────────────────
+
+
+class TestRunAcquisitionBatching:
+    @pytest.mark.asyncio
+    async def test_batch_grouping_all_scenes_processed(self):
+        """batch_size=2 with 4 scenes — all 4 scenes processed across 2 batches."""
+        entries = [_entry(f"0{i}") for i in range(1, 5)]
+        manifest = _manifest(entries)
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.return_value = _pexels_result()
+
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage, batch_size=2)
+
+        assert summary["acquired"] == 4
+        assert summary["failed"] == 0
+        assert pexels.acquire_for_entry.call_count == 4
+
+    @pytest.mark.asyncio
+    async def test_partial_failure_in_batch_does_not_cancel_other_scenes(self):
+        """One scene failing in a batch does not prevent other scenes from being acquired."""
+        entries = [_entry("01"), _entry("02"), _entry("03")]
+        manifest = _manifest(entries)
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+
+        def pexels_side(entry, run_id, storage):
+            if entry.scene_id == "02":
+                return None
+            return _pexels_result(entry.scene_id)
+
+        pexels.acquire_for_entry.side_effect = pexels_side
+        replicate.acquire_for_entry.side_effect = ReplicateError("fail")
+
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage, batch_size=3)
+
+        assert summary["acquired"] == 2
+        assert summary["failed"] == 1
+
+    @pytest.mark.asyncio
+    async def test_batch_size_1_processes_all_scenes_sequentially(self):
+        """batch_size=1 degrades to sequential execution — all scenes still processed."""
+        entries = [_entry("01"), _entry("02"), _entry("03")]
+        manifest = _manifest(entries)
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.return_value = _pexels_result()
+
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage, batch_size=1)
+
+        assert summary["acquired"] == 3
+        assert summary["failed"] == 0
+        assert pexels.acquire_for_entry.call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_idempotent_with_mixed_pre_acquired_and_pending(self):
+        """Already-acquired scenes are skipped; only pending scenes are batched."""
+        acquired = _entry("01", status="acquired")
+        acquired.source = "pexels"
+        acquired.file_key = "k1"
+        pending1 = _entry("02")
+        pending2 = _entry("03")
+        manifest = _manifest([acquired, pending1, pending2])
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.return_value = _pexels_result()
+
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage, batch_size=10)
+
+        assert pexels.acquire_for_entry.call_count == 2
+        assert summary["acquired"] == 3
 
 
 # ── Constant ──────────────────────────────────────────────────────────────────
@@ -246,7 +322,7 @@ class TestAssetsRoute:
     def test_200_all_acquired_returns_complete(self, client):
         with (
             patch("src.routes.assets.R2Client") as mock_r2_cls,
-            patch("src.routes.assets.run_acquisition") as mock_acquire,
+            patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
         ):
             mock_storage = MagicMock()
             mock_r2_cls.return_value = mock_storage
@@ -270,7 +346,7 @@ class TestAssetsRoute:
     def test_200_zero_acquired_returns_failed_status(self, client):
         with (
             patch("src.routes.assets.R2Client") as mock_r2_cls,
-            patch("src.routes.assets.run_acquisition") as mock_acquire,
+            patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
         ):
             mock_storage = MagicMock()
             mock_r2_cls.return_value = mock_storage
@@ -299,7 +375,7 @@ class TestAssetsRoute:
     def test_500_unexpected_acquisition_error_marks_run_log_failed(self, client):
         with (
             patch("src.routes.assets.R2Client") as mock_r2_cls,
-            patch("src.routes.assets.run_acquisition") as mock_acquire,
+            patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
         ):
             mock_storage = MagicMock()
             mock_r2_cls.return_value = mock_storage
@@ -316,7 +392,7 @@ class TestAssetsRoute:
     def test_500_manifest_write_failure_marks_run_log_failed(self, client):
         with (
             patch("src.routes.assets.R2Client") as mock_r2_cls,
-            patch("src.routes.assets.run_acquisition") as mock_acquire,
+            patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
         ):
             mock_storage = MagicMock()
             mock_r2_cls.return_value = mock_storage
@@ -336,7 +412,7 @@ class TestAssetsRoute:
             patch("src.routes.assets.R2Client") as mock_r2_cls,
             patch("src.routes.assets.PexelsClient") as mock_pexels_cls,
             patch("src.routes.assets.ReplicateClient") as mock_rep_cls,
-            patch("src.routes.assets.run_acquisition") as mock_acquire,
+            patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
         ):
             mock_storage = MagicMock()
             mock_r2_cls.return_value = mock_storage

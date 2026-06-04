@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # Storyboard chunking (S13-S1)
     STORYBOARD_CHUNK_SIZE: int = 10
 
+    # Asset acquisition parallelism (S13-S2)
+    ACQUISITION_BATCH_SIZE: int = 20
+
     # Auth (S5-S5)
     OPERATOR_PASSWORD: str
     SESSION_SECRET_KEY: str

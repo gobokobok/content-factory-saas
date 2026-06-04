@@ -8,6 +8,7 @@ pre-existing acquired entries from earlier calls). It is marked 'failed' only wh
 the total acquired count is zero — i.e. no scene in the run has an asset at all.
 """
 
+import asyncio
 import logging
 
 from src.exceptions import PexelsError, ReplicateError
@@ -63,19 +64,23 @@ def acquire_scene(
         return False
 
 
-def run_acquisition(
+async def run_acquisition(
     run_id: str,
     manifest: AssetManifest,
     pexels: PexelsClient,
     replicate: ReplicateClient,
     storage: R2Client,
     visual_style: str = "Realistic",
+    batch_size: int = 20,
 ) -> dict:
-    """Run the full acquisition loop over all pending manifest entries.
+    """Run the full acquisition loop over all pending manifest entries in parallel batches.
 
-    Skips entries already marked 'acquired' (idempotent / resumable). For each
-    non-acquired entry, runs the Pexels → Replicate fallback chain and mutates
-    the entry in-place.
+    Skips entries already marked 'acquired' (idempotent / resumable). Pending
+    entries are processed in batches of batch_size using asyncio.gather.
+    Each acquire_scene call runs in a thread (asyncio.to_thread) because
+    PexelsClient and ReplicateClient are synchronous HTTP clients.
+    A failure in one scene within a batch is caught and logged; the batch
+    continues and the manifest entry is marked 'failed'.
     visual_style is forwarded to Replicate for AI generation prompts.
 
     Returns a summary dict:
@@ -84,15 +89,25 @@ def run_acquisition(
         failed    — entries that were attempted this call and could not be acquired
         sources   — acquisition source counts across all acquired entries
     """
-    newly_failed = 0
+    pending = [e for e in manifest.entries if e.status != "acquired"]
 
-    for entry in manifest.entries:
-        if entry.status == "acquired":
-            logger.debug("Skipping already-acquired scene=%s", entry.scene_id)
-            continue
-        success = acquire_scene(entry, run_id, pexels, replicate, storage, visual_style=visual_style)
-        if not success:
-            newly_failed += 1
+    newly_failed = 0
+    for batch_start in range(0, len(pending), batch_size):
+        batch = pending[batch_start : batch_start + batch_size]
+        results = await asyncio.gather(
+            *[
+                asyncio.to_thread(acquire_scene, entry, run_id, pexels, replicate, storage, visual_style)
+                for entry in batch
+            ],
+            return_exceptions=True,
+        )
+        for entry, result in zip(batch, results):
+            if isinstance(result, Exception):
+                logger.error("Unexpected error for scene=%s: %s", entry.scene_id, result)
+                entry.status = "failed"
+                newly_failed += 1
+            elif result is False:
+                newly_failed += 1
 
     total_acquired = sum(1 for e in manifest.entries if e.status == "acquired")
     sources: dict[str, int] = {}

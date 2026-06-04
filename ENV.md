@@ -74,6 +74,7 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | `ELEVENLABS_API_KEY` | No* | ElevenLabs API key for TTS voiceover generation (S10-S1). Required when operator uses "Generate Voiceover" mode. |
 | `ELEVENLABS_VOICE_ID` | No* | ElevenLabs voice ID to use for TTS generation (S10-S1). Find IDs at elevenlabs.io/voice-library. |
 | `STORYBOARD_CHUNK_SIZE` | No | Max paragraphs per storyboard chunk (S13-S1). Scripts exceeding this are split and sent to Claude in parallel. Default: `10`. |
+| `ACQUISITION_BATCH_SIZE` | No | Max concurrent asset acquisition calls per batch (S13-S2). Higher values reduce wall-clock time for large manifests. Default: `20`. |
 
 ---
 

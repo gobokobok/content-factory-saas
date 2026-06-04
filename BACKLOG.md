@@ -3235,7 +3235,7 @@ Remove the ~50-scene ceiling imposed by the 8 192-token Claude output limit. Spl
 ## [S13-S2] Parallel asset acquisition
 **Epic:** E25 — Scale Foundation
 **Sprint:** 13
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** none

@@ -19,7 +19,7 @@ router = APIRouter()
 
 
 @router.post("/runs/{run_id}/assets", response_model=AcquisitionResponse)
-def acquire_assets(
+async def acquire_assets(
     run_id: str,
     settings: Settings = Depends(get_settings),
 ) -> AcquisitionResponse:
@@ -68,9 +68,10 @@ def acquire_assets(
     )
 
     try:
-        summary = run_acquisition(
+        summary = await run_acquisition(
             run_id, manifest, pexels, replicate, storage,
             visual_style=video_settings.visual_style,
+            batch_size=settings.ACQUISITION_BATCH_SIZE,
         )
     except Exception as exc:
         logger.error("Acquisition loop failed unexpectedly: run=%s error=%s", run_id, exc)
