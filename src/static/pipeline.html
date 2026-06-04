@@ -986,13 +986,13 @@
       <div id="storyboard-error" class="error-bar" style="display:none;"></div>
 
       <div id="storyboard-content">
-        <div class="state-empty">No storyboard yet — create one in Project Details.</div>
+        <div class="state-empty">No storyboard yet — commit Project Details first.</div>
       </div>
 
       <div class="cta-area" id="storyboard-cta-area" style="display:none;">
         <div id="storyboard-step-progress" class="step-progress" style="display:none;"></div>
-        <button class="btn btn-primary" id="run-acquisition-btn" onclick="runAssetAcquisition()">
-          Run Asset Acquisition
+        <button class="btn btn-primary" id="create-storyboard-btn" onclick="runStoryboard()">
+          Create Storyboard
         </button>
       </div>
     </div>
@@ -1003,13 +1003,13 @@
       <div id="assets-error" class="error-bar" style="display:none;"></div>
 
       <div id="assets-content">
-        <div class="state-empty">No asset manifest yet — approve storyboard first.</div>
+        <div class="state-empty">No assets yet — create a storyboard first.</div>
       </div>
 
       <div class="cta-area" id="assets-cta-area" style="display:none;">
         <div id="assets-step-progress" class="step-progress" style="display:none;"></div>
-        <button class="btn btn-primary" id="render-btn" onclick="runRenderVideo()">
-          Render Video
+        <button class="btn btn-primary" id="run-acquisition-btn" onclick="runAssetAcquisition()">
+          Run Asset Acquisition
         </button>
       </div>
     </div>
@@ -1017,8 +1017,15 @@
     <!-- ── Rendered Video section ────────────────────────────────────── -->
     <div class="section-pane" id="section-render">
       <div class="section-title" style="display:none;">Rendered Video</div>
+      <div id="render-error" class="error-bar" style="display:none;"></div>
       <div id="render-content">
-        <div class="state-empty">No video yet — render one in Assets.</div>
+        <div class="state-empty">No video yet — acquire assets first.</div>
+      </div>
+      <div class="cta-area" id="render-cta-area" style="display:none;">
+        <div id="render-step-progress" class="step-progress" style="display:none;"></div>
+        <button class="btn btn-primary" id="render-btn" onclick="runRenderVideo()">
+          Render Video
+        </button>
       </div>
       <div id="render-metadata" style="display:none;"></div>
     </div>
@@ -1114,10 +1121,10 @@
 
     function sectionStatus(sectionKey) {
       const stepMap = {
-        input:      ['alignment', 'storyboard'],
-        storyboard: ['asset_manifest', 'asset_acquisition'],
-        assets:     ['ffmpeg_script', 'render'],
-        render:     ['render'],
+        input:      ['alignment'],
+        storyboard: ['storyboard'],
+        assets:     ['asset_manifest', 'asset_acquisition'],
+        render:     ['ffmpeg_script', 'render'],
       };
       const steps = stepMap[sectionKey] || [];
       if (steps.some(s => !!stepRunning[s])) return 'running';
@@ -1282,9 +1289,9 @@
 
       // Initialize locked state based on completed steps
       sectionLocked = {
-        input:      stepSt('alignment') === 'complete' && stepSt('storyboard') === 'complete',
-        storyboard: stepSt('asset_manifest') === 'complete' && stepSt('asset_acquisition') === 'complete',
-        assets:     stepSt('ffmpeg_script') === 'complete' && stepSt('render') === 'complete',
+        input:      stepSt('alignment') === 'complete',
+        storyboard: stepSt('storyboard') === 'complete',
+        assets:     stepSt('asset_manifest') === 'complete' && stepSt('asset_acquisition') === 'complete',
       };
 
       // If alignment was previously run, VO must have been uploaded
@@ -1526,19 +1533,24 @@
     }
 
     async function populateStoryboard() {
+      const alignmentDone  = stepSt('alignment')  === 'complete';
       const storyboardDone = stepSt('storyboard') === 'complete';
-      const locked = sectionLocked.storyboard;
+      const locked         = sectionLocked.storyboard;
 
-      document.getElementById('storyboard-cta-area').style.display   = storyboardDone ? '' : 'none';
+      // Show CTA when alignment is done and storyboard not yet generated
+      const ctaArea   = document.getElementById('storyboard-cta-area');
+      ctaArea.style.display = (alignmentDone && !storyboardDone) ? '' : 'none';
 
-      const approveBtn = document.getElementById('run-acquisition-btn');
-      const running    = !!stepRunning['asset_manifest'] || !!stepRunning['asset_acquisition'];
-      approveBtn.disabled    = locked || running;
-      approveBtn.textContent = running ? 'Running…' : 'Run Asset Acquisition';
+      const createBtn = document.getElementById('create-storyboard-btn');
+      const running   = !!stepRunning['storyboard'];
+      createBtn.disabled    = locked || running;
+      createBtn.textContent = running ? 'Running…' : 'Create Storyboard';
 
       const contentDiv = document.getElementById('storyboard-content');
       if (!storyboardDone) {
-        contentDiv.innerHTML = '<div class="state-empty">No storyboard yet — create one in Project Details.</div>';
+        contentDiv.innerHTML = alignmentDone
+          ? '<div class="state-empty">Click "Create Storyboard" to generate scenes from your voiceover.</div>'
+          : '<div class="state-empty">No storyboard yet — commit Project Details first.</div>';
         return;
       }
       if (contentDiv.dataset.loadedFor === currentRunId) return;
@@ -1561,19 +1573,24 @@
     }
 
     async function populateAssets() {
-      const manifestDone = stepSt('asset_manifest') === 'complete';
-      const locked = sectionLocked.assets;
+      const storyboardDone = stepSt('storyboard')     === 'complete';
+      const manifestDone   = stepSt('asset_manifest') === 'complete';
+      const locked         = sectionLocked.assets;
 
-      document.getElementById('assets-cta-area').style.display   = manifestDone ? '' : 'none';
+      // Show CTA when storyboard is done and acquisition not yet complete
+      const ctaArea     = document.getElementById('assets-cta-area');
+      ctaArea.style.display = (storyboardDone && !locked) ? '' : 'none';
 
-      const renderBtn = document.getElementById('render-btn');
-      const running   = !!stepRunning['ffmpeg_script'] || !!stepRunning['render'];
-      renderBtn.disabled    = locked || running;
-      renderBtn.textContent = running ? 'Running…' : 'Render Video';
+      const acquisitionBtn = document.getElementById('run-acquisition-btn');
+      const running        = !!stepRunning['asset_manifest'] || !!stepRunning['asset_acquisition'];
+      acquisitionBtn.disabled    = locked || running;
+      acquisitionBtn.textContent = running ? 'Running…' : 'Run Asset Acquisition';
 
       const contentDiv = document.getElementById('assets-content');
       if (!manifestDone) {
-        contentDiv.innerHTML = '<div class="state-empty">No asset manifest yet — approve storyboard first.</div>';
+        contentDiv.innerHTML = storyboardDone
+          ? '<div class="state-empty">Click "Run Asset Acquisition" to fetch images and video for each scene.</div>'
+          : '<div class="state-empty">No assets yet — create a storyboard first.</div>';
         return;
       }
       if (contentDiv.dataset.loadedFor === currentRunId) return;
@@ -1591,10 +1608,22 @@
     }
 
     async function populateRender() {
+      const assetsDone = stepSt('asset_manifest') === 'complete' && stepSt('asset_acquisition') === 'complete';
       const renderDone = stepSt('render') === 'complete';
       const contentDiv = document.getElementById('render-content');
+
+      // Render CTA: shown when assets are ready but video not yet rendered
+      const ctaArea  = document.getElementById('render-cta-area');
+      ctaArea.style.display = (assetsDone && !renderDone) ? '' : 'none';
+      const renderBtn = document.getElementById('render-btn');
+      const running   = !!stepRunning['ffmpeg_script'] || !!stepRunning['render'];
+      renderBtn.disabled    = running;
+      renderBtn.textContent = running ? 'Running…' : 'Render Video';
+
       if (!renderDone) {
-        contentDiv.innerHTML = '<div class="state-empty">No video yet — render one in Assets.</div>';
+        contentDiv.innerHTML = assetsDone
+          ? '<div class="state-empty">Assets ready — click "Render Video" to produce the final video.</div>'
+          : '<div class="state-empty">No video yet — acquire assets first.</div>';
         populateMetadata();
         return;
       }
@@ -2070,8 +2099,7 @@
         steps.push({ key: 'tts', label: 'Generating VO', path: `/runs/${currentRunId}/tts`, body: null });
       }
       steps.push(
-        { key: 'alignment',  label: 'Alignment',  path: `/runs/${currentRunId}/alignment`,  body: null },
-        { key: 'storyboard', label: 'Storyboard', path: `/runs/${currentRunId}/storyboard`, body: JSON.stringify({ script }) },
+        { key: 'alignment', label: 'Alignment', path: `/runs/${currentRunId}/alignment`, body: null },
       );
       const ok = await runSequence(steps, progressEl, errorEl);
 
@@ -2081,16 +2109,54 @@
       if (ok) {
         sectionLocked.input = true;
         populateInput();
+        activateSection('storyboard');
+      }
+    }
+
+    // ─── CTA: Create Storyboard ───────────────────────────────────────────────
+    async function runStoryboard() {
+      const progressEl = document.getElementById('storyboard-step-progress');
+      const errorEl    = document.getElementById('storyboard-error');
+      errorEl.style.display = 'none';
+
+      document.getElementById('create-storyboard-btn').disabled = true;
+
+      // Script is stored in the (now disabled) textarea after commit; fall back to draft
+      let script = document.getElementById('script-input')?.value.trim();
+      if (!script && currentRunId) {
+        try {
+          const r = await fetch(`/runs/${currentRunId}/draft`);
+          const d = await r.json();
+          script = d.script || '';
+        } catch (_) {}
+      }
+      if (!script) {
+        errorEl.textContent = 'Script not found — return to Project Details.';
+        errorEl.style.display = '';
+        document.getElementById('create-storyboard-btn').disabled = false;
+        return;
+      }
+
+      const ok = await runSequence([
+        { key: 'storyboard', label: 'Storyboard', path: `/runs/${currentRunId}/storyboard`, body: JSON.stringify({ script }) },
+      ], progressEl, errorEl);
+
+      renderNavItems();
+
+      if (ok) {
+        sectionLocked.storyboard = true;
         const sc = document.getElementById('storyboard-content');
         delete sc.dataset.loadedFor;
-        activateSection('storyboard');
+        populateStoryboard();
+      } else {
+        document.getElementById('create-storyboard-btn').disabled = false;
       }
     }
 
     // ─── CTA: Run Asset Acquisition (manifest → asset_acquisition) ───────────
     async function runAssetAcquisition() {
-      const progressEl = document.getElementById('storyboard-step-progress');
-      const errorEl    = document.getElementById('storyboard-error');
+      const progressEl = document.getElementById('assets-step-progress');
+      const errorEl    = document.getElementById('assets-error');
       errorEl.style.display = 'none';
 
       document.getElementById('run-acquisition-btn').disabled = true;
@@ -2101,20 +2167,22 @@
       ], progressEl, errorEl);
 
       renderNavItems();
-      populateStoryboard();
+      populateAssets();
 
       if (ok) {
-        sectionLocked.storyboard = true;
+        sectionLocked.assets = true;
         const ac = document.getElementById('assets-content');
         delete ac.dataset.loadedFor;
-        activateSection('assets');
+        activateSection('render');
+      } else {
+        document.getElementById('run-acquisition-btn').disabled = false;
       }
     }
 
     // ─── CTA: Render Video (ffmpeg-script → render) ───────────────────────────
     async function runRenderVideo() {
-      const progressEl = document.getElementById('assets-step-progress');
-      const errorEl    = document.getElementById('assets-error');
+      const progressEl = document.getElementById('render-step-progress');
+      const errorEl    = document.getElementById('render-error');
       errorEl.style.display = 'none';
 
       document.getElementById('render-btn').disabled = true;
@@ -2125,13 +2193,13 @@
       ], progressEl, errorEl);
 
       renderNavItems();
-      populateAssets();
 
       if (ok) {
-        sectionLocked.assets = true;
         const rc = document.getElementById('render-content');
         delete rc.dataset.loadedFor;
-        activateSection('render');
+        populateRender();
+      } else {
+        document.getElementById('render-btn').disabled = false;
       }
     }
 
