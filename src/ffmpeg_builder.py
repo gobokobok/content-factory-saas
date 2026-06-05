@@ -433,7 +433,16 @@ def _filter_complex_concat(n_scenes: int) -> str:
         f"[{i}:v]setpts=PTS-STARTPTS[v{i}]" for i in range(n_scenes)
     )
     concat_inputs = "".join(f"[v{i}]" for i in range(n_scenes))
-    filter_complex = f"{setpts_parts};{concat_inputs}concat=n={n_scenes}:v=1:a=0[vout]"
+    # fps={_FPS} after concat normalises the output time base before libx264 sees it.
+    # Scene clips can have mixed tbns (12800, 15360, 30000 …) from different Pexels
+    # sources.  Without the fps filter, the concat output inherits whatever time base
+    # FFmpeg resolves from the mix, which can appear as ~1,000,000 fps to libx264,
+    # triggering "MB rate > level limit" (exit 187).
+    filter_complex = (
+        f"{setpts_parts};"
+        f"{concat_inputs}concat=n={n_scenes}:v=1:a=0[vconcatraw];"
+        f"[vconcatraw]fps={_FPS}[vout]"
+    )
     return (
         "# ── Concatenate scenes (filter_complex — no concat demuxer) ────\n"
         "ffmpeg -y \\\n"
