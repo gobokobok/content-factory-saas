@@ -86,7 +86,7 @@ _Entries added here when a story reaches Definition of Done._
 - `generateMetadata()`: POSTs to `POST /runs/{run_id}/metadata`, updates `currentSteps['metadata'] = 'complete'`, calls `renderNavItems()`, then re-runs `populateMetadata()`. Handles error + retry.
 - `copyField(btn, text)`: writes to clipboard, sets button text to "Copied ✓" + `.copied` CSS class (green) for 2s, falls back to "Failed" on rejection.
 - No new ENV vars. 734 tests passing — no regressions.
-**Smoke test:** DEFERRED — requires a run with completed render step on Railway DEV. Operator clicks "Generate Metadata" → waits for Haiku → 7 fields appear. Clicks "Copy" on YouTube Description → pastes into YouTube Studio → confirms correct content.
+**Smoke test:** PASSED — 2026-06-05. Clicked "Generate Metadata" on a completed render run; Haiku returned all 7 fields (Primary Title, Alt Title 1, Alt Title 2, YouTube Description, Instagram Description, Hashtags, SEO Tags). Clicked "Copy" on YouTube Description; content pasted correctly.
 **Promoted to backlog:** none
 
 ---
@@ -101,7 +101,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/main.py`: `metadata_router` registered.
 - `tests/test_metadata_generator.py` (new): 20 tests — `_extract_json` parser, `_build_user_message`, `generate_metadata` happy/API error/bad JSON/schema mismatch, route success/404/500/failure-marks-run-log/project-name-fallback.
 - No new ENV vars. 734 tests passing.
-**Smoke test:** DEFERRED — requires a run with completed render step on Railway DEV. Batch with S12-S3 UI smoke test.
+**Smoke test:** PASSED — 2026-06-05. Batched with S12-S3 UI smoke test; metadata generated and displayed correctly end-to-end.
 **Promoted to backlog:** none
 
 ---
