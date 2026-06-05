@@ -785,6 +785,10 @@
     .data-table.sb-table td.highlight-active { background: #FFF8C5; }
     .sb-source-select { font-size: 11px; border: 1px solid #D1CECE; border-radius: 4px; padding: 2px 4px; background: #fff; cursor: pointer; }
     .sb-source-select:disabled { opacity: 0.5; cursor: default; }
+    .sb-source-status { font-size: 10px; margin-left: 4px; min-width: 14px; display: inline-block; }
+    .sb-source-status.saving { color: #9A9A9A; }
+    .sb-source-status.saved  { color: #16a34a; }
+    .sb-source-status.error  { color: #dc2626; cursor: default; }
     /* Storyboard section pane: full width for wide table */
     .section-pane.wide { max-width: none; }
 
@@ -1944,7 +1948,7 @@
           <td><select class="sb-source-select" data-scene-id="${sceneIdEsc}" onchange="sbAssetModeChange(this)" ${sectionLocked.storyboard ? 'disabled' : ''}>
             <option value="stock"${mode === 'stock' ? ' selected' : ''}>Stock</option>
             <option value="ai_generated"${mode === 'ai_generated' ? ' selected' : ''}>AI Generated</option>
-          </select></td>
+          </select><span class="sb-source-status"></span></td>
         </tr>`;
       }).join('');
 
@@ -2017,28 +2021,53 @@
     // ─── Storyboard Source (asset_mode) selector ──────────────────────────────
 
     /** Handle Source dropdown change: update highlights and persist asset_mode via PATCH. */
-    async function sbAssetModeChange(select) {
-      const sceneId = select.dataset.sceneId;
-      const mode    = select.value;
-      const row     = select.closest('tr');
-      const pqTd    = row.querySelector('td.source-primary');
-      const aiTd    = row.querySelector('td.source-ai');
+    // Serialisation queue for storyboard asset_mode PATCHes.
+    // Each PATCH does read-modify-write on the storyboard JSON in R2. Running
+    // multiple PATCHes concurrently causes last-writer-wins overwrites — scenes
+    // changed earlier silently revert to their defaults. Chaining every PATCH
+    // onto this promise ensures they execute one at a time.
+    let _sbPatchChain = Promise.resolve();
+
+    function sbAssetModeChange(select) {
+      const sceneId  = select.dataset.sceneId;
+      const mode     = select.value;
+      const row      = select.closest('tr');
+      const pqTd     = row.querySelector('td.source-primary');
+      const aiTd     = row.querySelector('td.source-ai');
+      const statusEl = row.querySelector('.sb-source-status');
+
+      // Update highlights immediately (optimistic).
       if (pqTd) pqTd.classList.toggle('highlight-active', mode === 'stock');
       if (aiTd) aiTd.classList.toggle('highlight-active', mode === 'ai_generated');
-      // Persist on the storyboard (exists pre-acquisition; manifest is derived from it).
-      try {
-        const resp = await fetch(`/runs/${currentRunId}/storyboard`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scene_id: sceneId, field: 'asset_mode', value: mode }),
-        });
-        if (!resp.ok) {
-          const err = await resp.json().catch(() => ({}));
-          console.warn('asset_mode PATCH failed:', err.detail || resp.status);
+
+      // Show pending indicator and disable select until this patch lands.
+      if (statusEl) { statusEl.textContent = '…'; statusEl.className = 'sb-source-status saving'; }
+      select.disabled = true;
+
+      // Chain this PATCH onto any in-flight PATCH so they run sequentially.
+      _sbPatchChain = _sbPatchChain.then(async () => {
+        try {
+          const resp = await fetch(`/runs/${currentRunId}/storyboard`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scene_id: sceneId, field: 'asset_mode', value: mode }),
+          });
+          if (resp.ok) {
+            if (statusEl) { statusEl.textContent = '✓'; statusEl.className = 'sb-source-status saved'; }
+            setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 1500);
+          } else {
+            const err = await resp.json().catch(() => ({}));
+            if (statusEl) { statusEl.textContent = '✗'; statusEl.title = err.detail || resp.status; statusEl.className = 'sb-source-status error'; }
+            console.warn('asset_mode PATCH failed:', err.detail || resp.status);
+          }
+        } catch (err) {
+          if (statusEl) { statusEl.textContent = '✗'; statusEl.title = err.message; statusEl.className = 'sb-source-status error'; }
+          console.warn('asset_mode PATCH network error:', err.message);
+        } finally {
+          // Re-enable only when not globally locked.
+          if (!sectionLocked.storyboard) select.disabled = false;
         }
-      } catch (err) {
-        console.warn('asset_mode PATCH network error:', err.message);
-      }
+      });
     }
 
     // ─── Video settings ───────────────────────────────────────────────────────
