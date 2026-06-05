@@ -3139,6 +3139,42 @@ After BUG-001 scenario plays out (network error → user clicks Save Draft → e
 
 ---
 
+## [BUG-003] Storyboard generation cancels when user navigates to another run
+**Status:** open
+**Priority:** high
+**Reported:** 2026-06-05
+**Points:** 5
+
+### Description
+`POST /runs/{run_id}/storyboard` is a long-running synchronous request (10–30s for Claude). When the user switches to another project mid-generation (by clicking a run in the left panel), two things go wrong:
+
+1. **Client state corruption:** `currentRunId` changes to the new project while the original fetch promise is still in flight. When the server eventually responds, `sectionLocked.storyboard`, `populateStoryboard()`, and `renderNavItems()` all execute against the new (wrong) `currentRunId`.
+2. **User confusion:** The original run's storyboard step shows as `pending` when the user returns to it (even if the server succeeded), because the completion callback fired against the wrong run context.
+
+### Root cause
+Storyboard generation is request-scoped: the client waits for the HTTP response to update UI state. Any client-side navigation that changes `currentRunId` during that wait corrupts the callback context.
+
+### Acceptance Criteria
+- [ ] Operator can click to a different project (or section) while storyboard generation is in progress — and the storyboard still completes on the server
+- [ ] When the operator returns to the run, the storyboard shows as `complete` with all data populated
+- [ ] If generation fails server-side, the run dot shows red the next time the user opens it
+- [ ] No regression on the happy-path flow where user stays on the page
+
+### Proposed solution
+Mirror the S13-S3 background render pattern:
+- `POST /runs/{run_id}/storyboard` returns HTTP 202 immediately; generation runs in a FastAPI `BackgroundTask`
+- Add `GET /runs/{run_id}/storyboard/status` → `{status: "running"|"complete"|"failed"}`
+- UI polls status endpoint every 3s while on the storyboard section; renders table when `complete`
+- If user navigates away and back, `populateStoryboard()` already checks `run_log.json` step state — will show complete table if server finished in the background
+
+### Files to modify
+- `src/routes/storyboard.py` — return 202, register BackgroundTask
+- `src/storyboard.py` — no changes to core logic
+- `src/models.py` — `StoryboardAcceptedResponse`
+- `src/static/pipeline.html` — `runCreateStoryboard` fires POST, immediately moves to poll loop; `populateStoryboard` already handles load-on-return
+
+---
+
 ## Ideas / Future Epics
 
 ### IDEA-001 — ElevenLabs TTS: script-only entry point
