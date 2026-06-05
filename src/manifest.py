@@ -31,7 +31,8 @@ def build_manifest(run_id: str, storyboard_data: dict) -> AssetManifest:
       fallback_stk  → fallback_query
       ai_generate   → ai_generate_prompt
 
-    asset_mode is set to a default derived from clip_type:
+    asset_mode is taken from scene.asset_mode when the operator has set it,
+    otherwise falls back to a clip_type-derived default:
       hard_cut              → "stock"
       still_with_motion /
       animated              → "ai_generated"
@@ -50,7 +51,7 @@ def build_manifest(run_id: str, storyboard_data: dict) -> AssetManifest:
             primary_query=scene.visual_prompts.primary_stk,
             fallback_query=scene.visual_prompts.fallback_stk,
             ai_generate_prompt=scene.visual_prompts.ai_generate,
-            asset_mode=_default_asset_mode(scene.clip_type),
+            asset_mode=scene.asset_mode or _default_asset_mode(scene.clip_type),
         )
         for scene in storyboard.scenes
     ]

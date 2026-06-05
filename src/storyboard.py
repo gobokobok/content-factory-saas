@@ -22,7 +22,10 @@ from src.utils.model_router import GENERATE, ModelRouter
 from src.validators.storyboard_validator import validate_storyboard
 
 # Fields that operators are permitted to edit via PATCH /runs/{run_id}/storyboard.
-_PATCHABLE_FIELDS: set[str] = {"ai_generate_prompt"}
+_PATCHABLE_FIELDS: set[str] = {"ai_generate_prompt", "asset_mode"}
+
+# Valid values for the asset_mode patchable field.
+_VALID_ASSET_MODES: frozenset[str] = frozenset({"stock", "ai_generated"})
 
 logger = logging.getLogger(__name__)
 
@@ -696,6 +699,12 @@ def patch_scene_field(
         if scene.scene == scene_id:
             if field == "ai_generate_prompt":
                 scene.visual_prompts.ai_generate = value
+            elif field == "asset_mode":
+                if value not in _VALID_ASSET_MODES:
+                    raise ValueError(
+                        f"Invalid asset_mode '{value}'; allowed: {sorted(_VALID_ASSET_MODES)}"
+                    )
+                scene.asset_mode = value  # type: ignore[assignment]
             break
     else:
         raise StoryboardParseError(f"Scene '{scene_id}' not found in storyboard for run '{run_id}'")

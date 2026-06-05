@@ -1564,22 +1564,19 @@
 
       contentDiv.innerHTML = '<div class="state-loading">Loading storyboard…</div>';
       try {
-        const manifestDone = stepSt('asset_manifest') === 'complete';
-        const [sbRes, settingsRes, manifestRes] = await Promise.all([
+        const [sbRes, settingsRes] = await Promise.all([
           fetch(`/runs/${currentRunId}/artifact/storyboard`),
           fetch(`/runs/${currentRunId}/settings`),
-          manifestDone ? fetch(`/runs/${currentRunId}/artifact/manifest`) : Promise.resolve(null),
         ]);
         const data         = await sbRes.json();
         const settingsData = settingsRes.ok ? await settingsRes.json() : null;
         if (!sbRes.ok) { contentDiv.innerHTML = `<div class="error-text">${esc(data.detail || 'Failed to load storyboard')}</div>`; return; }
         const audioSettings  = settingsData?.settings?.audio || null;
-        const manifestData   = (manifestRes && manifestRes.ok) ? (await manifestRes.json()).content : null;
+        // asset_mode lives on the storyboard scene (not the manifest) so it's
+        // available before acquisition runs and survives manifest regeneration.
         const assetModeMap   = {};
-        if (manifestData?.entries) {
-          for (const e of manifestData.entries) {
-            if (e.asset_mode) assetModeMap[e.scene_id] = e.asset_mode;
-          }
+        for (const s of (data.content?.scenes || [])) {
+          if (s.asset_mode) assetModeMap[s.scene] = s.asset_mode;
         }
         contentDiv.innerHTML         = renderStoryboardHtml(data.content, audioSettings, assetModeMap);
         contentDiv.dataset.loadedFor = currentRunId;
@@ -2028,8 +2025,9 @@
       const aiTd    = row.querySelector('td.source-ai');
       if (pqTd) pqTd.classList.toggle('highlight-active', mode === 'stock');
       if (aiTd) aiTd.classList.toggle('highlight-active', mode === 'ai_generated');
+      // Persist on the storyboard (exists pre-acquisition; manifest is derived from it).
       try {
-        const resp = await fetch(`/runs/${currentRunId}/manifest`, {
+        const resp = await fetch(`/runs/${currentRunId}/storyboard`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ scene_id: sceneId, field: 'asset_mode', value: mode }),

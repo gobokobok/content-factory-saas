@@ -359,6 +359,47 @@ class TestBuildManifestAssetModeDefault:
         manifest = build_manifest(RUN_ID, data)
         assert manifest.entries[0].asset_mode == "ai_generated"
 
+    def test_storyboard_asset_mode_overrides_clip_type_default(self):
+        """Operator-set asset_mode on the storyboard scene takes priority over the
+        clip_type-derived default when building the manifest."""
+        data = _make_storyboard_data(scenes=[{
+            "scene": "01",
+            "clip_type": "still_with_motion",  # default → ai_generated
+            "duration_s": 3.0,
+            "voiceover_line": "test",
+            "visual_prompts": {
+                "primary_stk": "query",
+                "fallback_stk": "fallback",
+                "ai_generate": "ai prompt",
+            },
+            "sfx": "none",
+            "sfx_timing": "start",
+            "motion_effect": "zoom_in",
+            "on_screen_text": None,
+            "asset_mode": "stock",  # operator override
+        }])
+        manifest = build_manifest(RUN_ID, data)
+        assert manifest.entries[0].asset_mode == "stock"
+
+    def test_storyboard_asset_mode_none_falls_back_to_clip_type_default(self):
+        """When scene.asset_mode is None (not yet set by operator), the clip_type
+        default is used as before."""
+        data = _make_storyboard_data(scenes=[{
+            "scene": "01",
+            "clip_type": "hard_cut",  # default → stock
+            "duration_s": 3.0,
+            "voiceover_line": "test",
+            "visual_prompts": {
+                "primary_stk": "query",
+                "fallback_stk": "fallback",
+                "ai_generate": "ai prompt",
+            },
+            "sfx": "none",
+            "sfx_timing": "start",
+        }])
+        manifest = build_manifest(RUN_ID, data)
+        assert manifest.entries[0].asset_mode == "stock"
+
 
 # ── Unit: patch_manifest_entry ────────────────────────────────────────────────
 

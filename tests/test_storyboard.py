@@ -941,6 +941,30 @@ class TestPatchSceneField:
         result = patch_scene_field(RUN_ID, "1", "ai_generate_prompt", "changed", storage)
         assert result.scenes[1].visual_prompts.ai_generate == original_scene2
 
+    def test_updates_asset_mode_to_stock(self):
+        data = _make_storyboard_json()
+        storage = self._mock_storage(data)
+        result = patch_scene_field(RUN_ID, "1", "asset_mode", "stock", storage)
+        assert result.scenes[0].asset_mode == "stock"
+
+    def test_updates_asset_mode_to_ai_generated(self):
+        data = _make_storyboard_json()
+        storage = self._mock_storage(data)
+        result = patch_scene_field(RUN_ID, "1", "asset_mode", "ai_generated", storage)
+        assert result.scenes[0].asset_mode == "ai_generated"
+
+    def test_invalid_asset_mode_value_raises_value_error(self):
+        data = _make_storyboard_json()
+        storage = self._mock_storage(data)
+        with pytest.raises(ValueError, match="Invalid asset_mode"):
+            patch_scene_field(RUN_ID, "1", "asset_mode", "pexels_only", storage)
+
+    def test_asset_mode_patch_writes_back_to_r2(self):
+        data = _make_storyboard_json()
+        storage = self._mock_storage(data)
+        patch_scene_field(RUN_ID, "1", "asset_mode", "stock", storage)
+        storage.upload_json.assert_called_once()
+
 
 # ── PATCH /runs/{run_id}/storyboard route tests ───────────────────────────────
 

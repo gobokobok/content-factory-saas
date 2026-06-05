@@ -119,6 +119,9 @@ class StoryboardScene(BaseModel):
     on_screen_text: Optional[str] = None
     sfx: str
     sfx_timing: str
+    # Operator-set acquisition strategy — persisted in storyboard so it survives
+    # before the manifest exists.  None means "derive from clip_type at manifest build".
+    asset_mode: Optional[Literal["stock", "ai_generated"]] = None
 
 
 class StoryboardGlobal(BaseModel):
