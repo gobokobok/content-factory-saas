@@ -453,6 +453,13 @@ def _filter_complex_concat(n_scenes: int) -> str:
         '  -f concat -safe 0 \\\n'
         '  -i "$WORK/filelist.txt" \\\n'
         f"  -r {_FPS} \\\n"
+        # -vsync cfr forces each output frame to carry PTS = N/fps (N = frame number).
+        # Without it the concat demuxer passes through the clips' existing timestamps,
+        # which can contain non-zero starting PTS (H.264 B-frame edit lists) or
+        # accumulated rounding from mixed-fps clips.  Those bad PTS values survive
+        # -c:v libx264 re-encoding and cause a visible freeze + visual-after-audio
+        # desync in the player.  cfr eliminates any jump regardless of input.
+        "  -vsync cfr \\\n"
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
         '  "$WORK/video_only.mp4"'
     )

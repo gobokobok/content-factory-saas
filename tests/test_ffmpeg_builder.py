@@ -1023,13 +1023,21 @@ class TestFilterComplexConcat:
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "filelist.txt" in script
 
-    def test_concat_r_flag_present(self):
-        """-r 25 must appear in the concat command to set libx264 frame rate."""
+    def test_concat_r_flag_and_vsync_cfr_present(self):
+        """-r 25 and -vsync cfr must appear in the concat command.
+
+        -r 25 tells libx264 the target frame rate; -vsync cfr forces each output
+        frame to carry PTS = N/fps (N = frame number).  Without cfr the concat
+        demuxer passes through per-clip timestamps that may contain non-zero
+        starting PTS (H.264 B-frame edit lists) or accumulated rounding from
+        mixed-fps clips, causing a visible freeze + visual-after-audio desync.
+        """
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         concat_start = script.index("# ── Concatenate scenes")
-        concat_chunk = script[concat_start : concat_start + 600]
+        concat_chunk = script[concat_start : concat_start + 700]
         assert "-r 25" in concat_chunk
+        assert "-vsync cfr" in concat_chunk
 
     def test_all_scene_files_are_in_filelist(self):
         scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "still_with_motion", 4.0)]
