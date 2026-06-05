@@ -999,86 +999,75 @@ class TestComputeSceneDurationsFromAlignment:
         assert scenes[0].duration_s == 5.0
 
 
-# ── Unit: filter_complex concat replaces concat demuxer ──────────────────────
+# ── Unit: concat demuxer assembly ────────────────────────────────────────────
+#
+# History: originally used filter_complex concat, then switched to the concat
+# demuxer after filter_complex inherited mixed tbns from scene clips (Pexels
+# videos produce 12800/15360/30000 tbn, image/zoompan clips 1/1_000_000),
+# causing libx264 to refuse to open at encoder-init time (exit 187).
 
 
 class TestFilterComplexConcat:
-    def test_no_concat_demuxer_in_script(self):
+    def test_concat_uses_demuxer_not_filter_complex(self):
+        """Concat step must use the concat demuxer (-f concat) not filter_complex."""
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "-f concat" not in script
+        concat_start = script.index("# ── Concatenate scenes")
+        concat_chunk = script[concat_start : concat_start + 800]
+        assert "-f concat" in concat_chunk
+        assert "-filter_complex" not in concat_chunk
+        assert '-map "[vout]"' not in concat_chunk
 
-    def test_no_concat_txt_in_script(self):
+    def test_concat_uses_filelist(self):
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "concat.txt" not in script
+        assert "filelist.txt" in script
 
-    def test_filter_complex_present(self):
+    def test_concat_r_flag_present(self):
+        """-r 25 must appear in the concat command to set libx264 frame rate."""
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "-filter_complex" in script
+        concat_start = script.index("# ── Concatenate scenes")
+        concat_chunk = script[concat_start : concat_start + 600]
+        assert "-r 25" in concat_chunk
 
-    def test_setpts_reset_per_scene(self):
-        scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "hard_cut", 4.0)]
-        sb = _storyboard(scenes)
-        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut")])
-        script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "[0:v]setpts=PTS-STARTPTS[v0]" in script
-        assert "[1:v]setpts=PTS-STARTPTS[v1]" in script
-
-    def test_concat_filter_uses_correct_scene_count(self):
-        scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "hard_cut", 4.0), _scene("03", "hard_cut", 2.0)]
-        sb = _storyboard(scenes)
-        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut"), _entry("03", "hard_cut")])
-        script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "concat=n=3" in script
-
-    def test_all_scene_files_are_inputs_to_concat(self):
+    def test_all_scene_files_are_in_filelist(self):
         scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "still_with_motion", 4.0)]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("01", "hard_cut"), _entry("02", "still_with_motion")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        concat_section = script[script.index("no concat demuxer"):]
-        assert "scene_01.mp4" in concat_section
-        assert "scene_02.mp4" in concat_section
+        concat_start = script.index("# ── Concatenate scenes")
+        concat_chunk = script[concat_start : concat_start + 800]
+        assert "scene_01.mp4" in concat_chunk
+        assert "scene_02.mp4" in concat_chunk
 
-    def test_output_mapped_from_vout(self):
+    def test_concat_uses_demuxer_not_filter_complex(self):
+        """Concat step must use the concat demuxer (-f concat) not filter_complex.
+
+        filter_complex concat inherits mixed tbns from scene clips (Pexels videos
+        produce 12800/15360/30000 tbn, image/zoompan clips carry 1/1_000_000).
+        libx264 reads that tbn at encoder-init, computes ~1M fps, and refuses to
+        open ("Error while opening encoder" / "MB rate > level limit", exit 187).
+        fps= filter and -r flag workarounds both fail because they do not fix tbn
+        metadata before libx264 sees it.  The concat demuxer + re-encode with
+        -r 25 generates fresh PTS from scratch, bypassing the problem entirely.
+        """
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert '-map "[vout]"' in script
-
-    def test_r_flag_normalises_time_base_for_concat(self):
-        """-r 25 must appear in the concat ffmpeg command as an output flag.
-
-        Pexels clips arrive with mixed tbns (12800, 15360, 30000 …).  The fps=
-        filter inside filter_complex adjusts frame selection but does NOT rewrite
-        the stream tbn metadata, so libx264 still sees an impossible frame rate and
-        refuses to open ('Error while opening encoder', exit 187).  The canonical
-        fix is -r 25 on the output side, which tells libx264 the true frame rate
-        at encoder-init time, used directly for MB rate / level selection.
-        """
-        scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "hard_cut", 4.0)]
-        sb = _storyboard(scenes)
-        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut")])
-        script = build_ffmpeg_script(RUN_ID, sb, mf)
-        # concat block must contain -r 25 between -map and -c:v
         concat_start = script.index("# ── Concatenate scenes")
-        concat_chunk = script[concat_start : concat_start + 600]
+        concat_chunk = script[concat_start : concat_start + 800]
+        # Must use concat demuxer, not filter_complex
+        assert "-f concat" in concat_chunk
+        assert "-filter_complex" not in concat_chunk
+        assert "-map \"[vout]\"" not in concat_chunk
+        # filelist.txt must be the demuxer input
+        assert "filelist.txt" in concat_chunk
+        # -r 25 must appear to set the encoder frame rate
         assert "-r 25" in concat_chunk
-        assert concat_chunk.index("-map") < concat_chunk.index("-r 25")
-        assert concat_chunk.index("-r 25") < concat_chunk.index("-c:v")
-        # fps= must NOT appear inside the filter_complex string
-        fc_start = concat_chunk.index("-filter_complex")
-        fc_end = concat_chunk.index("-map")
-        fc_chunk = concat_chunk[fc_start:fc_end]
-        assert "fps=" not in fc_chunk
-        # [vout] must be the direct concat output (no vconcatraw intermediate)
-        assert "vconcatraw" not in concat_chunk
-        assert "[vout]" in concat_chunk
 
-    def test_filter_complex_count_matches_manifest_entries_not_storyboard_total(self):
-        # Storyboard summary claims 3 scenes but manifest has 2 entries.
-        # concat=n= must reflect the 2 manifest entries, not the stale summary value.
+    def test_concat_filelist_count_matches_manifest_entries(self):
+        """filelist.txt must contain exactly as many entries as the manifest — not the
+        stale summary total.  With the concat demuxer each entry is one echo line."""
         scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "hard_cut", 3.0)]
         sb = Storyboard(**{
             "global": StoryboardGlobal(subtitle_style="bold", bg_music="lo-fi", visual_style="doc"),
@@ -1087,8 +1076,12 @@ class TestFilterComplexConcat:
         })
         mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "concat=n=2" in script
-        assert "concat=n=3" not in script
+        concat_start = script.index("# ── Concatenate scenes")
+        concat_end = script.index("video_only.mp4", concat_start)
+        concat_chunk = script[concat_start:concat_end]
+        # Exactly 2 scene entries (scene_01, scene_02), not 3
+        assert concat_chunk.count("scene_0") == 2
+        assert "scene_03" not in concat_chunk
 
 
 # ── Route: voiceover pacing calibration ──────────────────────────────────────

@@ -419,37 +419,39 @@ def _render_image_scene(
 
 def _filter_complex_concat(n_scenes: int) -> str:
     """
-    Concatenate scene segments via filter_complex instead of the concat demuxer.
+    Concatenate scene segments using the concat demuxer with full re-encode.
 
-    The concat demuxer copies bitstreams without resetting PTS, which causes
-    non-monotonic DTS and progressive audio drift. Using the concat filter with
-    explicit setpts=PTS-STARTPTS per clip normalises timestamps before joining.
+    Why NOT filter_complex concat:
+      Scene clips arrive with mixed time bases — Pexels video clips produce
+      tbns like 12800, 15360, 30000 depending on their native frame rate, and
+      image/zoompan clips can carry a 1/1_000_000 microsecond time base.
+      The filter_complex concat filter inherits the most-precise tbn from all
+      inputs; libx264 then reads that tbn at encoder-init time, computes a
+      frame rate of up to ~1,000,000 fps, and refuses to open ("Error while
+      opening encoder" / "MB rate > level limit", exit 187).  fps= filter and
+      -r flag workarounds both rely on the same underlying FFmpeg mechanism and
+      do not fix the tbn metadata before libx264 sees it.
+
+    Why concat demuxer + re-encode works:
+      The concat demuxer streams decoded frames sequentially through a single
+      ffmpeg process.  With -r {_FPS} the encoder is told the true frame rate
+      before any time base inference occurs; libx264 generates fresh PTS values
+      from scratch.  Re-encoding at CRF 18 preserves visual quality.
+
+    The filelist is written line-by-line using echo so no extra tool is needed
+    and the path quoting works under set -euo pipefail.
     """
-    input_lines = "\n".join(
-        f'  -i "$WORK/scene_{i:02d}.mp4" \\'
+    file_lines = "\n".join(
+        f'echo "file \'$WORK/scene_{i:02d}.mp4\'" >> "$WORK/filelist.txt"'
         for i in range(1, n_scenes + 1)
     )
-    setpts_parts = ";".join(
-        f"[{i}:v]setpts=PTS-STARTPTS[v{i}]" for i in range(n_scenes)
-    )
-    concat_inputs = "".join(f"[v{i}]" for i in range(n_scenes))
-    # Do NOT use fps= inside filter_complex to fix the time base: the fps filter adjusts
-    # which frames to output but does NOT rewrite the stream's tbn metadata, so libx264
-    # still sees whatever (possibly microsecond-resolution) time base the concat filter
-    # inherited from the mixed Pexels clips and fails to initialise ("Error while opening
-    # encoder" / "MB rate > level limit", exit 187).
-    # Instead, -r {_FPS} on the output side tells libx264 the true frame rate at init time
-    # — it is used directly for level/profile selection and MB rate calculations.
-    filter_complex = (
-        f"{setpts_parts};"
-        f"{concat_inputs}concat=n={n_scenes}:v=1:a=0[vout]"
-    )
     return (
-        "# ── Concatenate scenes (filter_complex — no concat demuxer) ────\n"
+        "# ── Concatenate scenes (concat demuxer + re-encode) ────────────────\n"
+        'rm -f "$WORK/filelist.txt"\n'
+        f"{file_lines}\n"
         "ffmpeg -y \\\n"
-        f"{input_lines}\n"
-        f'  -filter_complex "{filter_complex}" \\\n'
-        '  -map "[vout]" \\\n'
+        '  -f concat -safe 0 \\\n'
+        '  -i "$WORK/filelist.txt" \\\n'
         f"  -r {_FPS} \\\n"
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
         '  "$WORK/video_only.mp4"'
