@@ -25,6 +25,7 @@ from src.storyboard import (
     _slice_alignment_for_chunk,
     _split_script_into_chunks,
     generate_storyboard,
+    patch_scene_field,
 )
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -888,3 +889,113 @@ class TestGenerateStoryboardChunked:
             await generate_storyboard(script, settings)
 
         assert mock_api.call_count == 2
+
+
+# ── patch_scene_field unit tests ──────────────────────────────────────────────
+
+
+def _make_storyboard_json() -> dict:
+    """Return a minimal storyboard JSON dict with two scenes for patch tests."""
+    sb = _parse_storyboard_response(SAMPLE_FULL_RESPONSE)
+    return sb.model_dump(by_alias=True, mode="json")
+
+
+class TestPatchSceneField:
+    def _mock_storage(self, storyboard_data: dict) -> MagicMock:
+        mock = MagicMock()
+        mock.get_json.return_value = storyboard_data
+        mock.upload_json.return_value = None
+        return mock
+
+    def test_updates_ai_generate_prompt(self):
+        data = _make_storyboard_json()
+        storage = self._mock_storage(data)
+        result = patch_scene_field(RUN_ID, "1", "ai_generate_prompt", "new prompt text", storage)
+        assert result.scenes[0].visual_prompts.ai_generate == "new prompt text"
+
+    def test_writes_back_to_r2(self):
+        data = _make_storyboard_json()
+        storage = self._mock_storage(data)
+        patch_scene_field(RUN_ID, "1", "ai_generate_prompt", "updated", storage)
+        storage.upload_json.assert_called_once()
+        key, payload = storage.upload_json.call_args[0]
+        assert key == f"runs/{RUN_ID}/storyboard.json"
+        assert "scenes" in payload
+
+    def test_raises_value_error_on_disallowed_field(self):
+        data = _make_storyboard_json()
+        storage = self._mock_storage(data)
+        with pytest.raises(ValueError, match="not patchable"):
+            patch_scene_field(RUN_ID, "1", "primary_query", "no", storage)
+
+    def test_raises_storyboard_parse_error_on_unknown_scene_id(self):
+        data = _make_storyboard_json()
+        storage = self._mock_storage(data)
+        with pytest.raises(StoryboardParseError, match="not found"):
+            patch_scene_field(RUN_ID, "999", "ai_generate_prompt", "v", storage)
+
+    def test_other_scenes_unchanged(self):
+        data = _make_storyboard_json()
+        original_scene2 = data["scenes"][1]["visual_prompts"]["ai_generate"]
+        storage = self._mock_storage(data)
+        result = patch_scene_field(RUN_ID, "1", "ai_generate_prompt", "changed", storage)
+        assert result.scenes[1].visual_prompts.ai_generate == original_scene2
+
+
+# ── PATCH /runs/{run_id}/storyboard route tests ───────────────────────────────
+
+
+class TestPatchStoryboardRoute:
+    def _mock_storage(self, storyboard_data: dict) -> MagicMock:
+        mock = MagicMock()
+        mock.get_json.return_value = storyboard_data
+        mock.upload_json.return_value = None
+        return mock
+
+    def test_happy_path_returns_200(self, client):
+        data = _make_storyboard_json()
+        with patch("src.routes.storyboard.R2Client") as mock_r2:
+            mock_r2.return_value = self._mock_storage(data)
+            resp = client.patch(
+                f"/runs/{RUN_ID}/storyboard",
+                json={"scene_id": "1", "field": "ai_generate_prompt", "value": "new text"},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "updated"
+        assert body["scene_id"] == "1"
+        assert body["field"] == "ai_generate_prompt"
+
+    def test_disallowed_field_returns_422(self, client):
+        data = _make_storyboard_json()
+        with patch("src.routes.storyboard.R2Client") as mock_r2:
+            mock_r2.return_value = self._mock_storage(data)
+            resp = client.patch(
+                f"/runs/{RUN_ID}/storyboard",
+                json={"scene_id": "1", "field": "primary_query", "value": "v"},
+            )
+        assert resp.status_code == 422
+        assert "not patchable" in resp.json()["detail"]
+
+    def test_unknown_scene_id_returns_422(self, client):
+        data = _make_storyboard_json()
+        with patch("src.routes.storyboard.R2Client") as mock_r2:
+            mock_r2.return_value = self._mock_storage(data)
+            resp = client.patch(
+                f"/runs/{RUN_ID}/storyboard",
+                json={"scene_id": "999", "field": "ai_generate_prompt", "value": "v"},
+            )
+        assert resp.status_code == 422
+        assert "not found" in resp.json()["detail"]
+
+    def test_missing_storyboard_returns_404(self, client):
+        from src.exceptions import StorageError as SE
+        mock = MagicMock()
+        mock.get_json.side_effect = SE("not found")
+        with patch("src.routes.storyboard.R2Client") as mock_r2:
+            mock_r2.return_value = mock
+            resp = client.patch(
+                f"/runs/{RUN_ID}/storyboard",
+                json={"scene_id": "1", "field": "ai_generate_prompt", "value": "v"},
+            )
+        assert resp.status_code == 404

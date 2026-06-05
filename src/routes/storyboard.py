@@ -13,8 +13,14 @@ from src.exceptions import (
     StoryboardValidationError,
     StorageError,
 )
-from src.models import StoryboardRequest, StoryboardResponse, WordTimestamp
-from src.storyboard import generate_storyboard
+from src.models import (
+    StoryboardPatchRequest,
+    StoryboardPatchResponse,
+    StoryboardRequest,
+    StoryboardResponse,
+    WordTimestamp,
+)
+from src.storyboard import generate_storyboard, patch_scene_field
 from src.storage import R2Client
 
 logger = logging.getLogger(__name__)
@@ -105,3 +111,32 @@ async def create_storyboard(
     pipeline.summarize_step(run_id, storage, settings)
 
     return StoryboardResponse(status="complete", storyboard_key=storyboard_key)
+
+
+@router.patch("/runs/{run_id}/storyboard", response_model=StoryboardPatchResponse)
+async def patch_storyboard(
+    run_id: str,
+    body: StoryboardPatchRequest,
+    settings: Settings = Depends(get_settings),
+) -> StoryboardPatchResponse:
+    """Update a single editable field on one storyboard scene and persist to R2.
+
+    Returns 422 for unknown scene_id or disallowed field, 404 if storyboard not found.
+    """
+    storage = R2Client(
+        settings.R2_ACCOUNT_ID,
+        settings.R2_ACCESS_KEY_ID,
+        settings.R2_SECRET_ACCESS_KEY,
+        settings.R2_BUCKET_NAME,
+    )
+
+    try:
+        patch_scene_field(run_id, body.scene_id, body.field, body.value, storage)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except StoryboardParseError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except StorageError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return StoryboardPatchResponse(status="updated", scene_id=body.scene_id, field=body.field)

@@ -244,6 +244,22 @@ class StoryboardResponse(BaseModel):
     storyboard_key: str
 
 
+class StoryboardPatchRequest(BaseModel):
+    """Request body for PATCH /runs/{run_id}/storyboard."""
+
+    scene_id: str
+    field: str
+    value: str
+
+
+class StoryboardPatchResponse(BaseModel):
+    """Response body for PATCH /runs/{run_id}/storyboard."""
+
+    status: str
+    scene_id: str
+    field: str
+
+
 class FFmpegScriptResponse(BaseModel):
     """Response body for POST /runs/{run_id}/ffmpeg-script."""
 

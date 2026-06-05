@@ -776,6 +776,12 @@
     .data-table.sb-table td.vo { background: #F6F4F3; }
     .data-table.sb-table td.motion { min-width: 80px; }
     .data-table.sb-table td.sfx { max-width: 130px; }
+    /* Editable AI prompt cell */
+    .data-table.sb-table td.ai-editable { cursor: pointer; }
+    .data-table.sb-table td.ai-editable:hover { background: #F0EDEC; }
+    .data-table.sb-table td.ai-editable.editing { background: #FFF8E1; outline: 1px solid #F5A623; }
+    .data-table.sb-table td.ai-editable.saving { opacity: 0.6; }
+    .sb-ai-textarea { width: 100%; min-height: 60px; font: inherit; font-size: 11px; border: none; background: transparent; resize: vertical; padding: 0; outline: none; }
     /* Storyboard section pane: full width for wide table */
     .section-pane.wide { max-width: none; }
 
@@ -1905,6 +1911,7 @@
 
       const rowsHtml = scenes.map(s => {
         const vp = s.visual_prompts || {};
+        const aiVal = vp.ai_generate || '';
         return `<tr>
           <td class="mono">${esc(s.scene)}</td>
           <td class="text-md vo">${esc(s.voiceover_line)}</td>
@@ -1912,7 +1919,7 @@
           <td>${esc(humanize(s.clip_type))}</td>
           <td class="text-md">${esc(vp.primary_stk || '—')}</td>
           <td class="text-sm">${esc(vp.fallback_stk || '—')}</td>
-          <td class="text-lg">${esc(vp.ai_generate || '—')}</td>
+          <td class="text-lg ai-editable" data-scene-id="${esc(s.scene)}" onclick="sbAiPromptEdit(this)">${esc(aiVal || '—')}</td>
           <td class="motion${s.motion_effect ? '' : ' muted'}">${esc(humanize(s.motion_effect))}</td>
           <td class="sfx">${esc(s.sfx || '—')}</td>
           <td class="mono">${esc(s.sfx_timing || '—')}</td>
@@ -1932,6 +1939,56 @@
     function toggleSbSettings() {
       const block = document.getElementById('sb-settings-block');
       if (block) block.classList.toggle('open');
+    }
+
+    // ─── Storyboard inline editing ────────────────────────────────────────────
+
+    /** Enter edit mode on an AI Prompt cell. No-op when already editing or section locked. */
+    function sbAiPromptEdit(td) {
+      if (td.classList.contains('editing') || sectionLocked.storyboard) return;
+      const sceneId = td.dataset.sceneId;
+      const current = td.textContent === '—' ? '' : td.textContent;
+      td.classList.add('editing');
+      td.innerHTML = `<textarea class="sb-ai-textarea" data-scene-id="${esc(sceneId)}">${esc(current)}</textarea>`;
+      const ta = td.querySelector('textarea');
+      ta.focus();
+      ta.selectionStart = ta.selectionEnd = ta.value.length;
+      ta.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sbAiPromptSave(td, ta); }
+        if (e.key === 'Escape') { sbAiPromptCancel(td, current); }
+      });
+      ta.addEventListener('blur', () => sbAiPromptSave(td, ta));
+    }
+
+    /** Persist the edited value via PATCH and restore the cell to static text. */
+    async function sbAiPromptSave(td, ta) {
+      if (!td.classList.contains('editing')) return;
+      const sceneId = td.dataset.sceneId;
+      const newVal = ta.value.trim();
+      td.classList.remove('editing');
+      td.classList.add('saving');
+      try {
+        const resp = await fetch(`/runs/${currentRunId}/storyboard`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scene_id: sceneId, field: 'ai_generate_prompt', value: newVal }),
+        });
+        if (!resp.ok) throw new Error(`PATCH failed: ${resp.status}`);
+        td.textContent = newVal || '—';
+        td.classList.remove('saving');
+      } catch (err) {
+        td.textContent = newVal || '—';
+        td.classList.remove('saving');
+        td.classList.add('editing');
+        td.title = `Save failed: ${err.message}`;
+        setTimeout(() => { td.classList.remove('editing'); td.title = ''; }, 3000);
+      }
+    }
+
+    /** Cancel edit and restore original text. */
+    function sbAiPromptCancel(td, original) {
+      td.classList.remove('editing');
+      td.textContent = original || '—';
     }
 
     // ─── Video settings ───────────────────────────────────────────────────────

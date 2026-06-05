@@ -21,6 +21,9 @@ from src.models import (
 from src.utils.model_router import GENERATE, ModelRouter
 from src.validators.storyboard_validator import validate_storyboard
 
+# Fields that operators are permitted to edit via PATCH /runs/{run_id}/storyboard.
+_PATCHABLE_FIELDS: set[str] = {"ai_generate_prompt"}
+
 logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """\
@@ -667,3 +670,38 @@ def _parse_summary(block: str, scenes: Optional[list] = None) -> StoryboardSumma
         total_duration_s=total_duration_s,
         rhythm=rhythm,
     )
+
+
+def patch_scene_field(
+    run_id: str,
+    scene_id: str,
+    field: str,
+    value: str,
+    storage: "R2Client",  # type: ignore[name-defined]  # imported at call site to avoid circular
+) -> Storyboard:
+    """
+    Update a single editable field on one storyboard scene and write back to R2.
+
+    Only fields listed in _PATCHABLE_FIELDS are accepted.  Raises ValueError on
+    unknown field, StoryboardParseError on unknown scene_id.
+    """
+    if field not in _PATCHABLE_FIELDS:
+        raise ValueError(f"Field '{field}' is not patchable; allowed: {sorted(_PATCHABLE_FIELDS)}")
+
+    storyboard_key = f"runs/{run_id}/storyboard.json"
+    data = storage.get_json(storyboard_key)
+    storyboard = Storyboard.model_validate(data)
+
+    for scene in storyboard.scenes:
+        if scene.scene == scene_id:
+            if field == "ai_generate_prompt":
+                scene.visual_prompts.ai_generate = value
+            break
+    else:
+        raise StoryboardParseError(f"Scene '{scene_id}' not found in storyboard for run '{run_id}'")
+
+    storage.upload_json(
+        storyboard_key,
+        storyboard.model_dump(by_alias=True, mode="json"),
+    )
+    return storyboard

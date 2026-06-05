@@ -3351,7 +3351,7 @@ _filled on completion_
 ## [S14-S2] Editable AI Prompt in storyboard table
 **Epic:** E19 — Creative Draft Architecture
 **Sprint:** 14
-**Status:** planned
+**Status:** done
 **Priority:** high
 **Points:** 2
 **Depends on:** none
@@ -3380,7 +3380,11 @@ Make the `ai_generate_prompt` cell in the storyboard table click-to-edit. The `p
 - `tests/test_storyboard.py` — new PATCH tests
 
 ### Handover
-_filled on completion_
+- `src/models.py`: `StoryboardPatchRequest(scene_id, field, value)` and `StoryboardPatchResponse(status, scene_id, field)` added.
+- `src/storyboard.py`: `_PATCHABLE_FIELDS = {"ai_generate_prompt"}` module-level constant. `patch_scene_field(run_id, scene_id, field, value, storage) → Storyboard` — reads `storyboard.json`, validates field against `_PATCHABLE_FIELDS` (ValueError on mismatch), finds scene by `scene.scene == scene_id` (StoryboardParseError if missing), mutates `visual_prompts.ai_generate`, writes back via `storage.upload_json`. Returns updated `Storyboard`.
+- `src/routes/storyboard.py`: `PATCH /runs/{run_id}/storyboard` — calls `patch_scene_field`; ValueError → 422; StoryboardParseError → 422; StorageError → 404. Returns `StoryboardPatchResponse`.
+- `src/static/pipeline.html`: AI Prompt column cell (`vp.ai_generate`) rendered with `class="text-lg ai-editable"` and `data-scene-id`. `sbAiPromptEdit(td)` converts cell to `<textarea>` on click (no-op when locked). `sbAiPromptSave(td, ta)` fires PATCH on blur/Enter, restores static text on success, shows 3s error indicator on failure. `sbAiPromptCancel(td, original)` handles Escape. CSS: `.ai-editable` (pointer cursor, hover bg), `.editing` (amber outline), `.saving` (reduced opacity), `.sb-ai-textarea` (transparent, inherits font).
+- `tests/test_storyboard.py`: `TestPatchSceneField` (5 unit tests), `TestPatchStoryboardRoute` (4 route tests). 784 total passing.
 
 ---
 
