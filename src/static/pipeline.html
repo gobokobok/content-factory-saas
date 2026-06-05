@@ -1292,10 +1292,12 @@
       const nameInput = document.getElementById('project-name-input');
       if (nameInput) nameInput.value = currentProjectName;
 
-      // Initialize locked state based on completed steps
+      // Initialize locked state based on completed steps.
+      // Storyboard section (AI Prompt + Source) remains editable until asset_acquisition
+      // completes — completing the next step locks the previous one.
       sectionLocked = {
         input:      stepSt('alignment') === 'complete',
-        storyboard: stepSt('storyboard') === 'complete',
+        storyboard: stepSt('asset_acquisition') === 'complete',
         assets:     stepSt('asset_manifest') === 'complete' && stepSt('asset_acquisition') === 'complete',
       };
 
@@ -2247,7 +2249,9 @@
       renderNavItems();
 
       if (ok) {
-        sectionLocked.storyboard = true;
+        // Storyboard section stays unlocked — operator must be able to edit AI
+        // prompts and Source dropdowns before running acquisition.
+        // sectionLocked.storyboard is set true only when acquisition completes.
         const sc = document.getElementById('storyboard-content');
         delete sc.dataset.loadedFor;
         populateStoryboard();
@@ -2274,6 +2278,7 @@
 
       if (ok) {
         sectionLocked.assets = true;
+        sectionLocked.storyboard = true; // acquisition done → lock AI prompts + Source
         const ac = document.getElementById('assets-content');
         delete ac.dataset.loadedFor;
         activateSection('render');
