@@ -12,10 +12,12 @@ _Entries added here when a story reaches Definition of Done._
 - `src/routes/manifest.py`: `PATCH /runs/{run_id}/manifest` — calls `patch_manifest_entry`; `ValueError` → 422; `ManifestError` → 422; `StorageError` → 404.
 - `src/acquisition.py`: `acquire_scene` branches on `entry.asset_mode`: `"ai_generated"` → Replicate only; `"stock"` → Pexels only (miss marks entry failed, no Replicate fallback); `None` → legacy Pexels → Replicate chain.
 - `src/static/pipeline.html`: `renderStoryboardHtml` gains `assetModeMap` param. Source column (last) added to storyboard table with `<select class="sb-source-select">` per row. `source-primary` / `source-ai` classes on the relevant cells; `highlight-active` (yellow `#FFF8C5`) applied to the active cell. `sbAssetModeChange(select)` updates highlights and fires `PATCH /runs/{run_id}/manifest`. `populateStoryboard` fetches manifest in parallel (when complete) to restore stored `asset_mode` values on reload.
-- `tests/test_manifest.py`: `TestBuildManifestAssetModeDefault` (3), `TestPatchManifestEntry` (5 unit), `TestPatchManifestRoute` (5 route). 803 total passing.
+- `tests/test_manifest.py`: `TestBuildManifestAssetModeDefault` (3+2), `TestPatchManifestEntry` (5 unit), `TestPatchManifestRoute` (5 route). 809 total passing.
 - `tests/test_acquisition.py`: `TestAcquireSceneAssetMode` (6 tests — ai_generated-only, stock-only, None fallback).
-**Smoke test:** DEFERRED — requires Railway DEV with a complete storyboard. Change a Source dropdown in the storyboard table, confirm yellow highlight on the correct cell and persistence on reload. Run assets and confirm AI Generated scenes skip Pexels.
-**Promoted to backlog:** none
+- `tests/test_storyboard.py`: `TestPatchSceneField` extended with 4 asset_mode tests.
+- Post-ship fixes (2026-06-05): (1) `sectionLocked.storyboard` was set true on storyboard completion instead of acquisition completion — fixed in `openRun`, `runCreateStoryboard`, `runAssetAcquisition` (commit `cd3788d`). (2) `asset_mode` moved from `ManifestEntry` to `StoryboardScene` so selections persist before the manifest exists; `sbAssetModeChange` now PATCHes `/storyboard`; `populateStoryboard` builds `assetModeMap` from storyboard scenes directly (commit `7adabf6`).
+**Smoke test:** PASSED — 2026-06-05. Source dropdown changes persist after reload. Yellow highlight tracks the active source correctly. Storyboard section stays editable until acquisition completes.
+**Promoted to backlog:** BUG-003 (storyboard generation cancels on run navigation — background task needed)
 
 ---
 
@@ -27,7 +29,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/routes/storyboard.py`: `PATCH /runs/{run_id}/storyboard` — calls `patch_scene_field`; ValueError → 422; StoryboardParseError → 422; StorageError → 404. Returns `StoryboardPatchResponse`.
 - `src/static/pipeline.html`: AI Prompt column cell rendered with `class="text-lg ai-editable"` and `data-scene-id`. `sbAiPromptEdit(td)` converts cell to `<textarea>` on click (no-op when storyboard section is locked). `sbAiPromptSave(td, ta)` fires PATCH on blur/Enter, restores static text on success, shows 3s error indicator on failure. `sbAiPromptCancel(td, original)` handles Escape. CSS: `.ai-editable` (pointer cursor, hover bg), `.editing` (amber outline), `.saving` (reduced opacity), `.sb-ai-textarea`.
 - `tests/test_storyboard.py`: `TestPatchSceneField` (5 unit tests), `TestPatchStoryboardRoute` (4 route tests). 784 total passing.
-**Smoke test:** DEFERRED — requires Railway DEV with a run that has a complete storyboard. Click an AI Prompt cell, edit the value, blur/press Enter, reload page, confirm the updated value persists in the storyboard table.
+**Smoke test:** PASSED — 2026-06-05. Clicked an AI Prompt cell, edited the value, pressed Enter, reloaded the page — updated value persisted in the storyboard table. Confirmed edit is blocked after acquisition completes.
 **Promoted to backlog:** none
 
 ---
