@@ -116,6 +116,87 @@ class TestAcquireScene:
         assert entry.status == "failed"
 
 
+# ── Unit: acquire_scene asset_mode routing ────────────────────────────────────
+
+
+class TestAcquireSceneAssetMode:
+    def test_ai_generated_mode_calls_replicate_only(self):
+        entry = _entry()
+        entry.asset_mode = "ai_generated"
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        replicate.acquire_for_entry.return_value = _replicate_result()
+
+        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage)
+
+        assert result is True
+        assert entry.status == "acquired"
+        assert entry.source == "replicate"
+        pexels.acquire_for_entry.assert_not_called()
+
+    def test_ai_generated_mode_replicate_failure_marks_failed(self):
+        entry = _entry()
+        entry.asset_mode = "ai_generated"
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        replicate.acquire_for_entry.side_effect = ReplicateError("error")
+
+        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage)
+
+        assert result is False
+        assert entry.status == "failed"
+        pexels.acquire_for_entry.assert_not_called()
+
+    def test_stock_mode_calls_pexels_only(self):
+        entry = _entry()
+        entry.asset_mode = "stock"
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.return_value = _pexels_result()
+
+        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage)
+
+        assert result is True
+        assert entry.status == "acquired"
+        assert entry.source == "pexels"
+        replicate.acquire_for_entry.assert_not_called()
+
+    def test_stock_mode_pexels_miss_marks_failed_without_replicate(self):
+        entry = _entry()
+        entry.asset_mode = "stock"
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.return_value = None
+
+        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage)
+
+        assert result is False
+        assert entry.status == "failed"
+        replicate.acquire_for_entry.assert_not_called()
+
+    def test_stock_mode_pexels_error_marks_failed_without_replicate(self):
+        entry = _entry()
+        entry.asset_mode = "stock"
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.side_effect = PexelsError("error")
+
+        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage)
+
+        assert result is False
+        assert entry.status == "failed"
+        replicate.acquire_for_entry.assert_not_called()
+
+    def test_none_mode_uses_pexels_to_replicate_fallback(self):
+        entry = _entry()
+        entry.asset_mode = None
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.return_value = None
+        replicate.acquire_for_entry.return_value = _replicate_result()
+
+        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage)
+
+        assert result is True
+        assert entry.source == "replicate"
+        pexels.acquire_for_entry.assert_called_once()
+        replicate.acquire_for_entry.assert_called_once()
+
+
 # ── Unit: run_acquisition (async) ─────────────────────────────────────────────
 
 

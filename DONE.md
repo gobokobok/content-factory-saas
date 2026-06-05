@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [S14-S3] Asset Mode column in storyboard table
+**Completed:** 2026-06-05
+**Handover:**
+- `src/models.py`: `ManifestEntry` gains `asset_mode: Optional[Literal["stock", "ai_generated"]] = None`. `ManifestPatchRequest(scene_id, field, value)` and `ManifestPatchResponse(status, scene_id, field)` added.
+- `src/manifest.py`: `_PATCHABLE_MANIFEST_FIELDS = {"asset_mode"}` and `_STOCK_CLIP_TYPES = {"hard_cut"}` module-level constants. `_default_asset_mode(clip_type) → str` helper. `build_manifest` sets `asset_mode` per entry from `_default_asset_mode`. `patch_manifest_entry(run_id, scene_id, field, value, storage) → AssetManifest` — reads manifest from R2, validates field + value, mutates entry, writes back.
+- `src/routes/manifest.py`: `PATCH /runs/{run_id}/manifest` — calls `patch_manifest_entry`; `ValueError` → 422; `ManifestError` → 422; `StorageError` → 404.
+- `src/acquisition.py`: `acquire_scene` branches on `entry.asset_mode`: `"ai_generated"` → Replicate only; `"stock"` → Pexels only (miss marks entry failed, no Replicate fallback); `None` → legacy Pexels → Replicate chain.
+- `src/static/pipeline.html`: `renderStoryboardHtml` gains `assetModeMap` param. Source column (last) added to storyboard table with `<select class="sb-source-select">` per row. `source-primary` / `source-ai` classes on the relevant cells; `highlight-active` (yellow `#FFF8C5`) applied to the active cell. `sbAssetModeChange(select)` updates highlights and fires `PATCH /runs/{run_id}/manifest`. `populateStoryboard` fetches manifest in parallel (when complete) to restore stored `asset_mode` values on reload.
+- `tests/test_manifest.py`: `TestBuildManifestAssetModeDefault` (3), `TestPatchManifestEntry` (5 unit), `TestPatchManifestRoute` (5 route). 803 total passing.
+- `tests/test_acquisition.py`: `TestAcquireSceneAssetMode` (6 tests — ai_generated-only, stock-only, None fallback).
+**Smoke test:** DEFERRED — requires Railway DEV with a complete storyboard. Change a Source dropdown in the storyboard table, confirm yellow highlight on the correct cell and persistence on reload. Run assets and confirm AI Generated scenes skip Pexels.
+**Promoted to backlog:** none
+
+---
+
 ## [S14-S2] Editable AI Prompt in storyboard table
 **Completed:** 2026-06-05
 **Handover:**

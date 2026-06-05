@@ -33,13 +33,48 @@ def acquire_scene(
 ) -> bool:
     """Try to acquire an asset for one manifest entry, mutating it in-place on success.
 
-    Fallback chain: PexelsClient.acquire_for_entry → ReplicateClient.acquire_for_entry.
-    A PexelsError is treated the same as no result — falls through to Replicate.
+    Routing is controlled by entry.asset_mode:
+      "stock"        → Pexels only; skip Replicate on miss
+      "ai_generated" → Replicate only; skip Pexels entirely
+      None           → Pexels → Replicate fallback chain (legacy behaviour)
+
+    A PexelsError is treated the same as no result — falls through to Replicate
+    when asset_mode is None.
     Sets entry.source, entry.file_key, entry.status = 'acquired' on success.
-    Sets entry.status = 'failed' when both sources are exhausted.
-    visual_style is forwarded to Replicate when the fallback is reached.
+    Sets entry.status = 'failed' when the chosen source is exhausted.
+    visual_style is forwarded to Replicate for AI generation prompts.
     Returns True on success, False on failure.
     """
+    mode = entry.asset_mode
+
+    if mode == "ai_generated":
+        try:
+            replicate_result = replicate.acquire_for_entry(entry, run_id, storage, visual_style=visual_style)
+            entry.source = replicate_result.source
+            entry.file_key = replicate_result.file_key
+            entry.status = replicate_result.status
+            return True
+        except ReplicateError as exc:
+            logger.error("Replicate failed for scene=%s: %s", entry.scene_id, exc)
+            entry.status = "failed"
+            return False
+
+    if mode == "stock":
+        pexels_result = None
+        try:
+            pexels_result = pexels.acquire_for_entry(entry, run_id, storage)
+        except PexelsError as exc:
+            logger.warning("Pexels failed for scene=%s: %s", entry.scene_id, exc)
+        if pexels_result is not None:
+            entry.source = pexels_result.source
+            entry.file_key = pexels_result.file_key
+            entry.status = pexels_result.status
+            return True
+        logger.warning("Stock mode: no Pexels result for scene=%s, marking failed", entry.scene_id)
+        entry.status = "failed"
+        return False
+
+    # mode is None — legacy Pexels → Replicate fallback chain
     pexels_result = None
     try:
         pexels_result = pexels.acquire_for_entry(entry, run_id, storage)

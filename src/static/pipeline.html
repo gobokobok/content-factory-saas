@@ -782,6 +782,9 @@
     .data-table.sb-table td.ai-editable.editing { background: #FFF8E1; outline: 1px solid #F5A623; }
     .data-table.sb-table td.ai-editable.saving { opacity: 0.6; }
     .sb-ai-textarea { width: 100%; min-height: 60px; font: inherit; font-size: 11px; border: none; background: transparent; resize: vertical; padding: 0; outline: none; }
+    .data-table.sb-table td.highlight-active { background: #FFF8C5; }
+    .sb-source-select { font-size: 11px; border: 1px solid #D1CECE; border-radius: 4px; padding: 2px 4px; background: #fff; cursor: pointer; }
+    .sb-source-select:disabled { opacity: 0.5; cursor: default; }
     /* Storyboard section pane: full width for wide table */
     .section-pane.wide { max-width: none; }
 
@@ -1559,15 +1562,24 @@
 
       contentDiv.innerHTML = '<div class="state-loading">Loading storyboard…</div>';
       try {
-        const [sbRes, settingsRes] = await Promise.all([
+        const manifestDone = stepSt('asset_manifest') === 'complete';
+        const [sbRes, settingsRes, manifestRes] = await Promise.all([
           fetch(`/runs/${currentRunId}/artifact/storyboard`),
           fetch(`/runs/${currentRunId}/settings`),
+          manifestDone ? fetch(`/runs/${currentRunId}/artifact/manifest`) : Promise.resolve(null),
         ]);
         const data         = await sbRes.json();
         const settingsData = settingsRes.ok ? await settingsRes.json() : null;
         if (!sbRes.ok) { contentDiv.innerHTML = `<div class="error-text">${esc(data.detail || 'Failed to load storyboard')}</div>`; return; }
-        const audioSettings = settingsData?.settings?.audio || null;
-        contentDiv.innerHTML         = renderStoryboardHtml(data.content, audioSettings);
+        const audioSettings  = settingsData?.settings?.audio || null;
+        const manifestData   = (manifestRes && manifestRes.ok) ? (await manifestRes.json()).content : null;
+        const assetModeMap   = {};
+        if (manifestData?.entries) {
+          for (const e of manifestData.entries) {
+            if (e.asset_mode) assetModeMap[e.scene_id] = e.asset_mode;
+          }
+        }
+        contentDiv.innerHTML         = renderStoryboardHtml(data.content, audioSettings, assetModeMap);
         contentDiv.dataset.loadedFor = currentRunId;
       } catch (err) {
         contentDiv.innerHTML = `<div class="error-text">Network error: ${esc(err.message)}</div>`;
@@ -1864,7 +1876,7 @@
     }
 
     // ─── Artifact renderers ───────────────────────────────────────────────────
-    function renderStoryboardHtml(content, audioSettings) {
+    function renderStoryboardHtml(content, audioSettings, assetModeMap) {
       const scenes = content?.scenes;
       if (!scenes?.length) return '<div class="state-empty">No scenes found.</div>';
 
@@ -1909,20 +1921,31 @@
         </div>
       </div>`;
 
+      const modeMap = assetModeMap || {};
+
       const rowsHtml = scenes.map(s => {
         const vp = s.visual_prompts || {};
         const aiVal = vp.ai_generate || '';
+        const defaultMode = s.clip_type === 'hard_cut' ? 'stock' : 'ai_generated';
+        const mode = modeMap[s.scene] || defaultMode;
+        const pqClass  = `text-md source-primary${mode === 'stock'        ? ' highlight-active' : ''}`;
+        const aiClass  = `text-lg ai-editable source-ai${mode === 'ai_generated' ? ' highlight-active' : ''}`;
+        const sceneIdEsc = esc(s.scene);
         return `<tr>
           <td class="mono">${esc(s.scene)}</td>
           <td class="text-md vo">${esc(s.voiceover_line)}</td>
           <td class="mono">${esc(s.duration_s)}s</td>
           <td>${esc(humanize(s.clip_type))}</td>
-          <td class="text-md">${esc(vp.primary_stk || '—')}</td>
+          <td class="${pqClass}" data-scene-id="${sceneIdEsc}">${esc(vp.primary_stk || '—')}</td>
           <td class="text-sm">${esc(vp.fallback_stk || '—')}</td>
-          <td class="text-lg ai-editable" data-scene-id="${esc(s.scene)}" onclick="sbAiPromptEdit(this)">${esc(aiVal || '—')}</td>
+          <td class="${aiClass}" data-scene-id="${sceneIdEsc}" onclick="sbAiPromptEdit(this)">${esc(aiVal || '—')}</td>
           <td class="motion${s.motion_effect ? '' : ' muted'}">${esc(humanize(s.motion_effect))}</td>
           <td class="sfx">${esc(s.sfx || '—')}</td>
           <td class="mono">${esc(s.sfx_timing || '—')}</td>
+          <td><select class="sb-source-select" data-scene-id="${sceneIdEsc}" onchange="sbAssetModeChange(this)" ${sectionLocked.storyboard ? 'disabled' : ''}>
+            <option value="stock"${mode === 'stock' ? ' selected' : ''}>Stock</option>
+            <option value="ai_generated"${mode === 'ai_generated' ? ' selected' : ''}>AI Generated</option>
+          </select></td>
         </tr>`;
       }).join('');
 
@@ -1931,6 +1954,7 @@
           <th>ID</th><th>Voiceover</th><th>Duration</th><th>Type</th>
           <th>Primary Query</th><th>Fallback Query</th>
           <th>AI Prompt</th><th>Motion</th><th>SFX</th><th>SFX Timing</th>
+          <th>Source</th>
         </tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table></div>`;
@@ -1989,6 +2013,32 @@
     function sbAiPromptCancel(td, original) {
       td.classList.remove('editing');
       td.textContent = original || '—';
+    }
+
+    // ─── Storyboard Source (asset_mode) selector ──────────────────────────────
+
+    /** Handle Source dropdown change: update highlights and persist asset_mode via PATCH. */
+    async function sbAssetModeChange(select) {
+      const sceneId = select.dataset.sceneId;
+      const mode    = select.value;
+      const row     = select.closest('tr');
+      const pqTd    = row.querySelector('td.source-primary');
+      const aiTd    = row.querySelector('td.source-ai');
+      if (pqTd) pqTd.classList.toggle('highlight-active', mode === 'stock');
+      if (aiTd) aiTd.classList.toggle('highlight-active', mode === 'ai_generated');
+      try {
+        const resp = await fetch(`/runs/${currentRunId}/manifest`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scene_id: sceneId, field: 'asset_mode', value: mode }),
+        });
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          console.warn('asset_mode PATCH failed:', err.detail || resp.status);
+        }
+      } catch (err) {
+        console.warn('asset_mode PATCH network error:', err.message);
+      }
     }
 
     // ─── Video settings ───────────────────────────────────────────────────────

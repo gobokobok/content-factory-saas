@@ -161,6 +161,7 @@ class ManifestEntry(BaseModel):
     status: str = "pending"
     source: Optional[str] = None
     file_key: Optional[str] = None
+    asset_mode: Optional[Literal["stock", "ai_generated"]] = None
 
 
 class AssetManifest(BaseModel):
@@ -177,6 +178,22 @@ class ManifestResponse(BaseModel):
     manifest_key: str
     scene_count: int
     clip_type_breakdown: dict[str, int]
+
+
+class ManifestPatchRequest(BaseModel):
+    """Request body for PATCH /runs/{run_id}/manifest."""
+
+    scene_id: str
+    field: str
+    value: str
+
+
+class ManifestPatchResponse(BaseModel):
+    """Response body for PATCH /runs/{run_id}/manifest."""
+
+    status: str
+    scene_id: str
+    field: str
 
 
 class PexelsAcquireResult(BaseModel):

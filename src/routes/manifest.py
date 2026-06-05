@@ -7,8 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from src import pipeline
 from src.config import Settings, get_settings
 from src.exceptions import ManifestError, StorageError
-from src.manifest import build_manifest, clip_type_breakdown
-from src.models import ManifestResponse
+from src.manifest import build_manifest, clip_type_breakdown, patch_manifest_entry
+from src.models import ManifestPatchRequest, ManifestPatchResponse, ManifestResponse
 from src.storage import R2Client
 
 logger = logging.getLogger(__name__)
@@ -68,3 +68,33 @@ def create_manifest(
         scene_count=len(manifest.entries),
         clip_type_breakdown=breakdown,
     )
+
+
+@router.patch("/runs/{run_id}/manifest", response_model=ManifestPatchResponse)
+def patch_manifest(
+    run_id: str,
+    body: ManifestPatchRequest,
+    settings: Settings = Depends(get_settings),
+) -> ManifestPatchResponse:
+    """Update a single patchable field on one manifest entry and persist to R2.
+
+    Returns 422 for unknown field or invalid value, 422 if scene_id not found,
+    404 if manifest does not exist.
+    """
+    storage = R2Client(
+        settings.R2_ACCOUNT_ID,
+        settings.R2_ACCESS_KEY_ID,
+        settings.R2_SECRET_ACCESS_KEY,
+        settings.R2_BUCKET_NAME,
+    )
+
+    try:
+        patch_manifest_entry(run_id, body.scene_id, body.field, body.value, storage)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ManifestError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except StorageError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return ManifestPatchResponse(status="updated", scene_id=body.scene_id, field=body.field)

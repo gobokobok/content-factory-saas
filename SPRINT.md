@@ -416,7 +416,7 @@ _(new threshold: 3 outstanding triggers integration session)_
 |----|-------|--------|--------|
 | S14-S1 | Notion-like feature — details TBD (blocked: awaiting operator screenshot) | TBD | blocked |
 | S14-S2 | Editable AI Prompt in storyboard table — `ai_generate_prompt` cell editable inline; `primary_query` fixed (read-only) | 2 | done |
-| S14-S3 | Asset Mode column in storyboard — "Source" dropdown per row: Stock \| AI Generated; selecting Stock highlights primary_query cell; selecting AI Generated highlights ai_generate_prompt cell; drives acquisition routing | 3 | planned |
+| S14-S3 | Asset Mode column in storyboard — "Source" dropdown per row: Stock \| AI Generated; selecting Stock highlights primary_query cell; selecting AI Generated highlights ai_generate_prompt cell; drives acquisition routing | 3 | done |
 | S14-S4 | Visual Style Prompt field — free-text input in Project Settings; saved in run config; injected as suffix into every Replicate/Flux prompt call | 2 | planned |
 | S14-S5 | Global Values panel — consolidate all project config (Aspect Ratio, Visual Style, Visual Style Prompt, Duration from Deepgram, Subtitles, Music, Rhythm placeholder) into a single readable/editable "Global Values" section; replaces the current storyboard settings header | 3 | planned |
 
@@ -427,7 +427,7 @@ _(new threshold: 3 outstanding triggers integration session)_
 ## Sprint 14 Definition of Done
 - [ ] S14-S1: Defined and delivered once screenshot is reviewed.
 - [ ] S14-S2: `ai_generate_prompt` cell is click-to-edit; changes persisted via `PATCH /runs/{run_id}/storyboard`; `primary_query` rendered as non-editable text.
-- [ ] S14-S3: "Source" column renders a `<select>` per row with Stock / AI Generated options. Selecting Stock applies a highlight class to the primary_query cell; AI Generated highlights the ai_generate_prompt cell. Selection stored in manifest `asset_mode` field. Acquisition orchestrator routes per `asset_mode`.
+- [x] S14-S3: "Source" column renders a `<select>` per row with Stock / AI Generated options. Selecting Stock applies a highlight class to the primary_query cell; AI Generated highlights the ai_generate_prompt cell. Selection stored in manifest `asset_mode` field. Acquisition orchestrator routes per `asset_mode`.
 - [ ] S14-S4: Free-text "Visual Style Prompt" field in Project Settings. Saved to run config as `visual_style_prompt`. Injected by `ReplicateClient` as a prompt suffix on every AI generation call.
 - [ ] S14-S5: Global Values panel shows all run config values. Duration auto-populated from `alignment.json` total word span. Rhythm shows "—" (not yet implemented). All editable fields (Visual Style Prompt, Visual Style enum, Aspect Ratio) are editable inline.
 - [ ] All existing tests pass.

@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from src.config import Settings, get_settings
 from src.exceptions import ManifestError, StorageError
 from src.main import app
-from src.manifest import build_manifest, clip_type_breakdown
+from src.manifest import build_manifest, clip_type_breakdown, patch_manifest_entry
 from src.models import AssetManifest, ManifestEntry
 
 
@@ -309,3 +309,153 @@ class TestCreateManifestRoute:
             mock_cls.assert_called_once_with(
                 "fake-account-id", "fake-access-key", "fake-secret-key", "content-factory-dev"
             )
+
+
+# ── Unit: build_manifest asset_mode defaults ──────────────────────────────────
+
+
+class TestBuildManifestAssetModeDefault:
+    def test_hard_cut_defaults_to_stock(self):
+        data = _make_storyboard_data()
+        manifest = build_manifest(RUN_ID, data)
+        assert manifest.entries[0].clip_type == "hard_cut"
+        assert manifest.entries[0].asset_mode == "stock"
+
+    def test_still_with_motion_defaults_to_ai_generated(self):
+        data = _make_storyboard_data(scenes=[{
+            "scene": "01",
+            "clip_type": "still_with_motion",
+            "duration_s": 3.0,
+            "voiceover_line": "test",
+            "visual_prompts": {
+                "primary_stk": "query",
+                "fallback_stk": "fallback",
+                "ai_generate": "ai prompt",
+            },
+            "sfx": "none",
+            "sfx_timing": "start",
+            "motion_effect": "zoom_in",
+            "on_screen_text": None,
+        }])
+        manifest = build_manifest(RUN_ID, data)
+        assert manifest.entries[0].asset_mode == "ai_generated"
+
+    def test_animated_defaults_to_ai_generated(self):
+        data = _make_storyboard_data(scenes=[{
+            "scene": "01",
+            "clip_type": "animated",
+            "duration_s": 3.0,
+            "voiceover_line": "test",
+            "visual_prompts": {
+                "primary_stk": "query",
+                "fallback_stk": "fallback",
+                "ai_generate": "ai prompt",
+            },
+            "sfx": "none",
+            "sfx_timing": "start",
+            "motion_effect": "zoom_in",
+            "on_screen_text": None,
+        }])
+        manifest = build_manifest(RUN_ID, data)
+        assert manifest.entries[0].asset_mode == "ai_generated"
+
+
+# ── Unit: patch_manifest_entry ────────────────────────────────────────────────
+
+
+def _make_manifest_data(asset_mode: str = "stock") -> dict:
+    return {
+        "run_id": RUN_ID,
+        "entries": [{
+            "scene_id": "01",
+            "clip_type": "hard_cut",
+            "primary_query": "query",
+            "fallback_query": "fallback",
+            "ai_generate_prompt": "ai prompt",
+            "status": "pending",
+            "asset_mode": asset_mode,
+        }],
+    }
+
+
+class TestPatchManifestEntry:
+    def test_updates_asset_mode_and_writes_back(self):
+        storage = MagicMock()
+        storage.get_json.return_value = _make_manifest_data("stock")
+
+        patch_manifest_entry(RUN_ID, "01", "asset_mode", "ai_generated", storage)
+
+        written = storage.upload_json.call_args[0][1]
+        assert written["entries"][0]["asset_mode"] == "ai_generated"
+
+    def test_invalid_field_raises_value_error(self):
+        storage = MagicMock()
+        storage.get_json.return_value = _make_manifest_data()
+        with pytest.raises(ValueError, match="not patchable"):
+            patch_manifest_entry(RUN_ID, "01", "primary_query", "new val", storage)
+
+    def test_invalid_asset_mode_value_raises_value_error(self):
+        storage = MagicMock()
+        storage.get_json.return_value = _make_manifest_data()
+        with pytest.raises(ValueError, match="Invalid asset_mode"):
+            patch_manifest_entry(RUN_ID, "01", "asset_mode", "unknown", storage)
+
+    def test_unknown_scene_id_raises_manifest_error(self):
+        storage = MagicMock()
+        storage.get_json.return_value = _make_manifest_data()
+        with pytest.raises(ManifestError, match="not found"):
+            patch_manifest_entry(RUN_ID, "99", "asset_mode", "stock", storage)
+
+    def test_storage_error_propagates(self):
+        storage = MagicMock()
+        storage.get_json.side_effect = StorageError("not found")
+        with pytest.raises(StorageError):
+            patch_manifest_entry(RUN_ID, "01", "asset_mode", "stock", storage)
+
+
+# ── Integration tests: PATCH /runs/{run_id}/manifest ─────────────────────────
+
+
+@pytest.fixture()
+def patch_mock_r2(client):
+    """Patch R2Client for PATCH manifest tests."""
+    mock_instance = MagicMock()
+    mock_instance.get_json.return_value = _make_manifest_data("stock")
+    with patch("src.routes.manifest.R2Client", return_value=mock_instance):
+        yield mock_instance
+
+
+class TestPatchManifestRoute:
+    def test_returns_200_on_success(self, client, patch_mock_r2):
+        resp = client.patch(f"/runs/{RUN_ID}/manifest", json={
+            "scene_id": "01", "field": "asset_mode", "value": "ai_generated",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "updated"
+        assert resp.json()["scene_id"] == "01"
+        assert resp.json()["field"] == "asset_mode"
+
+    def test_invalid_field_returns_422(self, client, patch_mock_r2):
+        resp = client.patch(f"/runs/{RUN_ID}/manifest", json={
+            "scene_id": "01", "field": "primary_query", "value": "new",
+        })
+        assert resp.status_code == 422
+
+    def test_invalid_asset_mode_value_returns_422(self, client, patch_mock_r2):
+        resp = client.patch(f"/runs/{RUN_ID}/manifest", json={
+            "scene_id": "01", "field": "asset_mode", "value": "bad_value",
+        })
+        assert resp.status_code == 422
+
+    def test_unknown_scene_returns_422(self, client, patch_mock_r2):
+        resp = client.patch(f"/runs/{RUN_ID}/manifest", json={
+            "scene_id": "99", "field": "asset_mode", "value": "stock",
+        })
+        assert resp.status_code == 422
+
+    def test_manifest_not_found_returns_404(self, client, patch_mock_r2):
+        patch_mock_r2.get_json.side_effect = StorageError("not found")
+        resp = client.patch(f"/runs/{RUN_ID}/manifest", json={
+            "scene_id": "01", "field": "asset_mode", "value": "stock",
+        })
+        assert resp.status_code == 404

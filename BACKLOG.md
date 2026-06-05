@@ -3391,7 +3391,7 @@ Make the `ai_generate_prompt` cell in the storyboard table click-to-edit. The `p
 ## [S14-S3] Asset Mode column in storyboard table
 **Epic:** E19 — Creative Draft Architecture
 **Sprint:** 14
-**Status:** planned
+**Status:** done
 **Priority:** high
 **Points:** 3
 **Depends on:** S14-S2
@@ -3422,7 +3422,15 @@ Add a "Source" dropdown column to the storyboard table. Selecting "Stock" highli
 - `tests/test_acquisition.py` — new `asset_mode` branch tests
 
 ### Handover
-_filled on completion_
+- `src/models.py`: `ManifestEntry` gains `asset_mode: Optional[Literal["stock", "ai_generated"]] = None`. `ManifestPatchRequest(scene_id, field, value)` and `ManifestPatchResponse(status, scene_id, field)` added.
+- `src/manifest.py`: `_PATCHABLE_MANIFEST_FIELDS = {"asset_mode"}` and `_STOCK_CLIP_TYPES = {"hard_cut"}` module-level constants. `_default_asset_mode(clip_type) → str` helper. `build_manifest` sets `asset_mode` per entry from `_default_asset_mode`. `patch_manifest_entry(run_id, scene_id, field, value, storage) → AssetManifest` — reads manifest from R2, validates field + value, mutates entry, writes back.
+- `src/routes/manifest.py`: `PATCH /runs/{run_id}/manifest` — calls `patch_manifest_entry`; `ValueError` → 422; `ManifestError` → 422; `StorageError` → 404.
+- `src/acquisition.py`: `acquire_scene` now branches on `entry.asset_mode`: `"ai_generated"` → Replicate only (Pexels not called); `"stock"` → Pexels only (Replicate not called, miss marks entry failed); `None` → legacy Pexels → Replicate fallback chain.
+- `src/static/pipeline.html`: `renderStoryboardHtml(content, audioSettings, assetModeMap)` gains third param. Source column added (last column) with `<select class="sb-source-select">` per row. Default mode computed from `clip_type`; overridden by `assetModeMap[scene_id]` when manifest is loaded. `source-primary` / `source-ai` classes on respective cells; `highlight-active` applied per active mode. `sbAssetModeChange(select)` fires `PATCH /runs/{run_id}/manifest` on change and updates cell highlights. `populateStoryboard` also fetches manifest artifact in parallel (when `asset_manifest` step is `complete`) and builds `assetModeMap` before rendering. CSS: `.highlight-active { background: #FFF8C5 }`, `.sb-source-select` styling.
+- `tests/test_manifest.py`: `TestBuildManifestAssetModeDefault` (3 tests), `TestPatchManifestEntry` (5 unit tests), `TestPatchManifestRoute` (5 route tests). 803 total passing.
+- `tests/test_acquisition.py`: `TestAcquireSceneAssetMode` (6 tests covering ai_generated-only, stock-only, and None fallback paths).
+**Smoke test:** DEFERRED — requires Railway DEV with a run that has a complete storyboard. Click a Source dropdown in the storyboard table, change from "Stock" to "AI Generated", confirm the AI Prompt cell gains the yellow highlight and the change persists on page reload. Run asset acquisition and confirm AI Generated scenes use Replicate only.
+**Promoted to backlog:** none
 
 ---
 
