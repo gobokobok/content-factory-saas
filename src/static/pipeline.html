@@ -2344,6 +2344,21 @@
         populateRender();
       } else {
         document.getElementById('render-btn').disabled = false;
+        // On render failure, append the tail of run_log.txt so the operator can see the
+        // actual FFmpeg error without digging through Railway logs.
+        if (errorEl.style.display !== 'none') {
+          try {
+            const logRes = await fetch(`/runs/${currentRunId}/run-log-txt`);
+            const logData = await logRes.json().catch(() => null);
+            if (logData?.available && logData.content) {
+              const lastLines = logData.content.trim().split('\n').slice(-8).join('\n');
+              const pre = document.createElement('pre');
+              pre.style.cssText = 'margin:6px 0 0; font-size:10px; white-space:pre-wrap; word-break:break-all; color:inherit; opacity:0.85;';
+              pre.textContent = lastLines;
+              errorEl.appendChild(pre);
+            }
+          } catch (_) { /* best-effort — don't mask the original error */ }
+        }
       }
     }
 
@@ -2351,7 +2366,8 @@
 
     /**
      * Poll a background-task status endpoint until the task is no longer "running".
-     * Returns the final status string (e.g. "complete" or "failed"), or null on error.
+     * Returns { status, error } from the final poll response, or { status: null } on
+     * network failure / timeout.
      * Used after a 202 Accepted response from steps that use BackgroundTasks (e.g. render).
      */
     async function pollUntilDone(pollUrl, intervalMs = 3000, maxAttempts = 200) {
@@ -2359,12 +2375,12 @@
         await new Promise(r => setTimeout(r, intervalMs));
         try {
           const res  = await fetch(pollUrl);
-          if (!res.ok) return null;
+          if (!res.ok) return { status: null };
           const data = await res.json();
-          if (data.status !== 'running') return data.status;
-        } catch (_) { return null; }
+          if (data.status !== 'running') return { status: data.status, error: data.error || null };
+        } catch (_) { return { status: null }; }
       }
-      return null; // timed out
+      return { status: null }; // timed out
     }
 
     async function runSequence(steps, progressEl, errorEl) {
@@ -2390,14 +2406,16 @@
 
             // 202 Accepted means a background task was started — poll poll_url until done.
             if (res.status === 202 && data?.poll_url) {
-              const finalStatus = await pollUntilDone(data.poll_url);
+              const { status: finalStatus, error: finalError } = await pollUntilDone(data.poll_url);
               if (finalStatus === 'complete') {
                 currentSteps[step.key] = 'complete';
                 if (row) row.innerHTML = `${dotHtml('complete')} <span>${esc(step.label)}</span>`;
               } else {
                 currentSteps[step.key] = 'failed';
                 if (row) row.innerHTML = `${dotHtml('failed')} <span>${esc(step.label)}</span>`;
-                errorEl.textContent = `${step.label} failed — see run log for details`;
+                errorEl.textContent = finalError
+                  ? `${step.label} failed: ${finalError}`
+                  : `${step.label} failed — see run log for details`;
                 errorEl.style.display = '';
                 renderNavItems();
                 return false;
