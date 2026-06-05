@@ -151,12 +151,17 @@ def cleanup(run_id: str) -> None:
 
 
 def _write_run_log_txt(run_id: str, content: str, storage: R2Client) -> None:
-    """Upload FFmpeg stdout+stderr to run_log.txt. Non-fatal — logs a warning on failure."""
-    key = f"runs/{run_id}/run_log.txt"
+    """Upload FFmpeg stdout+stderr to ffmpeg_log.txt. Non-fatal — logs a warning on failure.
+
+    Stored at runs/{run_id}/ffmpeg_log.txt (separate from run_log.txt which holds the
+    Haiku-generated pipeline summary) so that summarize_step does not overwrite the raw
+    FFmpeg output needed for post-mortem diagnosis.
+    """
+    key = f"runs/{run_id}/ffmpeg_log.txt"
     try:
         storage.upload_text(key, content)
     except StorageError:
-        logger.warning("Failed to write run_log.txt for run %s", run_id)
+        logger.warning("Failed to write ffmpeg_log.txt for run %s", run_id)
 
 
 def render_run(

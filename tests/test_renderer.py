@@ -157,7 +157,7 @@ class TestWriteRunLogTxt:
 
         storage = MagicMock()
         _write_run_log_txt("run-1", "ffmpeg output here", storage)
-        storage.upload_text.assert_called_once_with("runs/run-1/run_log.txt", "ffmpeg output here")
+        storage.upload_text.assert_called_once_with("runs/run-1/ffmpeg_log.txt", "ffmpeg output here")
 
     def test_swallows_storage_error(self):
         from src.renderer import _write_run_log_txt

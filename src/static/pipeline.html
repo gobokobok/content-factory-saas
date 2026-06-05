@@ -2344,14 +2344,14 @@
         populateRender();
       } else {
         document.getElementById('render-btn').disabled = false;
-        // On render failure, append the tail of run_log.txt so the operator can see the
+        // On render failure, append the tail of ffmpeg_log.txt so the operator can see the
         // actual FFmpeg error without digging through Railway logs.
         if (errorEl.style.display !== 'none') {
           try {
-            const logRes = await fetch(`/runs/${currentRunId}/run-log-txt`);
+            const logRes  = await fetch(`/runs/${currentRunId}/artifact/ffmpeg_log`);
             const logData = await logRes.json().catch(() => null);
-            if (logData?.available && logData.content) {
-              const lastLines = logData.content.trim().split('\n').slice(-8).join('\n');
+            if (logRes.ok && logData?.content) {
+              const lastLines = String(logData.content).trim().split('\n').slice(-12).join('\n');
               const pre = document.createElement('pre');
               pre.style.cssText = 'margin:6px 0 0; font-size:10px; white-space:pre-wrap; word-break:break-all; color:inherit; opacity:0.85;';
               pre.textContent = lastLines;
