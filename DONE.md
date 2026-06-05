@@ -169,7 +169,7 @@ _Entries added here when a story reaches Definition of Done._
 - `saveVideoSettings()` extended to include `audio: {music_volume, ducking_enabled, playback_mode}` in the POST body. Single call — no new endpoint.
 - `renderStoryboardHtml(content, audioSettings)` gains optional second param. `populateStoryboard()` now fetches `GET /runs/{run_id}/settings` in parallel with the storyboard artifact and passes `settings.audio` to the renderer. Storyboard settings panel Audio section shows real Volume, VO Ducking, and Playback values instead of storyboard-global placeholders.
 - `tests/test_runs.py`: 7 new tests in `TestVideoSettings` — audio POST round-trip, R2 storage, GET returns stored audio, GET returns defaults on absent file, invalid playback_mode → 422, music_volume > 100 → 422, POST without audio block → defaults. 675 total passing.
-**Smoke test:** DEFERRED — requires Railway DEV deploy. Operator opens Project Details Settings, adjusts volume slider to 40%, disables ducking, selects "Loop full track", reloads page, confirms values persist. Clicks Commit and confirms all audio controls are locked read-only.
+**Smoke test:** PASSED — 2026-06-05. Volume slider set to 40%, ducking disabled, Loop full track selected; values persisted after reload. Commit locked all audio controls read-only.
 **Promoted to backlog:** none
 
 ---
@@ -182,7 +182,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/static/pipeline.html`: Background Music field-card moved to Content subsection (after Voiceover). Both audio cards redesigned to match identical `vo-widget` pattern: "Choose a file" (underlined link), filename span, Upload button (appears on file select), Delete button (appears after upload), status span. `DELETE /runs/{run_id}/voiceover` added to backend (mirrors music delete). JS: `deleteVoiceover()`, `deleteMusic()`, `_resetMusicWidget()`, `_setMusicLocked()`, `onMusicFileSelected()`, `uploadMusic()`. `populateInput()` restores both tracks from draft (filename + delete button shown). Settings card: "Voiceover Script" label rename, `field-card--tight-v` padding 0 top/bottom, `.vo-widget` uses `column-gap: 10px; row-gap: 0` to prevent empty flex-line inflation. All card spacing calibrated to 10px between content and borders/dividers. `settings-row` uses `align-items: center; padding: 9px 0`.
 - No new ENV vars. No new dependencies.
 - 12 new tests in `tests/test_runs.py` (`TestDeleteVoiceover` × 3, `TestMusicUploadUrl` × 4, `TestDeleteMusic` × 3, `TestGetDraftMusicFilename` × 2). 668 total passing.
-**Smoke test:** DEFERRED — requires Railway DEV deploy. Operator opens Project Details, uploads a .mp3 track, confirms `<audio>` preview plays, clicks Remove and verifies track disappears, re-uploads, commits, and confirms all music controls are locked read-only.
+**Smoke test:** PASSED — 2026-06-05. Uploaded .mp3 track, audio preview played, Remove cleared the track, re-upload succeeded, Commit locked all music controls read-only.
 **Post-close fix (2026-05-31, commit `a680b00`):** `uploadMusic()` and `uploadVoiceover()` now issue a best-effort `DELETE` on the existing file before fetching a presigned URL for the new upload. Previously, uploading a replacement track with a different filename left both files in R2; the ffmpeg script picked up the old track. Fix applied in the same `pipeline.html`.
 **Promoted to backlog:** none
 
@@ -212,7 +212,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/routes/runs.py`: `POST /runs/{run_id}/settings` stores `settings.json` in R2. `GET /runs/{run_id}/settings` returns stored values or defaults — never 404.
 - `src/static/pipeline.html`: Settings section replaced with three field-cards (Aspect Ratio, Visual Style, Subtitles). Auto-saves on change; loads on run open; all controls disabled when `sectionLocked.input` is true. Subtitle style selector conditionally shown.
 - No new ENV vars. No new dependencies. 630 tests passing (+11).
-**Smoke test:** DEFERRED — requires Railway DEV deploy. Operator opens Project Details, confirms Settings section shows three controls with correct options, changes Aspect Ratio and Visual Style, reloads page, and verifies values persist. Disables Subtitles toggle and confirms Caption Style selector disappears.
+**Smoke test:** PASSED — 2026-06-05. Aspect Ratio and Visual Style changes persisted after reload. Disabling the Subtitles toggle correctly hid the Caption Style selector.
 **Promoted to backlog:** none
 
 ---
