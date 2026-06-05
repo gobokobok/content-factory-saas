@@ -1047,25 +1047,34 @@ class TestFilterComplexConcat:
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert '-map "[vout]"' in script
 
-    def test_fps_filter_after_concat_normalises_time_base(self):
-        """fps=25 must appear in the filter_complex between concat and [vout].
+    def test_r_flag_normalises_time_base_for_concat(self):
+        """-r 25 must appear in the concat ffmpeg command as an output flag.
 
-        Pexels clips arrive with mixed tbns (12800, 15360, 30000 …).  Without the
-        fps filter the concat output inherits an ambiguous time base that libx264
-        interprets as ~1,000,000 fps, triggering 'MB rate > level limit' (exit 187).
+        Pexels clips arrive with mixed tbns (12800, 15360, 30000 …).  The fps=
+        filter inside filter_complex adjusts frame selection but does NOT rewrite
+        the stream tbn metadata, so libx264 still sees an impossible frame rate and
+        refuses to open ('Error while opening encoder', exit 187).  The canonical
+        fix is -r 25 on the output side, which tells libx264 the true frame rate
+        at encoder-init time, used directly for MB rate / level selection.
         """
         scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "hard_cut", 4.0)]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        # Must have intermediate concat label + fps filter before [vout]
-        assert "vconcatraw" in script
-        assert "fps=25" in script
-        # fps filter must appear after concat and before vout assignment
-        fc_start = script.index("-filter_complex")
-        fc_chunk = script[fc_start : fc_start + 400]
-        assert fc_chunk.index("concat=") < fc_chunk.index("fps=25")
-        assert fc_chunk.index("fps=25") < fc_chunk.index("[vout]")
+        # concat block must contain -r 25 between -map and -c:v
+        concat_start = script.index("# ── Concatenate scenes")
+        concat_chunk = script[concat_start : concat_start + 600]
+        assert "-r 25" in concat_chunk
+        assert concat_chunk.index("-map") < concat_chunk.index("-r 25")
+        assert concat_chunk.index("-r 25") < concat_chunk.index("-c:v")
+        # fps= must NOT appear inside the filter_complex string
+        fc_start = concat_chunk.index("-filter_complex")
+        fc_end = concat_chunk.index("-map")
+        fc_chunk = concat_chunk[fc_start:fc_end]
+        assert "fps=" not in fc_chunk
+        # [vout] must be the direct concat output (no vconcatraw intermediate)
+        assert "vconcatraw" not in concat_chunk
+        assert "[vout]" in concat_chunk
 
     def test_filter_complex_count_matches_manifest_entries_not_storyboard_total(self):
         # Storyboard summary claims 3 scenes but manifest has 2 entries.
