@@ -73,11 +73,21 @@ async def acquire_assets(
             visual_style=video_settings.visual_style,
             batch_size=settings.ACQUISITION_BATCH_SIZE,
         )
-    except Exception as exc:
-        logger.error("Acquisition loop failed unexpectedly: run=%s error=%s", run_id, exc)
-        storage.update_run_log(run_id, "asset_acquisition", "failed", error=str(exc))
-        pipeline.summarize_step(run_id, storage, settings)
-        raise HTTPException(status_code=500, detail=str(exc))
+    except BaseException as exc:
+        # Catches asyncio.CancelledError (BaseException, not Exception) in addition to
+        # regular exceptions.  CancelledError fires when Railway's HTTP timeout kills the
+        # request mid-flight; without this branch it escapes the handler silently and the
+        # UI shows "Asset Acquisition failed: " with nothing after the colon.
+        # Long-term fix: move acquisition to a BackgroundTask (same pattern as render,
+        # see BUG-005).
+        err_msg = str(exc) or type(exc).__name__
+        logger.error("Acquisition loop failed: run=%s error=%s", run_id, err_msg)
+        try:
+            storage.update_run_log(run_id, "asset_acquisition", "failed", error=err_msg)
+            pipeline.summarize_step(run_id, storage, settings)
+        except Exception:
+            pass  # best-effort — don't mask the original error
+        raise HTTPException(status_code=500, detail=err_msg)
 
     try:
         storage.upload_json(manifest_key, manifest.model_dump(mode="json"))

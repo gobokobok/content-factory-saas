@@ -3175,6 +3175,44 @@ Mirror the S13-S3 background render pattern:
 
 ---
 
+## [BUG-005] Asset acquisition cancelled by Railway HTTP timeout → silent empty error
+**Status:** open
+**Priority:** high
+**Reported:** 2026-06-05
+**Points:** 5
+
+### Description
+`POST /runs/{run_id}/assets` is a synchronous long-running route. Replicate calls for AI-generated scenes take 30–60s each. With a full run of `still_with_motion` / `animated` scenes, the batch easily exceeds Railway's HTTP request timeout (~60s). When Railway kills the connection, uvicorn cancels the running coroutine, raising `asyncio.CancelledError`.
+
+`CancelledError` is a **`BaseException`**, not an `Exception`. The `except Exception as exc` handler in the route does not catch it — it propagates to FastAPI, which returns HTTP 500 with an empty `detail`. The UI displays `"Asset Acquisition failed: "` with nothing after the colon. All manifest entries remain `"pending"` because `storage.upload_json` never ran.
+
+**Interim fix applied (2026-06-05, commit `X`):** `except BaseException` now catches `CancelledError`, logs it properly, and returns `detail=type(exc).__name__` so the UI at least shows `"Asset Acquisition failed: CancelledError"`.
+
+### Root cause
+Same architectural issue as the render step before S13-S3: a slow synchronous operation runs inside an HTTP request handler, making it vulnerable to reverse-proxy timeouts.
+
+### Acceptance Criteria
+- [ ] `POST /runs/{run_id}/assets` returns HTTP 202 immediately; acquisition runs as a FastAPI `BackgroundTask`
+- [ ] `GET /runs/{run_id}/assets/status` returns `{status: "running"|"complete"|"failed", acquired: int, failed: int}`
+- [ ] UI shows a "Running…" spinner and polls status until complete or failed
+- [ ] `run_log.json` updated to `asset_acquisition: complete/failed` when background task finishes
+- [ ] Acquisition results shown in the manifest table once complete
+- [ ] No regression on short runs that complete within the timeout
+
+### Proposed solution
+Mirror S13-S3 (`POST /render` → 202 + background task + `GET /render/status`):
+- `POST /assets` registers `_background_acquire` via `BackgroundTasks`; returns `{status: "running", poll_url}`
+- `_background_acquire` calls `await run_acquisition(...)`, writes manifest, updates run log
+- `GET /assets/status` reads from a module-level `_ACQUIRE_STATE` dict
+- UI: `runAssetAcquisition()` fires POST, then polls `GET /assets/status` every 3s until done
+
+### Files to modify
+- `src/routes/assets.py` — 202 response, BackgroundTask, status endpoint
+- `src/models.py` — `AcquisitionAcceptedResponse`, `AcquisitionStatusResponse`
+- `src/static/pipeline.html` — `runAssetAcquisition()` polling loop
+
+---
+
 ## Ideas / Future Epics
 
 ### IDEA-001 — ElevenLabs TTS: script-only entry point
