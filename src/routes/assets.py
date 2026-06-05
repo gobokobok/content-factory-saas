@@ -1,14 +1,19 @@
-"""Asset acquisition route — POST /runs/{run_id}/assets."""
+"""Asset acquisition route — POST /runs/{run_id}/assets (202 + background task)."""
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from src import pipeline
 from src.acquisition import MIN_ACQUIRED_FOR_COMPLETE, run_acquisition
 from src.config import Settings, get_settings
 from src.exceptions import StorageError
-from src.models import AcquisitionResponse, AssetManifest, VideoSettings
+from src.models import (
+    AcquisitionAcceptedResponse,
+    AcquisitionStatusResponse,
+    AssetManifest,
+    VideoSettings,
+)
 from src.pexels import PexelsClient
 from src.replicate_client import ReplicateClient
 from src.storage import R2Client
@@ -17,17 +22,91 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# In-memory acquisition state keyed by run_id.  Same pattern as _RENDER_STATE in
+# render.py — Railway keeps a single process per service instance, so this survives
+# across requests within the same deployment.
+_ACQUISITION_STATE: dict[str, dict] = {}
 
-@router.post("/runs/{run_id}/assets", response_model=AcquisitionResponse)
+
+async def _background_acquire(
+    run_id: str,
+    manifest: AssetManifest,
+    manifest_key: str,
+    pexels: PexelsClient,
+    replicate: ReplicateClient,
+    storage: R2Client,
+    visual_style: str,
+    batch_size: int,
+    settings: Settings,
+) -> None:
+    """Run acquisition in a thread pool and update run_log on completion or failure."""
+    try:
+        summary = await run_acquisition(
+            run_id, manifest, pexels, replicate, storage,
+            visual_style=visual_style,
+            batch_size=batch_size,
+        )
+    except BaseException as exc:
+        err_msg = str(exc) or type(exc).__name__
+        logger.error("Background acquisition failed: run=%s error=%s", run_id, err_msg)
+        _ACQUISITION_STATE[run_id] = {
+            "status": "failed",
+            "acquired": 0,
+            "failed": 0,
+            "sources": {},
+            "manifest_key": None,
+            "error": err_msg,
+        }
+        try:
+            storage.update_run_log(run_id, "asset_acquisition", "failed", error=err_msg)
+            pipeline.summarize_step(run_id, storage, settings)
+        except Exception:
+            pass
+        return
+
+    try:
+        storage.upload_json(manifest_key, manifest.model_dump(mode="json"))
+    except StorageError as exc:
+        err_msg = str(exc)
+        logger.error("Failed to write updated manifest: run=%s error=%s", run_id, err_msg)
+        _ACQUISITION_STATE[run_id] = {
+            "status": "failed",
+            "acquired": summary["acquired"],
+            "failed": summary["failed"],
+            "sources": summary["sources"],
+            "manifest_key": None,
+            "error": err_msg,
+        }
+        storage.update_run_log(run_id, "asset_acquisition", "failed", error=err_msg)
+        pipeline.summarize_step(run_id, storage, settings)
+        return
+
+    step_status = "complete" if summary["acquired"] >= MIN_ACQUIRED_FOR_COMPLETE else "failed"
+    _ACQUISITION_STATE[run_id] = {
+        "status": step_status,
+        "acquired": summary["acquired"],
+        "failed": summary["failed"],
+        "sources": summary["sources"],
+        "manifest_key": manifest_key,
+        "error": None if step_status == "complete" else "Too few assets acquired",
+    }
+    storage.update_run_log(
+        run_id, "asset_acquisition", step_status, output_url=manifest_key
+    )
+    pipeline.summarize_step(run_id, storage, settings)
+
+
+@router.post("/runs/{run_id}/assets", response_model=AcquisitionAcceptedResponse, status_code=202)
 async def acquire_assets(
     run_id: str,
+    background_tasks: BackgroundTasks,
     settings: Settings = Depends(get_settings),
-) -> AcquisitionResponse:
-    """Acquire all pending assets for a run using the Pexels → Replicate fallback chain.
+) -> AcquisitionAcceptedResponse:
+    """Accept an acquisition request. Returns 202 immediately; acquisition runs as a background task.
 
-    Reads asset_manifest.json from R2, processes every pending scene, writes
-    the updated manifest back, and marks asset_acquisition in run_log.json as
-    complete or failed based on total acquired count.
+    Railway's 60-second HTTP timeout previously killed long-running acquisition mid-flight
+    (BUG-005).  Moving to BackgroundTasks means the HTTP response is sent before acquisition
+    starts, and the UI polls /runs/{run_id}/assets/status until status != 'running'.
     """
     storage = R2Client(
         account_id=settings.R2_ACCOUNT_ID,
@@ -47,7 +126,6 @@ async def acquire_assets(
 
     manifest = AssetManifest(**manifest_data)
 
-    # Load visual_style from run settings so Replicate prompts reflect the operator's choice.
     settings_key = f"runs/{run_id}/settings.json"
     try:
         settings_data = storage.get_json(settings_key)
@@ -67,46 +145,41 @@ async def acquire_assets(
         max_poll_attempts=settings.REPLICATE_MAX_POLL_ATTEMPTS,
     )
 
-    try:
-        summary = await run_acquisition(
-            run_id, manifest, pexels, replicate, storage,
-            visual_style=video_settings.visual_style,
-            batch_size=settings.ACQUISITION_BATCH_SIZE,
-        )
-    except BaseException as exc:
-        # Catches asyncio.CancelledError (BaseException, not Exception) in addition to
-        # regular exceptions.  CancelledError fires when Railway's HTTP timeout kills the
-        # request mid-flight; without this branch it escapes the handler silently and the
-        # UI shows "Asset Acquisition failed: " with nothing after the colon.
-        # Long-term fix: move acquisition to a BackgroundTask (same pattern as render,
-        # see BUG-005).
-        err_msg = str(exc) or type(exc).__name__
-        logger.error("Acquisition loop failed: run=%s error=%s", run_id, err_msg)
-        try:
-            storage.update_run_log(run_id, "asset_acquisition", "failed", error=err_msg)
-            pipeline.summarize_step(run_id, storage, settings)
-        except Exception:
-            pass  # best-effort — don't mask the original error
-        raise HTTPException(status_code=500, detail=err_msg)
+    # Initialise state before the task starts so the status endpoint never 404s
+    # in the brief window between the 202 response and background task execution.
+    _ACQUISITION_STATE[run_id] = {
+        "status": "running",
+        "acquired": 0,
+        "failed": 0,
+        "sources": {},
+        "manifest_key": None,
+        "error": None,
+    }
 
-    try:
-        storage.upload_json(manifest_key, manifest.model_dump(mode="json"))
-    except StorageError as exc:
-        logger.error("Failed to write updated manifest: run=%s error=%s", run_id, exc)
-        storage.update_run_log(run_id, "asset_acquisition", "failed", error=str(exc))
-        pipeline.summarize_step(run_id, storage, settings)
-        raise HTTPException(status_code=500, detail=str(exc))
-
-    step_status = "complete" if summary["acquired"] >= MIN_ACQUIRED_FOR_COMPLETE else "failed"
-    storage.update_run_log(
-        run_id, "asset_acquisition", step_status, output_url=manifest_key
-    )
-    pipeline.summarize_step(run_id, storage, settings)
-
-    return AcquisitionResponse(
-        status=step_status,
-        acquired=summary["acquired"],
-        failed=summary["failed"],
-        sources=summary["sources"],
+    background_tasks.add_task(
+        _background_acquire,
+        run_id=run_id,
+        manifest=manifest,
         manifest_key=manifest_key,
+        pexels=pexels,
+        replicate=replicate,
+        storage=storage,
+        visual_style=video_settings.visual_style,
+        batch_size=settings.ACQUISITION_BATCH_SIZE,
+        settings=settings,
     )
+
+    return AcquisitionAcceptedResponse(
+        status="running",
+        poll_url=f"/runs/{run_id}/assets/status",
+    )
+
+
+@router.get("/runs/{run_id}/assets/status", response_model=AcquisitionStatusResponse)
+def acquisition_status(run_id: str) -> AcquisitionStatusResponse:
+    """Poll acquisition task status. Returns 404 if no acquisition has been started for this run."""
+    if run_id not in _ACQUISITION_STATE:
+        raise HTTPException(
+            status_code=404, detail=f"No active acquisition found for run '{run_id}'"
+        )
+    return AcquisitionStatusResponse(**_ACQUISITION_STATE[run_id])

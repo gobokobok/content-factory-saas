@@ -400,7 +400,15 @@ def client(monkeypatch):
 
 
 class TestAssetsRoute:
-    def test_200_all_acquired_returns_complete(self, client):
+    """POST /runs/{run_id}/assets now returns 202 immediately (BUG-005 fix).
+
+    The route starts a BackgroundTask and returns a poll_url.  TestClient
+    executes background tasks synchronously before returning the response, so
+    side-effects (run_log updates, _ACQUISITION_STATE) are visible immediately
+    after client.post() returns — same pattern as TestRenderRoute.
+    """
+
+    def test_202_returns_running_with_poll_url(self, client):
         with (
             patch("src.routes.assets.R2Client") as mock_r2_cls,
             patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
@@ -412,19 +420,30 @@ class TestAssetsRoute:
 
             resp = client.post(f"/runs/{RUN_ID}/assets")
 
-        assert resp.status_code == 200
+        assert resp.status_code == 202
         body = resp.json()
-        assert body["status"] == "complete"
-        assert body["acquired"] == 1
-        assert body["failed"] == 0
-        assert body["sources"] == {"pexels": 1}
-        assert body["manifest_key"] == MANIFEST_KEY
+        assert body["status"] == "running"
+        assert body["poll_url"] == f"/runs/{RUN_ID}/assets/status"
+
+    def test_background_task_updates_run_log_on_success(self, client):
+        """TestClient runs background tasks synchronously — run_log is updated before response."""
+        with (
+            patch("src.routes.assets.R2Client") as mock_r2_cls,
+            patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
+        ):
+            mock_storage = MagicMock()
+            mock_r2_cls.return_value = mock_storage
+            mock_storage.get_json.return_value = SAMPLE_MANIFEST_DATA
+            mock_acquire.return_value = {"acquired": 1, "failed": 0, "sources": {"pexels": 1}}
+
+            client.post(f"/runs/{RUN_ID}/assets")
+
         mock_storage.upload_json.assert_called_once()
         mock_storage.update_run_log.assert_called_once_with(
             RUN_ID, "asset_acquisition", "complete", output_url=MANIFEST_KEY
         )
 
-    def test_200_zero_acquired_returns_failed_status(self, client):
+    def test_background_task_updates_run_log_on_zero_acquired(self, client):
         with (
             patch("src.routes.assets.R2Client") as mock_r2_cls,
             patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
@@ -434,11 +453,8 @@ class TestAssetsRoute:
             mock_storage.get_json.return_value = SAMPLE_MANIFEST_DATA
             mock_acquire.return_value = {"acquired": 0, "failed": 1, "sources": {}}
 
-            resp = client.post(f"/runs/{RUN_ID}/assets")
+            client.post(f"/runs/{RUN_ID}/assets")
 
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["status"] == "failed"
         mock_storage.update_run_log.assert_called_once_with(
             RUN_ID, "asset_acquisition", "failed", output_url=MANIFEST_KEY
         )
@@ -453,7 +469,10 @@ class TestAssetsRoute:
 
         assert resp.status_code == 404
 
-    def test_500_unexpected_acquisition_error_marks_run_log_failed(self, client):
+    def test_acquisition_error_handled_by_background_task(self, client):
+        """Exception in acquisition is caught by background task; HTTP response is still 202."""
+        import src.routes.assets as assets_module
+
         with (
             patch("src.routes.assets.R2Client") as mock_r2_cls,
             patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
@@ -465,12 +484,13 @@ class TestAssetsRoute:
 
             resp = client.post(f"/runs/{RUN_ID}/assets")
 
-        assert resp.status_code == 500
+        assert resp.status_code == 202
+        assert assets_module._ACQUISITION_STATE.get(RUN_ID, {}).get("status") == "failed"
         mock_storage.update_run_log.assert_called_once_with(
             RUN_ID, "asset_acquisition", "failed", error="unexpected crash"
         )
 
-    def test_500_manifest_write_failure_marks_run_log_failed(self, client):
+    def test_manifest_write_failure_handled_by_background_task(self, client):
         with (
             patch("src.routes.assets.R2Client") as mock_r2_cls,
             patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
@@ -483,7 +503,7 @@ class TestAssetsRoute:
 
             resp = client.post(f"/runs/{RUN_ID}/assets")
 
-        assert resp.status_code == 500
+        assert resp.status_code == 202
         mock_storage.update_run_log.assert_called_once_with(
             RUN_ID, "asset_acquisition", "failed", error="write failed"
         )
@@ -509,3 +529,49 @@ class TestAssetsRoute:
             poll_interval_seconds=3,
             max_poll_attempts=60,
         )
+
+
+# ── assets/status endpoint ────────────────────────────────────────────────────
+
+
+class TestAcquisitionStatusRoute:
+    def test_returns_running_while_task_in_progress(self, client):
+        import src.routes.assets as assets_module
+        assets_module._ACQUISITION_STATE[RUN_ID] = {
+            "status": "running", "acquired": 0, "failed": 0,
+            "sources": {}, "manifest_key": None, "error": None,
+        }
+        resp = client.get(f"/runs/{RUN_ID}/assets/status")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "running"
+
+    def test_returns_complete_after_success(self, client):
+        import src.routes.assets as assets_module
+        assets_module._ACQUISITION_STATE[RUN_ID] = {
+            "status": "complete", "acquired": 5, "failed": 0,
+            "sources": {"pexels": 5}, "manifest_key": MANIFEST_KEY, "error": None,
+        }
+        resp = client.get(f"/runs/{RUN_ID}/assets/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "complete"
+        assert body["acquired"] == 5
+        assert body["manifest_key"] == MANIFEST_KEY
+
+    def test_returns_failed_with_error(self, client):
+        import src.routes.assets as assets_module
+        assets_module._ACQUISITION_STATE[RUN_ID] = {
+            "status": "failed", "acquired": 0, "failed": 1,
+            "sources": {}, "manifest_key": None, "error": "Pexels quota exceeded",
+        }
+        resp = client.get(f"/runs/{RUN_ID}/assets/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "failed"
+        assert body["error"] == "Pexels quota exceeded"
+
+    def test_404_when_no_acquisition_started(self, client):
+        import src.routes.assets as assets_module
+        assets_module._ACQUISITION_STATE.pop("nonexistent-run", None)
+        resp = client.get("/runs/nonexistent-run/assets/status")
+        assert resp.status_code == 404

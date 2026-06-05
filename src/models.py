@@ -227,6 +227,24 @@ class AcquisitionResponse(BaseModel):
     manifest_key: str
 
 
+class AcquisitionAcceptedResponse(BaseModel):
+    """202 response body for POST /runs/{run_id}/assets (background task started)."""
+
+    status: str  # always "running"
+    poll_url: str
+
+
+class AcquisitionStatusResponse(BaseModel):
+    """Response body for GET /runs/{run_id}/assets/status."""
+
+    status: str  # "running" | "complete" | "failed"
+    acquired: int = 0
+    failed: int = 0
+    sources: dict[str, int] = {}
+    manifest_key: Optional[str] = None
+    error: Optional[str] = None
+
+
 class AssetLinkResponse(BaseModel):
     """Response body for GET /runs/{run_id}/asset-link."""
 
