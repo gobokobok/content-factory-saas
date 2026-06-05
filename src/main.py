@@ -94,7 +94,10 @@ async def auth_middleware(request: Request, call_next):
 @app.get("/", include_in_schema=False)
 def pipeline_ui() -> FileResponse:
     """Serve the end-to-end pipeline UI."""
-    return FileResponse(_STATIC_DIR / "pipeline.html")
+    return FileResponse(
+        _STATIC_DIR / "pipeline.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/login", include_in_schema=False)
