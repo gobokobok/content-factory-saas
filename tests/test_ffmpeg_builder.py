@@ -188,7 +188,10 @@ class TestZoompanFilter:
         assert "1+0.05*on/75" in result
         assert "d=75" in result
         assert "s=1080x1920" in result
-        assert "fps=25" in result
+        # fps= is intentionally NOT in the zoompan string — it is a separate fps filter
+        # inserted after zoompan in _render_image_scene to reset PTS and avoid the
+        # "MB rate > level limit" libx264 error caused by looped-image time bases.
+        assert "fps=" not in result
 
     def test_animated_zoom_in(self):
         result = _zoompan_filter("animated", "zoom_in", 100)
@@ -334,17 +337,23 @@ class TestBuildFfmpegScript:
         assert "crop=1080:1920" in script
         assert "scale=2160:3840" not in script
 
-    def test_image_scene_vf_chain_order_is_scale_zoompan_setsar(self):
-        """vf filter chain must be: scale+crop → zoompan → setsar=1:1."""
+    def test_image_scene_vf_chain_order_is_scale_zoompan_fps_setsar(self):
+        """vf filter chain must be: scale+crop → zoompan → fps=25 → setsar=1:1.
+
+        The fps filter between zoompan and setsar resets PTS from the looped-image
+        microsecond time base to a sane 1/25 base, preventing the libx264
+        'MB rate > level limit' error (exit code 187).
+        """
         scenes = [_scene("02", "still_with_motion", 3.0)]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("02", "still_with_motion")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         # Find the vf= argument for the image scene
         vf_start = script.index("scale=1080:1920:force_original_aspect_ratio=increase")
-        vf_chunk = script[vf_start:vf_start + 200]
+        vf_chunk = script[vf_start:vf_start + 250]
         assert vf_chunk.index("scale=") < vf_chunk.index("zoompan=")
-        assert vf_chunk.index("zoompan=") < vf_chunk.index("setsar=1:1")
+        assert vf_chunk.index("zoompan=") < vf_chunk.index("fps=25")
+        assert vf_chunk.index("fps=25") < vf_chunk.index("setsar=1:1")
 
     def test_animated_zoom_out_uses_decreasing_expression(self):
         scenes = [_scene("03", "animated", 3.0, motion_effect="zoom_out")]

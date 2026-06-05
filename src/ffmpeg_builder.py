@@ -404,7 +404,9 @@ def _render_image_scene(
         f"crop={out_w}:{out_h}"
     )
     zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames, out_w, out_h)
-    vf = f"{scale_vf},{zoompan_vf},setsar=1:1"
+    # fps filter AFTER zoompan rewrites PTS to a 1/{_FPS} time base, fixing the
+    # "MB rate > level limit" libx264 error caused by looped-image microsecond time bases.
+    vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
     return (
         f"# Scene {num:02d} — {scene.scene} — {clip_label} — {scene.duration_s}s\n"
         f"ffmpeg -y -loop 1 -framerate {_FPS} -i \"{local}\" \\\n"
@@ -601,7 +603,14 @@ def _zoompan_filter(
     out_w / out_h set the s= output size; default to module constants (9:16).
     """
     s = f"{out_w}x{out_h}"
-    suffix = f":d={frames}:s={s}:fps={_FPS}"
+    # fps is deliberately omitted from the zoompan parameter block.
+    # When the input is a looped still image, FFmpeg uses a 1/1_000_000 (microsecond)
+    # time base, which zoompan inherits.  Setting fps= inside zoompan only controls the
+    # internal generation rate but does NOT reset the presentation timestamps — libx264
+    # then sees an effective MB rate of ~8 billion/sec and refuses to open.  Instead, a
+    # standalone fps={_FPS} filter is inserted after zoompan in _render_image_scene to
+    # rewrite PTS values to a sane 1/25 time base before the encoder sees them.
+    suffix = f":d={frames}:s={s}"
     cx = "iw/2-(iw/zoom/2)"
     cy = "ih/2-(ih/zoom/2)"
 
