@@ -2434,9 +2434,18 @@
             }
           } else {
             currentSteps[step.key] = 'failed';
-            const err = await res.json().catch(() => null);
+            let errDetail = '';
+            try {
+              // Try JSON first (FastAPI detail field), fall back to raw text.
+              // res.statusText is always empty under HTTP/2, so never rely on it alone.
+              const raw  = await res.text();
+              const json = JSON.parse(raw);
+              errDetail  = json?.detail || raw || `HTTP ${res.status}`;
+            } catch (_) {
+              errDetail = `HTTP ${res.status}`;
+            }
             if (row) row.innerHTML = `${dotHtml('failed')} <span>${esc(step.label)}</span>`;
-            errorEl.textContent = `${step.label} failed: ${err?.detail || res.statusText}`;
+            errorEl.textContent = `${step.label} failed: ${errDetail}`;
             errorEl.style.display = '';
             renderNavItems();
             return false;
