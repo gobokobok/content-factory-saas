@@ -286,11 +286,41 @@ class TestBuildFfmpegScript:
         assert "setsar=1:1" in script
 
     def test_hard_cut_scene_sets_duration(self):
+        # 4.5 s is not frame-aligned at 25 fps: round(4.5 * 25) = 112 → 112/25 = 4.48 s.
+        # The script must use the frame-aligned value, not the raw float.
         scenes = [_scene("01", "hard_cut", 4.5)]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("01", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "-t 4.5" in script
+        assert "-t 4.48" in script
+        assert "-t 4.5" not in script
+
+    def test_hard_cut_scene_has_r_flag_for_fps_conversion(self):
+        """-r 25 must appear in every hard_cut scene so 30-fps Pexels clips are
+        converted to 25 fps before the concat step.  Without -r the clip's frame
+        count diverges from the intended duration and visual lag accumulates."""
+        scenes = [_scene("01", "hard_cut", 4.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        # Locate the scene block (ends before the concat section)
+        scene_block = script[:script.index("# ── Concatenate")]
+        assert "-r 25" in scene_block
+
+    def test_image_scene_t_uses_frame_aligned_value(self):
+        """Still/animated scenes must use round(duration_s * FPS) / FPS for -t.
+
+        Using int() + the raw float duration adds one extra frame for any non-aligned
+        scene (the frame at PTS = int_frames/FPS satisfies PTS < duration_s), adding
+        up to 40 ms of visual lag that accumulates across the whole video.
+        """
+        # 2.135 s is not frame-aligned: round(2.135 * 25) = 53 → 53/25 = 2.12 s.
+        scenes = [_scene("01", "still_with_motion", 2.135, motion_effect="ken_burns_in")]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "still_with_motion")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "-t 2.12" in script
+        assert "-t 2.135" not in script
 
     def test_still_with_motion_uses_loop_flag(self):
         scenes = [_scene("02", "still_with_motion", 3.0)]

@@ -452,16 +452,31 @@ def _render_video_scene(
     scene: StoryboardScene, local: str, out: str, num: int,
     out_w: int = _OUT_W, out_h: int = _OUT_H,
 ) -> str:
-    """Trim and scale a video clip to the output dimensions."""
+    """Trim and scale a video clip to the output dimensions, re-encoding at _FPS fps.
+
+    Uses round(duration_s * _FPS) / _FPS as the -t value so the clip is an exact
+    multiple of one frame.  This eliminates the one-frame-rounding error that arises
+    when a non-frame-aligned float duration is passed to -t directly.
+
+    -r {_FPS} converts the source video (commonly 30 fps from Pexels) to _FPS before
+    the concat step so each per-scene clip carries the same frame rate.  Without this,
+    the concat re-encoder receives mixed-fps inputs and the frame count (which
+    determines clip duration in the final video) diverges from the intended duration.
+    """
     vf = (
         f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
         f"crop={out_w}:{out_h},setsar=1:1"
     )
+    frames = round(scene.duration_s * _FPS)
+    t_value = frames / _FPS
     return (
         f"# Scene {num:02d} — {scene.scene} — hard_cut — {scene.duration_s}s\n"
         f'ffmpeg -y -i "{local}" \\\n'
-        f"  -t {scene.duration_s} \\\n"
+        f"  -t {t_value} \\\n"
         f'  -vf "{vf}" \\\n'
+        # -r forces frame-rate conversion from source fps (e.g. 30) to _FPS (25),
+        # ensuring the encoded clip has exactly `frames` frames.
+        f"  -r {_FPS} \\\n"
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
         # Force the MP4 video track timescale to 1/25 so all per-scene clips share
         # an identical tbn.  Without this flag libx264 writes the container tbn
@@ -478,8 +493,16 @@ def _render_image_scene(
     scene: StoryboardScene, local: str, out: str, num: int,
     out_w: int = _OUT_W, out_h: int = _OUT_H,
 ) -> str:
-    """Animate a still image using zoompan and write it as a video segment."""
-    frames = int(scene.duration_s * _FPS)
+    """Animate a still image using zoompan and write it as a video segment.
+
+    Uses round(duration_s * _FPS) to compute the frame count and derives -t from
+    that integer so the clip is exactly `frames` frames long.  Using int() (truncation)
+    combined with a float -t caused an off-by-one: the frame at PTS = int_frames/_FPS
+    satisfies PTS < duration_s and was included by FFmpeg, giving `frames + 1` output
+    frames and adding up to 40 ms of visual lag per non-aligned scene.
+    """
+    frames = round(scene.duration_s * _FPS)
+    t_value = frames / _FPS
     clip_label = scene.clip_type
     if scene.motion_effect:
         clip_label += f" ({scene.motion_effect})"
@@ -494,7 +517,7 @@ def _render_image_scene(
     return (
         f"# Scene {num:02d} — {scene.scene} — {clip_label} — {scene.duration_s}s\n"
         f"ffmpeg -y -loop 1 -framerate {_FPS} -i \"{local}\" \\\n"
-        f"  -t {scene.duration_s} \\\n"
+        f"  -t {t_value} \\\n"
         f'  -vf "{vf}" \\\n'
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
         # Same timescale normalisation as _render_video_scene — see comment there.
