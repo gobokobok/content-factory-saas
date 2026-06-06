@@ -51,7 +51,7 @@ SCENE FIELDS (every scene)
 - scene: sequential number (use 03a / 03b for list sub-scenes)
 - clip_type: hard_cut | still_with_motion | animated
 - duration_s: derived from VO word count (see rules below)
-- voiceover_line: exact portion of VO spoken over this scene — 4–6 words maximum. Short phrase, not a full sentence. Split longer VO lines into separate scenes.
+- voiceover_line: the exact verbatim words from the script spoken during this scene — no paraphrasing, no summarising. Every word in the script must appear in exactly one scene's voiceover_line; no word may be dropped. Aim for 4–8 words; split at natural breath or pause points.
 - visual_prompts:
     PRIMARY: STK `3–4 concrete nouns only — no adjectives`
     FALLBACK: STK `1–2 words, core subject only`
@@ -135,6 +135,21 @@ When the VO contains a comma-separated list of items, each item becomes its own 
 - Duration per item scaled by word count (see table above)
 - SFX must be item-specific — never generic
 - on_screen_text only if item is 2+ words and adds value
+- If the list is preceded by a bridge phrase (e.g. "Others enjoy activities like"), that phrase belongs to the FIRST list item's voiceover_line — it must never be dropped.
+  Script: "Others enjoy activities like tennis, hiking, sailing"
+    ✓ Scene Xa voiceover_line: "others enjoy activities like tennis,"
+    ✓ Scene Xb voiceover_line: "hiking,"
+    ✓ Scene Xc voiceover_line: "sailing"
+    ✗ Scene Xa voiceover_line: "tennis,"  ← wrong — drops "others enjoy activities like"
+
+═══════════════════════════════════════
+COVERAGE RULE — CRITICAL
+═══════════════════════════════════════
+
+Every word in the input script must appear verbatim in exactly one scene's voiceover_line.
+No words may be dropped, paraphrased, or summarised away.
+
+After writing all scenes, verify: read the script left to right — each word must map to exactly one voiceover_line. If any word is unaccounted for, revise before outputting.
 
 ═══════════════════════════════════════
 VISUAL PROMPTS RULE
