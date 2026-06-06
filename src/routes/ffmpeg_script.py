@@ -113,15 +113,23 @@ def generate_ffmpeg_script(
         settings_data = storage.get_json(settings_key)
         video_settings = VideoSettings.model_validate(settings_data)
         logger.info(
-            "Audio settings loaded: run=%s volume=%d ducking=%s mode=%s",
+            "Settings loaded: run=%s aspect=%s volume=%d ducking=%s mode=%s",
             run_id,
+            video_settings.aspect_ratio,
             video_settings.audio.music_volume,
             video_settings.audio.ducking_enabled,
             video_settings.audio.playback_mode,
         )
     except StorageError:
         video_settings = VideoSettings()
-        logger.debug("No settings.json for run=%s — using audio defaults", run_id)
+        logger.info(
+            "No settings.json for run=%s — using defaults: aspect=%s volume=%d ducking=%s mode=%s",
+            run_id,
+            video_settings.aspect_ratio,
+            video_settings.audio.music_volume,
+            video_settings.audio.ducking_enabled,
+            video_settings.audio.playback_mode,
+        )
 
     try:
         script = build_ffmpeg_script(run_id, storyboard, manifest, scene_words, video_settings=video_settings)
