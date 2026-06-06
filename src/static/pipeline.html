@@ -1291,6 +1291,25 @@
         currentSteps = {};
       }
 
+      // Reconcile any step that was "running" in run_log when we refreshed.
+      // The background task may have been killed by a container restart after
+      // writing "running" to run_log but before writing the final status.
+      // Hitting the status endpoint gives us the real state so the spinner and
+      // button reflect reality rather than a stale "running" from run_log.
+      if (currentSteps['asset_acquisition'] === 'running') {
+        try {
+          const sRes = await fetch(`/runs/${runId}/assets/status`);
+          if (sRes.ok) {
+            const sd = await sRes.json();
+            if (sd.status !== 'running') {
+              // Interrupted or already finished — update local state.
+              currentSteps['asset_acquisition'] = sd.status || 'failed';
+            }
+            // If still 'running' the task is alive; populateAssets will disable the button.
+          }
+        } catch (_) { /* leave currentSteps as-is; worst case: spinner + disabled button */ }
+      }
+
       // Populate project name field (read-only for existing runs)
       currentProjectName = run?.project_name || '';
       const nameInput = document.getElementById('project-name-input');
@@ -1599,7 +1618,10 @@
       ctaArea.style.display = (storyboardDone && !locked) ? '' : 'none';
 
       const acquisitionBtn = document.getElementById('run-acquisition-btn');
-      const running        = !!stepRunning['asset_manifest'] || !!stepRunning['asset_acquisition'];
+      // stepRunning is in-memory (cleared on refresh); also check currentSteps so a
+      // live background task disables the button even after a hard refresh.
+      const running = !!stepRunning['asset_manifest'] || !!stepRunning['asset_acquisition']
+                   || currentSteps['asset_acquisition'] === 'running';
       acquisitionBtn.disabled    = locked || running;
       acquisitionBtn.textContent = running ? 'Running…' : 'Run Asset Acquisition';
 
