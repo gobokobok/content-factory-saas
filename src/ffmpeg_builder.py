@@ -592,8 +592,19 @@ def _audio_section(
         + '[music]${_sfx_filters};[vo][music]${_sfx_labels}amix=inputs=${_n_audio}:duration=first:normalize=0[aout]" \\'
     )
 
+    # Measure the voiceover duration at render time and trim the video input to that
+    # exact length.  Scene duration estimates (alignment-based or storyboard) can
+    # drift by a few seconds over a 30-scene run; without this trim the extra video
+    # frames extend the output past the VO end, producing a longer-than-expected
+    # video with a frozen last frame.  If the video is shorter than the VO the
+    # -t flag is harmless — FFmpeg reads the video to its end and the audio
+    # continues over the frozen last frame until the VO finishes.
     lines.extend([
+        '# Trim video to VO duration so accumulated scene-duration drift never extends the output',
+        'VO_DURATION=$(ffprobe -v quiet -show_entries format=duration'
+        ' -of default=noprint_wrappers=1:nokey=1 "$VO")',
         'ffmpeg -y \\',
+        '  -t "$VO_DURATION" \\',
         f'  -i "{video_source}" \\',
         '  -i "$VO" \\',
         '  "${MUSIC_ARGS[@]}" \\',
