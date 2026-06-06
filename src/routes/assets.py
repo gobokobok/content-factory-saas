@@ -45,6 +45,7 @@ async def _background_acquire(
             run_id, manifest, pexels, replicate, storage,
             visual_style=visual_style,
             batch_size=batch_size,
+            pexels_only=settings.ACQUISITION_PEXELS_ONLY,
         )
     except BaseException as exc:
         err_msg = str(exc) or type(exc).__name__

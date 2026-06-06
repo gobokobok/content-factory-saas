@@ -30,16 +30,18 @@ def acquire_scene(
     replicate: ReplicateClient,
     storage: R2Client,
     visual_style: str = "Realistic",
+    pexels_only: bool = True,
 ) -> bool:
     """Try to acquire an asset for one manifest entry, mutating it in-place on success.
 
     Routing is controlled by entry.asset_mode:
       "stock"        → Pexels only; skip Replicate on miss
       "ai_generated" → Replicate only; skip Pexels entirely
-      None           → Pexels → Replicate fallback chain (legacy behaviour)
+      None           → Pexels only when pexels_only=True (default);
+                       Pexels → Replicate fallback chain when pexels_only=False
 
     A PexelsError is treated the same as no result — falls through to Replicate
-    when asset_mode is None.
+    only when asset_mode is None AND pexels_only is False.
     Sets entry.source, entry.file_key, entry.status = 'acquired' on success.
     Sets entry.status = 'failed' when the chosen source is exhausted.
     visual_style is forwarded to Replicate for AI generation prompts.
@@ -74,7 +76,8 @@ def acquire_scene(
         entry.status = "failed"
         return False
 
-    # mode is None — legacy Pexels → Replicate fallback chain
+    # mode is None — Pexels only when pexels_only=True (default), otherwise
+    # Pexels → Replicate fallback chain.
     pexels_result = None
     try:
         pexels_result = pexels.acquire_for_entry(entry, run_id, storage)
@@ -86,6 +89,11 @@ def acquire_scene(
         entry.file_key = pexels_result.file_key
         entry.status = pexels_result.status
         return True
+
+    if pexels_only:
+        logger.warning("Pexels-only mode: no result for scene=%s, marking failed", entry.scene_id)
+        entry.status = "failed"
+        return False
 
     try:
         replicate_result = replicate.acquire_for_entry(entry, run_id, storage, visual_style=visual_style)
@@ -107,6 +115,7 @@ async def run_acquisition(
     storage: R2Client,
     visual_style: str = "Realistic",
     batch_size: int = 20,
+    pexels_only: bool = True,
 ) -> dict:
     """Run the full acquisition loop over all pending manifest entries in parallel batches.
 
@@ -117,6 +126,7 @@ async def run_acquisition(
     A failure in one scene within a batch is caught and logged; the batch
     continues and the manifest entry is marked 'failed'.
     visual_style is forwarded to Replicate for AI generation prompts.
+    pexels_only controls whether Replicate fallback is used for mode=None scenes.
 
     Returns a summary dict:
         acquired  — total entries with status 'acquired' after the loop (includes
@@ -131,7 +141,7 @@ async def run_acquisition(
         batch = pending[batch_start : batch_start + batch_size]
         results = await asyncio.gather(
             *[
-                asyncio.to_thread(acquire_scene, entry, run_id, pexels, replicate, storage, visual_style)
+                asyncio.to_thread(acquire_scene, entry, run_id, pexels, replicate, storage, visual_style, pexels_only)
                 for entry in batch
             ],
             return_exceptions=True,

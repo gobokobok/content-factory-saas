@@ -64,6 +64,11 @@ class Settings(BaseSettings):
 
     # Asset acquisition parallelism (S13-S2)
     ACQUISITION_BATCH_SIZE: int = 20
+    # When True (default), the Replicate fallback is skipped for scenes whose
+    # asset_mode is None.  Scenes explicitly set to "ai_generated" still use
+    # Replicate.  Set to False only in environments where Replicate is available
+    # and slow AI generation is acceptable (e.g. batch overnight runs).
+    ACQUISITION_PEXELS_ONLY: bool = True
 
     # Auth (S5-S5)
     OPERATOR_PASSWORD: str

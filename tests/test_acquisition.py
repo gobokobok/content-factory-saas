@@ -78,41 +78,65 @@ class TestAcquireScene:
         assert entry.status == "acquired"
         replicate.acquire_for_entry.assert_not_called()
 
-    def test_pexels_none_falls_through_to_replicate(self):
+    def test_pexels_miss_marks_failed_by_default(self):
+        """Default pexels_only=True: Pexels miss → failed without Replicate."""
+        entry = _entry()
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.return_value = None
+
+        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage) is False
+        assert entry.status == "failed"
+        replicate.acquire_for_entry.assert_not_called()
+
+    def test_pexels_error_marks_failed_by_default(self):
+        """Default pexels_only=True: Pexels error → failed without Replicate."""
+        entry = _entry()
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.side_effect = PexelsError("network error")
+
+        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage) is False
+        assert entry.status == "failed"
+        replicate.acquire_for_entry.assert_not_called()
+
+    def test_pexels_none_falls_through_to_replicate_when_pexels_only_false(self):
+        """pexels_only=False: Pexels miss → falls through to Replicate."""
         entry = _entry()
         pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
         pexels.acquire_for_entry.return_value = None
         replicate.acquire_for_entry.return_value = _replicate_result()
 
-        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage) is True
+        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage, pexels_only=False) is True
         assert entry.source == "replicate"
         assert entry.status == "acquired"
 
-    def test_pexels_error_falls_through_to_replicate(self):
+    def test_pexels_error_falls_through_to_replicate_when_pexels_only_false(self):
+        """pexels_only=False: Pexels error → falls through to Replicate."""
         entry = _entry()
         pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
         pexels.acquire_for_entry.side_effect = PexelsError("network error")
         replicate.acquire_for_entry.return_value = _replicate_result()
 
-        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage) is True
+        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage, pexels_only=False) is True
         assert entry.source == "replicate"
 
-    def test_both_fail_marks_entry_failed_and_returns_false(self):
+    def test_both_fail_marks_entry_failed_when_pexels_only_false(self):
+        """pexels_only=False: both Pexels and Replicate fail → entry failed."""
         entry = _entry()
         pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
         pexels.acquire_for_entry.return_value = None
         replicate.acquire_for_entry.side_effect = ReplicateError("api down")
 
-        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage) is False
+        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage, pexels_only=False) is False
         assert entry.status == "failed"
 
-    def test_pexels_error_and_replicate_error_marks_failed(self):
+    def test_pexels_error_and_replicate_error_marks_failed_when_pexels_only_false(self):
+        """pexels_only=False: both error → entry failed."""
         entry = _entry()
         pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
         pexels.acquire_for_entry.side_effect = PexelsError("timeout")
         replicate.acquire_for_entry.side_effect = ReplicateError("timeout")
 
-        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage) is False
+        assert acquire_scene(entry, RUN_ID, pexels, replicate, storage, pexels_only=False) is False
         assert entry.status == "failed"
 
 
@@ -182,14 +206,29 @@ class TestAcquireSceneAssetMode:
         assert entry.status == "failed"
         replicate.acquire_for_entry.assert_not_called()
 
-    def test_none_mode_uses_pexels_to_replicate_fallback(self):
+    def test_none_mode_pexels_only_skips_replicate(self):
+        """Default pexels_only=True: mode=None Pexels miss → failed, no Replicate."""
+        entry = _entry()
+        entry.asset_mode = None
+        pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
+        pexels.acquire_for_entry.return_value = None
+
+        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage)
+
+        assert result is False
+        assert entry.status == "failed"
+        pexels.acquire_for_entry.assert_called_once()
+        replicate.acquire_for_entry.assert_not_called()
+
+    def test_none_mode_uses_pexels_to_replicate_fallback_when_pexels_only_false(self):
+        """pexels_only=False: mode=None Pexels miss → falls through to Replicate."""
         entry = _entry()
         entry.asset_mode = None
         pexels, replicate, storage = MagicMock(), MagicMock(), MagicMock()
         pexels.acquire_for_entry.return_value = None
         replicate.acquire_for_entry.return_value = _replicate_result()
 
-        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage)
+        result = acquire_scene(entry, RUN_ID, pexels, replicate, storage, pexels_only=False)
 
         assert result is True
         assert entry.source == "replicate"
@@ -256,26 +295,42 @@ class TestRunAcquisition:
 
     @pytest.mark.asyncio
     async def test_mixed_pexels_and_replicate(self):
+        """pexels_only=False: Pexels miss on scene 2 falls back to Replicate."""
         entries = [_entry("01"), _entry("02", clip_type="still_with_motion")]
         manifest = _manifest(entries)
         pexels, replicate, storage = self._clients()
         pexels.acquire_for_entry.side_effect = [_pexels_result("01"), None]
         replicate.acquire_for_entry.return_value = _replicate_result("02")
 
-        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage, pexels_only=False)
 
         assert summary["acquired"] == 2
         assert summary["sources"] == {"pexels": 1, "replicate": 1}
 
     @pytest.mark.asyncio
+    async def test_pexels_miss_marks_failed_in_pexels_only_mode(self):
+        """pexels_only=True (default): Pexels miss → failed, Replicate not called."""
+        entries = [_entry("01"), _entry("02")]
+        manifest = _manifest(entries)
+        pexels, replicate, storage = self._clients()
+        pexels.acquire_for_entry.side_effect = [_pexels_result("01"), None]
+
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+
+        assert summary["acquired"] == 1
+        assert summary["failed"] == 1
+        replicate.acquire_for_entry.assert_not_called()
+
+    @pytest.mark.asyncio
     async def test_all_fail_returns_zero_acquired(self):
+        """pexels_only=False: both sources fail → zero acquired."""
         entries = [_entry("01"), _entry("02")]
         manifest = _manifest(entries)
         pexels, replicate, storage = self._clients()
         pexels.acquire_for_entry.return_value = None
         replicate.acquire_for_entry.side_effect = ReplicateError("fail")
 
-        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage)
+        summary = await run_acquisition(RUN_ID, manifest, pexels, replicate, storage, pexels_only=False)
 
         assert summary["acquired"] == 0
         assert summary["failed"] == 2
