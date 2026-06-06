@@ -355,6 +355,34 @@ class TestBuildFfmpegScript:
         assert vf_chunk.index("zoompan=") < vf_chunk.index("fps=25")
         assert vf_chunk.index("fps=25") < vf_chunk.index("setsar=1:1")
 
+    def test_hard_cut_scene_has_video_track_timescale_25(self):
+        """-video_track_timescale 25 must appear in every hard_cut (video) scene command.
+
+        Without it libx264 writes the container tbn derived from the Pexels source
+        clip (12800, 15360, 30000 …).  Mixed tbns confuse the concat demuxer's PTS
+        accumulation, producing a frozen/too-long output video.
+        """
+        scenes = [_scene("01", "hard_cut", 4.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        # Locate the scene block (ends before the concat section)
+        scene_block = script[:script.index("# ── Concatenate")]
+        assert "-video_track_timescale 25" in scene_block
+
+    def test_image_scene_has_video_track_timescale_25(self):
+        """-video_track_timescale 25 must appear in every still/animated scene command.
+
+        Image clips using -loop 1 + zoompan inherit a microsecond time base from
+        the still-image decoder; the flag forces tbn=25 so all clips match.
+        """
+        scenes = [_scene("02", "still_with_motion", 3.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("02", "still_with_motion")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        scene_block = script[:script.index("# ── Concatenate")]
+        assert "-video_track_timescale 25" in scene_block
+
     def test_animated_zoom_out_uses_decreasing_expression(self):
         scenes = [_scene("03", "animated", 3.0, motion_effect="zoom_out")]
         sb = _storyboard(scenes)
@@ -1023,21 +1051,21 @@ class TestFilterComplexConcat:
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "filelist.txt" in script
 
-    def test_concat_r_flag_and_vsync_cfr_present(self):
-        """-r 25 and -vsync cfr must appear in the concat command.
+    def test_concat_r_flag_present_no_vsync_cfr(self):
+        """-r 25 must appear in the concat command; -vsync cfr must NOT.
 
-        -r 25 tells libx264 the target frame rate; -vsync cfr forces each output
-        frame to carry PTS = N/fps (N = frame number).  Without cfr the concat
-        demuxer passes through per-clip timestamps that may contain non-zero
-        starting PTS (H.264 B-frame edit lists) or accumulated rounding from
-        mixed-fps clips, causing a visible freeze + visual-after-audio desync.
+        cfr examines input PTS to decide when to duplicate frames.  When any
+        per-scene clip has a wrong tbn, cfr duplicates frames and inflates the
+        output to 2-3× the correct duration (observed: 90s VO → 4:18 video).
+        The real fix is -video_track_timescale 25 on every per-scene clip so all
+        clips share tbn=25 before the concat demuxer accumulates their durations.
         """
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         concat_start = script.index("# ── Concatenate scenes")
         concat_chunk = script[concat_start : concat_start + 700]
         assert "-r 25" in concat_chunk
-        assert "-vsync cfr" in concat_chunk
+        assert "-vsync cfr" not in concat_chunk
 
     def test_all_scene_files_are_in_filelist(self):
         scenes = [_scene("01", "hard_cut", 3.0), _scene("02", "still_with_motion", 4.0)]

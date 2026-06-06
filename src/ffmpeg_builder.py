@@ -386,6 +386,13 @@ def _render_video_scene(
         f"  -t {scene.duration_s} \\\n"
         f'  -vf "{vf}" \\\n'
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        # Force the MP4 video track timescale to 1/25 so all per-scene clips share
+        # an identical tbn.  Without this flag libx264 writes the container tbn
+        # derived from the SOURCE clip (Pexels videos arrive with 12800, 15360, 30000
+        # etc.).  Mixed-tbn clips confuse the concat demuxer's PTS accumulation and
+        # produce wrong frame durations in the concatenated output (visually: freeze,
+        # extra-long video, or frame-duplicated video).
+        "  -video_track_timescale 25 \\\n"
         f"  {out}"
     )
 
@@ -413,6 +420,11 @@ def _render_image_scene(
         f"  -t {scene.duration_s} \\\n"
         f'  -vf "{vf}" \\\n'
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        # Same timescale normalisation as _render_video_scene — see comment there.
+        # Image clips using -loop 1 + zoompan inherit a 1/1_000_000 microsecond
+        # time base from the still-image decoder; forcing 25 here ensures the clip's
+        # container tbn matches all other per-scene clips.
+        "  -video_track_timescale 25 \\\n"
         f"  {out}"
     )
 
@@ -453,13 +465,11 @@ def _filter_complex_concat(n_scenes: int) -> str:
         '  -f concat -safe 0 \\\n'
         '  -i "$WORK/filelist.txt" \\\n'
         f"  -r {_FPS} \\\n"
-        # -vsync cfr forces each output frame to carry PTS = N/fps (N = frame number).
-        # Without it the concat demuxer passes through the clips' existing timestamps,
-        # which can contain non-zero starting PTS (H.264 B-frame edit lists) or
-        # accumulated rounding from mixed-fps clips.  Those bad PTS values survive
-        # -c:v libx264 re-encoding and cause a visible freeze + visual-after-audio
-        # desync in the player.  cfr eliminates any jump regardless of input.
-        "  -vsync cfr \\\n"
+        # NOTE: do NOT add -vsync cfr here.  cfr examines input PTS to decide when
+        # to duplicate frames; if any clip has a tbn mismatch it duplicates frames
+        # and inflates the output to 2-3x the correct duration.
+        # The correct fix is -video_track_timescale 25 on every per-scene clip so all
+        # clips share tbn=25 before the concat demuxer accumulates their durations.
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
         '  "$WORK/video_only.mp4"'
     )
