@@ -155,6 +155,12 @@ async def acquire_assets(
         "manifest_key": None,
         "error": None,
     }
+    # Also persist "running" to run_log so the fallback (container restart) sees
+    # a meaningful status rather than "pending" (which means acquisition never ran).
+    try:
+        storage.update_run_log(run_id, "asset_acquisition", "running")
+    except Exception:
+        pass  # Non-fatal — in-memory state is the primary source
 
     background_tasks.add_task(
         _background_acquire,
@@ -205,10 +211,18 @@ def acquisition_status(
             raise HTTPException(
                 status_code=404, detail=f"No acquisition state found for run '{run_id}'"
             )
-        # Map run_log status to AcquisitionStatusResponse
+        # "pending" means the task never started (container restarted before the
+        # background task wrote "running" to run_log).  "running" means it started
+        # but was killed before completion.  Both are interrupted — surface as failed
+        # so the UI shows a clear retry prompt instead of looping forever.
         error_msg = step.get("error")
+        if persisted_status in ("pending", "running"):
+            return AcquisitionStatusResponse(
+                status="failed",
+                error="Acquisition was interrupted (container restart). Retry.",
+            )
         if not error_msg and persisted_status == "failed":
-            # Container was restarted mid-task before the error was recorded.
+            # Failed but no error recorded — container restart after task completion.
             error_msg = "Acquisition was interrupted (container restart). Retry."
         return AcquisitionStatusResponse(
             status=persisted_status,

@@ -439,7 +439,11 @@ class TestAssetsRoute:
             client.post(f"/runs/{RUN_ID}/assets")
 
         mock_storage.upload_json.assert_called_once()
-        mock_storage.update_run_log.assert_called_once_with(
+        # update_run_log is called twice: "running" at route start, then "complete"
+        mock_storage.update_run_log.assert_any_call(
+            RUN_ID, "asset_acquisition", "running"
+        )
+        mock_storage.update_run_log.assert_any_call(
             RUN_ID, "asset_acquisition", "complete", output_url=MANIFEST_KEY
         )
 
@@ -455,7 +459,7 @@ class TestAssetsRoute:
 
             client.post(f"/runs/{RUN_ID}/assets")
 
-        mock_storage.update_run_log.assert_called_once_with(
+        mock_storage.update_run_log.assert_any_call(
             RUN_ID, "asset_acquisition", "failed", output_url=MANIFEST_KEY
         )
 
@@ -486,7 +490,8 @@ class TestAssetsRoute:
 
         assert resp.status_code == 202
         assert assets_module._ACQUISITION_STATE.get(RUN_ID, {}).get("status") == "failed"
-        mock_storage.update_run_log.assert_called_once_with(
+        # update_run_log is called twice: "running" at route start, then "failed" by background task
+        mock_storage.update_run_log.assert_any_call(
             RUN_ID, "asset_acquisition", "failed", error="unexpected crash"
         )
 
@@ -504,7 +509,7 @@ class TestAssetsRoute:
             resp = client.post(f"/runs/{RUN_ID}/assets")
 
         assert resp.status_code == 202
-        mock_storage.update_run_log.assert_called_once_with(
+        mock_storage.update_run_log.assert_any_call(
             RUN_ID, "asset_acquisition", "failed", error="write failed"
         )
 
@@ -575,3 +580,46 @@ class TestAcquisitionStatusRoute:
         assets_module._ACQUISITION_STATE.pop("nonexistent-run", None)
         resp = client.get("/runs/nonexistent-run/assets/status")
         assert resp.status_code == 404
+
+    def test_fallback_returns_failed_when_run_log_shows_pending(self, client):
+        """Container restart before task wrote 'running' → run_log shows 'pending' → return failed."""
+        import src.routes.assets as assets_module
+        assets_module._ACQUISITION_STATE.pop(RUN_ID, None)
+        run_log = {"steps": {"asset_acquisition": {"status": "pending", "error": None}}}
+        with patch("src.routes.assets.R2Client") as mock_r2_cls:
+            mock_storage = MagicMock()
+            mock_r2_cls.return_value = mock_storage
+            mock_storage.get_json.return_value = run_log
+            resp = client.get(f"/runs/{RUN_ID}/assets/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "failed"
+        assert "interrupted" in body["error"].lower()
+
+    def test_fallback_returns_failed_when_run_log_shows_running(self, client):
+        """Container restart mid-acquisition → run_log shows 'running' → return failed."""
+        import src.routes.assets as assets_module
+        assets_module._ACQUISITION_STATE.pop(RUN_ID, None)
+        run_log = {"steps": {"asset_acquisition": {"status": "running", "error": None}}}
+        with patch("src.routes.assets.R2Client") as mock_r2_cls:
+            mock_storage = MagicMock()
+            mock_r2_cls.return_value = mock_storage
+            mock_storage.get_json.return_value = run_log
+            resp = client.get(f"/runs/{RUN_ID}/assets/status")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "failed"
+        assert "interrupted" in body["error"].lower()
+
+    def test_fallback_returns_complete_from_run_log(self, client):
+        """Container restart after successful acquisition → run_log shows 'complete' → return complete."""
+        import src.routes.assets as assets_module
+        assets_module._ACQUISITION_STATE.pop(RUN_ID, None)
+        run_log = {"steps": {"asset_acquisition": {"status": "complete", "error": None}}}
+        with patch("src.routes.assets.R2Client") as mock_r2_cls:
+            mock_storage = MagicMock()
+            mock_r2_cls.return_value = mock_storage
+            mock_storage.get_json.return_value = run_log
+            resp = client.get(f"/runs/{RUN_ID}/assets/status")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "complete"
