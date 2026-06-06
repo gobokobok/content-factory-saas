@@ -2411,7 +2411,9 @@
      * network failure / timeout.
      * Used after a 202 Accepted response from steps that use BackgroundTasks (e.g. render).
      */
-    async function pollUntilDone(pollUrl, intervalMs = 3000, maxAttempts = 200) {
+    async function pollUntilDone(pollUrl, intervalMs = 3000, maxAttempts = 600) {
+      // 600 × 3 s = 30 min ceiling — enough for large acquisition runs that include
+      // Replicate image generation (30–60 s per scene × 15–20 scenes).
       for (let i = 0; i < maxAttempts; i++) {
         await new Promise(r => setTimeout(r, intervalMs));
         try {
