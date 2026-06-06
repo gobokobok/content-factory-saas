@@ -154,6 +154,15 @@ def compute_scene_durations_from_alignment(
     For the last matched scene (no further anchors):
         duration_s = (last_matched_word.end_ms - first_matched_word.start_ms) / 1000
     Scenes with no matched words retain their original duration_s.
+    Unmatched scenes that fall between two matched scenes ("covered") are set to
+    _MIN_ALIGNED_DURATION_S, and the preceding matched scene's gap-based duration
+    is reduced by the same amount.  This keeps the total for that span equal to
+    (T_next_matched - T_current) / 1000 — perfect telescoping even in the presence
+    of unmatched scenes.
+
+    Unmatched scenes that are NOT covered (e.g. after the last matched word) retain
+    their original storyboard duration_s.
+
     Alignment-derived durations are floored at _MIN_ALIGNED_DURATION_S (≈ 0.08 s).
     """
     n = len(scenes)
@@ -162,25 +171,56 @@ def compute_scene_durations_from_alignment(
         for i in range(n)
     ]
 
+    # Pre-compute, for each scene, the index of the next scene with matched words.
+    # Used both to derive the gap-based duration for matched scenes and to identify
+    # unmatched scenes whose gap has already been "covered" by a preceding matched
+    # scene's look-ahead (so they must not add extra time to the cumulative sum).
+    next_matched_idx: list[Optional[int]] = [None] * n
+    for i in range(n):
+        for j in range(i + 1, n):
+            if first_start_ms[j] is not None:
+                next_matched_idx[i] = j
+                break
+
+    # Identify unmatched scenes that are "covered" by a preceding matched scene's
+    # look-ahead.  Scene k is covered when the last matched scene before k already
+    # stretched its duration all the way to scene k's successor.
+    covered: set[int] = set()
+    for i in range(n):
+        if first_start_ms[i] is not None and next_matched_idx[i] is not None:
+            j = next_matched_idx[i]
+            # All scenes strictly between i and j are unmatched (by construction of
+            # next_matched_idx) and are now covered by scene i's look-ahead.
+            for k in range(i + 1, j):
+                covered.add(k)
+
     updated: list[StoryboardScene] = []
     for i, scene in enumerate(scenes):
         words_i = scene_words[i] if i < len(scene_words) else []
+
         if not words_i:
-            updated.append(scene)
+            if i in covered:
+                # This scene's gap was already absorbed by the preceding matched
+                # scene's look-ahead duration.  Give it the absolute minimum so
+                # the cumulative sum stays locked to alignment anchors.
+                updated.append(
+                    scene.model_copy(update={"duration_s": _MIN_ALIGNED_DURATION_S})
+                )
+            else:
+                # No preceding matched scene covered this gap — keep storyboard
+                # duration (e.g. orphan scenes after the last matched word).
+                updated.append(scene)
             continue
 
-        # Look ahead to find the next scene with matched words.  Skipping over
-        # unmatched scenes ensures the telescoping sum stays locked to alignment
-        # anchors even when a sub-scene has no matched words.
-        next_anchor_ms: Optional[int] = None
-        for j in range(i + 1, n):
-            if first_start_ms[j] is not None:
-                next_anchor_ms = first_start_ms[j]
-                break
-
-        if next_anchor_ms is not None:
-            # Gap-based: extend to the exact VO anchor of the next matched scene.
-            duration_s = (next_anchor_ms - words_i[0].start_ms) / 1000.0
+        j = next_matched_idx[i]
+        if j is not None:
+            # Gap-based: duration spans from this scene's first word to the next
+            # matched scene's first word.  Subtract the minimal duration reserved
+            # for any unmatched scenes between i and j so the total of scenes
+            # i … j-1 telescopes exactly to (T_j - T_i) / 1000.
+            n_covered = j - i - 1  # unmatched scenes between i and j
+            raw_gap = (first_start_ms[j] - words_i[0].start_ms) / 1000.0  # type: ignore[operator]
+            duration_s = raw_gap - n_covered * _MIN_ALIGNED_DURATION_S
         else:
             # No further matched scene — last segment; use speech span only.
             duration_s = (words_i[-1].end_ms - words_i[0].start_ms) / 1000.0

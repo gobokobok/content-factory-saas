@@ -1026,9 +1026,11 @@ class TestComputeSceneDurationsFromAlignment:
         assert result[0].duration_s == pytest.approx(0.08, abs=0.001)
 
     def test_look_ahead_skips_unmatched_scene(self):
-        # Scene 02 has no matched words.  Scene 01 should look ahead to scene 03
-        # and use the gap to scene 03's anchor (2000ms), not just speech span.
-        # gap_based = (2000 - 0) / 1000 = 2.0s; scene 02 keeps storyboard duration.
+        # Scene 02 has no matched words — it is "covered" by scene 01's look-ahead.
+        # raw_gap = (2000 - 0) / 1000 = 2.0s; 1 covered scene × 0.08s reserved.
+        # Scene 01 duration = 2.0 - 0.08 = 1.92s.
+        # Scene 02 duration = _MIN_ALIGNED_DURATION_S = 0.08s.
+        # Total = 2.0s = (T_03 - T_01) / 1000 — perfect telescoping.
         scenes = [
             _scene_with_vo("01", "a", 3.0),
             _scene_with_vo("02", "unmatched xyz", 1.0),
@@ -1036,8 +1038,10 @@ class TestComputeSceneDurationsFromAlignment:
         ]
         scene_words = [[_wts("a", 0, 400)], [], [_wts("c", 2000, 2500)]]
         result = compute_scene_durations_from_alignment(scenes, scene_words)
-        assert result[0].duration_s == pytest.approx(2.0, abs=0.001)
-        assert result[1].duration_s == 1.0  # unchanged — no matched words
+        assert result[0].duration_s == pytest.approx(1.92, abs=0.001)
+        assert result[1].duration_s == pytest.approx(0.08, abs=0.001)  # covered → minimal
+        # Cumulative sum telescopes to exactly (T_03 - T_01) / 1000 = 2.0s
+        assert result[0].duration_s + result[1].duration_s == pytest.approx(2.0, abs=0.001)
 
     def test_scene_ids_unchanged(self):
         scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]
