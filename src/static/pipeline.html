@@ -1036,6 +1036,11 @@
           Render Video
         </button>
       </div>
+      <div class="cta-area" id="rerender-cta-area" style="display:none;">
+        <button class="btn btn-outline btn-sm" id="rerender-btn" onclick="runRenderVideo()">
+          ↺ Re-render
+        </button>
+      </div>
       <div id="render-metadata" style="display:none;"></div>
     </div>
   </div><!-- end .panel-content -->
@@ -1651,13 +1656,20 @@
       const renderDone = stepSt('render') === 'complete';
       const contentDiv = document.getElementById('render-content');
 
-      // Render CTA: shown when assets are ready but video not yet rendered
-      const ctaArea  = document.getElementById('render-cta-area');
-      ctaArea.style.display = (assetsDone && !renderDone) ? '' : 'none';
-      const renderBtn = document.getElementById('render-btn');
-      const running   = !!stepRunning['ffmpeg_script'] || !!stepRunning['render'];
+      // Render CTA: primary button when assets ready but no video yet;
+      // re-render button when a video already exists (allows regenerating
+      // ffmpeg_script + render without creating a new run).
+      const ctaArea     = document.getElementById('render-cta-area');
+      const rerenderArea = document.getElementById('rerender-cta-area');
+      const running     = !!stepRunning['ffmpeg_script'] || !!stepRunning['render'];
+      ctaArea.style.display      = (assetsDone && !renderDone) ? '' : 'none';
+      rerenderArea.style.display = (assetsDone && renderDone)  ? '' : 'none';
+      const renderBtn   = document.getElementById('render-btn');
+      const rerenderBtn = document.getElementById('rerender-btn');
       renderBtn.disabled    = running;
       renderBtn.textContent = running ? 'Running…' : 'Render Video';
+      rerenderBtn.disabled    = running;
+      rerenderBtn.textContent = running ? 'Running…' : '↺ Re-render';
 
       if (!renderDone) {
         contentDiv.innerHTML = assetsDone
