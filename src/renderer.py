@@ -83,10 +83,35 @@ def download_run_assets(run_id: str, manifest: AssetManifest, storage: R2Client)
 
     Per-scene assets come from manifest entry file_keys (video/, images/).
     Voiceover, music, and sfx files are enumerated by R2 prefix and downloaded.
+
+    After downloading scene assets, verifies that every entry with a non-None
+    file_key exists on disk.  Raises RenderError (not a silent skip) if any
+    expected file is absent so the failure is visible before ffmpeg runs.
     """
     for entry in manifest.entries:
         if entry.file_key:
+            logger.info("Downloading asset: scene=%s key=%s", entry.scene_id, entry.file_key)
             download_asset(entry.file_key, run_id, storage)
+        else:
+            logger.warning(
+                "Scene %s has no acquired asset (file_key is None) — render will fail",
+                entry.scene_id,
+            )
+
+    # Verify every expected file landed on disk.  This catches cases where a
+    # StorageError was silently swallowed elsewhere, or where a file was written
+    # to an unexpected path, before ffmpeg produces a cryptic "No such file" error.
+    missing: list[str] = []
+    for entry in manifest.entries:
+        if entry.file_key:
+            local = _local_path(run_id, entry.file_key)
+            if not Path(local).exists():
+                missing.append(f"scene={entry.scene_id} expected={local}")
+    if missing:
+        raise RenderError(
+            "Asset files missing after download — cannot render:\n"
+            + "\n".join(missing)
+        )
 
     for subfolder in ("voiceover", "music", "sfx"):
         prefix = f"runs/{run_id}/{subfolder}/"

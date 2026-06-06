@@ -196,11 +196,28 @@ class TestDownloadRunAssets:
         storage = MagicMock()
         storage.list_keys.return_value = []
 
-        with patch("src.renderer.download_asset") as mock_dl:
+        # Patch Path.exists so the post-download verification doesn't fail in tests
+        # (download_asset is mocked and never writes real files to disk).
+        with patch("src.renderer.download_asset") as mock_dl, \
+             patch.object(Path, "exists", return_value=True):
             download_run_assets(RUN_ID, manifest, storage)
 
         mock_dl.assert_any_call(f"runs/{RUN_ID}/video/01.mp4", RUN_ID, storage)
         mock_dl.assert_any_call(f"runs/{RUN_ID}/images/02.jpeg", RUN_ID, storage)
+
+    def test_raises_render_error_when_asset_missing_after_download(self, manifest):
+        """RenderError is raised when an expected file is absent after download."""
+        from src.renderer import download_run_assets
+
+        storage = MagicMock()
+        storage.list_keys.return_value = []
+
+        # download_asset is a no-op — files are never written to disk.
+        # Path.exists returns False (default) so the verification detects missing files.
+        with patch("src.renderer.download_asset"), \
+             patch.object(Path, "exists", return_value=False), \
+             pytest.raises(RenderError, match="Asset files missing after download"):
+            download_run_assets(RUN_ID, manifest, storage)
 
     def test_skips_entries_with_no_file_key(self):
         from src.renderer import download_run_assets
