@@ -999,8 +999,8 @@ class TestComputeSceneDurationsFromAlignment:
         scene_words = [[_wts("a", 0, 780)], [_wts("b", 900, 1200)]]
         result = compute_scene_durations_from_alignment(scenes, scene_words)
         assert result[0].duration_s == pytest.approx(0.9, abs=0.001)
-        # Last scene: word span = 300ms → floored to _MIN_SCENE_DURATION_S (0.5s)
-        assert result[1].duration_s == pytest.approx(0.5, abs=0.001)
+        # Last scene: word span = 300ms → above _MIN_ALIGNED_DURATION_S (0.08s), no floor
+        assert result[1].duration_s == pytest.approx(0.3, abs=0.001)
 
     def test_long_gap_uses_gap_based_not_speech_trail(self):
         # Scene 1 speech ends at 200ms; Scene 2 starts at 1500ms (1300ms natural pause).
@@ -1017,12 +1017,27 @@ class TestComputeSceneDurationsFromAlignment:
         result = compute_scene_durations_from_alignment(scenes, [[]])
         assert result[0].duration_s == 5.0
 
-    def test_minimum_duration_enforced(self):
-        # Two scenes very close together → gap rounds to < _MIN_SCENE_DURATION_S
+    def test_minimum_aligned_duration_enforced(self):
+        # Two scenes with only 50ms gap → 0.05s < _MIN_ALIGNED_DURATION_S (0.08s),
+        # so the floor kicks in and clamps to 0.08s.
         scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]
-        scene_words = [[_wts("a", 0, 50)], [_wts("b", 100, 200)]]
+        scene_words = [[_wts("a", 0, 30)], [_wts("b", 50, 200)]]
         result = compute_scene_durations_from_alignment(scenes, scene_words)
-        assert result[0].duration_s >= 0.5
+        assert result[0].duration_s == pytest.approx(0.08, abs=0.001)
+
+    def test_look_ahead_skips_unmatched_scene(self):
+        # Scene 02 has no matched words.  Scene 01 should look ahead to scene 03
+        # and use the gap to scene 03's anchor (2000ms), not just speech span.
+        # gap_based = (2000 - 0) / 1000 = 2.0s; scene 02 keeps storyboard duration.
+        scenes = [
+            _scene_with_vo("01", "a", 3.0),
+            _scene_with_vo("02", "unmatched xyz", 1.0),
+            _scene_with_vo("03", "c", 3.0),
+        ]
+        scene_words = [[_wts("a", 0, 400)], [], [_wts("c", 2000, 2500)]]
+        result = compute_scene_durations_from_alignment(scenes, scene_words)
+        assert result[0].duration_s == pytest.approx(2.0, abs=0.001)
+        assert result[1].duration_s == 1.0  # unchanged — no matched words
 
     def test_scene_ids_unchanged(self):
         scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]

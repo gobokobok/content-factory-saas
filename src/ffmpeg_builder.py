@@ -116,6 +116,14 @@ def assign_words_to_scenes(
     return result
 
 
+# Minimum duration for an alignment-derived scene clip: 2 frames.
+# Much smaller than _MIN_SCENE_DURATION_S (0.5 s) which is appropriate only
+# for storyboard-only timing.  Applying the 0.5 s floor to alignment-computed
+# durations causes cumulative lag when short hard-cut list items (e.g. a
+# single spoken word) have a gap_based value below 500 ms.
+_MIN_ALIGNED_DURATION_S: float = round(2.0 / _FPS, 3)  # ≈ 0.08 s at 25 fps
+
+
 def compute_scene_durations_from_alignment(
     scenes: list[StoryboardScene],
     scene_words: list[list[WordTimestamp]],
@@ -124,11 +132,15 @@ def compute_scene_durations_from_alignment(
     Return new StoryboardScene instances with duration_s derived from alignment timestamps.
 
     For all scenes except the last, duration is gap-based:
-        duration_s = (first_word_start_ms[N+1] - first_word_start_ms[N]) / 1000
+        duration_s = (first_word_start_ms[next_matched] - first_word_start_ms[N]) / 1000
 
-    This pins each scene's visual cut to the exact moment the next scene's VO word
-    starts, guaranteeing that cumulative visual start times stay locked to the VO
-    anchors throughout the whole video (constant 240 ms visual-lead = VO pre-silence).
+    where *next_matched* is the first scene after N that has matched words.  Skipping
+    over unmatched scenes in the look-ahead preserves the telescoping property even
+    when the v0.9 coverage rule misses a scene edge case.
+
+    The telescoping sum guarantees that every matched scene's visual start is locked
+    to its VO anchor: cumulative lead = first_word_0 / 1000 (≈ 240 ms VO pre-silence),
+    constant throughout the video.
 
     A speech-trail cap (_SPEECH_TRAIL_MS) was previously applied here to prevent
     orphan VO words from bloating the preceding scene's visual.  It was removed because:
@@ -139,10 +151,10 @@ def compute_scene_durations_from_alignment(
     3. The v0.9 storyboard prompt (COVERAGE RULE) eliminates orphan words at the
        source, so the cap was never needed.
 
-    For the last scene (no next-scene anchor):
+    For the last matched scene (no further anchors):
         duration_s = (last_matched_word.end_ms - first_matched_word.start_ms) / 1000
     Scenes with no matched words retain their original duration_s.
-    Each duration is floored at _MIN_SCENE_DURATION_S.
+    Alignment-derived durations are floored at _MIN_ALIGNED_DURATION_S (≈ 0.08 s).
     """
     n = len(scenes)
     first_start_ms: list[Optional[int]] = [
@@ -157,17 +169,25 @@ def compute_scene_durations_from_alignment(
             updated.append(scene)
             continue
 
-        if i + 1 < n and first_start_ms[i + 1] is not None:
-            # Gap-based: extend this scene's visual to the exact start of the next
-            # scene's first VO word.  Cumulative sum telescopes to a constant 240 ms
-            # visual-lead (= VO pre-silence offset) for every scene in the video.
-            duration_s = (first_start_ms[i + 1] - words_i[0].start_ms) / 1000.0
+        # Look ahead to find the next scene with matched words.  Skipping over
+        # unmatched scenes ensures the telescoping sum stays locked to alignment
+        # anchors even when a sub-scene has no matched words.
+        next_anchor_ms: Optional[int] = None
+        for j in range(i + 1, n):
+            if first_start_ms[j] is not None:
+                next_anchor_ms = first_start_ms[j]
+                break
+
+        if next_anchor_ms is not None:
+            # Gap-based: extend to the exact VO anchor of the next matched scene.
+            duration_s = (next_anchor_ms - words_i[0].start_ms) / 1000.0
         else:
+            # No further matched scene — last segment; use speech span only.
             duration_s = (words_i[-1].end_ms - words_i[0].start_ms) / 1000.0
 
         updated.append(
             scene.model_copy(
-                update={"duration_s": max(_MIN_SCENE_DURATION_S, round(duration_s, 3))}
+                update={"duration_s": max(_MIN_ALIGNED_DURATION_S, round(duration_s, 3))}
             )
         )
 
