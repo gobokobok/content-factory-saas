@@ -63,7 +63,10 @@ class Settings(BaseSettings):
     STORYBOARD_CHUNK_SIZE: int = 10
 
     # Asset acquisition parallelism (S13-S2)
-    ACQUISITION_BATCH_SIZE: int = 20
+    # Default is 4 — conservative for Railway containers with CLIP reranking enabled
+    # (20 concurrent threads × full-res Pexels downloads + CLIP encode caused OOM).
+    # Increase via env var on hosts with more memory.
+    ACQUISITION_BATCH_SIZE: int = 4
     # When True (default), the Replicate fallback is skipped for scenes whose
     # asset_mode is None.  Scenes explicitly set to "ai_generated" still use
     # Replicate.  Set to False only in environments where Replicate is available
