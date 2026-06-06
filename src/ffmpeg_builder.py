@@ -116,9 +116,6 @@ def assign_words_to_scenes(
     return result
 
 
-_SPEECH_TRAIL_MS = 400  # ms added after last matched word before cutting to next scene
-
-
 def compute_scene_durations_from_alignment(
     scenes: list[StoryboardScene],
     scene_words: list[list[WordTimestamp]],
@@ -126,16 +123,23 @@ def compute_scene_durations_from_alignment(
     """
     Return new StoryboardScene instances with duration_s derived from alignment timestamps.
 
-    For all scenes except the last, duration is the MINIMUM of:
-      - (first_word_start_ms of scene N+1 - first_word_start_ms of scene N) / 1000
-      - (last_matched_word.end_ms + _SPEECH_TRAIL_MS - first_word_start_ms of scene N) / 1000
+    For all scenes except the last, duration is gap-based:
+        duration_s = (first_word_start_ms[N+1] - first_word_start_ms[N]) / 1000
 
-    Using the minimum prevents scene N's visual from extending over unmatched VO words that
-    fall between scenes N and N+1 (e.g. bridging phrases in the recorded VO that are absent
-    from the storyboard's voiceover_line).  Instead those orphan words play over scene N+1's
-    visual, which is semantically closer to correct.
+    This pins each scene's visual cut to the exact moment the next scene's VO word
+    starts, guaranteeing that cumulative visual start times stay locked to the VO
+    anchors throughout the whole video (constant 240 ms visual-lead = VO pre-silence).
 
-    For the last scene:
+    A speech-trail cap (_SPEECH_TRAIL_MS) was previously applied here to prevent
+    orphan VO words from bloating the preceding scene's visual.  It was removed because:
+    1. The cap fires on *intentional* natural pauses as well as orphan words.
+    2. Each cap-firing permanently reduces the cumulative total, so the visual/VO
+       drift grows scene-by-scene — reaching 4+ seconds of accumulated lead by the
+       end of a 90-second video.
+    3. The v0.9 storyboard prompt (COVERAGE RULE) eliminates orphan words at the
+       source, so the cap was never needed.
+
+    For the last scene (no next-scene anchor):
         duration_s = (last_matched_word.end_ms - first_matched_word.start_ms) / 1000
     Scenes with no matched words retain their original duration_s.
     Each duration is floored at _MIN_SCENE_DURATION_S.
@@ -154,11 +158,10 @@ def compute_scene_durations_from_alignment(
             continue
 
         if i + 1 < n and first_start_ms[i + 1] is not None:
-            # Cap at speech-end + trail so unmatched inter-scene VO words play over the
-            # NEXT scene's visual rather than extending the current scene's visual.
-            gap_based = first_start_ms[i + 1] - words_i[0].start_ms
-            speech_based = words_i[-1].end_ms + _SPEECH_TRAIL_MS - words_i[0].start_ms
-            duration_s = min(gap_based, speech_based) / 1000.0
+            # Gap-based: extend this scene's visual to the exact start of the next
+            # scene's first VO word.  Cumulative sum telescopes to a constant 240 ms
+            # visual-lead (= VO pre-silence offset) for every scene in the video.
+            duration_s = (first_start_ms[i + 1] - words_i[0].start_ms) / 1000.0
         else:
             duration_s = (words_i[-1].end_ms - words_i[0].start_ms) / 1000.0
 
