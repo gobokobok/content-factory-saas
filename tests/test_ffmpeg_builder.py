@@ -992,14 +992,24 @@ class TestComputeSceneDurationsFromAlignment:
         result = compute_scene_durations_from_alignment(scenes, scene_words)
         assert result[0].duration_s == pytest.approx(0.5, abs=0.001)
 
-    def test_pause_absorbed_into_preceding_scene(self):
-        # Scene 1 ends at 780ms but Scene 2 starts at 900ms — 120ms pause goes to Scene 1
+    def test_short_pause_absorbed_into_preceding_scene(self):
+        # Scene 1 ends at 780ms; Scene 2 starts at 900ms — 120ms gap < _SPEECH_TRAIL_MS (400ms)
+        # so gap-based wins: scene 1 duration = 0.9s (pause absorbed into scene 1)
         scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]
         scene_words = [[_wts("a", 0, 780)], [_wts("b", 900, 1200)]]
         result = compute_scene_durations_from_alignment(scenes, scene_words)
         assert result[0].duration_s == pytest.approx(0.9, abs=0.001)
         # Last scene: word span = 300ms → floored to _MIN_SCENE_DURATION_S (0.5s)
         assert result[1].duration_s == pytest.approx(0.5, abs=0.001)
+
+    def test_long_gap_capped_at_speech_trail(self):
+        # Scene 1 speech ends at 200ms; Scene 2 starts at 1500ms (1300ms gap — longer than
+        # _SPEECH_TRAIL_MS=400ms, as when unmatched VO words fall between two scenes).
+        # Without the cap scene 1 would get 1.5s; with it, (200+400)/1000 = 0.6s.
+        scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]
+        scene_words = [[_wts("a", 0, 200)], [_wts("b", 1500, 1800)]]
+        result = compute_scene_durations_from_alignment(scenes, scene_words)
+        assert result[0].duration_s == pytest.approx(0.6, abs=0.001)
 
     def test_scene_with_no_matched_words_keeps_original_duration(self):
         scenes = [_scene_with_vo("01", "unmatched xyz", 5.0)]

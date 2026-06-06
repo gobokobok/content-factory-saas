@@ -116,6 +116,9 @@ def assign_words_to_scenes(
     return result
 
 
+_SPEECH_TRAIL_MS = 400  # ms added after last matched word before cutting to next scene
+
+
 def compute_scene_durations_from_alignment(
     scenes: list[StoryboardScene],
     scene_words: list[list[WordTimestamp]],
@@ -123,8 +126,15 @@ def compute_scene_durations_from_alignment(
     """
     Return new StoryboardScene instances with duration_s derived from alignment timestamps.
 
-    For all scenes except the last:
-        duration_s = (first_word_start_ms of scene N+1 - first_word_start_ms of scene N) / 1000
+    For all scenes except the last, duration is the MINIMUM of:
+      - (first_word_start_ms of scene N+1 - first_word_start_ms of scene N) / 1000
+      - (last_matched_word.end_ms + _SPEECH_TRAIL_MS - first_word_start_ms of scene N) / 1000
+
+    Using the minimum prevents scene N's visual from extending over unmatched VO words that
+    fall between scenes N and N+1 (e.g. bridging phrases in the recorded VO that are absent
+    from the storyboard's voiceover_line).  Instead those orphan words play over scene N+1's
+    visual, which is semantically closer to correct.
+
     For the last scene:
         duration_s = (last_matched_word.end_ms - first_matched_word.start_ms) / 1000
     Scenes with no matched words retain their original duration_s.
@@ -144,7 +154,11 @@ def compute_scene_durations_from_alignment(
             continue
 
         if i + 1 < n and first_start_ms[i + 1] is not None:
-            duration_s = (first_start_ms[i + 1] - words_i[0].start_ms) / 1000.0
+            # Cap at speech-end + trail so unmatched inter-scene VO words play over the
+            # NEXT scene's visual rather than extending the current scene's visual.
+            gap_based = first_start_ms[i + 1] - words_i[0].start_ms
+            speech_based = words_i[-1].end_ms + _SPEECH_TRAIL_MS - words_i[0].start_ms
+            duration_s = min(gap_based, speech_based) / 1000.0
         else:
             duration_s = (words_i[-1].end_ms - words_i[0].start_ms) / 1000.0
 
