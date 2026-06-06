@@ -2320,6 +2320,17 @@
         activateSection('render');
       } else {
         document.getElementById('run-acquisition-btn').disabled = false;
+        // On acquisition failure, append a "View Run Log" link so the operator can
+        // see the actual error (Pexels quota, Replicate timeout, container restart…).
+        if (errorEl.style.display !== 'none') {
+          const logLink = document.createElement('a');
+          logLink.href    = `/runs/${currentRunId}/artifact/run_log`;
+          logLink.target  = '_blank';
+          logLink.rel     = 'noopener';
+          logLink.style.cssText = 'display:block; margin-top:6px; font-size:11px;';
+          logLink.textContent = '↗ View Run Log';
+          errorEl.appendChild(logLink);
+        }
       }
     }
 

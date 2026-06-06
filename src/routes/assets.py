@@ -176,10 +176,45 @@ async def acquire_assets(
 
 
 @router.get("/runs/{run_id}/assets/status", response_model=AcquisitionStatusResponse)
-def acquisition_status(run_id: str) -> AcquisitionStatusResponse:
-    """Poll acquisition task status. Returns 404 if no acquisition has been started for this run."""
-    if run_id not in _ACQUISITION_STATE:
-        raise HTTPException(
-            status_code=404, detail=f"No active acquisition found for run '{run_id}'"
+def acquisition_status(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> AcquisitionStatusResponse:
+    """Poll acquisition task status.
+
+    Primary: checks _ACQUISITION_STATE (in-memory, set by the background task).
+    Fallback: if the state is missing (e.g. Railway restarted the container
+    mid-acquisition), reads run_log.json from R2 to recover the last persisted
+    status.  Returns 404 only if neither source has data for this run.
+    """
+    if run_id in _ACQUISITION_STATE:
+        return AcquisitionStatusResponse(**_ACQUISITION_STATE[run_id])
+
+    # In-memory state was lost — check the run_log for the persisted status.
+    storage = R2Client(
+        account_id=settings.R2_ACCOUNT_ID,
+        access_key_id=settings.R2_ACCESS_KEY_ID,
+        secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+        bucket_name=settings.R2_BUCKET_NAME,
+    )
+    try:
+        run_log = storage.get_json(f"runs/{run_id}/run_log.json")
+        step = run_log.get("steps", {}).get("asset_acquisition", {})
+        persisted_status = step.get("status")
+        if not persisted_status:
+            raise HTTPException(
+                status_code=404, detail=f"No acquisition state found for run '{run_id}'"
+            )
+        # Map run_log status to AcquisitionStatusResponse
+        error_msg = step.get("error")
+        if not error_msg and persisted_status == "failed":
+            # Container was restarted mid-task before the error was recorded.
+            error_msg = "Acquisition was interrupted (container restart). Retry."
+        return AcquisitionStatusResponse(
+            status=persisted_status,
+            error=error_msg,
         )
-    return AcquisitionStatusResponse(**_ACQUISITION_STATE[run_id])
+    except StorageError:
+        raise HTTPException(
+            status_code=404, detail=f"No acquisition state found for run '{run_id}'"
+        )

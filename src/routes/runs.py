@@ -37,6 +37,7 @@ _STEP_ARTIFACT_KEYS: dict[str, tuple[str, str]] = {
     "manifest": ("runs/{run_id}/asset_manifest.json", "application/json"),
     "ffmpeg_script": ("runs/{run_id}/ffmpeg_script.sh", "text/plain"),
     "ffmpeg_log": ("runs/{run_id}/ffmpeg_log.txt", "text/plain"),
+    "run_log": ("runs/{run_id}/run_log.json", "application/json"),
     "render": ("runs/{run_id}/output/final.mp4", "video/mp4"),
     "metadata": ("runs/{run_id}/metadata.json", "application/json"),
 }
