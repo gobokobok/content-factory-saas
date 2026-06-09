@@ -321,7 +321,7 @@ class TestBuildManifestAssetModeDefault:
         assert manifest.entries[0].clip_type == "hard_cut"
         assert manifest.entries[0].asset_mode == "stock"
 
-    def test_still_with_motion_defaults_to_ai_generated(self):
+    def test_still_with_motion_defaults_to_stock(self):
         data = _make_storyboard_data(scenes=[{
             "scene": "01",
             "clip_type": "still_with_motion",
@@ -338,9 +338,9 @@ class TestBuildManifestAssetModeDefault:
             "on_screen_text": None,
         }])
         manifest = build_manifest(RUN_ID, data)
-        assert manifest.entries[0].asset_mode == "ai_generated"
+        assert manifest.entries[0].asset_mode == "stock"
 
-    def test_animated_defaults_to_ai_generated(self):
+    def test_animated_defaults_to_stock(self):
         data = _make_storyboard_data(scenes=[{
             "scene": "01",
             "clip_type": "animated",
@@ -357,14 +357,14 @@ class TestBuildManifestAssetModeDefault:
             "on_screen_text": None,
         }])
         manifest = build_manifest(RUN_ID, data)
-        assert manifest.entries[0].asset_mode == "ai_generated"
+        assert manifest.entries[0].asset_mode == "stock"
 
     def test_storyboard_asset_mode_overrides_clip_type_default(self):
         """Operator-set asset_mode on the storyboard scene takes priority over the
-        clip_type-derived default when building the manifest."""
+        clip_type-derived default (stock) when building the manifest."""
         data = _make_storyboard_data(scenes=[{
             "scene": "01",
-            "clip_type": "still_with_motion",  # default → ai_generated
+            "clip_type": "still_with_motion",  # default → stock
             "duration_s": 3.0,
             "voiceover_line": "test",
             "visual_prompts": {

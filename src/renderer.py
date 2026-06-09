@@ -217,7 +217,9 @@ def render_run(
     ffmpeg_output = ""
 
     try:
-        copy_music_to_run(run_id, storage)
+        # copy_music_to_run was removed: music is only used when the operator
+        # explicitly uploads a file to runs/{run_id}/music/.  Auto-copying from
+        # the shared music-library/ is no longer the default behaviour.
         download_run_assets(run_id, manifest, storage)
         script_path = download_script(run_id, storage)
 

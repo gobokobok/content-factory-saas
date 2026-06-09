@@ -6,6 +6,7 @@ import time
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 
 from src.config import Settings, get_settings
 from src.exceptions import StorageError
@@ -356,3 +357,31 @@ def get_artifact(
         raise HTTPException(
             status_code=404, detail=f"Artifact not found for step '{step}' in run '{run_id}'"
         ) from exc
+
+
+@router.get("/runs/{run_id}/download")
+def download_video(
+    run_id: str,
+    settings: Settings = Depends(get_settings),
+) -> Response:
+    """Stream the final rendered video as an attachment for browser download.
+
+    Proxies the file through the server so the browser can fetch it
+    same-origin — direct fetch() of the cross-origin R2 presigned URL
+    fails with a CORS error even though <video src> playback works fine.
+    Returns 404 when no final.mp4 has been rendered for this run.
+    """
+    client = _make_r2_client(settings)
+    key = f"runs/{run_id}/output/final.mp4"
+    try:
+        data = client.get_bytes(key)
+    except StorageError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Rendered video not found for run '{run_id}'",
+        ) from exc
+    return Response(
+        content=data,
+        media_type="video/mp4",
+        headers={"Content-Disposition": f'attachment; filename="{run_id}_final.mp4"'},
+    )

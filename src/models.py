@@ -407,7 +407,7 @@ class AudioSettings(BaseModel):
     """Audio mixing controls stored within settings.json — wired into ffmpeg in S11-S3."""
 
     music_volume: int = Field(default=15, ge=0, le=100)
-    ducking_enabled: bool = True
+    ducking_enabled: bool = False
     playback_mode: Literal["loop", "fit"] = "fit"
 
 

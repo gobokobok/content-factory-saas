@@ -595,13 +595,15 @@ class TestBuildFfmpegScript:
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "[1:a]asetpts=PTS-STARTPTS,volume=1.0[vo]" in script
-        assert "[2:a]asetpts=PTS-STARTPTS,volume=0.060[music]" in script
+        assert "[2:a]asetpts=PTS-STARTPTS,volume=0.150[music]" in script
 
-    def test_default_audio_applies_ducking_to_fifteen_percent(self):
-        """Default AudioSettings: 15% volume × 0.4 ducking factor = 0.060 effective."""
+    def test_default_audio_volume_no_ducking(self):
+        """Default AudioSettings: 15% volume, ducking OFF → 0.150 effective.
+        Ducking defaults to False so music plays at full configured volume
+        without being reduced when the voiceover speaks."""
         sb, mf = _simple_storyboard_and_manifest()
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "volume=0.060[music]" in script
+        assert "volume=0.150[music]" in script
 
     def test_voiceover_full_volume(self):
         sb, mf = _simple_storyboard_and_manifest()
@@ -1395,10 +1397,10 @@ class TestAudioSettings:
             audio=audio,
         )
 
-    def test_default_audio_applies_ducking_to_fifteen_percent(self):
-        """AudioSettings(): 15% volume × 0.4 ducking factor = 0.060 effective."""
+    def test_default_audio_no_ducking_fifteen_percent(self):
+        """AudioSettings() default: ducking OFF, 15% volume → 0.150 effective."""
         script = self._make_script(AudioSettings())
-        assert "volume=0.060[music]" in script
+        assert "volume=0.150[music]" in script
 
     def test_custom_volume_ducking_off(self):
         """Ducking OFF: configured volume applied directly with no reduction."""
@@ -1433,11 +1435,12 @@ class TestAudioSettings:
         assert "-stream_loop" not in script
 
     def test_none_audio_uses_same_defaults_as_audio_settings(self):
-        """Omitting audio= produces identical filter output to AudioSettings()."""
+        """Omitting audio= produces identical filter output to AudioSettings() defaults
+        (ducking OFF, 15% volume → 0.150)."""
         scenes = [_scene("01", "hard_cut", 3.0)]
         sb, mf = _storyboard(scenes), _manifest([_entry("01", "hard_cut")])
         script_none = build_ffmpeg_script(RUN_ID, sb, mf, audio=None)
-        assert "volume=0.060[music]" in script_none
+        assert "volume=0.150[music]" in script_none
 
     def test_voiceover_volume_unchanged(self):
         """VO volume is always 1.0 regardless of audio settings."""
@@ -1482,7 +1485,7 @@ class TestFfmpegScriptRouteAudioSettings:
         assert "volume=0.400[music]" in uploaded_script
 
     def test_default_audio_used_when_settings_json_missing(self, client):
-        """When settings.json is absent, AudioSettings() defaults apply (0.060 effective)."""
+        """When settings.json is absent, AudioSettings() defaults apply (ducking OFF, 0.150 effective)."""
         with patch("src.routes.ffmpeg_script.R2Client") as MockR2:
             mock_storage = MockR2.return_value
             mock_storage.get_json.side_effect = [
@@ -1494,7 +1497,7 @@ class TestFfmpegScriptRouteAudioSettings:
             client.post(f"/runs/{self.RUN}/ffmpeg-script")
 
         uploaded_script = mock_storage.upload_text.call_args[0][1]
-        assert "volume=0.060[music]" in uploaded_script
+        assert "volume=0.150[music]" in uploaded_script
 
 
 # ── Unit: aspect ratio dimensions ────────────────────────────────────────────

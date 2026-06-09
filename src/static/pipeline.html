@@ -963,7 +963,7 @@
           <div class="settings-row">
             <span class="settings-row-label">Voiceover ducking</span>
             <label class="toggle-switch">
-              <input type="checkbox" id="setting-ducking" checked onchange="saveVideoSettings()">
+              <input type="checkbox" id="setting-ducking" onchange="saveVideoSettings()">
               <span class="toggle-track"></span>
             </label>
           </div>
@@ -1692,7 +1692,7 @@
             <button class="video-expand-btn" onclick="event.stopPropagation(); openVideoModal('${url}')">⤢ Expand</button>
           </div>
           <div class="video-actions">
-            <button class="btn-download" onclick="downloadVideo(this, '${url}', 'final.mp4')">↓ Download Video</button>
+            <button class="btn-download" onclick="downloadVideo(this, '/runs/${currentRunId}/download', 'final.mp4')">↓ Download Video</button>
           </div>`;
         // Attach error handler — if the video src returns 403/404 (e.g. presigned URL expired
         // or file not yet present), clear the cache so the next populateRender re-fetches.
@@ -2126,6 +2126,22 @@
         `linear-gradient(to right, #9A9A9A ${pct}%, #E8E5E4 ${pct}%)`;
     }
 
+    /** Reset all Settings controls to their hardcoded defaults (no run or new run). */
+    function _resetVideoSettingsToDefaults() {
+      const selAspect = document.getElementById('setting-aspect-ratio');
+      const selStyle  = document.getElementById('setting-visual-style');
+      const selSubs   = document.getElementById('setting-subtitles');
+      const slider    = document.getElementById('setting-music-volume');
+      const ducking   = document.getElementById('setting-ducking');
+      const playback  = document.getElementById('setting-playback-mode');
+      if (selAspect) selAspect.value   = '9:16';
+      if (selStyle)  selStyle.value    = 'Realistic';
+      if (selSubs)   selSubs.value     = 'TikTok';
+      if (slider)    { slider.value = '15'; updateVolumeDisplay(); }
+      if (ducking)   ducking.checked   = false;
+      if (playback)  playback.value    = 'fit';
+    }
+
     /** Load stored video+audio settings from R2 and populate all Settings controls. */
     async function loadVideoSettings() {
       const locked = sectionLocked.input;
@@ -2146,10 +2162,17 @@
             const ducking  = document.getElementById('setting-ducking');
             const playback = document.getElementById('setting-playback-mode');
             if (slider)   { slider.value    = a.music_volume    != null ? a.music_volume   : 15; updateVolumeDisplay(); }
-            if (ducking)    ducking.checked  = a.ducking_enabled != null ? a.ducking_enabled : true;
+            if (ducking)    ducking.checked  = a.ducking_enabled != null ? a.ducking_enabled : false;
             if (playback)   playback.value   = a.playback_mode  || 'fit';
+          } else {
+            // Run exists but no saved settings yet — apply defaults
+            _resetVideoSettingsToDefaults();
           }
-        } catch (_) { /* non-fatal — HTML defaults remain */ }
+        } catch (_) { _resetVideoSettingsToDefaults(); }
+      } else {
+        // No run selected (new-run form) — always reset to defaults so previous
+        // run's settings don't bleed into the next run's form.
+        _resetVideoSettingsToDefaults();
       }
       ['setting-aspect-ratio', 'setting-visual-style', 'setting-subtitles',
        'setting-playback-mode'].forEach(id => {

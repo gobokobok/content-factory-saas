@@ -13,12 +13,13 @@ logger = logging.getLogger(__name__)
 # Only these fields may be updated via patch_manifest_entry.
 _PATCHABLE_MANIFEST_FIELDS = {"asset_mode"}
 
-# clip_type values that default to stock acquisition.
-_STOCK_CLIP_TYPES = {"hard_cut"}
+# All clip types default to stock acquisition.  Operators can override
+# per-scene via the manifest patch endpoint or the storyboard asset_mode field.
+_STOCK_CLIP_TYPES = {"hard_cut", "still_with_motion", "animated"}
 
 
 def _default_asset_mode(clip_type: str) -> str:
-    """Return the default asset_mode for a given clip_type."""
+    """Return the default asset_mode for a given clip_type (always 'stock')."""
     return "stock" if clip_type in _STOCK_CLIP_TYPES else "ai_generated"
 
 
@@ -32,10 +33,8 @@ def build_manifest(run_id: str, storyboard_data: dict) -> AssetManifest:
       ai_generate   → ai_generate_prompt
 
     asset_mode is taken from scene.asset_mode when the operator has set it,
-    otherwise falls back to a clip_type-derived default:
-      hard_cut              → "stock"
-      still_with_motion /
-      animated              → "ai_generated"
+    otherwise falls back to "stock" for all clip types (hard_cut,
+    still_with_motion, animated).  Operators can override per-scene.
 
     Raises ManifestError if storyboard_data does not conform to the Storyboard schema.
     """

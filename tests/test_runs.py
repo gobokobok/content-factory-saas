@@ -780,7 +780,7 @@ class TestVideoSettings:
         assert a["playback_mode"] == "loop"
 
     def test_get_returns_audio_defaults_when_settings_absent(self, client):
-        """GET returns AudioSettings defaults (volume=15, ducking=True, mode=fit) when no file."""
+        """GET returns AudioSettings defaults (volume=15, ducking=False, mode=fit) when no file."""
         m = MagicMock()
         m.get_json.side_effect = StorageError("NoSuchKey")
         with patch("src.routes.runs.R2Client", return_value=m):
@@ -788,7 +788,7 @@ class TestVideoSettings:
         assert res.status_code == 200
         a = res.json()["settings"]["audio"]
         assert a["music_volume"] == 15
-        assert a["ducking_enabled"] is True
+        assert a["ducking_enabled"] is False
         assert a["playback_mode"] == "fit"
 
     def test_post_invalid_playback_mode_returns_422(self, client):
@@ -821,7 +821,7 @@ class TestVideoSettings:
         assert res.status_code == 200
         a = res.json()["settings"]["audio"]
         assert a["music_volume"] == 15
-        assert a["ducking_enabled"] is True
+        assert a["ducking_enabled"] is False
         assert a["playback_mode"] == "fit"
 
 

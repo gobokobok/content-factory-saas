@@ -598,15 +598,19 @@ class TestRenderRun:
 
         mock_cleanup.assert_called_once_with(RUN_ID)
 
-    def test_copy_music_called_before_download_run_assets(self, manifest):
-        """copy_music_to_run must run before download_run_assets so music is in R2 when assets download."""
+    def test_download_run_assets_called_in_render_run(self, manifest):
+        """download_run_assets is called during render_run.
+
+        copy_music_to_run was removed from the render pipeline — music is only
+        used when the operator explicitly uploads a file.  This test confirms
+        the overall call sequence is correct without the auto-copy step.
+        """
         from src.renderer import render_run
 
         call_order = []
         storage = MagicMock()
 
         with (
-            patch("src.renderer.copy_music_to_run", side_effect=lambda *_: call_order.append("copy_music")),
             patch("src.renderer.download_run_assets", side_effect=lambda *_: call_order.append("download_assets")),
             patch("src.renderer.download_script", return_value=Path("/tmp/r/s.sh")),
             patch("src.renderer.execute_script", return_value=self._mock_execute(0)),
@@ -616,7 +620,7 @@ class TestRenderRun:
         ):
             render_run(RUN_ID, manifest, storage, 300)
 
-        assert call_order == ["copy_music", "download_assets"]
+        assert call_order == ["download_assets"]
 
     def test_write_run_log_txt_called_with_combined_output(self, manifest):
         from src.renderer import render_run
