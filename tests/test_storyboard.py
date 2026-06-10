@@ -337,6 +337,34 @@ class TestParseStoryboardResponse:
         assert "scenes" in data
         assert "summary" in data
 
+    def test_preamble_before_global_is_ignored(self):
+        """Claude sometimes prepends commentary before GLOBAL despite "no prose"
+        instructions. Sections must be located by header keyword, not position,
+        so this preamble doesn't shift GLOBAL into the first scene slot."""
+        response_with_preamble = (
+            "# Storyboard\n\nHere is the storyboard you requested.\n\n---\n\n"
+            + SAMPLE_FULL_RESPONSE
+        )
+        storyboard = _parse_storyboard_response(response_with_preamble)
+        assert len(storyboard.scenes) == 2
+        assert storyboard.global_.visual_style.startswith("Dark cinematic")
+        assert storyboard.summary.total_scenes == 2
+
+    def test_preamble_mentioning_scene_is_not_a_phantom_scene(self):
+        """A preamble that merely *mentions* "SCENE 1" in passing (e.g. "Here is
+        the storyboard, starting with SCENE 1...") must not be misclassified as
+        a scene block. Only blocks whose first line is a SCENE header count —
+        otherwise _parse_scene picks up the mentioned number as a phantom scene
+        ID and produces an empty duplicate scene."""
+        response_with_mention = (
+            "Here is the storyboard, starting with SCENE 1 and ending with "
+            "SCENE 2.\n\n---\n\n" + SAMPLE_FULL_RESPONSE
+        )
+        storyboard = _parse_storyboard_response(response_with_mention)
+        assert len(storyboard.scenes) == 2
+        assert storyboard.scenes[0].scene == "1"
+        assert storyboard.scenes[0].voiceover_line.startswith("The American dream")
+
 
 # ── Route integration tests ───────────────────────────────────────────────────
 

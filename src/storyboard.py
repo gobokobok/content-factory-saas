@@ -429,18 +429,38 @@ async def _call_claude_api(
         raise StoryboardAPIError(f"Claude API error: {exc}") from exc
 
 
+def _block_starts_with(block: str, keyword: str) -> bool:
+    """Check whether a block's first line is a header for the given keyword.
+
+    Tolerates markdown decoration Claude sometimes adds around section headers
+    (e.g. '# GLOBAL', '**GLOBAL**', '## SCENE 1').
+    """
+    first_line = block.split("\n", 1)[0]
+    return bool(re.match(rf"^[#\s*_]*{keyword}\b", first_line, re.IGNORECASE))
+
+
 def _parse_storyboard_response(text: str) -> Storyboard:
     """
     Parse the Claude text response into a validated Storyboard model.
 
-    Expects sections separated by '---' on its own line. First section is GLOBAL,
-    last is SUMMARY, all middle sections are SCENE blocks.
+    Expects sections separated by '---' on its own line: one GLOBAL section, one
+    or more SCENE sections, and one SUMMARY section. Sections are located by their
+    header keyword rather than positional index, so leading/trailing commentary
+    Claude adds despite "no prose" instructions does not shift section assignment.
     Raises StoryboardParseError on any failure.
     """
     parts = re.split(r"(?m)^\s*---\s*$", text.strip())
     parts = [p.strip() for p in parts if p.strip()]
 
-    if len(parts) < 3:
+    global_idx = next((i for i, p in enumerate(parts) if _block_starts_with(p, "GLOBAL")), None)
+    summary_idx = next((i for i, p in enumerate(parts) if _block_starts_with(p, "SUMMARY")), None)
+    scene_indices = [
+        i
+        for i, p in enumerate(parts)
+        if i != global_idx and i != summary_idx and _block_starts_with(p, "SCENE")
+    ]
+
+    if global_idx is None or not scene_indices:
         logger.error(
             "Storyboard parse failed — raw response (first 500 chars): %s",
             text[:500],
@@ -450,23 +470,23 @@ def _parse_storyboard_response(text: str) -> Storyboard:
         )
 
     try:
-        global_ = _parse_global(parts[0])
+        global_ = _parse_global(parts[global_idx])
     except StoryboardParseError:
         raise
     except Exception as exc:
         raise StoryboardParseError(f"Failed to parse GLOBAL block: {exc}") from exc
 
     scenes = []
-    for i, block in enumerate(parts[1:-1]):
+    for i, idx in enumerate(scene_indices):
         try:
-            scenes.append(_parse_scene(block, index=i))
+            scenes.append(_parse_scene(parts[idx], index=i))
         except StoryboardParseError:
             raise
         except Exception as exc:
             raise StoryboardParseError(f"Failed to parse scene block {i + 1}: {exc}") from exc
 
     try:
-        summary = _parse_summary(parts[-1], scenes=scenes)
+        summary = _parse_summary(parts[summary_idx] if summary_idx is not None else "", scenes=scenes)
     except StoryboardParseError:
         raise
     except Exception as exc:
