@@ -268,7 +268,7 @@ class TestAlignAudio:
 
             call_kwargs = mock_client.post.call_args
             assert call_kwargs.kwargs["params"]["model"] == "nova-2"
-            assert call_kwargs.kwargs["params"]["smart_format"] == "true"
+            assert call_kwargs.kwargs["params"]["smart_format"] == "false"
 
 
 # ── POST /runs/{run_id}/alignment route ───────────────────────────────────────

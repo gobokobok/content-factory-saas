@@ -29,7 +29,12 @@ async def align_audio(audio_url: str, api_key: str) -> list[WordTimestamp]:
         "Authorization": f"Token {api_key}",
         "Content-Type": "application/json",
     }
-    params = {"model": "nova-2", "smart_format": "true"}
+    # smart_format=false: keeps numbers/percentages as spoken words ("ninety
+    # percent" rather than "90%"). Storyboard voiceover_line text always
+    # spells out numbers for TTS, so word-level matching in
+    # assign_words_to_scenes (ffmpeg_builder.py) requires Deepgram's output
+    # to use the same spelled-out form. See DECISIONS.md D045.
+    params = {"model": "nova-2", "smart_format": "false"}
     async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT_SECONDS) as client:
         try:
             response = await client.post(

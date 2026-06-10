@@ -5,6 +5,16 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D045 — Disable Deepgram smart_format for word-level alignment
+**Date:** 2026-06-10
+**Decision:** Set `smart_format: "false"` on the Deepgram Nova-2 `align_audio()` call (src/alignment.py).
+**Rationale:** Storyboard `voiceover_line` text always spells out numbers, percentages, and large quantities for TTS pronunciation (e.g. "ninety percent", "ten thousand", "zero point zero three percent", "twenty-year"). With `smart_format: "true"`, Deepgram collapses these to digit/symbol form ("90", "10000", "0.03%"), which never matches the spelled-out tokens produced by `_vo_tokens()` in `assign_words_to_scenes` (ffmpeg_builder.py).
+A single such mismatch is catastrophic, not just cosmetic: `assign_words_to_scenes` does a greedy forward scan, so when a token like "ninety" fails to match "90", the next token ("percent") can match a *different, much later* occurrence of "percent" elsewhere in the transcript. This drags `pos` forward by tens of seconds, corrupting alignment for every subsequent scene — observed in run `2026-06-10_the-3-fund-portfolio` as one scene's clip stretching to 98s (nearly the entire video) while ~25 following scenes were compressed to the 0.08s minimum.
+With `smart_format: "false"`, Deepgram transcribes numbers as the words actually spoken, matching the storyboard convention and eliminating both the drift bug and missing captions for numeric/percentage phrases.
+**No new dependencies.**
+
+---
+
 ## D044 — FastAPI BackgroundTasks for render decoupling (S13-S3)
 **Date:** 2026-06-05
 **Decision:** Use `fastapi.BackgroundTasks` to decouple `POST /runs/{run_id}/render` from Railway's HTTP request timeout. The route returns 202 immediately; the render executes in a background task via `asyncio.to_thread` (blocking subprocess kept off the event loop). An in-process `_RENDER_STATE` dict tracks status per run_id; `GET /runs/{run_id}/render/status` exposes it for polling.

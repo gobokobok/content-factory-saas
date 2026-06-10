@@ -76,6 +76,17 @@ def generate_ffmpeg_script(
                 run_id,
                 len(word_timestamps),
             )
+            unmatched = [i for i, w in enumerate(sw) if not w]
+            if unmatched:
+                logger.warning(
+                    "Alignment matching found no words for %d/%d scene(s) "
+                    "in run=%s: indices=%s — these scenes keep storyboard "
+                    "duration_s and contribute no captions",
+                    len(unmatched),
+                    len(sw),
+                    run_id,
+                    unmatched,
+                )
         else:
             logger.info("alignment.json present but empty — skipping redistribution: run=%s", run_id)
     except StorageError:
