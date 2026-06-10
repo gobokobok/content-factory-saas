@@ -73,16 +73,26 @@ def redistribute_scene_durations(
     ]
 
 
+# Maximum number of Deepgram words to scan ahead when looking for the next
+# voiceover token match. Bounds the damage from a single mismatched token
+# (e.g. storyboard "zero point zero three" vs. Deepgram "point oh three") to
+# a handful of skipped words instead of letting `pos` drift to a much later
+# occurrence of a common word elsewhere in the transcript. See DECISIONS.md D045.
+_MATCH_WINDOW = 15
+
+
 def assign_words_to_scenes(
     scenes: list[StoryboardScene],
     words: list[WordTimestamp],
 ) -> list[list[WordTimestamp]]:
     """
-    Match Deepgram words to storyboard scenes via greedy sequential text matching.
+    Match Deepgram words to storyboard scenes via windowed sequential text matching.
 
     For each scene, normalises voiceover_line words and scans forward through the
-    Deepgram word list for each match.  Unmatched Deepgram words are skipped
-    (handles smart_format normalisations and minor disfluencies).
+    Deepgram word list for each match, looking no further than _MATCH_WINDOW words
+    ahead of the current position. A voiceover token with no match within the window
+    is skipped without advancing the position (handles smart_format normalisations,
+    minor disfluencies, and isolated TTS/transcription mismatches like "zero" vs "oh").
     Returns one list of WordTimestamp per scene; empty list for unmatched scenes.
     """
     def _norm(w: str) -> str:
@@ -105,10 +115,11 @@ def assign_words_to_scenes(
         vo_words = _vo_tokens(scene.voiceover_line)
         matched: list[WordTimestamp] = []
         for sw in vo_words:
+            limit = min(pos + _MATCH_WINDOW, len(norm_dg))
             search_pos = pos
-            while search_pos < len(norm_dg) and norm_dg[search_pos] != sw:
+            while search_pos < limit and norm_dg[search_pos] != sw:
                 search_pos += 1
-            if search_pos < len(norm_dg):
+            if search_pos < limit:
                 matched.append(words[search_pos])
                 pos = search_pos + 1
         result.append(matched)

@@ -1748,7 +1748,7 @@
                 <div class="metadata-label">${esc(f.label)}</div>
                 <div class="metadata-value-row">
                   <div class="metadata-value">${esc(f.value)}</div>
-                  <button class="copy-btn" onclick="copyField(this, ${JSON.stringify(f.value)})">Copy</button>
+                  <button class="copy-btn" onclick="copyField(this, ${esc(JSON.stringify(f.value))})">Copy</button>
                 </div>
               </div>`).join('')}
           </div>`;
@@ -1972,7 +1972,7 @@
       const rowsHtml = scenes.map(s => {
         const vp = s.visual_prompts || {};
         const aiVal = vp.ai_generate || '';
-        const defaultMode = s.clip_type === 'hard_cut' ? 'stock' : 'ai_generated';
+        const defaultMode = 'stock';
         const mode = modeMap[s.scene] || defaultMode;
         const pqClass  = `text-md source-primary${mode === 'stock'        ? ' highlight-active' : ''}`;
         const aiClass  = `text-lg ai-editable source-ai${mode === 'ai_generated' ? ' highlight-active' : ''}`;

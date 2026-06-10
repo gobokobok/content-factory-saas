@@ -5,6 +5,15 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D046 — Bound assign_words_to_scenes lookahead to prevent drift
+**Date:** 2026-06-11
+**Decision:** Limit `assign_words_to_scenes` (src/ffmpeg_builder.py) to scanning at most `_MATCH_WINDOW` (15) Deepgram words ahead of the current position for each voiceover token. A token with no match in that window is skipped without advancing position, instead of scanning unboundedly to the end of the transcript.
+**Rationale:** D045 fixed the systematic digit-vs-word mismatch, but `assign_words_to_scenes` remained fragile to *any* single-token mismatch — e.g. Deepgram transcribing "0.03%" as "point oh three percent" while the storyboard spells it "zero point zero three percent" ("zero" vs "oh", and a missing leading "zero"). With unbounded scanning, the failed "zero" match causes the next token ("point") to match correctly, but the leftover unmatched "zero" leaves `pos` one step behind — and in worse cases (a token that matches a common word much later) `pos` can jump tens of seconds forward, corrupting every subsequent scene exactly like the D045 bug. Observed in run with scene 30's voiceover_line "...zero point zero three percent." causing captions to disappear from scene 31 onward.
+Bounding the lookahead means a single mismatched/missing token only costs that one token's match — it cannot drag `pos` to an unrelated later occurrence of a common word.
+**No new dependencies.**
+
+---
+
 ## D045 — Disable Deepgram smart_format for word-level alignment
 **Date:** 2026-06-10
 **Decision:** Set `smart_format: "false"` on the Deepgram Nova-2 `align_audio()` call (src/alignment.py).

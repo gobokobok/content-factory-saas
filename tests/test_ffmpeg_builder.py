@@ -1001,6 +1001,25 @@ class TestAssignWordsToScenes:
         result = assign_words_to_scenes(scenes, words)
         assert [w.word for w in result[0]] == ["six", "figure", "income"]
 
+    def test_single_token_mismatch_does_not_drift_to_later_scene(self):
+        # Storyboard says "zero point zero three percent" but Deepgram heard
+        # "point oh three percent" (no leading "zero", "oh" instead of "zero").
+        # The mismatched "zero" tokens must be skipped without dragging `pos`
+        # forward to a much later occurrence of "percent" in the next scene.
+        scenes = [
+            _scene_with_vo("30", "zero point zero three percent"),
+            _scene_with_vo("31", "let's look at compound growth"),
+        ]
+        words = [
+            _wts("point", 0, 200), _wts("oh", 250, 400), _wts("three", 450, 700),
+            _wts("percent", 750, 1100),
+            _wts("lets", 1200, 1400), _wts("look", 1450, 1600), _wts("at", 1650, 1750),
+            _wts("compound", 1800, 2200), _wts("growth", 2250, 2600),
+        ]
+        result = assign_words_to_scenes(scenes, words)
+        assert [w.word for w in result[0]] == ["point", "three", "percent"]
+        assert [w.word for w in result[1]] == ["lets", "look", "at", "compound", "growth"]
+
 
 # ── Unit: compute_scene_durations_from_alignment ─────────────────────────────
 
