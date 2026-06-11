@@ -207,7 +207,7 @@ class TestBuildCaptionsAss:
 
     def test_voicecaption_style_present(self):
         result = build_captions_ass([_scene("01")])
-        assert "Style: VoiceCaption,Poppins,92" in result
+        assert "Style: VoiceCaption,Poppins,147" in result
 
     def test_voicecaption_bold_field_is_1(self):
         result = build_captions_ass([_scene("01")])
@@ -507,10 +507,10 @@ class TestBuildWordSyncedCaptionsAss:
 class TestSubtitleStyleVariants:
     """Verify TikTok vs Classic ASS header differences."""
 
-    def test_tiktok_style_has_92pt_font(self):
-        """Default TikTok style uses 92pt Poppins Bold."""
+    def test_tiktok_style_has_147pt_font(self):
+        """Default TikTok style uses 147pt Poppins Bold."""
         result = build_captions_ass([_scene("01")])
-        assert "Poppins,92" in result
+        assert "Poppins,147" in result
 
     def test_tiktok_style_is_bold(self):
         """TikTok style has Bold=1."""
@@ -520,10 +520,10 @@ class TestSubtitleStyleVariants:
         fields = style_line.split(",")
         assert fields[7] == "1"  # Bold field
 
-    def test_classic_style_has_64pt_font(self):
-        """Classic style uses 64pt Poppins (not bold 92pt)."""
+    def test_classic_style_has_102pt_font(self):
+        """Classic style uses 102pt Poppins (not bold 147pt)."""
         result = build_captions_ass([_scene("01")], subtitle_style="Classic")
-        assert "Poppins,64" in result
+        assert "Poppins,102" in result
 
     def test_classic_style_not_bold(self):
         """Classic style has Bold=0."""
@@ -546,19 +546,19 @@ class TestSubtitleStyleVariants:
         fields = style_line.split(",")
         assert fields[21] == "180"  # MarginV field
 
-    def test_word_synced_tiktok_uses_92pt(self):
-        """Word-synced captions with TikTok style use 92pt header."""
+    def test_word_synced_tiktok_uses_147pt(self):
+        """Word-synced captions with TikTok style use 147pt header."""
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], subtitle_style="TikTok")
-        assert "Poppins,92" in result
+        assert "Poppins,147" in result
 
-    def test_word_synced_classic_uses_64pt(self):
-        """Word-synced captions with Classic style use 64pt header."""
+    def test_word_synced_classic_uses_102pt(self):
+        """Word-synced captions with Classic style use 102pt header."""
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], subtitle_style="Classic")
-        assert "Poppins,64" in result
+        assert "Poppins,102" in result
 
     def test_unknown_style_falls_back_to_tiktok(self):
         """An unrecognised style name falls back to TikTok header."""
         result = build_captions_ass([_scene("01")], subtitle_style="Unknown")
-        assert "Poppins,92" in result
+        assert "Poppins,147" in result

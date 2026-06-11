@@ -1692,7 +1692,7 @@
             <button class="video-expand-btn" onclick="event.stopPropagation(); openVideoModal('${url}')">⤢ Expand</button>
           </div>
           <div class="video-actions">
-            <button class="btn-download" onclick="downloadVideo(this, '/runs/${currentRunId}/download', 'final.mp4')">↓ Download Video</button>
+            <a class="btn-download" href="/runs/${currentRunId}/download" download="final.mp4">↓ Download Video</a>
           </div>`;
         // Attach error handler — if the video src returns 403/404 (e.g. presigned URL expired
         // or file not yet present), clear the cache so the next populateRender re-fetches.
@@ -1795,29 +1795,6 @@
         btn.textContent = 'Failed';
         setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
       });
-    }
-
-    async function downloadVideo(btn, url, filename) {
-      const label = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = 'Downloading…';
-      try {
-        const res  = await fetch(url);
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(blobUrl);
-      } catch (err) {
-        alert('Download failed: ' + err.message);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = label;
-      }
     }
 
     function openVideoModal(url) {
