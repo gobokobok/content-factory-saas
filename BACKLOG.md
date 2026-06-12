@@ -4922,6 +4922,8 @@ Parent graph chains the blocks + legacy render via the adapter; HITL gates (D047
 `cf_platform/adapters/legacy_video.py`: `LegacyVideoAdapter` Protocol + in-process impl calling `src/pipeline.py` (script artifact → storyboard → assets → render → `final.mp4` in R2). **Only module importing `src/`** (D047). HTTP-swappable contract. Emits `trace_event`s (not artifacts of its own).
 **Tech:** Python Protocol; `src/pipeline.py`; R2. **Artifacts:** `VideoResult`.
 
+> **Spike finding (2026-06-13, during P0-S5):** plan §8 watch-out #4 assumed `src/pipeline.py` exposes a clean full-run entry — it does **not**. As of `cabf721`, `src/pipeline.py` contains only `summarize_step()` (the run_log.txt summarizer helper). The alignment → storyboard → manifest → assets → ffmpeg_script → render → metadata chain exists only as frontend-driven sequential REST calls (`runSequence()` in `src/static/pipeline.html`). All per-step domain functions are pure async (D040) and importable individually, so the adapter has two options: (a) add a `run_full_pipeline()`-style chaining function to `src/` that the adapter calls, or (b) have the adapter itself chain the existing per-step functions in sequence. Decide which during this story's design.
+
 ### Acceptance Criteria
 - [ ] Adapter produces `final.mp4` in R2 from a script artifact
 - [ ] Only `legacy_video.py` imports `src/`; `src/` unchanged

@@ -304,7 +304,7 @@ Platform MVP (P0–P6) = **97 pts**; with analytics (P7) = **108 pts**.
 1. **P1-S4/S5 (LangGraph engine + observability wrapper) is the keystone** — spike before committing.
 2. **P2 must precede P3** so discovery runs have persisted lineage from run #1.
 3. **HITL (P6-S3) depends on the PostgresSaver checkpointer (P2-S4)** — interrupts must be durable.
-4. **Adapter (P6-S1) assumes `src/pipeline.py` exposes a clean full-run entry** — confirm its signature in P0.
+4. ~~**Adapter (P6-S1) assumes `src/pipeline.py` exposes a clean full-run entry** — confirm its signature in P0.~~ **Confirmed false (2026-06-13, P0-S5 spike):** `src/pipeline.py` only contains `summarize_step()`; no full-run entry exists — the chain is currently frontend-driven. P6-S1 must add a chaining function in `src/` or chain the per-step domain functions itself (see P6-S1 backlog note).
 5. **P7-S1 introduces an operator habit** (record the published video URL) until a publish agent exists.
 
 ---
