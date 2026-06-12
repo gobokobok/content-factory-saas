@@ -16,7 +16,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 _Legacy Sprints 1–13 are done and running in DEV/PROD; the legacy pipeline stays untouched (D047). S14–S17 (video-UX polish) are paused._
 
 ## Active story
-**P0-S2** — Ratify decisions D047–D057 (DECISIONS.md)
+**P0-S3** — Core contracts (Pydantic) — interfaces only (platform/core/schemas.py)
 
 ## Environments
 

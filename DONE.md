@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P0-S2] Ratify decisions D047–D057
+**Completed:** 2026-06-12
+**Handover:**
+- Both ACs were already satisfied by commit `642af5b` (the planning commit that also produced `docs/v2_platform_plan.md`): DECISIONS.md already carries full D047–D057 entries (Date, Decision, Rationale, Dependencies/See pointers), and D042 already carries `**Status:** SUPERSEDED by D052 (2026-06-12)`.
+- This story formally ratifies that content as the P0-S2 deliverable — no further edits to DECISIONS.md were needed.
+- Decisions ratified: D047 (legacy isolation via adapter wrap), D048 (Postgres metadata index), D049 (Telegram thin trigger + formatter rule), D050 (SourceAdapter protocol, adapters emit trace events), D051 (worker/lineage envelope), D052 (LangGraph supersedes D042/Inngest), D053 (web-search tool for fact-check), D054 (YouTube Analytics OAuth + scheduler), D055 (replay-ready constraints), D056 (Worker = Node abstraction model), D057 (artifacts are truth; state is a message bus).
+- No code, ENV vars, or dependencies introduced — interfaces/design only, per architectural law 7.
+**Smoke test:** N/A — documentation/decision-log ratification only, no runtime behavior.
+**Promoted to backlog:** none
+
+---
+
 ## [P0-S1] North-star spec — docs/v2_platform_plan.md
 **Completed:** 2026-06-12
 **Handover:**

@@ -4176,7 +4176,8 @@ Author and get approval on `docs/v2_platform_plan.md`: goals, macro architecture
 ## [P0-S2] Ratify decisions D047–D057
 **Epic:** E26 — Platform Foundation
 **Sprint:** P0
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-12
 **Priority:** high
 **Points:** 2
 **Depends on:** —
@@ -4185,14 +4186,17 @@ Author and get approval on `docs/v2_platform_plan.md`: goals, macro architecture
 Write D047–D057 into DECISIONS.md (adapter wrap, Postgres, Telegram+formatter, source adapters, lineage envelope, LangGraph supersedes Inngest, web-search, YouTube OAuth, replay constraints, worker=node, state-as-message-bus). Mark D042 superseded by D052.
 
 ### Acceptance Criteria
-- [ ] D047–D057 present with rationale + dependency notes
-- [ ] D042 marked SUPERSEDED by D052
+- [x] D047–D057 present with rationale + dependency notes
+- [x] D042 marked SUPERSEDED by D052
 
 ### Definition of Done
-- [ ] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- D047–D057 were written into DECISIONS.md in commit `642af5b` (same commit as `docs/v2_platform_plan.md`) — each entry carries Date, Decision, Rationale, and a Dependencies/See pointer back to the relevant plan §.
+- D042 (Inngest) carries `**Status:** SUPERSEDED by D052 (2026-06-12)` with a one-line pointer to the superseding decision; original text retained for history per project convention (cf. D045/D046 precedent of append-only decision log).
+- This story formally ratifies that prior commit's DECISIONS.md content as the P0-S2 deliverable — no further DECISIONS.md edits were needed; both ACs were already met.
+- Next story in execution order: **P0-S3** (Core contracts — Pydantic interfaces only), per SPRINT.md execution order P0-S1 → P0-S2 → (P0-S3 ∥ P0-S4) → P0-S5.
 
 ---
 
