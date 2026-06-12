@@ -4268,7 +4268,8 @@ Design (not build) the Postgres schema: `runs`, `artifacts`, `worker_executions`
 ## [P0-S5] Doc hygiene + abstraction-model docs
 **Epic:** E26 — Platform Foundation
 **Sprint:** P0
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** med
 **Points:** 2
 **Depends on:** P0-S2
@@ -4277,15 +4278,22 @@ Design (not build) the Postgres schema: `runs`, `artifacts`, `worker_executions`
 Add the LangGraph abstraction model (Worker=Node, Stage=Graph, Platform=Graph-of-graphs + worker invariants) to ARCHITECTURE.md and CONVENTIONS.md. Fix CLAUDE.md/SPRINT.md current-sprint drift. Note Inngest→LangGraph in ARCHITECTURE §3.
 
 ### Acceptance Criteria
-- [ ] ARCHITECTURE.md has a "LangGraph abstraction model" section; Inngest reference annotated as superseded
-- [ ] CONVENTIONS.md has the worker=node + state-as-message-bus rules next to the D040 section
-- [ ] CLAUDE.md current sprint/active story point to the platform track
+- [x] ARCHITECTURE.md has a "LangGraph abstraction model" section; Inngest reference annotated as superseded
+- [x] CONVENTIONS.md has the worker=node + state-as-message-bus rules next to the D040 section
+- [x] CLAUDE.md current sprint/active story point to the platform track
 
 ### Definition of Done
-- [ ] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `docs/ARCHITECTURE.md`: new **§0 — LangGraph abstraction model (v2 platform, D056/D057)** section added between "Document status" and "§1 Current state" — covers the Worker=Node / Stage=StateGraph / Platform=Graph-of-graphs hierarchy, the 5 worker invariants (stateless/pure, version-pinned, one-artifact-per-execution written by the wrapper, routing-as-edges, IO-adapters-emit-trace-events-not-artifacts), and the state-as-message-bus rules (artifact refs + `ControlSignal` only, no `state_delta`, R2+Postgres as durable truth). Cross-references CONVENTIONS.md and docs/v2_platform_plan.md §3–§5. Top "⚑ v2 Platform direction" banner trimmed to point at §0 instead of duplicating its content. §3 "Orchestration engine" heading retitled to "Orchestration engine (superseded — see §0)" — the existing "Superseded" callout under it was already accurate (D052 supersedes Inngest/D042) and is retained for history.
+- `CONVENTIONS.md`: no change needed — the "Platform v2 — worker/node contract (D056) and state discipline (D057)" section (added in P0-S3, immediately following the D040 "Async function discipline" section) already covers worker=node + state-as-message-bus rules per AC2.
+- `CLAUDE.md`: "Active story" updated from stale `P0-S3` (done since `d5fe9f4`) to `P0-S5 — Doc hygiene + abstraction-model docs (final story of Sprint P0)`. "Current sprint" line already correctly pointed at the Platform v2 / Sprint P0 track — no change needed there.
+- `SPRINT.md`: top banner's "Start here: P0-S1" (stale — P0-S1–S4 already done) replaced with "P0-S1–S4 done; active story: P0-S5 (final story of Sprint P0)". P0-S5 row in the Sprint P0 stories table updated `planned` → `done`.
+- No code changes, no new dependencies, no tests — pure documentation, consistent with P0 "interfaces only" scope (architectural law 7).
+**Smoke test:** N/A — design/doc-only story, no runtime behavior. Operator can review the new §0 in `docs/ARCHITECTURE.md` and the updated CLAUDE.md/SPRINT.md banners directly.
+**Promoted to backlog:** none
+- **Sprint P0 complete** (P0-S1–S5 all done, 13/13 pts). Next story in execution order: **P1-S1** (cf_platform/ scaffold + router mount), per SPRINT.md execution order P1-S1 → (P1-S2 ∥ P1-S3) → P1-S4 → P1-S5 → P1-S6.
 
 ---
 

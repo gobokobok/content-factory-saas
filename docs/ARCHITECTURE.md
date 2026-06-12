@@ -3,15 +3,36 @@
 > ## ⚑ v2 Platform direction (active as of 2026-06-12)
 > The authoritative design for the current direction is **docs/v2_platform_plan.md** (decisions D047–D057). A `platform/` layer is being built **alongside** the legacy `src/` pipeline, which stays untouched and is reached only through `platform/adapters/legacy_video.py` (`platform → adapter → src`, one-way; D047).
 >
-> **Orchestration engine:** **LangGraph** + Postgres checkpointer (D052 — **supersedes Inngest/D042** referenced in §3 below).
+> **Orchestration engine:** **LangGraph** + Postgres checkpointer (D052 — **supersedes Inngest/D042**). The Inngest-based design in §3 "Orchestration engine" is retained for history only — see **§0** below for the current model.
 >
-> **LangGraph abstraction model (D056/D057):**
-> - **Worker = Node** (atomic, stateless, pure state-transformer) · **Stage = StateGraph** · **Platform = Graph-of-graphs**
-> - A worker emits **exactly one artifact** per execution (written by the observability wrapper, not the worker body).
-> - **Artifacts are the durable truth** (R2, indexed in Postgres); **state is a message bus** carrying only artifact references + control signals — never bodies, never a free-form mutation channel.
-> - IO adapters (source adapters, legacy adapter) emit **trace events**, not artifacts.
+> See **§0 — LangGraph abstraction model** for the worker/stage/platform contract (D056/D057).
 >
 > Sections §1–§3 below describe the legacy system and the pre-v2 target and are retained for history.
+
+---
+
+## 0. LangGraph abstraction model (v2 platform, D056/D057)
+
+**Orchestration engine:** LangGraph + Postgres checkpointer (D052 — supersedes Inngest/D042; see §3 "Orchestration engine" for the superseded design).
+
+### Hierarchy
+- **Worker = Node** — atomic, stateless, pure state-transformer
+- **Stage = StateGraph** — a LangGraph graph composed of worker nodes
+- **Platform = Graph-of-graphs** — stages composed into the end-to-end pipeline
+
+### Worker invariants
+- **Stateless and pure** (D040 applies): receives a typed `StageState`, returns a typed `WorkerOutput`. No hidden state, no side effects in the body.
+- **Version-pinned**: `worker_version` + `prompt_version` + `model` + `sampling_params` are recorded for every execution (D055 reproducibility).
+- **Emits exactly one artifact** per execution — written by the observability wrapper, **not** the worker body. The worker never knows its own R2 key.
+- **Routing is a graph-edge concern**, not a worker concern — conditional/branch logic lives on edges and produces no artifact or `worker_execution` row.
+- **IO adapters are not workers** — source adapters and the legacy adapter emit `TraceEvent`s, never artifacts.
+
+### State is a message bus, not a data store
+- Graph state carries only artifact references (`stage -> r2_key`) and a strict `ControlSignal = "continue" | "retry" | "branch"` — no `state_delta` / free-form dict.
+- Control values (iteration counters, mode) are typed channels on the per-stage `StageState`, updated via reducers; the **graph** enforces loop bounds, not the worker.
+- The durable source of truth is always the artifact in R2, indexed in Postgres (D048). Anything that must persist or be queried is an artifact or a row — never a state field.
+
+See CONVENTIONS.md § "Platform v2 — worker/node contract (D056) and state discipline (D057)" for the code-level rules, and docs/v2_platform_plan.md §3–§5 for the canonical spec.
 
 ---
 
@@ -228,7 +249,7 @@ Human:  Optional review gates (can be fully autonomous)
           └───────────────────────────────────────────────────┘
 ```
 
-### Orchestration engine
+### Orchestration engine (superseded — see §0)
 
 > **Superseded:** the orchestration engine is now **LangGraph + Postgres checkpointer** (D052), not Inngest. The paragraph below is retained for history.
 

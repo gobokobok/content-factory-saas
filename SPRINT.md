@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-12 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Current sprint:** P0 — Boundary Design & Contracts. **Start here:** P0-S1.
+> - **Current sprint:** P0 — Boundary Design & Contracts. P0-S1–S4 done; **active story:** P0-S5 (final story of Sprint P0).
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 >
@@ -628,7 +628,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 | P0-S2 | Ratify decisions D047–D057 | 2 | done |
 | P0-S3 | Core contracts (Pydantic) — interfaces only | 5 | done |
 | P0-S4 | Postgres data model + analytics-join design | 2 | done |
-| P0-S5 | Doc hygiene + abstraction-model docs | 2 | planned |
+| P0-S5 | Doc hygiene + abstraction-model docs | 2 | done |
 
 **Execution order:** P0-S1 → P0-S2 → (P0-S3 ∥ P0-S4) → P0-S5.
 
