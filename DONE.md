@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P0-S4] Postgres data model + analytics-join design
+**Completed:** 2026-06-12
+**Handover:**
+- `cf_platform/db/schema.sql` (new) — full DDL draft for all 6 tables (`runs`, `artifacts`, `worker_executions`, `trace_events`, reserved `published_videos`/`video_metrics`). Lineage (`worker`, `worker_version`, `prompt_version`, `model`) is plain TEXT columns on `artifacts`/`worker_executions` per D048 — only `sampling_params`/`inputs`/`meta` are JSONB. `artifacts` has `UNIQUE (run_id, stage, name, version)` to enforce immutability (new write = new row, version+1). Analytics indexes per plan §6 (`prompt_version`, `worker_version`, `run_id`, `source`, `external_id`). FKs from `artifacts`/`worker_executions`/`trace_events`/`published_videos` → `runs.run_id`. Design only — not applied by any code path (P0 architectural law 7); P2-S2 turns this into `cf_platform/db/migrations/0001_init.sql`.
+- `cf_platform/db/queries.sql` (new) — the P7-S3 attribution query (parametrized on `worker` rather than hardcoded `'storyboard'`, since the platform's content-generation worker name differs from the legacy pipeline), plus 3 supporting queries used by later sprints' human touchpoints: per-run worker cost/latency/version (P2), run-level cost rollup, and artifact lineage listing (Epic 34 replay). All join keys are plain TEXT columns — joins resolve conceptually without JSON unpacking.
+- `DECISIONS.md` D048 updated: migration tooling finalized as **raw SQL** (not Alembic) — ~6-table analytics-shaped schema with no app-side ORM models; hand-written numbered SQL files (`cf_platform/db/migrations/NNNN_*.sql` + `schema_migrations` tracking table, applied via `psycopg` at startup) are simpler to audit than Alembic's autogenerate machinery. Implementation deferred to P2-S2.
+- `docs/v2_platform_plan.md` §6 — added pointer to the new `cf_platform/db/schema.sql` / `queries.sql` design files.
+- No code changes, no new dependencies, no tests — pure SQL/docs design artifact, consistent with P0 "interfaces only" scope.
+**Smoke test:** N/A — design-only story, no runtime behavior (P0 architectural law 7). Operator can review `cf_platform/db/schema.sql` and `cf_platform/db/queries.sql` directly.
+**Promoted to backlog:** none
+
+---
+
 ## [P0-S3] Core contracts (Pydantic) — interfaces only
 **Completed:** 2026-06-12
 **Handover:**

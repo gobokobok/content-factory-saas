@@ -208,6 +208,8 @@ Each stage may only read its `inputs` and its own `artifacts` refs. No cross-sta
 
 ## 6. Data model
 
+**Drafted DDL + queries (P0-S4):** `cf_platform/db/schema.sql` (full DDL with types, FKs, analytics indexes) and `cf_platform/db/queries.sql` (attribution query + supporting analytics queries). Design only — not applied by any code path until P2-S2. Migration tooling: raw SQL (D048).
+
 ### R2 — artifact store (durable truth)
 Key scheme: `users/{user_id}/runs/{run_id}/{stage}/{name}@v{n}.json` (artifacts), `.../output/final.mp4` (media). Artifacts are **immutable**; a re-run writes a new version. R2 holds bodies; Postgres holds the queryable index pointing at these keys.
 

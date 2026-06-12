@@ -88,10 +88,11 @@ All significant architecture decisions and new dependency introductions are logg
 
 ## D048 — Postgres as the metadata index (required + early, analytics-shaped)
 **Date:** 2026-06-12
-**Decision:** Introduce Railway Postgres as the queryable metadata index for the platform, from the skeleton phase (P2). **R2 remains the source of truth for artifact bodies; Postgres is the index** — `artifacts` rows store the R2 key + lineage columns, never the body. Core tables: `runs`, `artifacts`, `worker_executions`, `trace_events`; reserved for P7: `published_videos`, `video_metrics`. Migration tooling (raw SQL runner vs Alembic) chosen at P0-S4 (leaning raw SQL for a small schema).
+**Decision:** Introduce Railway Postgres as the queryable metadata index for the platform, from the skeleton phase (P2). **R2 remains the source of truth for artifact bodies; Postgres is the index** — `artifacts` rows store the R2 key + lineage columns, never the body. Core tables: `runs`, `artifacts`, `worker_executions`, `trace_events`; reserved for P7: `published_videos`, `video_metrics`. DDL drafted at P0-S4 in `cf_platform/db/schema.sql`.
+**Migration tooling (decided P0-S4):** **Raw SQL**, not Alembic. P2-S2 will add `cf_platform/db/migrations/NNNN_description.sql` (numbered, idempotent — `CREATE TABLE IF NOT EXISTS`, etc.) plus a `schema_migrations` tracking table and a small runner (`psycopg`, applied at startup, fault-isolated like the rest of the platform DB init). Schema is ~6 tables with no ORM models in the app — Alembic's autogenerate/versioning machinery is overhead the platform doesn't need; a handful of hand-written, reviewable SQL files is simpler to audit for an analytics-shaped schema that changes rarely after P2.
 **Rationale:** The platform's purpose is observability and version-vs-outcome analytics. R2 blobs are not queryable; "which prompt_version → retention" must be a SQL join, which requires lineage as columns. Retrofitting this later means rebuilding the blocks, so Postgres is required and early — not deferrable. Railway Postgres is one click and fault-isolated from the legacy app.
 **Dependencies (P2):** `psycopg`, Railway Postgres plugin. Add to requirements.txt at P2 with this entry.
-**See:** docs/v2_platform_plan.md §6.
+**See:** docs/v2_platform_plan.md §6, `cf_platform/db/schema.sql`, `cf_platform/db/queries.sql`.
 
 ---
 

@@ -4235,7 +4235,8 @@ Define + unit-test the universal platform contracts in `cf_platform/core/schemas
 ## [P0-S4] Postgres data model + analytics-join design
 **Epic:** E26 — Platform Foundation
 **Sprint:** P0
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-12
 **Priority:** high
 **Points:** 2
 **Depends on:** P0-S1
@@ -4245,15 +4246,22 @@ Design (not build) the Postgres schema: `runs`, `artifacts`, `worker_executions`
 **Tech:** Postgres (design only), SQL.
 
 ### Acceptance Criteria
-- [ ] DDL drafted with lineage as **columns** (not JSON) and analytics indexes
-- [ ] Attribution query written and reviewed; joins resolve conceptually
-- [ ] Migration tooling decided
+- [x] DDL drafted with lineage as **columns** (not JSON) and analytics indexes
+- [x] Attribution query written and reviewed; joins resolve conceptually
+- [x] Migration tooling decided
 
 ### Definition of Done
-- [ ] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/db/schema.sql` (new) — full DDL draft for all 6 tables (`runs`, `artifacts`, `worker_executions`, `trace_events`, reserved `published_videos`/`video_metrics`). Lineage (`worker`, `worker_version`, `prompt_version`, `model`) is plain TEXT columns on `artifacts`/`worker_executions` per D048 — only `sampling_params`/`inputs`/`meta` are JSONB. `artifacts` has `UNIQUE (run_id, stage, name, version)` to enforce immutability (new write = new row, version+1). Analytics indexes per plan §6 (`prompt_version`, `worker_version`, `run_id`, `source`, `external_id`). FKs from `artifacts`/`worker_executions`/`trace_events`/`published_videos` → `runs.run_id`. Design only — not applied by any code path (P0 architectural law 7); P2-S2 turns this into `cf_platform/db/migrations/0001_init.sql`.
+- `cf_platform/db/queries.sql` (new) — the P7-S3 attribution query (parametrized on `worker` rather than hardcoded `'storyboard'`, since the platform's content-generation worker name differs from the legacy pipeline), plus 3 supporting queries used by later sprints' human touchpoints: per-run worker cost/latency/version (P2), run-level cost rollup, and artifact lineage listing (Epic 34 replay). All join keys are plain TEXT columns — joins resolve conceptually without JSON unpacking.
+- `DECISIONS.md` D048 updated: migration tooling finalized as **raw SQL** (not Alembic) — rationale: ~6-table analytics-shaped schema with no app-side ORM models, hand-written numbered SQL files (`cf_platform/db/migrations/NNNN_*.sql` + `schema_migrations` tracking table, applied via `psycopg` at startup) are simpler to audit than Alembic's autogenerate machinery. Implementation deferred to P2-S2.
+- `docs/v2_platform_plan.md` §6 — added pointer to the new `cf_platform/db/schema.sql` / `queries.sql` design files.
+- No code changes, no new dependencies, no tests — pure SQL/docs design artifact, consistent with P0 "interfaces only" scope (P0-S1–S3 precedent: P0-S1/S2 were docs-only with no test additions).
+**Smoke test:** N/A — design-only story, no runtime behavior (P0 architectural law 7). Operator can review `cf_platform/db/schema.sql` and `cf_platform/db/queries.sql` directly.
+**Promoted to backlog:** none
+- Next story in execution order: **P0-S5** (Doc hygiene + abstraction-model docs), per SPRINT.md execution order P0-S1 → P0-S2 → (P0-S3 ∥ P0-S4) → P0-S5.
 
 ---
 
