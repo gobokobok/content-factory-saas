@@ -619,7 +619,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 # Sprint P0 — Boundary Design & Contracts
 
 **Goal:** Lock the north-star spec, decisions D047–D057, and all universal contracts so P1 builds against a stable surface. **Interfaces only — no runtime behavior.**
-**Status:** planned
+**Status:** done
 **Points:** 13
 
 | ID | Title | Points | Status |
@@ -633,11 +633,11 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 **Execution order:** P0-S1 → P0-S2 → (P0-S3 ∥ P0-S4) → P0-S5.
 
 ## Sprint P0 Definition of Done
-- [ ] Plan doc approved; D047–D057 written; D042 marked superseded
-- [ ] Universal contracts defined + schema-tested (no runtime)
-- [ ] Postgres DDL + attribution query designed; migration tooling chosen
-- [ ] ARCHITECTURE/CONVENTIONS carry the LangGraph abstraction model
-- [ ] **Human touchpoint:** operator reads and approves the spec + schemas
+- [x] Plan doc approved; D047–D057 written; D042 marked superseded
+- [x] Universal contracts defined + schema-tested (no runtime)
+- [x] Postgres DDL + attribution query designed; migration tooling chosen
+- [x] ARCHITECTURE/CONVENTIONS carry the LangGraph abstraction model
+- [x] **Human touchpoint:** operator reads and approves the spec + schemas
 
 ---
 
