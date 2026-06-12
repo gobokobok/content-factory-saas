@@ -12,10 +12,11 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint 13** — Scale Foundation
+**Platform v2 — Sprint P0** — Boundary Design & Contracts. Canonical spec: docs/v2_platform_plan.md; sprints in SPRINT.md (Platform Track); decisions D047–D057.
+_Legacy Sprints 1–13 are done and running in DEV/PROD; the legacy pipeline stays untouched (D047). S14–S17 (video-UX polish) are paused._
 
 ## Active story
-**S13-S1** — Chunked storyboard generation — start here
+**P0-S1** — North-star spec (docs/v2_platform_plan.md) — start here
 
 ## Environments
 
@@ -36,6 +37,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 | CONVENTIONS.md | Python coding standards |
 | ENV.md | All environment variables (no values) |
 | docs/ARCHITECTURE.md | System design, data flow, component map |
+| docs/v2_platform_plan.md | **v2 platform migration — canonical spec, contracts, decisions D047–D057** |
 | docs/TECH_STACK.md | Stack choices, versions, rationale |
 | docs/PROMPTS.md | Storyboard prompt v0.4 and changelog |
 | docs/TESTING.md | Test strategy per layer |

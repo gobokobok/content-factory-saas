@@ -1,5 +1,20 @@
 # Architecture — Content Factory
 
+> ## ⚑ v2 Platform direction (active as of 2026-06-12)
+> The authoritative design for the current direction is **docs/v2_platform_plan.md** (decisions D047–D057). A `platform/` layer is being built **alongside** the legacy `src/` pipeline, which stays untouched and is reached only through `platform/adapters/legacy_video.py` (`platform → adapter → src`, one-way; D047).
+>
+> **Orchestration engine:** **LangGraph** + Postgres checkpointer (D052 — **supersedes Inngest/D042** referenced in §3 below).
+>
+> **LangGraph abstraction model (D056/D057):**
+> - **Worker = Node** (atomic, stateless, pure state-transformer) · **Stage = StateGraph** · **Platform = Graph-of-graphs**
+> - A worker emits **exactly one artifact** per execution (written by the observability wrapper, not the worker body).
+> - **Artifacts are the durable truth** (R2, indexed in Postgres); **state is a message bus** carrying only artifact references + control signals — never bodies, never a free-form mutation channel.
+> - IO adapters (source adapters, legacy adapter) emit **trace events**, not artifacts.
+>
+> Sections §1–§3 below describe the legacy system and the pre-v2 target and are retained for history.
+
+---
+
 ## Document status
 This document tracks three layers:
 1. **Current state** — what is deployed and working today
@@ -214,6 +229,8 @@ Human:  Optional review gates (can be fully autonomous)
 ```
 
 ### Orchestration engine
+
+> **Superseded:** the orchestration engine is now **LangGraph + Postgres checkpointer** (D052), not Inngest. The paragraph below is retained for history.
 
 The current `FastAPI BackgroundTasks` pattern (Sprint 13) is replaced by **Inngest** — a managed durable workflow engine (see D042). Each agent step becomes an Inngest function:
 

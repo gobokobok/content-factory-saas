@@ -1,3 +1,13 @@
+> ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
+> As of 2026-06-12 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
+> - **Current sprint:** P0 — Boundary Design & Contracts. **Start here:** P0-S1.
+> - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
+> - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
+>
+> _History below (Sprints 1–19) is retained as-is._
+
+---
+
 # Sprint 1 — Railway Foundation & Drive Integration
 
 **Goal:** Deployable FastAPI service on Railway with Google Drive integration and storyboard generation via Claude API.
@@ -581,3 +591,205 @@ _(new threshold: 3 outstanding triggers integration session)_
 - [ ] S19-S3: User profile written to R2 on first login. `email` and `created_at` recorded.
 - [ ] All existing tests pass (auth mocked throughout).
 - [ ] **Human touchpoint:** Two different Google accounts log in; each sees only their own project list with no cross-contamination.
+
+---
+---
+
+# CONTENT FACTORY v2 — PLATFORM TRACK (Sprints P0–P7)
+
+**Canonical spec:** docs/v2_platform_plan.md · **Decisions:** D047–D057 · **Stories:** BACKLOG.md "Platform Track" section.
+Legacy Script→Video stays untouched and operable (D047). Specs are reviewed at the start of each sprint and story.
+
+| Sprint | Theme | Pts | Depends on | Human touchpoint |
+|--------|-------|-----|-----------|------------------|
+| P0 | Boundary design & contracts (interfaces only) | 13 | — | Approve spec + schemas |
+| P1 | Platform skeleton & core (LangGraph-aware) | 16 | P0 | `POST /platform/echo` → artifact in R2 |
+| P2 | Lineage & observability store (Postgres) | 16 | P1 | Per-worker cost/latency/version; resume after restart |
+| P3 | Telegram trigger + Discovery worker | 10 | P1, P2 | `/ideas <niche>` → signals in Telegram |
+| P4 | Niche→Ideas block | 13 | P3 | Telegram niche → ranked ideas w/ scores |
+| P5 | Idea→Script block | 16 | P4 (soft) | Telegram idea → fact-checked script |
+| P6 | Orchestrator + legacy bridge | 13 | P4, P5 | `/produce <niche>` → finished video |
+| P7 | Analytics & attribution | 11 | P2, P6 | Retention-by-prompt-version report |
+
+**MVP (P0–P6) = 97 pts; with P7 = 108 pts.** Critical path: P0→P1→P2→P3→P4→P6→P7 (P5 soft-parallel after P2).
+Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluation (~3 sprints, ~30 pts).
+
+---
+
+# Sprint P0 — Boundary Design & Contracts
+
+**Goal:** Lock the north-star spec, decisions D047–D057, and all universal contracts so P1 builds against a stable surface. **Interfaces only — no runtime behavior.**
+**Status:** planned
+**Points:** 13
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P0-S1 | North-star spec — docs/v2_platform_plan.md | 2 | planned |
+| P0-S2 | Ratify decisions D047–D057 | 2 | planned |
+| P0-S3 | Core contracts (Pydantic) — interfaces only | 5 | planned |
+| P0-S4 | Postgres data model + analytics-join design | 2 | planned |
+| P0-S5 | Doc hygiene + abstraction-model docs | 2 | planned |
+
+**Execution order:** P0-S1 → P0-S2 → (P0-S3 ∥ P0-S4) → P0-S5.
+
+## Sprint P0 Definition of Done
+- [ ] Plan doc approved; D047–D057 written; D042 marked superseded
+- [ ] Universal contracts defined + schema-tested (no runtime)
+- [ ] Postgres DDL + attribution query designed; migration tooling chosen
+- [ ] ARCHITECTURE/CONVENTIONS carry the LangGraph abstraction model
+- [ ] **Human touchpoint:** operator reads and approves the spec + schemas
+
+---
+
+# Sprint P1 — Platform Skeleton & Core
+
+**Goal:** A working spine — create a run, execute a single-node LangGraph graph through the observability wrapper, write a versioned R2 artifact, record a `WorkerExecution` (in-memory until P2).
+**Status:** planned
+**Points:** 16
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P1-S1 | platform/ scaffold + router mount | 2 | planned |
+| P1-S2 | Run Manager | 3 | planned |
+| P1-S3 | Artifact Manager → R2 (immutable, versioned) | 3 | planned |
+| P1-S4 | LangGraph execution engine (Layer A) ⚠️ keystone | 3 | planned |
+| P1-S5 | Observability wrapper (Layer B) | 3 | planned |
+| P1-S6 | Echo graph end-to-end smoke | 2 | planned |
+
+**Execution order:** P1-S1 → (P1-S2 ∥ P1-S3) → P1-S4 → P1-S5 → P1-S6. Spike P1-S4 first.
+
+## Sprint P1 Definition of Done
+- [ ] `langgraph` adopted (D052); worker=node contract implemented
+- [ ] Wrapper emits exactly one artifact + one execution record per node
+- [ ] Legacy routes unaffected; platform init fault-isolated
+- [ ] **Human touchpoint:** operator calls `/platform/echo` and sees the artifact in R2
+
+---
+
+# Sprint P2 — Lineage & Observability Store
+
+**Goal:** Durable, queryable lineage in Postgres; LangGraph durability via the Postgres checkpointer; observability endpoints.
+**Status:** planned
+**Points:** 16
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P2-S1 | Provision Railway Postgres + connection layer | 3 | planned |
+| P2-S2 | Schema migrations (runs/artifacts/worker_executions/trace_events) | 3 | planned |
+| P2-S3 | Persist Run/Artifact/Execution to Postgres | 5 | planned |
+| P2-S4 | LangGraph PostgresSaver checkpointer | 3 | planned |
+| P2-S5 | Observability endpoints | 2 | planned |
+
+**Execution order:** P2-S1 → P2-S2 → (P2-S3 ∥ P2-S4) → P2-S5.
+
+## Sprint P2 Definition of Done
+- [ ] R2 = blob truth; Postgres = index (lineage as columns)
+- [ ] A run resumes from checkpoint after a process restart
+- [ ] **Human touchpoint:** operator inspects per-worker cost/latency/version for a run
+
+---
+
+# Sprint P3 — Telegram Trigger + Discovery Worker
+
+**Goal:** First real input + first real worker; signals stored with full lineage; trace events per source.
+**Status:** planned
+**Points:** 10
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P3-S1 | Telegram webhook (trigger-only) | 3 | planned |
+| P3-S2 | Discovery worker v1 + source adapters | 5 | planned |
+| P3-S3 | Reply formatter + wire discovery | 2 | planned |
+
+**Execution order:** (P3-S1 ∥ P3-S2) → P3-S3. Requires P2 (persisted lineage).
+
+## Sprint P3 Definition of Done
+- [ ] 3 `SourceAdapter`s; partial-failure isolation; adapters emit trace events
+- [ ] Discovery emits one `signals` artifact with lineage
+- [ ] **Human touchpoint:** `/ideas <niche>` → signals summary in Telegram
+
+---
+
+# Sprint P4 — Niche→Ideas Block
+
+**Goal:** Full first E2E block as a LangGraph StateGraph (discovery → topic-gen → scoring → selection); per-node lineage; Telegram + REST.
+**Status:** planned
+**Points:** 13
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P4-S1 | Topic Generator worker | 3 | planned |
+| P4-S2 | Opportunity Scoring worker | 3 | planned |
+| P4-S3 | Topic Selector worker | 2 | planned |
+| P4-S4 | Assemble niche_to_ideas StateGraph (+ NicheToIdeasState) | 3 | planned |
+| P4-S5 | Block interfaces (REST + Telegram) | 2 | planned |
+
+**Execution order:** P4-S1 → P4-S2 → P4-S3 → P4-S4 → P4-S5.
+
+## Sprint P4 Definition of Done
+- [ ] `NicheToIdeasState` per plan §5; one run = 4 artifacts + 4 execution rows
+- [ ] **Human touchpoint:** Telegram niche → ranked ideas with 7-axis scores + alternatives
+
+---
+
+# Sprint P5 — Idea→Script Block
+
+**Goal:** Second block; cyclic write→score→fact-check→refine with bounded convergence; external search isolated.
+**Status:** planned
+**Points:** 16
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P5-S1 | Script Writer worker (write ×N) | 3 | planned |
+| P5-S2 | Quality/virality scorer worker | 3 | planned |
+| P5-S3 | Fact-check tool integration (web search) | 3 | planned |
+| P5-S4 | Refine loop + convergence logic ⚠️ spike | 5 | planned |
+| P5-S5 | Assemble idea_to_script graph + interfaces (+ IdeaToScriptState) | 2 | planned |
+
+**Execution order:** P5-S1 → (P5-S2 ∥ P5-S3) → P5-S4 → P5-S5. Soft-parallel with P4 after P2.
+
+## Sprint P5 Definition of Done
+- [ ] Loop converges or stops at `max_iterations`; iteration is a typed state channel (D057)
+- [ ] **Human touchpoint:** Telegram idea → fact-checked `script` artifact
+
+---
+
+# Sprint P6 — Orchestrator + Legacy Bridge
+
+**Goal:** Parent graph chains niche→ideas → idea→script → legacy render via the adapter; optional HITL gates; one command → video.
+**Status:** planned
+**Points:** 13
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P6-S1 | Legacy adapter (interface + in-process impl) | 3 | planned |
+| P6-S2 | Legacy-as-node + parent graph (+ PipelineState) | 5 | planned |
+| P6-S3 | Human-in-the-loop gates | 3 | planned |
+| P6-S4 | End-to-end /produce → video | 2 | planned |
+
+**Execution order:** P6-S1 → P6-S2 → (P6-S3 ∥ P6-S4). P6-S3 needs P2-S4.
+
+## Sprint P6 Definition of Done
+- [ ] Only the adapter imports `src/`; legacy unchanged and still operable
+- [ ] One run threads lineage across blocks + legacy node
+- [ ] **Human touchpoint:** operator runs `/produce <niche>` and downloads the finished video
+
+---
+
+# Sprint P7 — Analytics & Attribution
+
+**Goal:** Close the loop — which prompt/worker version produced higher-retention videos.
+**Status:** planned
+**Points:** 11
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P7-S1 | Publish linkage capture | 3 | planned |
+| P7-S2 | YouTube analytics ingestion worker | 5 | planned |
+| P7-S3 | Attribution query + report | 3 | planned |
+
+**Execution order:** P7-S1 → P7-S2 → P7-S3. (P7-S2 can be prototyped early — needs only video IDs.)
+
+## Sprint P7 Definition of Done
+- [ ] `published_videos` + `video_metrics` populated; lineage join works
+- [ ] **Human touchpoint:** operator reads a report ranking prompt versions by retention

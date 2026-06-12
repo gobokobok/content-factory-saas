@@ -5,6 +5,105 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D057 — Artifacts are truth; state is a message bus
+**Date:** 2026-06-12
+**Decision:** In the platform layer, LangGraph graph state carries **only** artifact references (`stage_name -> r2_key`) and strict control signals. It never carries artifact bodies and never exposes a free-form mutation channel. The durable source of truth for every output is the artifact in R2, indexed in Postgres. State is ephemeral intra-run transport.
+**Rationale:** An untyped state-delta channel is the seam through which lineage-first systems decay — it becomes a hidden side-channel and a second, unversioned data store, making analytics untrustworthy and runs un-reproducible. Restricting state to refs + control makes that failure mode structurally impossible, keeps LangGraph checkpoints small, and guarantees the body of record is always the versioned R2 artifact.
+**Consequence:** `WorkerOutput` has no `state_delta`. Control *values* (iteration counters, mode) are typed channels on the per-stage `StageState`, updated by graph reducers; the graph (not the worker) enforces loop bounds.
+**See:** docs/v2_platform_plan.md §3, §4. **No new dependencies.**
+
+---
+
+## D056 — LangGraph abstraction model: Worker = Node
+**Date:** 2026-06-12
+**Decision:** A worker **is** a LangGraph node implementation. The hierarchy is fixed: **Worker → Node** (atomic state-transformer), **Stage → StateGraph** (composition of workers), **Platform → Graph-of-graphs** (orchestrator composing stages). A worker is stateless and pure (D040 applies), receives a typed `StageState`, returns a typed `WorkerOutput`, is version-pinned (worker_version + prompt_version + model), and **emits exactly one artifact per execution** — written by the observability wrapper, not the worker body. Control-flow/routing is graph edges, not workers (no artifact, not logged as a worker_execution). IO adapters (source adapters, legacy adapter) are not workers (see D050, D057).
+**Rationale:** The plan previously *implied* this model but never stated it contractually, risking drift during implementation (workers becoming services, nodes becoming wrappers, lineage fragmenting). Making it an enforceable contract — the same way D040 is enforced in review — keeps decomposition stable and lineage consistent.
+**Enforcement:** Code review. Documented in ARCHITECTURE.md (LangGraph abstraction model) and CONVENTIONS.md.
+**See:** docs/v2_platform_plan.md §3–§5. **No new dependencies** (contract only).
+
+---
+
+## D055 — Replay-ready constraints (enables Epic 34)
+**Date:** 2026-06-12
+**Decision:** Logged now to constrain present work (same pattern as D040/D041): (1) artifacts are immutable — a re-run writes a new version, never mutates in place; (2) prompts are version-pinned and stored by version in the Worker Registry so they are retrievable for replay; (3) `execution = f(prompt_version, model, inputs, sampling_params)` — `sampling_params` (temperature/top_p/top_k) are pinned and recorded in lineage.
+**Rationale:** The platform's analytics thesis requires causal clarity. Holding inputs + prompt_version + model + sampling_params fixed makes run-to-run variation attributable to LLM sampling alone (averageable across N runs), never confounded with silent config drift. This is the foundation that makes the Epic 34 replay/evaluation engine cheap to add later.
+**Honest limit:** Anthropic exposes no request seed, so executions are reproducible *up to sampling noise at fixed params* — params are a controlled, recorded variable, not a hidden one. Full bitwise reproducibility is not claimed.
+**See:** docs/v2_platform_plan.md §3 (law 6), Epic 34. **No new dependencies.**
+
+---
+
+## D054 — YouTube Analytics ingestion (channel-owner OAuth + scheduler)
+**Date:** 2026-06-12
+**Decision:** Analytics attribution (P7) ingests retention/views/avg-view-%/CTR per video from the YouTube Analytics API using a channel-owner OAuth token, on a schedule (Railway scheduled task), writing time-series rows to `video_metrics`. Run↔video linkage is captured in `published_videos` (operator records the published URL until a publish agent exists).
+**Rationale:** Closing the learning loop ("which prompt_version → retention") requires online performance data joined to lineage. YouTube Analytics is the first metrics source; OAuth here is a precursor to the per-user identity work (S19).
+**Dependency (when implemented):** YouTube Analytics OAuth client + a scheduler. Must be reflected in requirements.txt with this entry.
+**See:** docs/v2_platform_plan.md §6, Epic 33 (P7).
+
+---
+
+## D053 — Web-search tool for the Idea→Script fact-check loop
+**Date:** 2026-06-12
+**Decision:** The Idea→Script block (P5) includes a fact-check node that verifies claims via a web-search tool, isolated in its own story (P5-S3) so the cyclic refine loop (P5-S4) is not blocked by tool-integration issues. Provider (Anthropic web search tool vs. a search API) is selected at P5 planning.
+**Rationale:** Fact-checking is the quality gate that makes generated scripts trustworthy. Isolating the external dependency de-risks the convergence logic and keeps the loop deterministic in structure.
+**Dependency (when implemented):** a web-search tool/provider — requirements.txt + final provider choice recorded at P5.
+**See:** docs/v2_platform_plan.md §8 (P5).
+
+---
+
+## D052 — LangGraph as orchestration/agent engine (supersedes D042)
+**Date:** 2026-06-12
+**Decision:** The platform's blocks and workers are authored in **LangGraph** (StateGraph of nodes), with the **Postgres checkpointer** providing durability, resume across Railway restarts, and human-in-the-loop via `interrupt`. This **supersedes D042 (Inngest)**. The `anthropic` SDK + existing `ModelRouter` are kept **inside** nodes — `langchain-anthropic` is not adopted (preserves cost lineage, minimizes dependency surface).
+**Rationale:** The D041 target is full of reasoning loops (write→score→fact-check; generate→critique→refine) — graphs with cycles, which is LangGraph's core strength and awkward in Inngest. The future legacy rebuild (Epic 32) as "a workflow of workers" is LangGraph's exact use case. D040's pure async functions already satisfy the LangGraph node contract, so adoption is drop-in.
+**Honest limit:** LangGraph + PostgresSaver gives durable *state* + resume, but not a managed always-on, auto-resume-after-deploy service (that is LangGraph Platform, paid). At single-operator POC scale, graphs run in a background worker and resume from the checkpoint — acceptable; revisit if true fire-and-forget across deploys is needed.
+**Dependencies (P1/P2):** `langgraph`, `langgraph-checkpoint-postgres`. Add to requirements.txt at P1/P2 with this entry.
+**See:** docs/v2_platform_plan.md §2, §8.
+
+---
+
+## D051 — Worker / lineage envelope
+**Date:** 2026-06-12
+**Decision:** Every worker execution records a `WorkerExecution` row: `run_id, worker, worker_version, prompt_version, model, sampling_params, input_tokens, output_tokens, cost_usd, latency_ms, status, artifact_r2_key, started_at, finished_at`. Lineage fields are **columns, not JSON** so analytics joins are SQL `GROUP BY`, not blob scans. The Worker Registry resolves version/model/sampling_params and the observability wrapper writes the row (D056).
+**Rationale:** Lineage is the differentiator of the whole platform. Promoting `ModelRouter`'s ad-hoc cost logging into a first-class, queryable execution record is what makes the system observable and the analytics loop (P7) and replay engine (Epic 34) possible.
+**See:** docs/v2_platform_plan.md §4, §6. **No new dependencies** (uses Postgres from D048).
+
+---
+
+## D050 — Discovery via SourceAdapter Protocol; adapters emit trace events
+**Date:** 2026-06-12
+**Decision:** The Discovery worker (P3) reads signals through a `SourceAdapter` Protocol (`fetch(niche, params) -> list[Signal]`). The contract is defined in P0; concrete adapters (`reddit`, `google_trends`, `youtube`) are implemented in P3 with partial-failure isolation (one dead source ≠ dead worker). Adapters are **IO, not workers** — they emit `TraceEvent` rows (source, op, latency, cost, status), never artifacts. Adding a 4th source (NewsAPI, Apify) is a new adapter file, not a rework. **X/Twitter is dropped** for the free-tier constraint and added later, likely via **Apify**.
+**Rationale:** Multi-source discovery sprawls without a fixed interface. Separating IO adapters (trace events) from workers (artifacts) preserves per-source observability — contribution, cost, retrieval debugging — without polluting the worker/lineage layer or breaking the one-artifact-per-worker rule.
+**Dependencies (when implemented, P3):** Reddit/Trends/YouTube access (httpx-first; `praw`/`pytrends` only if pragmatic — separate entry if added). Env: `REDDIT_*`, `YOUTUBE_API_KEY`.
+**See:** docs/v2_platform_plan.md §3 (law 5), §4.
+
+---
+
+## D049 — Telegram as a thin trigger layer (httpx); formatter rule
+**Date:** 2026-06-12
+**Decision:** Telegram integration is a trigger-only layer: `POST /telegram/webhook` validates a secret token, parses commands (`/ideas`, `/script`, `/produce`), and calls a block — **no business logic**. Implemented with plain `httpx` (no bot SDK), mirroring the Deepgram/ElevenLabs pattern. **Rule:** interfaces (Telegram, REST-chat) emit output **only via a formatter** (`format_for_chat(artifact) -> str`); they never serialize an internal `Artifact`/state schema directly to chat.
+**Rationale:** Keeping Telegram thin prevents business logic from fragmenting across interfaces. The formatter rule prevents internal schema coupling from leaking into UX (which would make schema changes break chat).
+**Dependencies:** none (httpx already present). Env: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`.
+**See:** docs/v2_platform_plan.md §8 (P3).
+
+---
+
+## D048 — Postgres as the metadata index (required + early, analytics-shaped)
+**Date:** 2026-06-12
+**Decision:** Introduce Railway Postgres as the queryable metadata index for the platform, from the skeleton phase (P2). **R2 remains the source of truth for artifact bodies; Postgres is the index** — `artifacts` rows store the R2 key + lineage columns, never the body. Core tables: `runs`, `artifacts`, `worker_executions`, `trace_events`; reserved for P7: `published_videos`, `video_metrics`. Migration tooling (raw SQL runner vs Alembic) chosen at P0-S4 (leaning raw SQL for a small schema).
+**Rationale:** The platform's purpose is observability and version-vs-outcome analytics. R2 blobs are not queryable; "which prompt_version → retention" must be a SQL join, which requires lineage as columns. Retrofitting this later means rebuilding the blocks, so Postgres is required and early — not deferrable. Railway Postgres is one click and fault-isolated from the legacy app.
+**Dependencies (P2):** `psycopg`, Railway Postgres plugin. Add to requirements.txt at P2 with this entry.
+**See:** docs/v2_platform_plan.md §6.
+
+---
+
+## D047 — Isolate legacy by wrapping (adapter), not moving
+**Date:** 2026-06-12
+**Decision:** The existing Script→Video pipeline in `src/` stays in place and **untouched**. The new `platform/` package reaches it **only** through `platform/adapters/legacy_video.py`, which is the single module permitted to import from `src/`. The adapter is defined as an interface (Protocol) with an in-process implementation now (calls `src/pipeline.py`), designed so a separate-service HTTP implementation is a one-class swap later.
+**Rationale:** Physically relocating a working, ~750-test tree on day one is high-risk for zero functional gain. Enforcing isolation by *dependency direction* (`platform → adapter → src`, never reverse) achieves the same separation with no migration risk — and D040 (pure async functions) makes the adapter nearly free. The interface is also the stable seam that lets the legacy implementation be rebuilt later (Epic 32) without the platform noticing.
+**Constraint:** No module in `src/` may import `platform/`. Enforced in code review, like D040.
+**See:** docs/v2_platform_plan.md §2, §3 (law 1). **No new dependencies.**
+
+---
+
 ## D046 — Bound assign_words_to_scenes lookahead to prevent drift
 **Date:** 2026-06-11
 **Decision:** Limit `assign_words_to_scenes` (src/ffmpeg_builder.py) to scanning at most `_MATCH_WINDOW` (15) Deepgram words ahead of the current position for each voiceover token. A token with no match in that window is skipped without advancing position, instead of scanning unboundedly to the end of the transcript.
@@ -48,6 +147,7 @@ With `smart_format: "false"`, Deepgram transcribes numbers as the words actually
 
 ## D042 — Inngest as durable workflow engine for Sprint 20+
 **Date:** 2026-06-04
+**Status:** SUPERSEDED by D052 (2026-06-12) — LangGraph + Postgres checkpointer chosen as the orchestration/agent engine for the v2 platform. Retained for history.
 **Decision:** When the pipeline transitions from human-triggered steps to autonomous multi-agent orchestration (Sprint 20+), the orchestration layer will be **Inngest** (managed durable workflow engine).
 **Rationale:**
 - FastAPI `BackgroundTasks` (Sprint 13) solves the Railway 60s timeout problem but is not durable — it dies with the process. A 15-minute agentic pipeline needs checkpointed state that survives Railway deploys and restarts.

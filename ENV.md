@@ -79,6 +79,29 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 
 ---
 
+## Platform v2 (Sprints P0–P7)
+
+New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISIONS.md D047–D057. Required-from column notes the sprint each becomes required.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | P2+ | Railway Postgres connection string — platform metadata index (D048). Lazy/fault-isolated: outage must not affect the legacy app. |
+| `TELEGRAM_BOT_TOKEN` | P3+ | Telegram bot token for the trigger interface (D049). |
+| `TELEGRAM_WEBHOOK_SECRET` | P3+ | Shared secret to validate inbound Telegram webhook calls (D049). |
+| `REDDIT_CLIENT_ID` | P3+ | Reddit API client id — Discovery source adapter (D050). |
+| `REDDIT_CLIENT_SECRET` | P3+ | Reddit API client secret (D050). |
+| `REDDIT_USER_AGENT` | P3+ | Reddit API user-agent string (D050). |
+| `YOUTUBE_API_KEY` | P3+ | YouTube Data API v3 key — Discovery source adapter (D050). |
+| `WEB_SEARCH_API_KEY` | P5+ | Web-search provider key for the Idea→Script fact-check loop (D053). Provider chosen at P5. |
+| `YT_ANALYTICS_OAUTH_CLIENT_ID` | P7+ | YouTube Analytics OAuth client id — metrics ingestion (D054). |
+| `YT_ANALYTICS_OAUTH_CLIENT_SECRET` | P7+ | YouTube Analytics OAuth client secret (D054). |
+| `YT_ANALYTICS_REFRESH_TOKEN` | P7+ | Channel-owner refresh token for YouTube Analytics (D054). |
+| `PLATFORM_DEFAULT_USER_ID` | P1+ | Default user_id for the R2 key scheme `users/{user_id}/...` until multi-tenant identity (S19) lands. |
+
+> Discovery may optionally use `praw`/`pytrends` instead of raw httpx — only if pragmatic, and only with a DECISIONS.md entry. X/Twitter is intentionally excluded (free-tier constraint); added later via Apify.
+
+---
+
 ## How to set in Railway
 1. Go to your Railway service → Variables tab
 2. Add each variable

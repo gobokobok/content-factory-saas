@@ -176,3 +176,25 @@ This is a hard architectural constraint, not a style preference. It is required 
 
 ### Rationale
 Logged as D040 in DECISIONS.md.
+
+---
+
+## Platform v2 — worker/node contract (D056) and state discipline (D057)
+
+Applies to all code under `platform/`. Canonical spec: docs/v2_platform_plan.md §3–§5. Enforced in code review like D040.
+
+### Worker = Node
+- A **worker IS a LangGraph node implementation.** Hierarchy: **Worker → Node**, **Stage → StateGraph**, **Platform → Graph-of-graphs**.
+- A worker is **stateless and pure** (D040 applies): it receives a typed `StageState` and returns a typed `WorkerOutput`. No hidden state, no side effects in the body.
+- A worker is **version-pinned** (worker_version + prompt_version + model + sampling_params) and emits **exactly one artifact per execution** — written by the observability wrapper, **not** the worker body. The worker never knows its own `r2_key`.
+- **Routing is graph edges, not workers.** Conditional/branch logic lives on edges; it produces no artifact and no `worker_execution`.
+- **IO adapters are not workers.** Source adapters and the legacy adapter emit `TraceEvent`s, never artifacts.
+
+### State is a message bus, not a data store
+- Graph state carries **only** artifact references (`stage -> r2_key`) and strict control signals (`ControlSignal = "continue" | "retry" | "branch"`).
+- **No `state_delta` / free-form dict.** Control *values* (iteration counters, mode) are typed channels on the per-stage `StageState`, updated by graph reducers; the **graph** (not the worker) enforces loop bounds.
+- The durable source of truth is always the **artifact in R2**, indexed in Postgres. Anything that must persist or be queried is an artifact or a row — never a state field.
+
+### Reproducibility (D055)
+- Artifacts are **immutable** — a re-run writes a new version, never mutates in place.
+- `execution = f(prompt_version, model, inputs, sampling_params)`; all are pinned and recorded. (No request seed on Claude — variance is bounded, not eliminated.)

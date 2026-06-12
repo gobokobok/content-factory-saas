@@ -4129,3 +4129,947 @@ On first login, write a lightweight user profile to R2. No admin UI required for
 
 ### Handover
 _filled on completion_
+
+---
+---
+
+# CONTENT FACTORY v2 — PLATFORM TRACK (Sprints P0–P7 + Epics 32/34)
+
+> Canonical design, contracts, and decisions: **docs/v2_platform_plan.md**. Decisions D047–D057 in DECISIONS.md.
+> All v2 schemas/contracts are defined once in the plan doc; stories below reference them by name.
+> Specs are reviewed at the start of each sprint and story and adjusted if relevant.
+
+---
+
+## EPIC 26 — Platform Foundation (Sprints P0–P1)
+Contracts + skeleton + LangGraph-aware core. Legacy stays untouched (D047).
+
+---
+
+## [P0-S1] North-star spec — docs/v2_platform_plan.md
+**Epic:** E26 — Platform Foundation
+**Sprint:** P0
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** —
+
+### Goal
+Author and get approval on `docs/v2_platform_plan.md`: goals, macro architecture, platform/legacy boundary, the architectural laws, the migration arc, and the platform-MVP definition of done. **Interfaces/design only — no runtime.**
+
+### Acceptance Criteria
+- [ ] Plan doc covers: vision, macro architecture, boundary + dependency rule, LangGraph abstraction model, the 7 laws, roadmap, DoD
+- [ ] Operator reviews and approves the boundary and sequencing
+
+### Definition of Done
+- [ ] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P0-S2] Ratify decisions D047–D057
+**Epic:** E26 — Platform Foundation
+**Sprint:** P0
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** —
+
+### Goal
+Write D047–D057 into DECISIONS.md (adapter wrap, Postgres, Telegram+formatter, source adapters, lineage envelope, LangGraph supersedes Inngest, web-search, YouTube OAuth, replay constraints, worker=node, state-as-message-bus). Mark D042 superseded by D052.
+
+### Acceptance Criteria
+- [ ] D047–D057 present with rationale + dependency notes
+- [ ] D042 marked SUPERSEDED by D052
+
+### Definition of Done
+- [ ] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P0-S3] Core contracts (Pydantic) — interfaces only
+**Epic:** E26 — Platform Foundation
+**Sprint:** P0
+**Status:** planned
+**Priority:** high
+**Points:** 5
+**Depends on:** P0-S1
+
+### Goal
+Define + unit-test the universal platform contracts in `platform/core/schemas.py` (no runtime behavior): `LineageEnvelope`, `Artifact`, `RunRecord`, `WorkerExecution`, `WorkerOutput` + `ControlSignal`, `StageState` base (refs + control only), `TraceEvent`, `SourceAdapter` Protocol, `WorkerNode` type. See plan doc §4.
+**Tech:** Pydantic v2, pytest. **Artifacts:** schema module + validation tests.
+
+### Acceptance Criteria
+- [ ] All contracts from plan §4 defined with type hints + docstrings
+- [ ] `WorkerOutput` has **no** `state_delta` (D057); `StageState.artifacts` uses an additive reducer
+- [ ] `sampling_params` present in `LineageEnvelope`/`WorkerExecution` (D055)
+- [ ] Schema-validation tests pass; **no executable behavior** (no R2/DB/LangGraph)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P0-S4] Postgres data model + analytics-join design
+**Epic:** E26 — Platform Foundation
+**Sprint:** P0
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P0-S1
+
+### Goal
+Design (not build) the Postgres schema: `runs`, `artifacts`, `worker_executions`, `trace_events`, reserved `published_videos`/`video_metrics`. Write the retention→prompt_version attribution query to prove the joins. Record migration-tooling choice (raw SQL vs Alembic). See plan doc §6.
+**Tech:** Postgres (design only), SQL.
+
+### Acceptance Criteria
+- [ ] DDL drafted with lineage as **columns** (not JSON) and analytics indexes
+- [ ] Attribution query written and reviewed; joins resolve conceptually
+- [ ] Migration tooling decided
+
+### Definition of Done
+- [ ] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P0-S5] Doc hygiene + abstraction-model docs
+**Epic:** E26 — Platform Foundation
+**Sprint:** P0
+**Status:** planned
+**Priority:** med
+**Points:** 2
+**Depends on:** P0-S2
+
+### Goal
+Add the LangGraph abstraction model (Worker=Node, Stage=Graph, Platform=Graph-of-graphs + worker invariants) to ARCHITECTURE.md and CONVENTIONS.md. Fix CLAUDE.md/SPRINT.md current-sprint drift. Note Inngest→LangGraph in ARCHITECTURE §3.
+
+### Acceptance Criteria
+- [ ] ARCHITECTURE.md has a "LangGraph abstraction model" section; Inngest reference annotated as superseded
+- [ ] CONVENTIONS.md has the worker=node + state-as-message-bus rules next to the D040 section
+- [ ] CLAUDE.md current sprint/active story point to the platform track
+
+### Definition of Done
+- [ ] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P1-S1] platform/ scaffold + router mount
+**Epic:** E26 — Platform Foundation
+**Sprint:** P1
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P0-S3
+
+### Goal
+Create the `platform/` package; mount `platform/interfaces/api.py` under `/platform` in `src/main.py`; add `GET /platform/health`. Reserve `platform/sources/`, `platform/workers/`, `platform/blocks/`, `platform/core/`, `platform/adapters/`. **Fault-isolated init** — platform import/DB errors must not crash legacy routes.
+**Tech:** FastAPI, Railway (same service).
+
+### Acceptance Criteria
+- [ ] `/platform/health` returns 200; legacy routes unchanged
+- [ ] Platform import failure does not take down the legacy app
+- [ ] Package dirs reserved per plan §2
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P1-S2] Run Manager
+**Epic:** E26 — Platform Foundation
+**Sprint:** P1
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P1-S1
+
+### Goal
+`platform/core/run_manager.py`: `create_run()` mints `run_id`, tracks lifecycle (`created→running→complete/failed`), returns `RunRecord`. Persistence behind a repository interface (in-memory impl now; Postgres in P2-S3).
+**Tech:** Python, repository pattern. **Artifacts:** `RunRecord` rows (in-memory).
+
+### Acceptance Criteria
+- [ ] `create_run` returns a unique `run_id` and a valid `RunRecord`
+- [ ] Lifecycle transitions enforced; invalid transitions rejected
+- [ ] Repository interface swappable (no Postgres coupling yet)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P1-S3] Artifact Manager → R2 (immutable, versioned)
+**Epic:** E26 — Platform Foundation
+**Sprint:** P1
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P1-S1
+
+### Goal
+`platform/core/artifact_manager.py`: `write_artifact()/read_artifact()` to R2 at `users/{user_id}/runs/{run_id}/{stage}/{name}@v{n}.json`, wrapping bodies in the `Artifact` envelope. Artifacts immutable — re-write increments version (D055). Own thin boto3 client (R2 = shared infra, not a legacy import).
+**Tech:** Cloudflare R2 (boto3), Pydantic.
+
+### Acceptance Criteria
+- [ ] Write returns an `Artifact` with a versioned `r2_key`; read round-trips
+- [ ] Re-writing the same name creates `@v{n+1}`, never overwrites
+- [ ] No import from `src/`
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P1-S4] LangGraph execution engine (Layer A)
+**Epic:** E26 — Platform Foundation
+**Sprint:** P1
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P1-S2, P1-S3
+
+### Goal
+Adopt `langgraph` (D052). Implement the Worker=Node contract: nodes are `WorkerNode`s over a `StageState`, returning `WorkerOutput`; compile/run a trivial graph with `MemorySaver`. **No lineage yet** — pure execution. ⚠️ Spike first.
+**Tech:** LangGraph (StateGraph, MemorySaver). **Dependency:** `langgraph` (D052).
+
+### Acceptance Criteria
+- [ ] A 1-node graph runs `state → WorkerOutput → state` and checkpoints in memory
+- [ ] Worker body is pure (no storage/DB knowledge)
+- [ ] `langgraph` added to requirements.txt per D052
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P1-S5] Observability wrapper (Layer B)
+**Epic:** E26 — Platform Foundation
+**Sprint:** P1
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P1-S4
+
+### Goal
+`platform/core/worker_registry.py`: `registry.wrap(node)` resolves worker_version/prompt_version/model/sampling_params (prompts stored by version), times the call, records a `WorkerExecution`, writes the node output via the Artifact Manager, and injects `{stage: r2_key}` into state. Enforces **exactly one artifact per worker execution** (D056); worker bodies stay pure.
+**Tech:** Python, ModelRouter (unchanged), Pydantic. **Artifacts:** `WorkerExecution` (in-memory until P2).
+
+### Acceptance Criteria
+- [ ] Wrapped node emits exactly one artifact + one execution record
+- [ ] Worker cannot see its own `r2_key`; wrapper produces it
+- [ ] Prompt body retrievable by `worker@prompt_version` (replay foundation, D055)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P1-S6] Echo graph end-to-end smoke
+**Epic:** E26 — Platform Foundation
+**Sprint:** P1
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P1-S5
+
+### Goal
+`POST /platform/echo {text}` → Run Manager mints run → 1-node echo graph through the wrapper → Artifact in R2 → WorkerExecution recorded → returns `{run_id, artifact_key}`. Proves the full spine (both layers composed).
+**Tech:** FastAPI, LangGraph, R2.
+
+### Acceptance Criteria
+- [ ] End-to-end call returns a run_id and a real R2 artifact key
+- [ ] Lineage record present for the echo worker
+- [ ] **Human touchpoint:** operator calls `/platform/echo` and sees the artifact in R2
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## EPIC 27 — Lineage & Observability Store (Sprint P2)
+Durable, queryable lineage in Postgres; LangGraph durability; observability endpoints (D048).
+
+---
+
+## [P2-S1] Provision Railway Postgres + connection layer
+**Epic:** E27 — Lineage & Observability
+**Sprint:** P2
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P1-S6
+
+### Goal
+Add Railway Postgres (DEV+PROD); `DATABASE_URL` env; async connection pool in `platform/core/db.py`; extend `/platform/health` with a DB check. DB outage must stay fault-isolated from legacy.
+**Tech:** Railway Postgres, `psycopg` (D048). **Dependency:** `psycopg`.
+
+### Acceptance Criteria
+- [ ] Pool connects on both envs; health reports DB status
+- [ ] DB down ≠ legacy down
+- [ ] `psycopg` added to requirements.txt per D048
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P2-S2] Schema migrations
+**Epic:** E27 — Lineage & Observability
+**Sprint:** P2
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P2-S1
+
+### Goal
+Migration runner + tables `runs`, `artifacts`, `worker_executions`, `trace_events` with lineage **columns** + analytics indexes; `published_videos`/`video_metrics` reserved (created or stubbed). See plan §6.
+**Tech:** Postgres, SQL (tooling per P0-S4).
+
+### Acceptance Criteria
+- [ ] 4 core tables created with indexes from plan §6
+- [ ] Reserved P7 tables present or stubbed
+- [ ] Migrations idempotent / re-runnable
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P2-S3] Persist Run/Artifact/Execution to Postgres
+**Epic:** E27 — Lineage & Observability
+**Sprint:** P2
+**Status:** planned
+**Priority:** high
+**Points:** 5
+**Depends on:** P2-S2
+
+### Goal
+Swap P1 in-memory repos for Postgres-backed repos. **R2 stays blob truth; PG is the index** — artifact rows store the R2 key + lineage columns, never the body. The wrapper writes a `worker_executions` row per node. Idempotent upserts.
+**Tech:** Postgres, R2, repository pattern.
+
+### Acceptance Criteria
+- [ ] Echo run now persists rows in `runs`, `artifacts`, `worker_executions`
+- [ ] Artifact bodies remain in R2 only (PG holds keys)
+- [ ] Re-running a step is idempotent
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P2-S4] LangGraph PostgresSaver checkpointer
+**Epic:** E27 — Lineage & Observability
+**Sprint:** P2
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P2-S1
+
+### Goal
+Replace `MemorySaver` with the Postgres checkpointer on the same DB. A graph run survives a process restart and resumes from its last checkpoint.
+**Tech:** LangGraph (`langgraph-checkpoint-postgres`), Postgres. **Dependency:** `langgraph-checkpoint-postgres` (D052).
+
+### Acceptance Criteria
+- [ ] Kill/restart mid-run → run resumes from last checkpoint
+- [ ] Checkpointer uses the same `DATABASE_URL`
+- [ ] Dependency added per D052
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P2-S5] Observability endpoints
+**Epic:** E27 — Lineage & Observability
+**Sprint:** P2
+**Status:** planned
+**Priority:** med
+**Points:** 2
+**Depends on:** P2-S3
+
+### Goal
+`GET /platform/runs` and `GET /platform/runs/{id}`: status, artifact list (R2 links), per-worker cost/latency/version. JSON only.
+**Tech:** FastAPI, Postgres.
+
+### Acceptance Criteria
+- [ ] List + detail endpoints return real lineage
+- [ ] **Human touchpoint:** operator inspects per-worker cost/latency/version for a run
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## EPIC 28 — Discovery & Execution Interfaces (Sprint P3)
+Telegram trigger + first real worker; signals stored with lineage (D049, D050).
+
+---
+
+## [P3-S1] Telegram webhook (trigger-only)
+**Epic:** E28 — Discovery & Execution Interfaces
+**Sprint:** P3
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P1-S6
+
+### Goal
+`POST /telegram/webhook`: validate secret token, parse `/ideas <niche>`, reply via `sendMessage`. **No business logic** — only triggers a block. Register webhook via Telegram API. Replies go through a formatter (D049).
+**Tech:** Telegram Bot API (httpx), FastAPI. **Env:** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`.
+
+### Acceptance Criteria
+- [ ] Webhook validates token; rejects unauthorized updates
+- [ ] `/ideas <niche>` parsed; ack reply sent via formatter
+- [ ] No internal schema serialized to chat (D049)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P3-S2] Discovery worker v1 + source adapters
+**Epic:** E28 — Discovery & Execution Interfaces
+**Sprint:** P3
+**Status:** planned
+**Priority:** high
+**Points:** 5
+**Depends on:** P2-S3, P0-S3
+
+### Goal
+`discovery` node: from `{niche, audience?, subtopic?}`, query Reddit + Google Trends + YouTube via `SourceAdapter` implementations in `platform/sources/`; normalize into one `signals` artifact. Partial-failure isolation (one dead source ≠ dead worker). Adapters emit `trace_event` rows per fetch (D050) — never artifacts. X/Twitter dropped (later via Apify).
+**Tech:** Reddit/Trends/YouTube (httpx-first), LangGraph node, ModelRouter (Haiku to cluster). **Env:** `REDDIT_*`, `YOUTUBE_API_KEY`. **Artifacts:** `signals` (plan §6).
+
+### Acceptance Criteria
+- [ ] 3 adapters implement the P0 `SourceAdapter` Protocol
+- [ ] Worker emits exactly one `signals` artifact; each source fetch emits a `trace_event`
+- [ ] One failing source does not fail the worker
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P3-S3] Reply formatter + wire discovery
+**Epic:** E28 — Discovery & Execution Interfaces
+**Sprint:** P3
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P3-S1, P3-S2
+
+### Goal
+`format_for_chat()` summarizes the `signals` artifact (top signals + run_id + artifact key) back to chat. End-to-end `/ideas <niche>` → summary.
+**Tech:** Telegram API, formatter.
+
+### Acceptance Criteria
+- [ ] `/ideas <niche>` returns a readable signals summary
+- [ ] **Human touchpoint:** operator sends a niche in Telegram and gets signals back
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## EPIC 29 — Niche→Ideas Block (Sprint P4)
+Full first E2E block as a LangGraph StateGraph; per-node lineage; Telegram + REST.
+
+---
+
+## [P4-S1] Topic Generator worker
+**Epic:** E29 — Niche→Ideas Block
+**Sprint:** P4
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P3-S2
+
+### Goal
+LangGraph node `signals → candidate_topics` (narrative-worthy topics). Versioned prompt `topic_generator@v1`. Implemented as a worker per D056 (one artifact).
+**Tech:** LangGraph node, anthropic + ModelRouter (GENERATE/Sonnet). **Artifacts:** `candidate_topics`.
+
+### Acceptance Criteria
+- [ ] Node emits one `candidate_topics` artifact with lineage
+- [ ] Prompt version pinned and recorded
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P4-S2] Opportunity Scoring worker
+**Epic:** E29 — Niche→Ideas Block
+**Sprint:** P4
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P4-S1
+
+### Goal
+Node scores each topic on the 7 axes (novelty, audience_relevance, emotional_trigger, search_demand, competition, evergreen_potential, monetization_relevance) + `final_score` via a versioned rubric prompt.
+**Tech:** LangGraph node, ModelRouter (Haiku/Sonnet). **Artifacts:** `scored_topics`.
+
+### Acceptance Criteria
+- [ ] Each topic scored on all 7 axes + final_score
+- [ ] One `scored_topics` artifact with lineage
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P4-S3] Topic Selector worker
+**Epic:** E29 — Niche→Ideas Block
+**Sprint:** P4
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P4-S2
+
+### Goal
+Node selects best topic (or top-N by `mode`) + alternatives → `ranked_ideas`. The `mode` branch is a **conditional edge** (routing), not worker logic (D056).
+**Tech:** LangGraph (conditional edge), Python. **Artifacts:** `ranked_ideas`.
+
+### Acceptance Criteria
+- [ ] Selector emits one `ranked_ideas` artifact (selected + alternatives)
+- [ ] `mode` routing handled by a graph edge, not inside the worker
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P4-S4] Assemble niche_to_ideas StateGraph (+ NicheToIdeasState)
+**Epic:** E29 — Niche→Ideas Block
+**Sprint:** P4
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P4-S1, P4-S2, P4-S3
+
+### Goal
+Implement `NicheToIdeasState` (plan §5) and compile the 4 nodes into `platform/blocks/niche_to_ideas.py` over that state. One run emits all intermediate artifacts + terminal `ranked_ideas`; each node a `worker_execution`; checkpointed/resumable.
+**Tech:** LangGraph (StateGraph, PostgresSaver), Run/Artifact/Registry. **Schema:** `NicheToIdeasState`.
+
+### Acceptance Criteria
+- [ ] `NicheToIdeasState` matches plan §5 (refs + `mode`/`top_n` only)
+- [ ] One run produces 4 artifacts + 4 execution rows
+- [ ] Run resumes after restart
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P4-S5] Block interfaces (REST + Telegram)
+**Epic:** E29 — Niche→Ideas Block
+**Sprint:** P4
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P4-S4
+
+### Goal
+`POST /blocks/niche-to-ideas {niche, audience?, mode?}` returns ranked ideas + run_id; Telegram `/ideas` wired to the full block (via formatter).
+**Tech:** FastAPI, Telegram.
+
+### Acceptance Criteria
+- [ ] REST + Telegram both run the full block
+- [ ] **Human touchpoint:** Telegram niche → ranked ideas with 7-axis scores + alternatives
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## EPIC 30 — Idea→Script Block (Sprint P5)
+Second block; cyclic write→score→fact-check→refine. Promotes /tools/script-generator server-side.
+
+---
+
+## [P5-S1] Script Writer worker (write ×N)
+**Epic:** E30 — Idea→Script Block
+**Sprint:** P5
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P4-S4
+
+### Goal
+Node generates N drafts from an idea + niche context. Versioned prompt (Step 2a heritage).
+**Tech:** LangGraph node, ModelRouter (Sonnet). **Artifacts:** `script_drafts`.
+
+### Acceptance Criteria
+- [ ] Node emits one `script_drafts` artifact (N drafts) with lineage
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P5-S2] Quality/virality scorer worker
+**Epic:** E30 — Idea→Script Block
+**Sprint:** P5
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P5-S1
+
+### Goal
+Node ranks drafts by virality/quality rubric → `script_scores`. Emits `control="retry"`/`"continue"` toward the loop (the graph bounds iteration).
+**Tech:** LangGraph node, ModelRouter. **Artifacts:** `script_scores`.
+
+### Acceptance Criteria
+- [ ] One `script_scores` artifact; control signal returned
+- [ ] No loop bookkeeping inside the worker (graph owns `iteration`)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P5-S3] Fact-check tool integration (web search)
+**Epic:** E30 — Idea→Script Block
+**Sprint:** P5
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P5-S1
+
+### Goal
+Fact-check node verifies claims via a web-search tool (D053) → `factcheck_report`. External dependency isolated in this story so the loop (P5-S4) is unblocked.
+**Tech:** LangGraph node, web-search tool, ModelRouter. **Dependency:** web-search provider (D053). **Artifacts:** `factcheck_report`.
+
+### Acceptance Criteria
+- [ ] Claims verified; `factcheck_report` artifact emitted
+- [ ] Web-search provider chosen + added per D053
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P5-S4] Refine loop + convergence logic
+**Epic:** E30 — Idea→Script Block
+**Sprint:** P5
+**Status:** planned
+**Priority:** high
+**Points:** 5
+**Depends on:** P5-S2, P5-S3
+
+### Goal
+Cyclic graph: writer → scorer → fact-check → refine, bounded by `iteration < max_iterations` OR `score >= quality_threshold` (typed channels on `IdeaToScriptState`; graph increments via reducer). ⚠️ Spike first.
+**Tech:** LangGraph (cycles, conditional edges), PostgresSaver.
+
+### Acceptance Criteria
+- [ ] Loop converges or stops at `max_iterations`; never infinite
+- [ ] Iteration count is a typed state channel, not a worker delta (D057)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P5-S5] Assemble idea_to_script graph + interfaces (+ IdeaToScriptState)
+**Epic:** E30 — Idea→Script Block
+**Sprint:** P5
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P5-S4
+
+### Goal
+Implement `IdeaToScriptState` (plan §5); compile `platform/blocks/idea_to_script.py`; `POST /blocks/idea-to-script` + Telegram `/script <idea|run_id>`; terminal `script` artifact; per-node lineage.
+**Tech:** LangGraph, FastAPI, Telegram. **Schema:** `IdeaToScriptState`.
+
+### Acceptance Criteria
+- [ ] `IdeaToScriptState` matches plan §5
+- [ ] **Human touchpoint:** Telegram idea → fact-checked `script` artifact
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## EPIC 31 — Orchestrator + Legacy Bridge (Sprint P6)
+Parent graph chains the blocks + legacy render via the adapter; HITL gates (D047, D052).
+
+---
+
+## [P6-S1] Legacy adapter (interface + in-process impl)
+**Epic:** E31 — Orchestrator + Legacy Bridge
+**Sprint:** P6
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P5-S5
+
+### Goal
+`platform/adapters/legacy_video.py`: `LegacyVideoAdapter` Protocol + in-process impl calling `src/pipeline.py` (script artifact → storyboard → assets → render → `final.mp4` in R2). **Only module importing `src/`** (D047). HTTP-swappable contract. Emits `trace_event`s (not artifacts of its own).
+**Tech:** Python Protocol; `src/pipeline.py`; R2. **Artifacts:** `VideoResult`.
+
+### Acceptance Criteria
+- [ ] Adapter produces `final.mp4` in R2 from a script artifact
+- [ ] Only `legacy_video.py` imports `src/`; `src/` unchanged
+- [ ] Legacy DEV/PROD pipeline still works independently
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P6-S2] Legacy-as-node + parent graph (+ PipelineState)
+**Epic:** E31 — Orchestrator + Legacy Bridge
+**Sprint:** P6
+**Status:** planned
+**Priority:** high
+**Points:** 5
+**Depends on:** P6-S1
+
+### Goal
+Implement `PipelineState` (plan §5); wrap the adapter as a LangGraph node; compile `platform/orchestrator/full_pipeline.py` composing `niche_to_ideas → idea_to_script → legacy_render`. One run threads run_id + artifacts end-to-end with full lineage; checkpointed.
+**Tech:** LangGraph (subgraph composition, PostgresSaver), adapter. **Schema:** `PipelineState`.
+
+### Acceptance Criteria
+- [ ] Parent graph runs all three stages in one run
+- [ ] Lineage spans new blocks + legacy node
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P6-S3] Human-in-the-loop gates
+**Epic:** E31 — Orchestrator + Legacy Bridge
+**Sprint:** P6
+**Status:** planned
+**Priority:** med
+**Points:** 3
+**Depends on:** P6-S2, P2-S4
+
+### Goal
+LangGraph `interrupt` at script-approval (and optional idea-selection); resume via `POST /runs/{id}/resume {decision}`; Telegram approve/edit; configurable auto-approve timeout (default fully autonomous).
+**Tech:** LangGraph interrupts, Telegram, Postgres checkpoints.
+
+### Acceptance Criteria
+- [ ] Run pauses at the gate and resumes on decision
+- [ ] Timeout auto-approves per config
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P6-S4] End-to-end /produce → video
+**Epic:** E31 — Orchestrator + Legacy Bridge
+**Sprint:** P6
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P6-S2
+
+### Goal
+Telegram `/produce <niche>` runs the whole chain; returns a presigned R2 URL for `final.mp4`. Capstone smoke test.
+**Tech:** all of the above.
+
+### Acceptance Criteria
+- [ ] One command → finished video; lineage spans blocks + legacy
+- [ ] **Human touchpoint:** operator runs `/produce <niche>` and downloads the video
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## EPIC 32 — Legacy Rebuild (post-P7, outline)
+Re-author Script→Video as native LangGraph blocks/workers; reach parity; retire `src/` + adapter. **Detailed after a P6 retro.** Representative stories (~3 sprints):
+- **E32-S1** Storyboard worker as a node (uses existing prompt heritage)
+- **E32-S2** Asset-acquisition source-adapters (Pexels/Replicate/Pixabay/Wikimedia) as IO adapters
+- **E32-S3** FFmpeg render worker as a node
+- **E32-S4** Captions/alignment nodes
+- **E32-S5** Parity harness — same input → equal-or-better output vs legacy
+- **E32-S6** Flagged cutover — `full_pipeline` points at native blocks; adapter kept as fallback
+- **E32-S7** Retire `src/` + adapter once parity holds N consecutive runs
+
+---
+
+## EPIC 33 — Analytics & Attribution (Sprint P7)
+Close the loop: which prompt/worker version → higher retention (D054).
+
+---
+
+## [P7-S1] Publish linkage capture
+**Epic:** E33 — Analytics & Attribution
+**Sprint:** P7
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P6-S4
+
+### Goal
+Capture `run_id ↔ external_video_id`. Until a publish agent exists: `POST /runs/{id}/published {platform, external_id, url}` (operator pastes the YouTube URL) → `published_videos` row.
+**Tech:** Postgres, FastAPI/Telegram. **Schema:** `published_videos`.
+
+### Acceptance Criteria
+- [ ] Endpoint records `published_videos` row linked to the run
+- [ ] Telegram convenience command available
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P7-S2] YouTube analytics ingestion worker
+**Epic:** E33 — Analytics & Attribution
+**Sprint:** P7
+**Status:** planned
+**Priority:** high
+**Points:** 5
+**Depends on:** P7-S1
+
+### Goal
+Scheduled worker pulls retention/views/avg-view-%/CTR per video → time-series `video_metrics` rows (D054).
+**Tech:** YouTube Analytics API (OAuth), Postgres, Railway scheduled task. **Dependency:** YouTube OAuth client + scheduler (D054). **Schema:** `video_metrics`.
+
+### Acceptance Criteria
+- [ ] Metrics ingested per published video on a schedule
+- [ ] `video_metrics` time-series populated
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P7-S3] Attribution query + report
+**Epic:** E33 — Analytics & Attribution
+**Sprint:** P7
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P7-S2
+
+### Goal
+`GET /platform/analytics/attribution` joins `video_metrics → published_videos → runs → worker_executions`, aggregating retention by `prompt_version`/`worker_version`/`model` (plan §6 query).
+**Tech:** Postgres (analytical query), FastAPI.
+
+### Acceptance Criteria
+- [ ] Endpoint returns retention grouped by prompt/worker version
+- [ ] **Human touchpoint:** operator reads a report ranking prompt versions by retention
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## EPIC 34 — Replay & Evaluation Engine (post-P7, outline)
+Turn passive analytics into active behavioral evolution (D055 foundation). **Detailed after P7** (~3 sprints, ~30 pts). Representative stories:
+- **E34-S1** Replay primitive — re-invoke any worker node with `{input_artifact_ref, version_override}` → replay artifact (`replay_of`, `eval_run=true`)
+- **E34-S2** Golden eval dataset — curated, versioned fixtures of historical inputs per worker
+- **E34-S3** Comparison + LLM-judge — structured diff + judge scoring across versions → `eval_results`
+- **E34-S4** A/B routing in production — version-split flag; lineage records which version ran; join to retention (P7)
+- **E34-S5** Eval leaderboard — rank prompt/worker versions by offline eval score + online retention
