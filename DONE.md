@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P0-S1] North-star spec — docs/v2_platform_plan.md
+**Completed:** 2026-06-12
+**Handover:**
+- `docs/v2_platform_plan.md` (committed in `642af5b`) is the canonical north-star spec for the Content Factory v2 Platform Track (Sprints P0–P7). All P0–P7 stories reference it for contracts, schemas, and decisions.
+- Covers: vision & key insight (§1), macro architecture (§2), the 7 architectural laws incl. the one-way `platform/ → adapter → src/` boundary (§3), core contracts (§4), per-stage StageState contracts (§5), R2/Postgres data model + attribution query (§6), D047–D057 decision table (§7), sprint roadmap P0–P7 + post-MVP epics (§8), migration arc (§9), new dependencies table (§10), Platform MVP DoD (§11), working agreement (§12).
+- Legacy Script→Video pipeline (`src/`) stays untouched and operable (D047) — platform is additive.
+- D047–D057 are recorded in the plan doc but not yet in DECISIONS.md — that's **P0-S2**'s scope (includes marking D042 superseded by D052).
+- No code, ENV vars, or dependencies introduced — interfaces/design only, per architectural law 7 (P0 produces interfaces only).
+**Smoke test:** PASSED — operator reviewed `docs/v2_platform_plan.md` and approved the platform/legacy boundary and P0–P7 sequencing on 2026-06-12.
+**Promoted to backlog:** none
+
+---
+
 ## [S14-S3] Asset Mode column in storyboard table
 **Completed:** 2026-06-05
 **Handover:**

@@ -4149,7 +4149,8 @@ Contracts + skeleton + LangGraph-aware core. Legacy stays untouched (D047).
 ## [P0-S1] North-star spec — docs/v2_platform_plan.md
 **Epic:** E26 — Platform Foundation
 **Sprint:** P0
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-12
 **Priority:** high
 **Points:** 2
 **Depends on:** —
@@ -4158,14 +4159,17 @@ Contracts + skeleton + LangGraph-aware core. Legacy stays untouched (D047).
 Author and get approval on `docs/v2_platform_plan.md`: goals, macro architecture, platform/legacy boundary, the architectural laws, the migration arc, and the platform-MVP definition of done. **Interfaces/design only — no runtime.**
 
 ### Acceptance Criteria
-- [ ] Plan doc covers: vision, macro architecture, boundary + dependency rule, LangGraph abstraction model, the 7 laws, roadmap, DoD
-- [ ] Operator reviews and approves the boundary and sequencing
+- [x] Plan doc covers: vision, macro architecture, boundary + dependency rule, LangGraph abstraction model, the 7 laws, roadmap, DoD
+- [x] Operator reviews and approves the boundary and sequencing
 
 ### Definition of Done
-- [ ] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `docs/v2_platform_plan.md` (committed in `642af5b`) is the canonical north-star spec for the v2 platform track — referenced by all P0–P7 stories for contracts and schemas.
+- Operator reviewed and approved the `platform/ → adapter → src/` one-way boundary and the P0–P7 sequencing on 2026-06-12.
+- D047–D057 are documented in §7 of the plan doc; ratifying them into DECISIONS.md (with D042 marked superseded by D052) is the scope of **P0-S2**, the next story.
+- No code, ENV vars, or dependencies introduced (interfaces/design only, per architectural law 7).
 
 ---
 
