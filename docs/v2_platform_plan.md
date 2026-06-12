@@ -17,7 +17,7 @@ Niche → Ideas → Script → Storyboard → Assets → Video → Analytics
 
 The platform must be: modular (each stage independently callable), observable, **artifact-first**, and **versioned for analytics** — so we can later answer questions like *"which prompt_version produced higher-retention videos?"*.
 
-We do **not** start a new project and we do **not** rewrite the legacy system. We add a bounded `platform/` subsystem alongside the running `src/` pipeline, with strict one-way isolation, and migrate over time.
+We do **not** start a new project and we do **not** rewrite the legacy system. We add a bounded `cf_platform/` subsystem alongside the running `src/` pipeline, with strict one-way isolation, and migrate over time.
 
 This destination was already committed in DECISIONS.md D041 (multi-agent target) and is enabled by D040 (pure async functions). v2 re-sequences the work to build the platform seam **now** and supersedes the orchestration choice (D042 Inngest → **D052 LangGraph**).
 
@@ -47,16 +47,16 @@ This destination was already committed in DECISIONS.md D041 (multi-agent target)
 Legacy is reached **only** through an adapter:
 
 ```
-platform/  ──►  platform/adapters/legacy_video.py  ──►  src/ (Script→Video, UNTOUCHED)
+cf_platform/  ──►  cf_platform/adapters/legacy_video.py  ──►  src/ (Script→Video, UNTOUCHED)
 ```
 
-`src/` never imports `platform/`. This is the only allowed coupling and the seam that lets us rebuild legacy later (Epic 32) without touching the platform.
+`src/` never imports `cf_platform/`. This is the only allowed coupling and the seam that lets us rebuild legacy later (Epic 32) without touching the platform.
 
 ---
 
 ## 3. Architectural laws (non-negotiable, enforced in code review)
 
-1. **Dependency direction is one-way.** `platform → adapter → src`. Nothing in `src/` imports `platform/`. (D047)
+1. **Dependency direction is one-way.** `cf_platform → adapter → src`. Nothing in `src/` imports `cf_platform/`. (D047)
 2. **Worker = Node.** A worker *is* a LangGraph node implementation. Hierarchy: **Worker → Node**, **Stage → StateGraph**, **Platform → Graph-of-graphs**. (D056)
 3. **Workers are pure state-transformers.** Stateless, side-effect-free (D040 applies). Their only output is the returned `WorkerOutput`; the artifact is written by the **wrapper**, not the worker body. Exactly **one artifact per worker execution**.
 4. **Artifacts are truth; state is a message bus.** Graph state carries only **artifact references** and **control signals** — never bodies, never a free-form mutation channel. The durable source of truth is the artifact in R2, indexed in Postgres. State must never become a second data store. (D057)
@@ -311,7 +311,7 @@ Platform MVP (P0–P6) = **97 pts**; with analytics (P7) = **108 pts**.
 
 ```
 Now      legacy monolith in src/   (running in DEV + PROD)
-P0–P6    platform/ added · new blocks = LangGraph graphs · legacy called via adapter
+P0–P6    cf_platform/ added · new blocks = LangGraph graphs · legacy called via adapter
 P7       analytics loop closed (retention → prompt_version)
 Epic 32  re-author Script→Video AS LangGraph blocks/workers → parity → retire src/ + adapter
 Epic 34  replay & evaluation → active, measurable behavioral evolution

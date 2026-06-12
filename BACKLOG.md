@@ -4167,7 +4167,7 @@ Author and get approval on `docs/v2_platform_plan.md`: goals, macro architecture
 
 ### Handover
 - `docs/v2_platform_plan.md` (committed in `642af5b`) is the canonical north-star spec for the v2 platform track — referenced by all P0–P7 stories for contracts and schemas.
-- Operator reviewed and approved the `platform/ → adapter → src/` one-way boundary and the P0–P7 sequencing on 2026-06-12.
+- Operator reviewed and approved the `cf_platform/ → adapter → src/` one-way boundary and the P0–P7 sequencing on 2026-06-12.
 - D047–D057 are documented in §7 of the plan doc; ratifying them into DECISIONS.md (with D042 marked superseded by D052) is the scope of **P0-S2**, the next story.
 - No code, ENV vars, or dependencies introduced (interfaces/design only, per architectural law 7).
 
@@ -4203,26 +4203,32 @@ Write D047–D057 into DECISIONS.md (adapter wrap, Postgres, Telegram+formatter,
 ## [P0-S3] Core contracts (Pydantic) — interfaces only
 **Epic:** E26 — Platform Foundation
 **Sprint:** P0
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-12
 **Priority:** high
 **Points:** 5
 **Depends on:** P0-S1
 
 ### Goal
-Define + unit-test the universal platform contracts in `platform/core/schemas.py` (no runtime behavior): `LineageEnvelope`, `Artifact`, `RunRecord`, `WorkerExecution`, `WorkerOutput` + `ControlSignal`, `StageState` base (refs + control only), `TraceEvent`, `SourceAdapter` Protocol, `WorkerNode` type. See plan doc §4.
+Define + unit-test the universal platform contracts in `cf_platform/core/schemas.py` (no runtime behavior): `LineageEnvelope`, `Artifact`, `RunRecord`, `WorkerExecution`, `WorkerOutput` + `ControlSignal`, `StageState` base (refs + control only), `TraceEvent`, `SourceAdapter` Protocol, `WorkerNode` type. See plan doc §4.
 **Tech:** Pydantic v2, pytest. **Artifacts:** schema module + validation tests.
 
 ### Acceptance Criteria
-- [ ] All contracts from plan §4 defined with type hints + docstrings
-- [ ] `WorkerOutput` has **no** `state_delta` (D057); `StageState.artifacts` uses an additive reducer
-- [ ] `sampling_params` present in `LineageEnvelope`/`WorkerExecution` (D055)
-- [ ] Schema-validation tests pass; **no executable behavior** (no R2/DB/LangGraph)
+- [x] All contracts from plan §4 defined with type hints + docstrings
+- [x] `WorkerOutput` has **no** `state_delta` (D057); `StageState.artifacts` uses an additive reducer
+- [x] `sampling_params` present in `LineageEnvelope`/`WorkerExecution` (D055)
+- [x] Schema-validation tests pass; **no executable behavior** (no R2/DB/LangGraph)
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/core/schemas.py` (new) — all P0-S3 contracts: `LineageEnvelope`, `Artifact`, `RunRecord`, `WorkerExecution`, `ControlSignal`, `WorkerOutput`, `WorkerNode`, `merge_refs`, `StageState`, `TraceEvent`, `Signal` (minimal placeholder for the Protocol below), `SourceAdapter` Protocol. Pure Pydantic v2 models — no R2/DB/LangGraph imports, no runtime behavior.
+- `cf_platform/__init__.py`, `cf_platform/core/__init__.py` (new) — package scaffolding for P1+.
+- `tests/cf_platform/test_schemas.py` (new) — 28 schema-validation tests covering defaults, closed Literal sets (`status`, `control`), `sampling_params` presence, the `merge_refs` additive reducer, absence of `state_delta`, and the `SourceAdapter` Protocol shape. 856 total passing.
+- **Naming fix (blocker found mid-story):** the plan's `platform/` package name collides with Python's stdlib `platform` module — with the repo root on `sys.path` (as `python -m pytest` and Railway's `uvicorn` invocation both do), `import platform` resolved to this new package instead of the stdlib module, breaking pytest itself and any dependency that does `import platform` (e.g. `requests`, `multiprocessing`) at runtime. Operator chose **`cf_platform`** as the replacement name. Renamed throughout: `cf_platform/` package + all path references in `docs/v2_platform_plan.md`, SPRINT.md, BACKLOG.md, CONVENTIONS.md, DECISIONS.md (D047), CLAUDE.md. HTTP route prefixes (`/platform/echo`, `/platform/health`, etc.) were left unchanged — they're URL strings, not Python imports, so no collision. **All future P1+ stories referencing `platform/...` paths must use `cf_platform/...`.**
+- No new ENV vars. No new dependencies (pydantic 2.13 already in `requirements.txt`).
+- Next story in execution order: **P0-S4** (Postgres data model + analytics-join design), independent of P0-S3, can run in parallel with P0-S5 per SPRINT.md execution order P0-S1 → P0-S2 → (P0-S3 ∥ P0-S4) → P0-S5.
 
 ---
 
@@ -4275,7 +4281,7 @@ _filled on completion_
 
 ---
 
-## [P1-S1] platform/ scaffold + router mount
+## [P1-S1] cf_platform/ scaffold + router mount
 **Epic:** E26 — Platform Foundation
 **Sprint:** P1
 **Status:** planned
@@ -4284,7 +4290,7 @@ _filled on completion_
 **Depends on:** P0-S3
 
 ### Goal
-Create the `platform/` package; mount `platform/interfaces/api.py` under `/platform` in `src/main.py`; add `GET /platform/health`. Reserve `platform/sources/`, `platform/workers/`, `platform/blocks/`, `platform/core/`, `platform/adapters/`. **Fault-isolated init** — platform import/DB errors must not crash legacy routes.
+Create the `cf_platform/` package; mount `cf_platform/interfaces/api.py` under `/platform` in `src/main.py`; add `GET /platform/health`. Reserve `cf_platform/sources/`, `cf_platform/workers/`, `cf_platform/blocks/`, `cf_platform/core/`, `cf_platform/adapters/`. **Fault-isolated init** — platform import/DB errors must not crash legacy routes.
 **Tech:** FastAPI, Railway (same service).
 
 ### Acceptance Criteria
@@ -4309,7 +4315,7 @@ _filled on completion_
 **Depends on:** P1-S1
 
 ### Goal
-`platform/core/run_manager.py`: `create_run()` mints `run_id`, tracks lifecycle (`created→running→complete/failed`), returns `RunRecord`. Persistence behind a repository interface (in-memory impl now; Postgres in P2-S3).
+`cf_platform/core/run_manager.py`: `create_run()` mints `run_id`, tracks lifecycle (`created→running→complete/failed`), returns `RunRecord`. Persistence behind a repository interface (in-memory impl now; Postgres in P2-S3).
 **Tech:** Python, repository pattern. **Artifacts:** `RunRecord` rows (in-memory).
 
 ### Acceptance Criteria
@@ -4334,7 +4340,7 @@ _filled on completion_
 **Depends on:** P1-S1
 
 ### Goal
-`platform/core/artifact_manager.py`: `write_artifact()/read_artifact()` to R2 at `users/{user_id}/runs/{run_id}/{stage}/{name}@v{n}.json`, wrapping bodies in the `Artifact` envelope. Artifacts immutable — re-write increments version (D055). Own thin boto3 client (R2 = shared infra, not a legacy import).
+`cf_platform/core/artifact_manager.py`: `write_artifact()/read_artifact()` to R2 at `users/{user_id}/runs/{run_id}/{stage}/{name}@v{n}.json`, wrapping bodies in the `Artifact` envelope. Artifacts immutable — re-write increments version (D055). Own thin boto3 client (R2 = shared infra, not a legacy import).
 **Tech:** Cloudflare R2 (boto3), Pydantic.
 
 ### Acceptance Criteria
@@ -4384,7 +4390,7 @@ _filled on completion_
 **Depends on:** P1-S4
 
 ### Goal
-`platform/core/worker_registry.py`: `registry.wrap(node)` resolves worker_version/prompt_version/model/sampling_params (prompts stored by version), times the call, records a `WorkerExecution`, writes the node output via the Artifact Manager, and injects `{stage: r2_key}` into state. Enforces **exactly one artifact per worker execution** (D056); worker bodies stay pure.
+`cf_platform/core/worker_registry.py`: `registry.wrap(node)` resolves worker_version/prompt_version/model/sampling_params (prompts stored by version), times the call, records a `WorkerExecution`, writes the node output via the Artifact Manager, and injects `{stage: r2_key}` into state. Enforces **exactly one artifact per worker execution** (D056); worker bodies stay pure.
 **Tech:** Python, ModelRouter (unchanged), Pydantic. **Artifacts:** `WorkerExecution` (in-memory until P2).
 
 ### Acceptance Criteria
@@ -4439,7 +4445,7 @@ Durable, queryable lineage in Postgres; LangGraph durability; observability endp
 **Depends on:** P1-S6
 
 ### Goal
-Add Railway Postgres (DEV+PROD); `DATABASE_URL` env; async connection pool in `platform/core/db.py`; extend `/platform/health` with a DB check. DB outage must stay fault-isolated from legacy.
+Add Railway Postgres (DEV+PROD); `DATABASE_URL` env; async connection pool in `cf_platform/core/db.py`; extend `/platform/health` with a DB check. DB outage must stay fault-isolated from legacy.
 **Tech:** Railway Postgres, `psycopg` (D048). **Dependency:** `psycopg`.
 
 ### Acceptance Criteria
@@ -4593,7 +4599,7 @@ _filled on completion_
 **Depends on:** P2-S3, P0-S3
 
 ### Goal
-`discovery` node: from `{niche, audience?, subtopic?}`, query Reddit + Google Trends + YouTube via `SourceAdapter` implementations in `platform/sources/`; normalize into one `signals` artifact. Partial-failure isolation (one dead source ≠ dead worker). Adapters emit `trace_event` rows per fetch (D050) — never artifacts. X/Twitter dropped (later via Apify).
+`discovery` node: from `{niche, audience?, subtopic?}`, query Reddit + Google Trends + YouTube via `SourceAdapter` implementations in `cf_platform/sources/`; normalize into one `signals` artifact. Partial-failure isolation (one dead source ≠ dead worker). Adapters emit `trace_event` rows per fetch (D050) — never artifacts. X/Twitter dropped (later via Apify).
 **Tech:** Reddit/Trends/YouTube (httpx-first), LangGraph node, ModelRouter (Haiku to cluster). **Env:** `REDDIT_*`, `YOUTUBE_API_KEY`. **Artifacts:** `signals` (plan §6).
 
 ### Acceptance Criteria
@@ -4719,7 +4725,7 @@ _filled on completion_
 **Depends on:** P4-S1, P4-S2, P4-S3
 
 ### Goal
-Implement `NicheToIdeasState` (plan §5) and compile the 4 nodes into `platform/blocks/niche_to_ideas.py` over that state. One run emits all intermediate artifacts + terminal `ranked_ideas`; each node a `worker_execution`; checkpointed/resumable.
+Implement `NicheToIdeasState` (plan §5) and compile the 4 nodes into `cf_platform/blocks/niche_to_ideas.py` over that state. One run emits all intermediate artifacts + terminal `ranked_ideas`; each node a `worker_execution`; checkpointed/resumable.
 **Tech:** LangGraph (StateGraph, PostgresSaver), Run/Artifact/Registry. **Schema:** `NicheToIdeasState`.
 
 ### Acceptance Criteria
@@ -4868,7 +4874,7 @@ _filled on completion_
 **Depends on:** P5-S4
 
 ### Goal
-Implement `IdeaToScriptState` (plan §5); compile `platform/blocks/idea_to_script.py`; `POST /blocks/idea-to-script` + Telegram `/script <idea|run_id>`; terminal `script` artifact; per-node lineage.
+Implement `IdeaToScriptState` (plan §5); compile `cf_platform/blocks/idea_to_script.py`; `POST /blocks/idea-to-script` + Telegram `/script <idea|run_id>`; terminal `script` artifact; per-node lineage.
 **Tech:** LangGraph, FastAPI, Telegram. **Schema:** `IdeaToScriptState`.
 
 ### Acceptance Criteria
@@ -4897,7 +4903,7 @@ Parent graph chains the blocks + legacy render via the adapter; HITL gates (D047
 **Depends on:** P5-S5
 
 ### Goal
-`platform/adapters/legacy_video.py`: `LegacyVideoAdapter` Protocol + in-process impl calling `src/pipeline.py` (script artifact → storyboard → assets → render → `final.mp4` in R2). **Only module importing `src/`** (D047). HTTP-swappable contract. Emits `trace_event`s (not artifacts of its own).
+`cf_platform/adapters/legacy_video.py`: `LegacyVideoAdapter` Protocol + in-process impl calling `src/pipeline.py` (script artifact → storyboard → assets → render → `final.mp4` in R2). **Only module importing `src/`** (D047). HTTP-swappable contract. Emits `trace_event`s (not artifacts of its own).
 **Tech:** Python Protocol; `src/pipeline.py`; R2. **Artifacts:** `VideoResult`.
 
 ### Acceptance Criteria
@@ -4922,7 +4928,7 @@ _filled on completion_
 **Depends on:** P6-S1
 
 ### Goal
-Implement `PipelineState` (plan §5); wrap the adapter as a LangGraph node; compile `platform/orchestrator/full_pipeline.py` composing `niche_to_ideas → idea_to_script → legacy_render`. One run threads run_id + artifacts end-to-end with full lineage; checkpointed.
+Implement `PipelineState` (plan §5); wrap the adapter as a LangGraph node; compile `cf_platform/orchestrator/full_pipeline.py` composing `niche_to_ideas → idea_to_script → legacy_render`. One run threads run_id + artifacts end-to-end with full lineage; checkpointed.
 **Tech:** LangGraph (subgraph composition, PostgresSaver), adapter. **Schema:** `PipelineState`.
 
 ### Acceptance Criteria

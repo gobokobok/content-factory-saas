@@ -626,7 +626,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 |----|-------|--------|--------|
 | P0-S1 | North-star spec — docs/v2_platform_plan.md | 2 | done |
 | P0-S2 | Ratify decisions D047–D057 | 2 | done |
-| P0-S3 | Core contracts (Pydantic) — interfaces only | 5 | planned |
+| P0-S3 | Core contracts (Pydantic) — interfaces only | 5 | done |
 | P0-S4 | Postgres data model + analytics-join design | 2 | planned |
 | P0-S5 | Doc hygiene + abstraction-model docs | 2 | planned |
 
@@ -649,7 +649,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P1-S1 | platform/ scaffold + router mount | 2 | planned |
+| P1-S1 | cf_platform/ scaffold + router mount | 2 | planned |
 | P1-S2 | Run Manager | 3 | planned |
 | P1-S3 | Artifact Manager → R2 (immutable, versioned) | 3 | planned |
 | P1-S4 | LangGraph execution engine (Layer A) ⚠️ keystone | 3 | planned |

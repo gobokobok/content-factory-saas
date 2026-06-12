@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P0-S3] Core contracts (Pydantic) — interfaces only
+**Completed:** 2026-06-12
+**Handover:**
+- `cf_platform/core/schemas.py` (new): all P0-S3 universal contracts per plan §4 — `LineageEnvelope` (run/worker/prompt/model + `sampling_params: dict[str, Any] = {}`, D055), `Artifact` (immutable, versioned, nests `LineageEnvelope`), `RunRecord` (lifecycle `created|running|complete|failed`), `WorkerExecution` (cost/latency/token counters default to 0, `sampling_params` default `{}`, status `ok|error`), `ControlSignal = Literal["continue","retry","branch"]`, `WorkerOutput` (`artifact: BaseModel`, `control: ControlSignal = "continue"`, deliberately **no** `state_delta` per D057), `WorkerNode` type alias, `merge_refs` additive-reducer function, `StageState` (base graph state — `run_id`/`user_id`/`inputs`/`artifacts: Annotated[dict[str,str], merge_refs]`), `TraceEvent` (IO-adapter observability record, D050), `Signal` (minimal placeholder payload for discovery signals — full shape deferred to P3-S2), `SourceAdapter` Protocol (`async fetch(niche, params) -> list[Signal]`).
+- `cf_platform/__init__.py`, `cf_platform/core/__init__.py` (new) — package scaffolding; reserved for `run_manager.py`, `artifact_manager.py`, `worker_registry.py`, `db.py` in P1.
+- `tests/cf_platform/test_schemas.py` (new, 28 tests): defaults (`sampling_params={}`, token/cost/latency=0, `artifacts={}`), closed Literal-set validation for `RunRecord.status`, `WorkerExecution.status`, `WorkerOutput.control`, `TraceEvent.status` (valid + invalid-rejected cases), `merge_refs` additive-merge and override behavior, `StageState.artifacts` field carries `merge_refs` in its `Annotated` metadata, `WorkerOutput.model_fields` confirmed to exclude `state_delta`, `SourceAdapter` confirmed as a `Protocol` declaring `fetch`. 856 total passing (was 828).
+- No new ENV vars. No new dependencies — pydantic 2.13 already in `requirements.txt`. Zero runtime behavior (no R2/DB/LangGraph imports), per P0 architectural law 7.
+- **Naming fix — affects all future P1+ stories:** the plan's `platform/` package name collides with Python's stdlib `platform` module. With the repo root on `sys.path` (true for both `python -m pytest` locally and Railway's `uvicorn` invocation in production), `import platform` resolved to this new package instead of the stdlib module — broke pytest outright (`AttributeError: module 'platform' has no attribute 'python_version'`) and would have broken any dependency doing `import platform` at runtime (`requests`, `multiprocessing`, etc.). Operator selected **`cf_platform`** as the replacement name. Renamed package directory + every path reference (not HTTP routes) across `docs/v2_platform_plan.md`, SPRINT.md, BACKLOG.md, CONVENTIONS.md, DECISIONS.md (D047), CLAUDE.md. HTTP route prefixes (`/platform/echo`, `/platform/health`, `/platform/runs`, `/platform/analytics/attribution`) were left unchanged — pure URL strings, no import collision. **All P1+ work must use `cf_platform/...` for package paths.**
+**Smoke test:** PASSED — `python3 -m pytest -q -m "not integration"` → 856 passed, no regressions. P0 is interfaces-only (architectural law 7); no operator-facing artifact to review beyond the schema module + tests, which the operator can inspect directly in `cf_platform/core/schemas.py`.
+**Promoted to backlog:** none
+
+---
+
 ## [P0-S2] Ratify decisions D047–D057
 **Completed:** 2026-06-12
 **Handover:**

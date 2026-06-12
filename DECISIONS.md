@@ -97,9 +97,9 @@ All significant architecture decisions and new dependency introductions are logg
 
 ## D047 — Isolate legacy by wrapping (adapter), not moving
 **Date:** 2026-06-12
-**Decision:** The existing Script→Video pipeline in `src/` stays in place and **untouched**. The new `platform/` package reaches it **only** through `platform/adapters/legacy_video.py`, which is the single module permitted to import from `src/`. The adapter is defined as an interface (Protocol) with an in-process implementation now (calls `src/pipeline.py`), designed so a separate-service HTTP implementation is a one-class swap later.
-**Rationale:** Physically relocating a working, ~750-test tree on day one is high-risk for zero functional gain. Enforcing isolation by *dependency direction* (`platform → adapter → src`, never reverse) achieves the same separation with no migration risk — and D040 (pure async functions) makes the adapter nearly free. The interface is also the stable seam that lets the legacy implementation be rebuilt later (Epic 32) without the platform noticing.
-**Constraint:** No module in `src/` may import `platform/`. Enforced in code review, like D040.
+**Decision:** The existing Script→Video pipeline in `src/` stays in place and **untouched**. The new `cf_platform/` package reaches it **only** through `cf_platform/adapters/legacy_video.py`, which is the single module permitted to import from `src/`. The adapter is defined as an interface (Protocol) with an in-process implementation now (calls `src/pipeline.py`), designed so a separate-service HTTP implementation is a one-class swap later.
+**Rationale:** Physically relocating a working, ~750-test tree on day one is high-risk for zero functional gain. Enforcing isolation by *dependency direction* (`cf_platform → adapter → src`, never reverse) achieves the same separation with no migration risk — and D040 (pure async functions) makes the adapter nearly free. The interface is also the stable seam that lets the legacy implementation be rebuilt later (Epic 32) without the platform noticing.
+**Constraint:** No module in `src/` may import `cf_platform/`. Enforced in code review, like D040.
 **See:** docs/v2_platform_plan.md §2, §3 (law 1). **No new dependencies.**
 
 ---

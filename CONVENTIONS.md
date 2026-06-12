@@ -181,7 +181,7 @@ Logged as D040 in DECISIONS.md.
 
 ## Platform v2 — worker/node contract (D056) and state discipline (D057)
 
-Applies to all code under `platform/`. Canonical spec: docs/v2_platform_plan.md §3–§5. Enforced in code review like D040.
+Applies to all code under `cf_platform/`. Canonical spec: docs/v2_platform_plan.md §3–§5. Enforced in code review like D040.
 
 ### Worker = Node
 - A **worker IS a LangGraph node implementation.** Hierarchy: **Worker → Node**, **Stage → StateGraph**, **Platform → Graph-of-graphs**.
