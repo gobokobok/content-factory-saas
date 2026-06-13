@@ -4517,7 +4517,8 @@ See DONE.md.
 ## [P2-S2] Schema migrations
 **Epic:** E27 — Lineage & Observability
 **Sprint:** P2
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 3
 **Depends on:** P2-S1
@@ -4527,15 +4528,15 @@ Migration runner + tables `runs`, `artifacts`, `worker_executions`, `trace_event
 **Tech:** Postgres, SQL (tooling per P0-S4).
 
 ### Acceptance Criteria
-- [ ] 4 core tables created with indexes from plan §6
-- [ ] Reserved P7 tables present or stubbed
-- [ ] Migrations idempotent / re-runnable
+- [x] 4 core tables created with indexes from plan §6
+- [x] Reserved P7 tables present or stubbed
+- [x] Migrations idempotent / re-runnable
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+See DONE.md.
 
 ---
 

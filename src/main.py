@@ -52,6 +52,25 @@ def _mount_platform_router(app: FastAPI) -> None:
         )
 
 
+async def _run_platform_migrations() -> None:
+    """Apply cf_platform's Postgres migrations (P2-S2, D048).
+
+    Fault-isolated: any failure (including a missing/unreachable DATABASE_URL) is
+    logged and swallowed so legacy startup never fails because of the platform's
+    metadata index, mirroring _mount_platform_router's isolation (D047, D048).
+    """
+    try:
+        from cf_platform.core.config import get_platform_settings
+        from cf_platform.core.migrations import run_migrations
+
+        result = await run_migrations(get_platform_settings().DATABASE_URL)
+        logging.getLogger(__name__).info("cf_platform migrations: %s", result)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "cf_platform migration run failed — continuing"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Validate all ENV vars at startup. Crash fast if anything is missing or invalid."""
@@ -67,6 +86,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logging.basicConfig(level=logging.ERROR)
         logging.getLogger(__name__).error("Startup failed — missing or invalid ENV vars:\n%s", exc)
         raise SystemExit(1) from exc
+
+    await _run_platform_migrations()
 
     yield
 

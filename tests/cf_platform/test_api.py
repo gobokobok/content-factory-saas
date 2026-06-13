@@ -1,14 +1,14 @@
 """Tests for cf_platform/interfaces/api.py and its fault-isolated mount in src/main.py (P1-S1)."""
 
 import sys
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.config import Settings, get_settings
-from src.main import _mount_platform_router, app
+from src.main import _mount_platform_router, _run_platform_migrations, app
 
 
 @pytest.fixture(autouse=True)
@@ -90,3 +90,33 @@ class TestMountPlatformRouterFaultIsolation:
         client = TestClient(fresh_app)
         response = client.get("/platform/health")
         assert response.status_code == 404
+
+
+class TestRunPlatformMigrationsFaultIsolation:
+    @pytest.mark.asyncio
+    async def test_calls_run_migrations_with_database_url(self):
+        """_run_platform_migrations calls run_migrations with the platform's DATABASE_URL."""
+        with patch(
+            "cf_platform.core.migrations.run_migrations", new_callable=AsyncMock
+        ) as mock_run_migrations:
+            mock_run_migrations.return_value = "unavailable"
+
+            await _run_platform_migrations()
+
+        mock_run_migrations.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_swallows_exception(self):
+        """A failure in run_migrations is logged and swallowed — never raised."""
+        with patch(
+            "cf_platform.core.migrations.run_migrations",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("db exploded"),
+        ):
+            await _run_platform_migrations()  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_swallows_import_failure(self):
+        """An import failure in cf_platform.core.migrations does not raise."""
+        with patch.dict(sys.modules, {"cf_platform.core.migrations": None}):
+            await _run_platform_migrations()  # must not raise

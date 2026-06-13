@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P2-S2] Schema migrations
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/db/migrations/0001_init.sql` (new): idempotent DDL (`CREATE TABLE IF NOT EXISTS` / `CREATE INDEX IF NOT EXISTS`) for all 6 tables from the P0-S4 design (`cf_platform/db/schema.sql`) — `runs`, `artifacts`, `worker_executions`, `trace_events`, plus reserved P7 tables `published_videos`/`video_metrics`. Lineage (`worker`, `worker_version`, `prompt_version`, `model`) stays plain TEXT columns per D048; all analytics indexes from plan §6 included (`prompt_version`, `worker_version`, `run_id`, `source`, `external_id`, etc.). FKs from `artifacts`/`worker_executions`/`trace_events`/`published_videos` → `runs.run_id`.
+- `cf_platform/core/migrations.py` (new): `MIGRATIONS_DIR`, `list_migrations() -> list[Path]` (sorted by filename), `run_migrations(database_url) -> str` — returns `"ok"` / `"unavailable"` / `"error"`, never raises (mirrors `check_db_health`'s D048 fault-isolation pattern). Creates a `schema_migrations(version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ)` tracking table if absent, reads already-applied versions, and applies each pending `*.sql` file in filename order inside one transaction, recording each as applied. Re-running with everything already applied executes only the tracking-table create + select — no migration SQL re-run (idempotent/re-runnable AC).
+- `src/main.py`: new `_run_platform_migrations()` async helper — imports `cf_platform.core.migrations.run_migrations` + `cf_platform.core.config.get_platform_settings` inside a `try/except Exception`, logs the result (`"ok"/"unavailable"/"error"`), and swallows any failure (including import errors) so legacy startup never fails because of the platform DB (D047/D048, mirrors `_mount_platform_router`'s isolation). Called from `lifespan` after ENV validation, before `yield`.
+- `tests/cf_platform/test_migrations.py` (new, 6 tests): `list_migrations` ordering; `run_migrations("")` → `"unavailable"`; happy path applies pending migration(s) and records each in `schema_migrations` (mocked pool/connection/cursor); already-applied migrations are skipped on re-run (only 2 `execute` calls — create + select); connection failure → `"error"`, never raises; opens a closed pool before connecting.
+- `tests/cf_platform/test_api.py`: 3 new tests in `TestRunPlatformMigrationsFaultIsolation` — `_run_platform_migrations` calls `run_migrations` with the platform's `DATABASE_URL`; a `run_migrations` exception is swallowed; an import failure of `cf_platform.core.migrations` is swallowed.
+- 917 total passing (was 908). No new ENV vars, no new dependencies (`psycopg` already added in P2-S1), no DECISIONS.md entry needed (D048 pre-authorizes raw-SQL migrations).
+- **Sprint P2 next story:** P2-S3 (Persist Run/Artifact/Execution to Postgres) and P2-S4 (LangGraph PostgresSaver checkpointer) can proceed in parallel per SPRINT.md execution order — both depend on P2-S2 (done). P2-S3's note about confirming `content-factory-prod` has `DATABASE_URL`/Postgres set still applies before either ships to PROD.
+**Smoke test:** DEFERRED — requires deploy to Railway DEV (`content-factory-dev`, which already has `DATABASE_URL` per P2-S1). On next deploy, `_run_platform_migrations` runs at startup; confirm via Railway logs (`cf_platform migrations: ok`) and/or `psql` that `runs`, `artifacts`, `worker_executions`, `trace_events`, `published_videos`, `video_metrics`, and `schema_migrations` (with one row `0001_init.sql`) all exist. Re-deploying should log `cf_platform migrations: ok` again with no schema changes (idempotency check).
+**Promoted to backlog:** none
+
+---
+
 ## [P2-S1] Provision Railway Postgres + connection layer
 **Completed:** 2026-06-13
 **Handover:**

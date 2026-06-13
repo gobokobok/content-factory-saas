@@ -16,7 +16,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 _Legacy Sprints 1–13 are done and running in DEV/PROD; the legacy pipeline stays untouched (D047). S14–S17 (video-UX polish) are paused._
 
 ## Active story
-**P2-S1** — Provision Railway Postgres + connection layer. Sprint P1 (P1-S1–S6) done; P2-S1 has no outstanding dependencies.
+**P2-S3 / P2-S4** — Persist Run/Artifact/Execution to Postgres / LangGraph PostgresSaver checkpointer (parallel). P2-S1 and P2-S2 done.
 
 ## Environments
 
