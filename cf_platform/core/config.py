@@ -7,6 +7,11 @@ ENV var names as src/config.py's Settings (shared R2 bucket) — no new ENV vars
 P2-S1 adds DATABASE_URL (Railway Postgres, D048) — optional/empty by default so a
 missing or unset value cannot break platform startup; cf_platform/core/db.py treats
 an empty DATABASE_URL as "database unavailable" rather than raising.
+
+P3-S1 adds TELEGRAM_BOT_TOKEN/TELEGRAM_WEBHOOK_SECRET (D049) — optional/empty by
+default; an unset secret rejects all webhook calls rather than failing startup.
+TELEGRAM_ALLOWED_CHAT_IDS restricts which chats the bot will reply to (temporary,
+single-operator allowlist ahead of S19 multi-tenant auth); empty means unrestricted.
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -27,6 +32,9 @@ class PlatformSettings(BaseSettings):
     R2_SECRET_ACCESS_KEY: str
     R2_BUCKET_NAME: str
     DATABASE_URL: str = ""
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+    TELEGRAM_ALLOWED_CHAT_IDS: str = ""
 
 
 def get_platform_settings() -> PlatformSettings:

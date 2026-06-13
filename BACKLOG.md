@@ -4627,7 +4627,8 @@ Telegram trigger + first real worker; signals stored with lineage (D049, D050).
 ## [P3-S1] Telegram webhook (trigger-only)
 **Epic:** E28 — Discovery & Execution Interfaces
 **Sprint:** P3
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 3
 **Depends on:** P1-S6
@@ -4637,15 +4638,15 @@ Telegram trigger + first real worker; signals stored with lineage (D049, D050).
 **Tech:** Telegram Bot API (httpx), FastAPI. **Env:** `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`.
 
 ### Acceptance Criteria
-- [ ] Webhook validates token; rejects unauthorized updates
-- [ ] `/ideas <niche>` parsed; ack reply sent via formatter
-- [ ] No internal schema serialized to chat (D049)
+- [x] Webhook validates token; rejects unauthorized updates
+- [x] `/ideas <niche>` parsed; ack reply sent via formatter
+- [x] No internal schema serialized to chat (D049)
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+See DONE.md [P3-S1] entry for full details.
 
 ---
 

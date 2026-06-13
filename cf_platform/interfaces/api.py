@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel
 
@@ -13,7 +13,7 @@ from cf_platform.core.artifact_manager import (
     InMemoryArtifactRepository,
     R2ArtifactStorage,
 )
-from cf_platform.core.config import get_platform_settings
+from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.db import check_db_health, get_checkpointer, get_pool
 from cf_platform.core.execution_engine import run_graph
 from cf_platform.core.postgres_repos import (
@@ -34,6 +34,14 @@ from cf_platform.core.worker_registry import (
     InMemoryExecutionRepository,
     WorkerRegistry,
     build_observed_node_graph,
+)
+from cf_platform.interfaces.telegram import (
+    TelegramClient,
+    format_ideas_ack,
+    format_ideas_usage,
+    format_unrecognized_command,
+    is_chat_allowed,
+    parse_ideas_command,
 )
 from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
 
@@ -262,3 +270,61 @@ async def get_run(
             for execution in execution_records
         ],
     )
+
+
+class TelegramChat(BaseModel):
+    """Minimal Telegram `chat` object — only the `id` is needed to reply (D049)."""
+
+    id: int
+
+
+class TelegramMessage(BaseModel):
+    """Minimal Telegram `message` object — chat + optional text (D049)."""
+
+    chat: TelegramChat
+    text: Optional[str] = None
+
+
+class TelegramUpdate(BaseModel):
+    """Minimal Telegram `Update` object — only the `message` field is consumed (D049)."""
+
+    message: Optional[TelegramMessage] = None
+
+
+@router.post("/telegram/webhook", include_in_schema=False)
+async def telegram_webhook(
+    update: TelegramUpdate,
+    request: Request,
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> dict:
+    """Validate Telegram's secret token, parse trigger commands, and reply via a formatter (D049).
+
+    Trigger-only: this route contains no business logic. `/ideas <niche>` is
+    acknowledged here; the discovery worker itself is wired up in P3-S2/P3-S3.
+    Internal Artifact/state schemas are never serialized to chat — every reply is
+    built by a format_*() helper in cf_platform.interfaces.telegram.
+
+    TELEGRAM_ALLOWED_CHAT_IDS (temporary single-operator allowlist ahead of S19):
+    updates from chats not on the list are acked with no reply sent.
+    """
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not settings.TELEGRAM_WEBHOOK_SECRET or secret != settings.TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid webhook secret token")
+
+    if update.message is None or update.message.text is None:
+        return {"ok": True}
+
+    if not is_chat_allowed(update.message.chat.id, settings.TELEGRAM_ALLOWED_CHAT_IDS):
+        return {"ok": True}
+
+    niche = parse_ideas_command(update.message.text)
+    if niche is None:
+        reply = format_unrecognized_command(update.message.text)
+    elif not niche:
+        reply = format_ideas_usage()
+    else:
+        reply = format_ideas_ack(niche)
+
+    client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
+    await client.send_message(update.message.chat.id, reply)
+    return {"ok": True}

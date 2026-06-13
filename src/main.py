@@ -23,7 +23,13 @@ from src.routes import runs as runs_router
 from src.routes import storyboard as storyboard_router
 from src.routes import tts as tts_router
 
-_AUTH_EXEMPT_PATHS = {"/health", "/login", "/auth/login", "/auth/logout"}
+_AUTH_EXEMPT_PATHS = {
+    "/health",
+    "/login",
+    "/auth/login",
+    "/auth/logout",
+    "/platform/telegram/webhook",
+}
 
 _STATIC_DIR = Path(__file__).parent / "static"
 

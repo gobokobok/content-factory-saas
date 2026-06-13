@@ -13,6 +13,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from datetime import datetime, timezone
 
 from cf_platform.core.artifact_manager import InMemoryArtifactRepository
+from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.postgres_repos import (
     PostgresArtifactRepository,
     PostgresExecutionRepository,
@@ -33,9 +34,18 @@ from src.main import _mount_platform_router, _run_platform_migrations, _setup_pl
 
 @pytest.fixture(autouse=True)
 def _clear_settings_override():
-    """Remove the get_settings dependency override after each test."""
+    """Remove the get_settings/get_platform_settings dependency overrides after each test."""
     yield
     app.dependency_overrides.pop(get_settings, None)
+    app.dependency_overrides.pop(get_platform_settings, None)
+
+
+_PLATFORM_SETTINGS_BASE = {
+    "R2_ACCOUNT_ID": "fake-account-id",
+    "R2_ACCESS_KEY_ID": "fake-access-key",
+    "R2_SECRET_ACCESS_KEY": "fake-secret-key",
+    "R2_BUCKET_NAME": "content-factory-dev",
+}
 
 VALID_ENV = {
     "ENVIRONMENT": "dev",
@@ -326,3 +336,195 @@ class TestObservabilityRoutes:
         response = client.get("/platform/runs/does-not-exist")
 
         assert response.status_code == 404
+
+
+class TestTelegramWebhookRoute:
+    """POST /platform/telegram/webhook (P3-S1, D049) — trigger-only, secret-validated."""
+
+    def _client_with_telegram_settings(self, **overrides) -> TestClient:
+        """Return a TestClient with PlatformSettings overridden for telegram tests."""
+        settings_kwargs = {
+            **_PLATFORM_SETTINGS_BASE,
+            "TELEGRAM_BOT_TOKEN": "test-bot-token",
+            "TELEGRAM_WEBHOOK_SECRET": "test-secret",
+            **overrides,
+        }
+        app.dependency_overrides[get_platform_settings] = lambda: PlatformSettings(**settings_kwargs)
+        return TestClient(app)
+
+    def test_missing_secret_header_rejected(self):
+        """A request with no secret header is rejected with 401."""
+        client = self._client_with_telegram_settings()
+
+        response = client.post(
+            "/platform/telegram/webhook",
+            json={"message": {"chat": {"id": 1}, "text": "/ideas starter homes"}},
+        )
+
+        assert response.status_code == 401
+
+    def test_wrong_secret_header_rejected(self):
+        """A request with the wrong secret header is rejected with 401."""
+        client = self._client_with_telegram_settings()
+
+        response = client.post(
+            "/platform/telegram/webhook",
+            json={"message": {"chat": {"id": 1}, "text": "/ideas starter homes"}},
+            headers={"X-Telegram-Bot-Api-Secret-Token": "wrong"},
+        )
+
+        assert response.status_code == 401
+
+    def test_unset_webhook_secret_rejects_everything(self):
+        """If TELEGRAM_WEBHOOK_SECRET is unset, every call is rejected with 401."""
+        client = self._client_with_telegram_settings(TELEGRAM_WEBHOOK_SECRET="")
+
+        response = client.post(
+            "/platform/telegram/webhook",
+            json={"message": {"chat": {"id": 1}, "text": "/ideas starter homes"}},
+            headers={"X-Telegram-Bot-Api-Secret-Token": ""},
+        )
+
+        assert response.status_code == 401
+
+    def test_ideas_command_sends_ack_reply(self):
+        """A valid /ideas <niche> update sends an ack reply via TelegramClient.send_message."""
+        client = self._client_with_telegram_settings()
+
+        with patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = client.post(
+                "/platform/telegram/webhook",
+                json={"message": {"chat": {"id": 42}, "text": "/ideas starter homes"}},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+            )
+
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
+        mock_send.assert_awaited_once()
+        args, _ = mock_send.call_args
+        assert args[0] == 42
+        assert "starter homes" in args[1]
+
+    def test_ideas_without_niche_sends_usage_reply(self):
+        """`/ideas` with no niche sends a usage reply, not an ack."""
+        client = self._client_with_telegram_settings()
+
+        with patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = client.post(
+                "/platform/telegram/webhook",
+                json={"message": {"chat": {"id": 42}, "text": "/ideas"}},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+            )
+
+        assert response.status_code == 200
+        mock_send.assert_awaited_once()
+        args, _ = mock_send.call_args
+        assert "/ideas" in args[1]
+
+    def test_unrecognized_command_sends_help_reply(self):
+        """An unrecognized message sends a help reply pointing at /ideas."""
+        client = self._client_with_telegram_settings()
+
+        with patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = client.post(
+                "/platform/telegram/webhook",
+                json={"message": {"chat": {"id": 42}, "text": "hello there"}},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+            )
+
+        assert response.status_code == 200
+        mock_send.assert_awaited_once()
+        args, _ = mock_send.call_args
+        assert "/ideas" in args[1]
+
+    def test_update_without_message_is_acked_without_reply(self):
+        """An update with no `message` field (e.g. edited_message) is acked with no reply sent."""
+        client = self._client_with_telegram_settings()
+
+        with patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = client.post(
+                "/platform/telegram/webhook",
+                json={},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+            )
+
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
+        mock_send.assert_not_called()
+
+
+class TestTelegramWebhookAllowlist:
+    """TELEGRAM_ALLOWED_CHAT_IDS restricts replies to specific chats (temporary, ahead of S19)."""
+
+    def _client_with_telegram_settings(self, **overrides) -> TestClient:
+        """Return a TestClient with PlatformSettings overridden for allowlist tests."""
+        settings_kwargs = {
+            **_PLATFORM_SETTINGS_BASE,
+            "TELEGRAM_BOT_TOKEN": "test-bot-token",
+            "TELEGRAM_WEBHOOK_SECRET": "test-secret",
+            **overrides,
+        }
+        app.dependency_overrides[get_platform_settings] = lambda: PlatformSettings(**settings_kwargs)
+        return TestClient(app)
+
+    def test_allowed_chat_id_gets_normal_reply(self):
+        """A chat id present in TELEGRAM_ALLOWED_CHAT_IDS receives the usual reply."""
+        client = self._client_with_telegram_settings(TELEGRAM_ALLOWED_CHAT_IDS="968448961")
+
+        with patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = client.post(
+                "/platform/telegram/webhook",
+                json={"message": {"chat": {"id": 968448961}, "text": "/ideas starter homes"}},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+            )
+
+        assert response.status_code == 200
+        mock_send.assert_awaited_once()
+
+    def test_disallowed_chat_id_gets_no_reply(self):
+        """A chat id absent from TELEGRAM_ALLOWED_CHAT_IDS is acked with no reply sent."""
+        client = self._client_with_telegram_settings(TELEGRAM_ALLOWED_CHAT_IDS="968448961")
+
+        with patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = client.post(
+                "/platform/telegram/webhook",
+                json={"message": {"chat": {"id": 1}, "text": "/ideas starter homes"}},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+            )
+
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
+        mock_send.assert_not_called()
+
+
+class TestTelegramWebhookAuthExempt:
+    """The legacy auth middleware exempts /platform/telegram/webhook (Telegram has no session cookie)."""
+
+    def test_webhook_path_is_auth_exempt(self):
+        """POSTing without a session cookie does not get redirected/401'd by the legacy auth middleware.
+
+        The route itself still rejects the request (401, missing/wrong secret) —
+        this test only proves the *legacy* middleware doesn't intercept it first
+        with a redirect-to-login or a generic Unauthorized body.
+        """
+        app.dependency_overrides[get_platform_settings] = lambda: PlatformSettings(
+            **_PLATFORM_SETTINGS_BASE
+        )
+        client = TestClient(app, follow_redirects=False)
+
+        response = client.post("/platform/telegram/webhook", json={})
+
+        assert response.status_code != 302
+        assert response.json() != {"detail": "Unauthorized"}

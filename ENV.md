@@ -88,6 +88,7 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `DATABASE_URL` | P2+ | Railway Postgres connection string — platform metadata index (D048). Lazy/fault-isolated: outage must not affect the legacy app. |
 | `TELEGRAM_BOT_TOKEN` | P3+ | Telegram bot token for the trigger interface (D049). |
 | `TELEGRAM_WEBHOOK_SECRET` | P3+ | Shared secret to validate inbound Telegram webhook calls (D049). |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | P3+ | Comma-separated Telegram chat ids allowed to trigger replies. Empty = unrestricted. Temporary single-operator allowlist ahead of S19 multi-tenant auth. |
 | `REDDIT_CLIENT_ID` | P3+ | Reddit API client id — Discovery source adapter (D050). |
 | `REDDIT_CLIENT_SECRET` | P3+ | Reddit API client secret (D050). |
 | `REDDIT_USER_AGENT` | P3+ | Reddit API user-agent string (D050). |
