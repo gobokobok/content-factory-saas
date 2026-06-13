@@ -16,7 +16,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 _Legacy Sprints 1–13 are done and running in DEV/PROD; the legacy pipeline stays untouched (D047). S14–S17 (video-UX polish) are paused._
 
 ## Active story
-**P1-S5** — Observability wrapper (Layer B). P1-S1–S4 done; P1-S5 depends on P1-S4, satisfied.
+**P1-S6** — Echo graph end-to-end smoke. P1-S1–S5 done; P1-S6 depends on P1-S5, satisfied.
 
 ## Environments
 

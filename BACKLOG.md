@@ -4421,7 +4421,8 @@ Adopt `langgraph` (D052). Implement the Worker=Node contract: nodes are `WorkerN
 ## [P1-S5] Observability wrapper (Layer B)
 **Epic:** E26 — Platform Foundation
 **Sprint:** P1
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 3
 **Depends on:** P1-S4
@@ -4431,15 +4432,22 @@ Adopt `langgraph` (D052). Implement the Worker=Node contract: nodes are `WorkerN
 **Tech:** Python, ModelRouter (unchanged), Pydantic. **Artifacts:** `WorkerExecution` (in-memory until P2).
 
 ### Acceptance Criteria
-- [ ] Wrapped node emits exactly one artifact + one execution record
-- [ ] Worker cannot see its own `r2_key`; wrapper produces it
-- [ ] Prompt body retrievable by `worker@prompt_version` (replay foundation, D055)
+- [x] Wrapped node emits exactly one artifact + one execution record
+- [x] Worker cannot see its own `r2_key`; wrapper produces it
+- [x] Prompt body retrievable by `worker@prompt_version` (replay foundation, D055)
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/core/worker_registry.py` (new): `WorkerRegistration` (Pydantic — `worker_version`, `prompt_version`, `prompt`, `model`, `sampling_params: dict = {}`). `WorkerRegistry` — `register(worker, registration)`, `resolve(worker) -> WorkerRegistration` (raises `WorkerNotRegisteredError`), `get_prompt(worker, prompt_version) -> str` (raises `PromptVersionNotFoundError`); prompt bodies are indexed by `(worker, prompt_version)` so re-registering with a new `prompt_version` does not remove earlier prompt bodies (D055 replay).
+- `ExecutionRepository` Protocol (`async record(execution) -> WorkerExecution`) + `InMemoryExecutionRepository` (`record`, `list_for_run(run_id)`) — mirrors the `RunRepository`/`InMemoryRunRepository` pattern from P1-S2; in-memory until P2.
+- `wrap(worker, node_name, node, *, registry, storage, executions) -> Callable[[StageState], Awaitable[dict]]` — resolves the worker's `WorkerRegistration`, calls the pure `node(state)`, builds a `LineageEnvelope` from the registration + `state.run_id`, writes `output.artifact` via `write_artifact()` (P1-S3) at `name=stage=node_name` (real, versioned `r2_key` — the worker body never sees it), records exactly one `WorkerExecution` (status `"ok"`, `artifact_r2_key`, `latency_ms` via `time.perf_counter`), and returns `{"artifacts": {node_name: r2_key}}` for the `merge_refs` reducer. Raises `WorkerNotRegisteredError` immediately (before calling `node`) if `worker` is unregistered.
+- `build_observed_node_graph(node_name, worker, node, *, registry, storage, executions) -> CompiledStateGraph` — 1-node `StateGraph(StageState)` (`START -> node_name -> END`, `MemorySaver` checkpointer) analogous to P1-S4's `build_single_node_graph`, but the node is `wrap(...)` so `state.artifacts[node_name]` is a real R2 key instead of P1-S4's JSON placeholder. Composable with `execution_engine.run_graph`.
+- No changes to `cf_platform/core/execution_engine.py` — P1-S4's placeholder-based `build_single_node_graph`/`run_graph` remain available for pure-execution use; `build_observed_node_graph` is the parallel, observed path used by P1-S6+.
+- `tests/cf_platform/test_worker_registry.py` (new, 11 tests): registry registration/resolution + unregistered-worker error, prompt retrieval by version + unknown-version error + older-version retrievability after re-registration, wrap() unregistered-worker fast-fail, exactly-one-artifact + exactly-one-execution, artifact body/lineage match the registration, execution record matches registration + artifact `r2_key`, worker purity (receives only `StageState`, never sees `artifacts[node_name]` pre-write), and an end-to-end `build_observed_node_graph` + `run_graph` round trip producing a real `r2_key`.
+- No new ENV vars, no new dependencies. 896 total passing (was 885).
+- **Sprint P1 next story:** P1-S6 (Echo graph end-to-end smoke) — depends on P1-S5 (done). It wires `POST /platform/echo {text}`: Run Manager mints a run, a 1-node echo graph runs through `build_observed_node_graph` (registering an "echo" worker in a `WorkerRegistry`, using `R2ArtifactStorage` + `InMemoryExecutionRepository`), and the route returns `{run_id, artifact_key}`. This is the Sprint P1 human touchpoint (`POST /platform/echo` → artifact in R2).
 
 ---
 

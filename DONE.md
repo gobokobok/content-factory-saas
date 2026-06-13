@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P1-S5] Observability wrapper (Layer B)
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/core/worker_registry.py` (new): `WorkerRegistration` (Pydantic — `worker_version`, `prompt_version`, `prompt`, `model`, `sampling_params: dict = {}`). `WorkerRegistry` — `register(worker, registration)`, `resolve(worker) -> WorkerRegistration` (raises `WorkerNotRegisteredError`), `get_prompt(worker, prompt_version) -> str` (raises `PromptVersionNotFoundError`); prompt bodies are indexed by `(worker, prompt_version)` so re-registering with a new `prompt_version` keeps earlier prompt bodies retrievable (D055 replay).
+- `ExecutionRepository` Protocol + `InMemoryExecutionRepository` (`record`, `list_for_run(run_id)`) — mirrors the `RunRepository` pattern from P1-S2; in-memory `WorkerExecution` log until P2.
+- `wrap(worker, node_name, node, *, registry, storage, executions) -> Callable[[StageState], Awaitable[dict]]` — resolves the worker's pinned config, calls the pure `node(state)`, builds a `LineageEnvelope`, writes `output.artifact` via `write_artifact()` (P1-S3) — real, versioned `r2_key`, the worker body never sees it — records exactly one `WorkerExecution` (status `"ok"`, `artifact_r2_key`, `latency_ms`), and returns `{"artifacts": {node_name: r2_key}}`. Raises `WorkerNotRegisteredError` immediately if `worker` is unregistered.
+- `build_observed_node_graph(node_name, worker, node, *, registry, storage, executions) -> CompiledStateGraph` — 1-node `StateGraph(StageState)` (`MemorySaver` checkpointer) analogous to P1-S4's `build_single_node_graph`, but the node is `wrap(...)`, so `state.artifacts[node_name]` is a real R2 key instead of P1-S4's JSON placeholder. Composable with `execution_engine.run_graph`.
+- `cf_platform/core/execution_engine.py` unchanged — P1-S4's placeholder-based `build_single_node_graph`/`run_graph` remain available; `build_observed_node_graph` is the parallel, observed path used by P1-S6+.
+- `tests/cf_platform/test_worker_registry.py` (new, 11 tests): registry registration/resolution + unregistered-worker error, prompt retrieval by version + unknown-version error + older-version retrievability after re-registration, wrap() unregistered-worker fast-fail, exactly-one-artifact + exactly-one-execution, artifact body/lineage match the registration, execution record matches registration + artifact `r2_key`, worker purity, and an end-to-end `build_observed_node_graph` + `run_graph` round trip producing a real `r2_key`.
+- No new ENV vars, no new dependencies. 896 total passing (was 885).
+- **Sprint P1 next story:** P1-S6 (Echo graph end-to-end smoke) — depends on P1-S5 (done). Wires `POST /platform/echo {text}`: Run Manager mints a run, a 1-node echo graph runs through `build_observed_node_graph` (registering an "echo" worker, using `R2ArtifactStorage` + `InMemoryExecutionRepository`), route returns `{run_id, artifact_key}` — Sprint P1's human touchpoint.
+**Smoke test:** N/A — pure core module (registry + wrapper over in-memory storage/execution repos), no HTTP surface or operator-visible artifact in P1. Verified via 11 unit tests; CI green (896 passing). Human touchpoint (`POST /platform/echo` → artifact in R2) lands in P1-S6.
+**Promoted to backlog:** none
+
+---
+
 ## [P1-S4] LangGraph execution engine (Layer A)
 **Completed:** 2026-06-13
 **Handover:**
