@@ -20,7 +20,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
 from cf_platform.core.run_manager import RunNotFoundError
-from cf_platform.core.schemas import Artifact, RunRecord, WorkerExecution
+from cf_platform.core.schemas import Artifact, LineageEnvelope, RunRecord, WorkerExecution
 
 
 async def _ensure_open(pool: AsyncConnectionPool) -> None:
@@ -94,6 +94,32 @@ class PostgresRunRepository:
             updated_at=updated_at,
         )
 
+    async def list_runs(self) -> list[RunRecord]:
+        """Return all RunRecords, most recently created first."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    SELECT run_id, user_id, block, status, inputs, error, created_at, updated_at
+                    FROM runs ORDER BY created_at DESC
+                    """
+                )
+                rows = await cur.fetchall()
+        return [
+            RunRecord(
+                run_id=run_id_,
+                user_id=user_id,
+                block=block,
+                status=status,
+                inputs=inputs,
+                error=error,
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+            for run_id_, user_id, block, status, inputs, error, created_at, updated_at in rows
+        ]
+
 
 class PostgresArtifactRepository:
     """Postgres-backed ArtifactRepository — indexes Artifact lineage rows.
@@ -138,6 +164,59 @@ class PostgresArtifactRepository:
                     ),
                 )
             await conn.commit()
+
+    async def list_for_run(self, run_id: str) -> list[Artifact]:
+        """Return all recorded artifacts for run_id, ordered by stage, name, version."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    SELECT run_id, name, stage, version, r2_key, content_type, schema_version,
+                           worker, worker_version, prompt_version, model, sampling_params, created_at
+                    FROM artifacts WHERE run_id = %s ORDER BY stage, name, version
+                    """,
+                    (run_id,),
+                )
+                rows = await cur.fetchall()
+        return [_row_to_artifact(row) for row in rows]
+
+
+def _row_to_artifact(row: tuple[Any, ...]) -> Artifact:
+    """Map an artifacts row tuple to an Artifact."""
+    (
+        run_id,
+        name,
+        stage,
+        version,
+        r2_key,
+        content_type,
+        schema_version,
+        worker,
+        worker_version,
+        prompt_version,
+        model,
+        sampling_params,
+        created_at,
+    ) = row
+    return Artifact(
+        name=name,
+        stage=stage,
+        version=version,
+        run_id=run_id,
+        content_type=content_type,
+        r2_key=r2_key,
+        schema_version=schema_version,
+        lineage=LineageEnvelope(
+            run_id=run_id,
+            worker=worker,
+            worker_version=worker_version,
+            prompt_version=prompt_version,
+            model=model,
+            sampling_params=sampling_params,
+            created_at=created_at,
+        ),
+    )
 
 
 class PostgresExecutionRepository:

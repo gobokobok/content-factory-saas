@@ -59,6 +59,10 @@ class ArtifactRepository(Protocol):
         """Persist the lineage index row for artifact. Idempotent on (run_id, stage, name, version)."""
         ...
 
+    async def list_for_run(self, run_id: str) -> list[Artifact]:
+        """Return all recorded artifacts for run_id."""
+        ...
+
 
 class InMemoryArtifactRepository:
     """In-memory ArtifactRepository implementation — process-local, not durable."""

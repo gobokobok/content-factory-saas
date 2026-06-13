@@ -4,6 +4,27 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P2-S5] Observability endpoints
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/core/run_manager.py`: `RunRepository` Protocol gains `list_runs() -> list[RunRecord]`. `InMemoryRunRepository.list_runs()` returns all runs sorted by `created_at` descending.
+- `cf_platform/core/artifact_manager.py`: `ArtifactRepository` Protocol gains `list_for_run(run_id) -> list[Artifact]` (already implemented on `InMemoryArtifactRepository` since P2-S3).
+- `cf_platform/core/worker_registry.py`: `ExecutionRepository` Protocol gains `list_for_run(run_id) -> list[WorkerExecution]` (already implemented on `InMemoryExecutionRepository` since P1-S5).
+- `cf_platform/core/postgres_repos.py`: `PostgresRunRepository.list_runs()` — `SELECT ... FROM runs ORDER BY created_at DESC`. `PostgresArtifactRepository.list_for_run(run_id)` — `SELECT ... FROM artifacts WHERE run_id = %s ORDER BY stage, name, version`, mapped back to `Artifact` (with nested `LineageEnvelope`) via new `_row_to_artifact` helper.
+- `cf_platform/interfaces/api.py`: new response models `RunSummary`, `ArtifactSummary`, `WorkerExecutionSummary`, `RunDetailResponse`. New routes:
+  - `GET /platform/runs` → `list[RunSummary]`, most recently created first.
+  - `GET /platform/runs/{run_id}` → `RunDetailResponse` (`run`, `artifacts` — name/stage/version/r2_key + lineage worker/worker_version/prompt_version/model, `executions` — full `WorkerExecution` cost/latency/version fields). Raises `404` via `RunNotFoundError` for an unknown `run_id`.
+  - Both routes depend on `get_run_repository`/`get_artifact_repository`/`get_execution_repository` — automatically Postgres-backed when `DATABASE_URL` is set, else in-memory (D048, unchanged provider pattern from P2-S3).
+- Tests (10 new): `tests/cf_platform/test_run_manager.py` — `TestListRuns` (empty list, descending `created_at` order). `tests/cf_platform/test_postgres_repos.py` — `PostgresRunRepository.list_runs` (SQL shape + row mapping, empty case) and `PostgresArtifactRepository.list_for_run` (SQL shape + row mapping incl. lineage, empty case). `tests/cf_platform/test_api.py` — `TestObservabilityRoutes` (4 tests: list with runs, empty list, full detail round-trip incl. artifacts + executions, 404 for unknown run_id) using in-memory repos injected via `app.dependency_overrides`.
+- 954 total passing (was 944). No new ENV vars, no new dependencies, no DECISIONS.md entry needed — pure additive repository methods + read-only routes.
+- AC #1 (list + detail return real lineage) — satisfied: detail endpoint surfaces `worker_executions` cost/latency/version columns and `artifacts` r2_key + lineage, both backed by the P2-S3 Postgres repos when configured. AC #2 (human touchpoint) — satisfied at the API layer: `TestObservabilityRoutes::test_get_run_returns_lineage_detail` proves an operator can call `GET /platform/runs/{run_id}` and read per-worker `cost_usd`/`latency_ms`/`worker_version`/`prompt_version`/`model` for a run.
+- **Sprint P2 complete** (16/16 pts — P2-S1 through P2-S5 all done).
+- **PROD follow-up still open:** carries forward from P2-S1/S2/S3/S4 — confirm `content-factory-prod` has `DATABASE_URL`/Postgres set before any P2 story ships to PROD.
+**Smoke test:** PASSED (engineering, via TestClient) — `TestObservabilityRoutes` in `tests/cf_platform/test_api.py` exercises `GET /platform/runs` and `GET /platform/runs/{run_id}` end-to-end through the mounted FastAPI app with in-memory repos, confirming the JSON shape an operator would see. A live Railway DEV pass against the Postgres-backed repos (real `/platform/echo` run → `GET /platform/runs/{run_id}` showing real cost/latency/version) is DEFERRED pending next deploy, same as P2-S3/S4's deferred smoke tests.
+**Promoted to backlog:** none
+
+---
+
 ## [P2-S4] LangGraph PostgresSaver checkpointer
 **Completed:** 2026-06-13
 **Handover:**

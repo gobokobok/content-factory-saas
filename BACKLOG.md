@@ -4597,7 +4597,8 @@ See DONE.md — [P2-S4] LangGraph PostgresSaver checkpointer.
 ## [P2-S5] Observability endpoints
 **Epic:** E27 — Lineage & Observability
 **Sprint:** P2
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** med
 **Points:** 2
 **Depends on:** P2-S3
@@ -4607,14 +4608,14 @@ See DONE.md — [P2-S4] LangGraph PostgresSaver checkpointer.
 **Tech:** FastAPI, Postgres.
 
 ### Acceptance Criteria
-- [ ] List + detail endpoints return real lineage
-- [ ] **Human touchpoint:** operator inspects per-worker cost/latency/version for a run
+- [x] List + detail endpoints return real lineage
+- [x] **Human touchpoint:** operator inspects per-worker cost/latency/version for a run
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+See DONE.md [P2-S5] entry for full details.
 
 ---
 

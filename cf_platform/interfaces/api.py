@@ -1,6 +1,9 @@
 """Platform-facing REST API routes for cf_platform, mounted under /platform in src/main.py."""
 
-from fastapi import APIRouter, Depends
+from datetime import datetime
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel
 
@@ -18,7 +21,13 @@ from cf_platform.core.postgres_repos import (
     PostgresExecutionRepository,
     PostgresRunRepository,
 )
-from cf_platform.core.run_manager import InMemoryRunRepository, RunRepository, create_run, transition_run
+from cf_platform.core.run_manager import (
+    InMemoryRunRepository,
+    RunNotFoundError,
+    RunRepository,
+    create_run,
+    transition_run,
+)
 from cf_platform.core.schemas import StageState
 from cf_platform.core.worker_registry import (
     ExecutionRepository,
@@ -155,3 +164,101 @@ async def echo(
     await transition_run(run.run_id, "complete", runs)
 
     return EchoResponse(run_id=run.run_id, artifact_key=result.artifacts["echo"])
+
+
+class RunSummary(BaseModel):
+    """Lineage summary for one run, as returned by GET /platform/runs."""
+
+    run_id: str
+    user_id: str
+    block: str
+    status: str
+    inputs: dict[str, Any]
+    error: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ArtifactSummary(BaseModel):
+    """One artifact's lineage index row, as returned by GET /platform/runs/{run_id}."""
+
+    name: str
+    stage: str
+    version: int
+    r2_key: str
+    worker: str
+    worker_version: str
+    prompt_version: str
+    model: str
+
+
+class WorkerExecutionSummary(BaseModel):
+    """One worker execution's cost/latency/version row, as returned by GET /platform/runs/{run_id}."""
+
+    worker: str
+    worker_version: str
+    prompt_version: str
+    model: str
+    status: str
+    input_tokens: int
+    output_tokens: int
+    cost_usd: float
+    latency_ms: int
+    started_at: datetime
+    finished_at: datetime
+
+
+class RunDetailResponse(BaseModel):
+    """Full lineage detail for one run, as returned by GET /platform/runs/{run_id}."""
+
+    run: RunSummary
+    artifacts: list[ArtifactSummary]
+    executions: list[WorkerExecutionSummary]
+
+
+@router.get("/runs", response_model=list[RunSummary])
+async def list_runs(runs: RunRepository = Depends(get_run_repository)) -> list[RunSummary]:
+    """Return all platform runs, most recently created first."""
+    records = await runs.list_runs()
+    return [RunSummary.model_validate(record.model_dump()) for record in records]
+
+
+@router.get("/runs/{run_id}", response_model=RunDetailResponse)
+async def get_run(
+    run_id: str,
+    runs: RunRepository = Depends(get_run_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+    executions: ExecutionRepository = Depends(get_execution_repository),
+) -> RunDetailResponse:
+    """Return a run's status, artifact list (R2 keys), and per-worker cost/latency/version.
+
+    Raises 404 if run_id is unknown.
+    """
+    try:
+        run = await runs.get(run_id)
+    except RunNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+
+    artifact_records = await artifacts.list_for_run(run_id)
+    execution_records = await executions.list_for_run(run_id)
+
+    return RunDetailResponse(
+        run=RunSummary.model_validate(run.model_dump()),
+        artifacts=[
+            ArtifactSummary(
+                name=artifact.name,
+                stage=artifact.stage,
+                version=artifact.version,
+                r2_key=artifact.r2_key,
+                worker=artifact.lineage.worker,
+                worker_version=artifact.lineage.worker_version,
+                prompt_version=artifact.lineage.prompt_version,
+                model=artifact.lineage.model,
+            )
+            for artifact in artifact_records
+        ],
+        executions=[
+            WorkerExecutionSummary.model_validate(execution.model_dump())
+            for execution in execution_records
+        ],
+    )

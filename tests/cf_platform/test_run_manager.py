@@ -128,6 +128,26 @@ class TestTransitionRun:
             await transition_run("does-not-exist", "running", repo)
 
 
+class TestListRuns:
+    @pytest.mark.asyncio
+    async def test_returns_empty_list_when_no_runs(self):
+        """list_runs returns an empty list for a fresh repository."""
+        repo = InMemoryRunRepository()
+
+        assert await repo.list_runs() == []
+
+    @pytest.mark.asyncio
+    async def test_returns_most_recently_created_first(self):
+        """list_runs orders runs by created_at descending."""
+        repo = InMemoryRunRepository()
+        run_a = await create_run("user-1", "niche_to_ideas", {}, repo)
+        run_b = await create_run("user-1", "niche_to_ideas", {}, repo)
+
+        runs = await repo.list_runs()
+
+        assert [run.run_id for run in runs] == [run_b.run_id, run_a.run_id]
+
+
 class TestRepositorySwappable:
     @pytest.mark.asyncio
     async def test_alternate_repository_implementation_works(self):

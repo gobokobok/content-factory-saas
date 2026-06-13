@@ -124,6 +124,31 @@ class TestPostgresRunRepository:
         with pytest.raises(RunNotFoundError):
             await repo.get("missing")
 
+    @pytest.mark.asyncio
+    async def test_list_runs_maps_rows_to_records(self):
+        """list_runs() maps runs rows back into RunRecord models, ordered by created_at desc."""
+        run = _run_record()
+        row = (run.run_id, run.user_id, run.block, run.status, run.inputs, run.error, run.created_at, run.updated_at)
+        pool, cursor, _ = _mock_pool(fetchall=[row])
+        repo = PostgresRunRepository(pool)
+
+        result = await repo.list_runs()
+
+        assert result == [run]
+        sql = cursor.execute.call_args[0][0]
+        assert "FROM runs" in sql
+        assert "ORDER BY created_at DESC" in sql
+
+    @pytest.mark.asyncio
+    async def test_list_runs_empty_when_no_rows(self):
+        """list_runs() returns an empty list when no rows exist."""
+        pool, _, _ = _mock_pool(fetchall=[])
+        repo = PostgresRunRepository(pool)
+
+        result = await repo.list_runs()
+
+        assert result == []
+
 
 class TestPostgresArtifactRepository:
     @pytest.mark.asyncio
@@ -142,6 +167,46 @@ class TestPostgresArtifactRepository:
         assert artifact.r2_key in params
         assert artifact.lineage.worker in params
         conn.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_list_for_run_maps_rows_to_artifacts(self):
+        """list_for_run() maps artifacts rows back into Artifact models with lineage."""
+        artifact = _artifact()
+        lineage = artifact.lineage
+        row = (
+            artifact.run_id,
+            artifact.name,
+            artifact.stage,
+            artifact.version,
+            artifact.r2_key,
+            artifact.content_type,
+            artifact.schema_version,
+            lineage.worker,
+            lineage.worker_version,
+            lineage.prompt_version,
+            lineage.model,
+            lineage.sampling_params,
+            lineage.created_at,
+        )
+        pool, cursor, _ = _mock_pool(fetchall=[row])
+        repo = PostgresArtifactRepository(pool)
+
+        result = await repo.list_for_run("r1")
+
+        assert result == [artifact]
+        sql = cursor.execute.call_args[0][0]
+        assert "FROM artifacts" in sql
+        assert "ORDER BY stage, name, version" in sql
+
+    @pytest.mark.asyncio
+    async def test_list_for_run_empty_when_no_rows(self):
+        """list_for_run() returns an empty list when no rows match run_id."""
+        pool, _, _ = _mock_pool(fetchall=[])
+        repo = PostgresArtifactRepository(pool)
+
+        result = await repo.list_for_run("r1")
+
+        assert result == []
 
 
 class TestPostgresExecutionRepository:

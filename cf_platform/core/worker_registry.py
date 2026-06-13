@@ -49,6 +49,10 @@ class ExecutionRepository(Protocol):
         """Persist execution and return it."""
         ...
 
+    async def list_for_run(self, run_id: str) -> list[WorkerExecution]:
+        """Return all recorded executions for run_id."""
+        ...
+
 
 class InMemoryExecutionRepository:
     """In-memory ExecutionRepository implementation — process-local, not durable."""

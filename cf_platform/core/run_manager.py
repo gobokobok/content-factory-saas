@@ -43,6 +43,10 @@ class RunRepository(Protocol):
         """Return the RunRecord for run_id. Raises RunNotFoundError if absent."""
         ...
 
+    async def list_runs(self) -> list[RunRecord]:
+        """Return all RunRecords, most recently created first."""
+        ...
+
 
 class InMemoryRunRepository:
     """In-memory RunRepository implementation — process-local, not durable."""
@@ -62,6 +66,10 @@ class InMemoryRunRepository:
             return self._runs[run_id]
         except KeyError:
             raise RunNotFoundError(f"Run not found: {run_id}") from None
+
+    async def list_runs(self) -> list[RunRecord]:
+        """Return all RunRecords, most recently created first."""
+        return sorted(self._runs.values(), key=lambda run: run.created_at, reverse=True)
 
 
 async def create_run(

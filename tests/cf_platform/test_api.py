@@ -10,13 +10,16 @@ from fastapi.testclient import TestClient
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
+from datetime import datetime, timezone
+
 from cf_platform.core.artifact_manager import InMemoryArtifactRepository
 from cf_platform.core.postgres_repos import (
     PostgresArtifactRepository,
     PostgresExecutionRepository,
     PostgresRunRepository,
 )
-from cf_platform.core.run_manager import InMemoryRunRepository
+from cf_platform.core.run_manager import InMemoryRunRepository, create_run, transition_run
+from cf_platform.core.schemas import Artifact, LineageEnvelope, WorkerExecution
 from cf_platform.core.worker_registry import InMemoryExecutionRepository
 from cf_platform.interfaces.api import (
     get_artifact_repository,
@@ -207,3 +210,119 @@ class TestSetupPlatformCheckpointerFaultIsolation:
         """An import failure in cf_platform.core.db does not raise."""
         with patch.dict(sys.modules, {"cf_platform.core.db": None}):
             await _setup_platform_checkpointer()  # must not raise
+
+
+class TestObservabilityRoutes:
+    """GET /platform/runs and GET /platform/runs/{run_id} (P2-S5)."""
+
+    @pytest.fixture(autouse=True)
+    def _override_repositories(self):
+        """Inject fresh in-memory repositories for each test, cleared afterwards."""
+        self.runs = InMemoryRunRepository()
+        self.artifacts = InMemoryArtifactRepository()
+        self.executions = InMemoryExecutionRepository()
+        app.dependency_overrides[get_run_repository] = lambda: self.runs
+        app.dependency_overrides[get_artifact_repository] = lambda: self.artifacts
+        app.dependency_overrides[get_execution_repository] = lambda: self.executions
+        yield
+        app.dependency_overrides.pop(get_run_repository, None)
+        app.dependency_overrides.pop(get_artifact_repository, None)
+        app.dependency_overrides.pop(get_execution_repository, None)
+
+    @pytest.mark.asyncio
+    async def test_list_runs_returns_created_runs(self):
+        """GET /platform/runs returns a summary for every run, most recent first."""
+        run_a = await create_run("operator", "echo", {"text": "first"}, self.runs)
+        run_b = await create_run("operator", "echo", {"text": "second"}, self.runs)
+
+        client = _client_with_settings()
+        response = client.get("/platform/runs")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert [r["run_id"] for r in body] == [run_b.run_id, run_a.run_id]
+        assert body[0]["status"] == "created"
+        assert body[0]["block"] == "echo"
+
+    @pytest.mark.asyncio
+    async def test_list_runs_empty(self):
+        """GET /platform/runs returns an empty list when no runs exist."""
+        client = _client_with_settings()
+
+        response = client.get("/platform/runs")
+
+        assert response.status_code == 200
+        assert response.json() == []
+
+    @pytest.mark.asyncio
+    async def test_get_run_returns_lineage_detail(self):
+        """GET /platform/runs/{run_id} returns status, artifacts (R2 keys), and per-worker cost/latency/version."""
+        run = await create_run("operator", "echo", {"text": "hello"}, self.runs)
+        run = await transition_run(run.run_id, "running", self.runs)
+        now = datetime.now(timezone.utc)
+        lineage = LineageEnvelope(
+            run_id=run.run_id,
+            worker="echo",
+            worker_version="1.0.0",
+            prompt_version="v1",
+            model="claude-haiku-4-5-20251001",
+            sampling_params={},
+            created_at=now,
+        )
+        artifact = Artifact(
+            name="echo",
+            stage="echo",
+            version=1,
+            run_id=run.run_id,
+            r2_key="users/operator/runs/r1/echo/echo@v1.json",
+            lineage=lineage,
+        )
+        await self.artifacts.record(artifact)
+        execution = WorkerExecution(
+            run_id=run.run_id,
+            worker="echo",
+            worker_version="1.0.0",
+            prompt_version="v1",
+            model="claude-haiku-4-5-20251001",
+            input_tokens=10,
+            output_tokens=5,
+            cost_usd=0.001,
+            latency_ms=42,
+            status="ok",
+            artifact_r2_key=artifact.r2_key,
+            started_at=now,
+            finished_at=now,
+        )
+        await self.executions.record(execution)
+
+        client = _client_with_settings()
+        response = client.get(f"/platform/runs/{run.run_id}")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["run"]["run_id"] == run.run_id
+        assert body["run"]["status"] == "running"
+        assert body["artifacts"] == [
+            {
+                "name": "echo",
+                "stage": "echo",
+                "version": 1,
+                "r2_key": artifact.r2_key,
+                "worker": "echo",
+                "worker_version": "1.0.0",
+                "prompt_version": "v1",
+                "model": "claude-haiku-4-5-20251001",
+            }
+        ]
+        assert len(body["executions"]) == 1
+        assert body["executions"][0]["cost_usd"] == 0.001
+        assert body["executions"][0]["latency_ms"] == 42
+
+    @pytest.mark.asyncio
+    async def test_get_run_unknown_returns_404(self):
+        """GET /platform/runs/{run_id} returns 404 for an unknown run_id."""
+        client = _client_with_settings()
+
+        response = client.get("/platform/runs/does-not-exist")
+
+        assert response.status_code == 404
