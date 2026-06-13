@@ -4359,7 +4359,8 @@ Create the `cf_platform/` package; mount `cf_platform/interfaces/api.py` under `
 ## [P1-S3] Artifact Manager → R2 (immutable, versioned)
 **Epic:** E26 — Platform Foundation
 **Sprint:** P1
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 3
 **Depends on:** P1-S1
@@ -4369,15 +4370,19 @@ Create the `cf_platform/` package; mount `cf_platform/interfaces/api.py` under `
 **Tech:** Cloudflare R2 (boto3), Pydantic.
 
 ### Acceptance Criteria
-- [ ] Write returns an `Artifact` with a versioned `r2_key`; read round-trips
-- [ ] Re-writing the same name creates `@v{n+1}`, never overwrites
-- [ ] No import from `src/`
+- [x] Write returns an `Artifact` with a versioned `r2_key`; read round-trips
+- [x] Re-writing the same name creates `@v{n+1}`, never overwrites
+- [x] No import from `src/`
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/core/artifact_manager.py` (new): `ArtifactStorage` Protocol (`put_json`/`get_json`/`list_keys`, async) — backing key-value store, swappable. `InMemoryArtifactStorage` — dict-backed test double. `R2ArtifactStorage` — standalone thin boto3 S3-compatible client against the shared R2 bucket (sync boto3 calls wrapped via `asyncio.to_thread`); constructor takes explicit `account_id, access_key_id, secret_access_key, bucket_name` (same shape as `src/storage.py`'s `R2Client`, but a separate implementation per D047 — cf_platform may not import `src/` outside the legacy adapter). `ArtifactStorageError` wraps all storage failures. `_next_version(storage, user_id, run_id, stage, name) -> int` lists existing `@v*` keys for the (user_id, run_id, stage, name) tuple and returns `max(versions, default=0) + 1`. `write_artifact(storage, body, *, name, stage, run_id, user_id, lineage, content_type="application/json") -> Artifact` computes the next version, builds `r2_key = users/{user_id}/runs/{run_id}/{stage}/{name}@v{n}.json`, constructs the `Artifact` envelope (from `cf_platform.core.schemas`), and writes `{"artifact": ..., "body": ...}`. `read_artifact(storage, r2_key) -> (Artifact, body_dict)` reads and returns the envelope + body for the caller to `model_validate` into its own type.
+- `tests/cf_platform/test_artifact_manager.py` (new, 10 tests): `TestWriteArtifact` (first write is v1, re-write creates v2 without overwriting v1, independent version counters per name/stage), `TestReadArtifact` (round-trip, missing-key error), `TestR2ArtifactStorage` (put/get/list against mocked boto3, `ClientError` wrapped in `ArtifactStorageError`).
+- No new ENV vars, no new dependencies (boto3 already in requirements via `src/storage.py`'s usage). 881 total passing (was 871).
+- R2 credential wiring (real `R2ArtifactStorage` instance with live account/bucket) is deferred to whichever story first calls `write_artifact`/`read_artifact` from a route — **P1-S4** (LangGraph execution engine) or **P1-S6** (echo graph smoke). This story ships the manager as a pure, swappable module per D040 (explicit inputs/outputs).
+- **Sprint P1 next story:** P1-S4 (LangGraph execution engine, Layer A) — depends on P1-S2 (done) and P1-S3 (done), both now satisfied. ⚠️ Keystone story — spike first per SPRINT.md execution order.
 
 ---
 

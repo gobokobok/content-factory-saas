@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P1-S3] Artifact Manager → R2 (immutable, versioned)
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/core/artifact_manager.py` (new): `ArtifactStorage` Protocol (`async put_json/get_json/list_keys`) — swappable persistence, no Postgres/HTTP coupling. `InMemoryArtifactStorage` — dict-backed test double. `R2ArtifactStorage` — standalone thin boto3 client against the shared R2 bucket (`asyncio.to_thread` wraps sync boto3 calls); takes explicit credentials in its constructor, separate from `src/storage.py`'s `R2Client` per D047 (cf_platform may not import `src/` outside the legacy adapter). `ArtifactStorageError` wraps all storage failures.
+- `write_artifact(storage, body, *, name, stage, run_id, user_id, lineage, content_type="application/json") -> Artifact` — computes the next version via `_next_version` (lists existing `@v*` keys, returns `max+1`), writes `users/{user_id}/runs/{run_id}/{stage}/{name}@v{n}.json` as `{"artifact": Artifact.model_dump(), "body": body.model_dump()}`. Never overwrites — each write is a new immutable version (D055).
+- `read_artifact(storage, r2_key) -> (Artifact, body_dict)` — reads the envelope + body; caller `model_validate`s the body into its own type.
+- `tests/cf_platform/test_artifact_manager.py` (new, 10 tests): version assignment (v1, v2 on re-write, independent counters per name/stage), immutability (both versions remain readable after re-write), round-trip read/write, missing-key error, `R2ArtifactStorage` put/get/list against mocked boto3 with `ClientError` wrapped in `ArtifactStorageError`.
+- No new ENV vars, no new dependencies. 881 total passing (was 871).
+- R2 credential wiring (a live `R2ArtifactStorage` instance) is deferred to whichever story first calls these functions from a route — **P1-S4** (LangGraph execution engine) or **P1-S6** (echo graph smoke).
+- **Sprint P1 next story:** P1-S4 (LangGraph execution engine, Layer A) — ⚠️ keystone, spike first. Depends on P1-S2 (done) and P1-S3 (done), both satisfied.
+**Smoke test:** N/A — pure core module (storage Protocol, in-memory + R2 implementations), no HTTP surface or operator-visible artifact in P1. Verified via 10 unit tests; CI green (881 passing).
+**Promoted to backlog:** none
+
+---
+
 ## [P1-S2] Run Manager
 **Completed:** 2026-06-13
 **Handover:**
