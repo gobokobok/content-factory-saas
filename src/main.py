@@ -36,6 +36,22 @@ def _configure_logging(log_level: str) -> None:
     )
 
 
+def _mount_platform_router(app: FastAPI) -> None:
+    """Mount the cf_platform API router under /platform.
+
+    Fault-isolated: cf_platform import or init errors are logged and swallowed so the
+    legacy app keeps running with platform routes simply absent (D047).
+    """
+    try:
+        from cf_platform.interfaces.api import router as platform_router
+
+        app.include_router(platform_router, prefix="/platform")
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "cf_platform router failed to mount — platform routes disabled"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Validate all ENV vars at startup. Crash fast if anything is missing or invalid."""
@@ -66,6 +82,7 @@ app.include_router(tts_router.router)
 app.include_router(ffmpeg_script_router.router)
 app.include_router(render_router.router)
 app.include_router(metadata_router.router)
+_mount_platform_router(app)
 
 
 @app.middleware("http")

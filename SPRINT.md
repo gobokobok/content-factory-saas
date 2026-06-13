@@ -649,7 +649,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P1-S1 | cf_platform/ scaffold + router mount | 2 | planned |
+| P1-S1 | cf_platform/ scaffold + router mount | 2 | done |
 | P1-S2 | Run Manager | 3 | planned |
 | P1-S3 | Artifact Manager → R2 (immutable, versioned) | 3 | planned |
 | P1-S4 | LangGraph execution engine (Layer A) ⚠️ keystone | 3 | planned |
@@ -661,7 +661,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 ## Sprint P1 Definition of Done
 - [ ] `langgraph` adopted (D052); worker=node contract implemented
 - [ ] Wrapper emits exactly one artifact + one execution record per node
-- [ ] Legacy routes unaffected; platform init fault-isolated
+- [x] Legacy routes unaffected; platform init fault-isolated
 - [ ] **Human touchpoint:** operator calls `/platform/echo` and sees the artifact in R2
 
 ---

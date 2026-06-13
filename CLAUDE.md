@@ -12,11 +12,11 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Platform v2 — Sprint P0** — Boundary Design & Contracts. Canonical spec: docs/v2_platform_plan.md; sprints in SPRINT.md (Platform Track); decisions D047–D057.
+**Platform v2 — Sprint P1** — Platform Skeleton & Core. Canonical spec: docs/v2_platform_plan.md; sprints in SPRINT.md (Platform Track); decisions D047–D057.
 _Legacy Sprints 1–13 are done and running in DEV/PROD; the legacy pipeline stays untouched (D047). S14–S17 (video-UX polish) are paused._
 
 ## Active story
-**P0-S5** — Doc hygiene + abstraction-model docs (final story of Sprint P0)
+**P1-S2 / P1-S3** — Run Manager / Artifact Manager → R2 (P1-S1 done; both depend only on P1-S1 and can proceed in parallel per SPRINT.md execution order)
 
 ## Environments
 

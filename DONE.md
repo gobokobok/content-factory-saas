@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P1-S1] cf_platform/ scaffold + router mount
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/interfaces/__init__.py` + `cf_platform/interfaces/api.py` (new): `APIRouter` with `GET /health` returning `{"status": "ok"}`.
+- `cf_platform/sources/`, `cf_platform/workers/`, `cf_platform/blocks/`, `cf_platform/adapters/` (new): reserved empty packages, each with a one-line docstring tying it back to plan §2 / D047 / D050 / D056. `cf_platform/core/` already existed from P0-S3.
+- `src/main.py`: new `_mount_platform_router(app)` helper — imports `cf_platform.interfaces.api.router` and mounts it at prefix `/platform` inside a `try/except Exception`; on failure logs `logger.exception(...)` and continues (D047 fault isolation). Called once at module load, after all legacy `include_router` calls.
+- `tests/cf_platform/test_api.py` (new, 4 tests): `GET /platform/health` → 200; `GET /health` (legacy) still 200 with platform mounted; `_mount_platform_router` registers the route on a fresh `FastAPI()` app in the success path; with `cf_platform.interfaces.api` forced to fail import (via `sys.modules` patched to `None`), `_mount_platform_router` swallows the exception and `/platform/health` is simply absent (404) — legacy app unaffected.
+- No new ENV vars, no new dependencies. 860 total passing (was 856).
+- **Sprint P1 next story:** P1-S2 (Run Manager) and P1-S3 (Artifact Manager → R2) can proceed in parallel per SPRINT.md execution order; both depend only on P1-S1.
+**Smoke test:** PASSED — `python3 -m pytest -q -m "not integration"` → 860 passed, no regressions. Human touchpoint (`POST /platform/echo` → artifact in R2) lands in P1-S6, after P1-S2–S5.
+**Promoted to backlog:** none
+
+---
+
 ## [P0-S5] Doc hygiene + abstraction-model docs
 **Completed:** 2026-06-13
 **Handover:**

@@ -4300,7 +4300,8 @@ Add the LangGraph abstraction model (Worker=Node, Stage=Graph, Platform=Graph-of
 ## [P1-S1] cf_platform/ scaffold + router mount
 **Epic:** E26 — Platform Foundation
 **Sprint:** P1
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 2
 **Depends on:** P0-S3
@@ -4310,15 +4311,19 @@ Create the `cf_platform/` package; mount `cf_platform/interfaces/api.py` under `
 **Tech:** FastAPI, Railway (same service).
 
 ### Acceptance Criteria
-- [ ] `/platform/health` returns 200; legacy routes unchanged
-- [ ] Platform import failure does not take down the legacy app
-- [ ] Package dirs reserved per plan §2
+- [x] `/platform/health` returns 200; legacy routes unchanged
+- [x] Platform import failure does not take down the legacy app
+- [x] Package dirs reserved per plan §2
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/interfaces/__init__.py` + `cf_platform/interfaces/api.py` (new): `APIRouter` with `GET /health` returning `{"status": "ok"}`.
+- `cf_platform/sources/`, `cf_platform/workers/`, `cf_platform/blocks/`, `cf_platform/adapters/` (new): reserved empty packages, each with a one-line docstring tying it back to plan §2 / D047 / D050 / D056. `cf_platform/core/` already existed from P0-S3.
+- `src/main.py`: new `_mount_platform_router(app)` helper — imports `cf_platform.interfaces.api.router` and mounts it at prefix `/platform` inside a `try/except Exception`; on failure logs `logger.exception(...)` and continues (D047 fault isolation). Called once at module load, after all legacy `include_router` calls.
+- `tests/cf_platform/test_api.py` (new, 4 tests): `GET /platform/health` → 200; `GET /health` (legacy) still 200 with platform mounted; `_mount_platform_router` registers the route on a fresh `FastAPI()` app in the success path; with `cf_platform.interfaces.api` forced to fail import (via `sys.modules` patched to `None`), `_mount_platform_router` swallows the exception and `/platform/health` is simply absent (404) — legacy app unaffected.
+- No new ENV vars, no new dependencies. 860 total passing (was 856).
 
 ---
 
