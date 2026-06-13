@@ -4689,24 +4689,31 @@ New env vars (all optional, empty = that adapter's fetch degrades to an error tr
 ## [P3-S3] Reply formatter + wire discovery
 **Epic:** E28 — Discovery & Execution Interfaces
 **Sprint:** P3
-**Status:** planned
+**Status:** done
 **Priority:** high
 **Points:** 2
 **Depends on:** P3-S1, P3-S2
+**Completed:** 2026-06-14
 
 ### Goal
 `format_for_chat()` summarizes the `signals` artifact (top signals + run_id + artifact key) back to chat. End-to-end `/ideas <niche>` → summary.
 **Tech:** Telegram API, formatter.
 
 ### Acceptance Criteria
-- [ ] `/ideas <niche>` returns a readable signals summary
-- [ ] **Human touchpoint:** operator sends a niche in Telegram and gets signals back
+- [x] `/ideas <niche>` returns a readable signals summary
+- [x] **Human touchpoint:** operator sends a niche in Telegram and gets signals back
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/interfaces/telegram.py`: `format_ideas_ack` removed, replaced by `format_signals_summary(niche, run_id, artifact_key, signals) -> str` (D049 plain-string formatter) — lists up to 5 signals sorted by `score` descending as `- [source] title (score N)`, plus the run_id and artifact key; returns `No signals found for "<niche>" (run <run_id>).` when `signals` is empty.
+- `cf_platform/interfaces/api.py`: `/telegram/webhook`'s `/ideas <niche>` branch now runs the discovery worker end-to-end through the same observability spine as `/echo`: `create_run` → `transition_run("running")` → `build_observed_node_graph("discovery", "discovery", build_discovery_worker(adapters, trace_events), ...)` → `run_graph` → `transition_run("complete")` → `read_artifact(storage, result.artifacts["discovery"])` → `SignalsArtifact.model_validate(body)` → `format_signals_summary(...)`. New `get_discovery_adapters(settings) -> list[tuple[str, SourceAdapter]]` FastAPI dependency wraps `build_discovery_adapters` so tests can substitute stub adapters.
+- Tests (5 new): `tests/cf_platform/test_telegram.py` — `format_signals_summary` with signals (lists source/title, run_id, artifact key), score-descending ordering, and empty-signals fallback. `tests/cf_platform/test_api.py` — `/ideas <niche>` runs discovery via stub `SourceAdapter`s + `InMemoryArtifactStorage` and replies with the signals summary; empty-signals case replies "No signals found". 1007 total passing (was 1004).
+- No new ENV vars, no new dependencies, no DECISIONS.md entry needed — pure wiring of P3-S1 (trigger) + P3-S2 (worker) through the existing P1/P2 observability spine.
+- **Sprint P3 complete** (10/10 pts — P3-S1, P3-S2, P3-S3 all done).
+**Smoke test:** pending live verification on Railway DEV via Telegram — see DONE.md.
+**Promoted to backlog:** none
 
 ---
 

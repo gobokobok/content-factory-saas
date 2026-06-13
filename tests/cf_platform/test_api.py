@@ -1,6 +1,7 @@
 """Tests for cf_platform/interfaces/api.py and its fault-isolated mount in src/main.py (P1-S1)."""
 
 import sys
+from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -12,7 +13,7 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
 from datetime import datetime, timezone
 
-from cf_platform.core.artifact_manager import InMemoryArtifactRepository
+from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemoryArtifactStorage
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.postgres_repos import (
     PostgresArtifactRepository,
@@ -20,10 +21,12 @@ from cf_platform.core.postgres_repos import (
     PostgresRunRepository,
 )
 from cf_platform.core.run_manager import InMemoryRunRepository, create_run, transition_run
-from cf_platform.core.schemas import Artifact, LineageEnvelope, WorkerExecution
+from cf_platform.core.schemas import Artifact, LineageEnvelope, Signal, WorkerExecution
 from cf_platform.core.worker_registry import InMemoryExecutionRepository
 from cf_platform.interfaces.api import (
     get_artifact_repository,
+    get_artifact_storage,
+    get_discovery_adapters,
     get_execution_repository,
     get_graph_checkpointer,
     get_run_repository,
@@ -38,6 +41,8 @@ def _clear_settings_override():
     yield
     app.dependency_overrides.pop(get_settings, None)
     app.dependency_overrides.pop(get_platform_settings, None)
+    app.dependency_overrides.pop(get_discovery_adapters, None)
+    app.dependency_overrides.pop(get_artifact_storage, None)
 
 
 _PLATFORM_SETTINGS_BASE = {
@@ -66,6 +71,18 @@ def _client_with_settings() -> TestClient:
     """Return a TestClient for the main app with valid settings injected via Depends override."""
     app.dependency_overrides[get_settings] = lambda: Settings.model_validate(VALID_ENV)
     return TestClient(app)
+
+
+class _StubSourceAdapter:
+    """Stub SourceAdapter returning a fixed list of signals — avoids real network calls in tests."""
+
+    def __init__(self, signals: list[Signal]) -> None:
+        """Store the fixed signals this adapter's fetch() returns."""
+        self._signals = signals
+
+    async def fetch(self, niche: str, params: dict) -> list[Signal]:
+        """Return the fixed signals regardless of niche/params."""
+        return self._signals
 
 
 class TestPlatformHealthRoute:
@@ -341,8 +358,13 @@ class TestObservabilityRoutes:
 class TestTelegramWebhookRoute:
     """POST /platform/telegram/webhook (P3-S1, D049) — trigger-only, secret-validated."""
 
-    def _client_with_telegram_settings(self, **overrides) -> TestClient:
-        """Return a TestClient with PlatformSettings overridden for telegram tests."""
+    def _client_with_telegram_settings(self, signals: Optional[list[Signal]] = None, **overrides) -> TestClient:
+        """Return a TestClient with PlatformSettings overridden for telegram tests.
+
+        Also overrides get_discovery_adapters (stub adapters returning `signals`,
+        default empty) and get_artifact_storage (in-memory) so `/ideas <niche>`
+        runs the real discovery graph without any network calls.
+        """
         settings_kwargs = {
             **_PLATFORM_SETTINGS_BASE,
             "TELEGRAM_BOT_TOKEN": "test-bot-token",
@@ -350,6 +372,10 @@ class TestTelegramWebhookRoute:
             **overrides,
         }
         app.dependency_overrides[get_platform_settings] = lambda: PlatformSettings(**settings_kwargs)
+        app.dependency_overrides[get_discovery_adapters] = lambda: [
+            ("stub", _StubSourceAdapter(signals or []))
+        ]
+        app.dependency_overrides[get_artifact_storage] = lambda: InMemoryArtifactStorage()
         return TestClient(app)
 
     def test_missing_secret_header_rejected(self):
@@ -387,9 +413,10 @@ class TestTelegramWebhookRoute:
 
         assert response.status_code == 401
 
-    def test_ideas_command_sends_ack_reply(self):
-        """A valid /ideas <niche> update sends an ack reply via TelegramClient.send_message."""
-        client = self._client_with_telegram_settings()
+    def test_ideas_command_runs_discovery_and_sends_signals_summary(self):
+        """A valid /ideas <niche> update runs discovery and replies with a signals summary."""
+        signals = [Signal(source="reddit", title="Starter homes are back", score=120.0)]
+        client = self._client_with_telegram_settings(signals=signals)
 
         with patch(
             "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
@@ -405,6 +432,26 @@ class TestTelegramWebhookRoute:
         mock_send.assert_awaited_once()
         args, _ = mock_send.call_args
         assert args[0] == 42
+        assert "starter homes" in args[1]
+        assert "Starter homes are back" in args[1]
+
+    def test_ideas_command_with_no_signals_sends_no_signals_reply(self):
+        """A valid /ideas <niche> update where every source returns no signals replies plainly."""
+        client = self._client_with_telegram_settings(signals=[])
+
+        with patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = client.post(
+                "/platform/telegram/webhook",
+                json={"message": {"chat": {"id": 42}, "text": "/ideas starter homes"}},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+            )
+
+        assert response.status_code == 200
+        mock_send.assert_awaited_once()
+        args, _ = mock_send.call_args
+        assert "No signals found" in args[1]
         assert "starter homes" in args[1]
 
     def test_ideas_without_niche_sends_usage_reply(self):
@@ -465,7 +512,12 @@ class TestTelegramWebhookAllowlist:
     """TELEGRAM_ALLOWED_CHAT_IDS restricts replies to specific chats (temporary, ahead of S19)."""
 
     def _client_with_telegram_settings(self, **overrides) -> TestClient:
-        """Return a TestClient with PlatformSettings overridden for allowlist tests."""
+        """Return a TestClient with PlatformSettings overridden for allowlist tests.
+
+        Also overrides get_discovery_adapters (stub, no signals) and
+        get_artifact_storage (in-memory) so an allowed `/ideas <niche>` runs the
+        real discovery graph without any network calls.
+        """
         settings_kwargs = {
             **_PLATFORM_SETTINGS_BASE,
             "TELEGRAM_BOT_TOKEN": "test-bot-token",
@@ -473,6 +525,8 @@ class TestTelegramWebhookAllowlist:
             **overrides,
         }
         app.dependency_overrides[get_platform_settings] = lambda: PlatformSettings(**settings_kwargs)
+        app.dependency_overrides[get_discovery_adapters] = lambda: [("stub", _StubSourceAdapter([]))]
+        app.dependency_overrides[get_artifact_storage] = lambda: InMemoryArtifactStorage()
         return TestClient(app)
 
     def test_allowed_chat_id_gets_normal_reply(self):

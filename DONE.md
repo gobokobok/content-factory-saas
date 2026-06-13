@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P3-S3] Reply formatter + wire discovery
+**Completed:** 2026-06-14
+**Handover:**
+- `cf_platform/interfaces/telegram.py`: `format_ideas_ack` removed, replaced by `format_signals_summary(niche, run_id, artifact_key, signals) -> str` (D049 plain-string formatter). Lists up to 5 signals sorted by `score` descending as `- [source] title (score N)`, with the run_id and artifact key appended for traceability. Returns `No signals found for "<niche>" (run <run_id>).` when `signals` is empty.
+- `cf_platform/interfaces/api.py`: `/telegram/webhook`'s `/ideas <niche>` branch now runs the discovery worker (P3-S2) end-to-end through the same observability spine as `/echo` (P1-S5/P2-S3/P2-S4): `create_run` → `transition_run("running")` → `build_observed_node_graph("discovery", "discovery", build_discovery_worker(adapters, trace_events), registry=..., storage=..., executions=..., artifact_repo=..., checkpointer=...)` → `run_graph` → `transition_run("complete")` → `read_artifact(storage, result.artifacts["discovery"])` → `SignalsArtifact.model_validate(body)` → `format_signals_summary(...)`. One run = one `signals` artifact + one `WorkerExecution`, same as echo. New `get_discovery_adapters(settings) -> list[tuple[str, SourceAdapter]]` FastAPI dependency wraps `build_discovery_adapters` purely so tests can substitute stub `SourceAdapter`s and avoid real network calls.
+- Tests (5 new): `tests/cf_platform/test_telegram.py` — `format_signals_summary` with signals (asserts source/title/run_id/artifact key present, score-descending ordering) and with an empty list (asserts "No signals found" fallback). `tests/cf_platform/test_api.py` — `/ideas <niche>` end-to-end through `TestClient` with a stub `SourceAdapter` + `InMemoryArtifactStorage` override, asserting the reply contains the niche and the signal title; and an empty-signals case asserting "No signals found". 1007 total passing (was 1004).
+- No new ENV vars, no new dependencies, no DECISIONS.md entry needed — this story is pure wiring of P3-S1 (Telegram trigger) and P3-S2 (discovery worker + adapters) through the existing P1/P2 observability spine; nothing new to configure.
+- **Sprint P3 complete** (10/10 pts — P3-S1, P3-S2, P3-S3 all done). Sprint P4 (Niche→Ideas Block) is next, starting with P4-S1 (Topic Generator worker), which consumes the `signals` artifact this story makes reachable end-to-end.
+**Smoke test:** DEFERRED — requires deploy to Railway DEV (`content-factory-dev`). On next deploy: send `/ideas <niche>` from the allowed Telegram chat and confirm the reply is a signals summary (top signals by score, run_id, artifact key) rather than the old "isn't wired up yet" ack.
+**Promoted to backlog:** none
+
+---
+
 ## [P3-S2] Discovery worker v1 + source adapters
 **Completed:** 2026-06-14
 **Handover:**

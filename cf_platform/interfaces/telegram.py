@@ -13,7 +13,10 @@ from typing import Optional
 
 import httpx
 
+from cf_platform.core.schemas import Signal
+
 _TELEGRAM_API_BASE = "https://api.telegram.org"
+_TOP_SIGNALS_COUNT = 5
 
 
 def parse_ideas_command(text: str) -> Optional[str]:
@@ -28,12 +31,22 @@ def parse_ideas_command(text: str) -> Optional[str]:
     return stripped[len("/ideas"):].strip()
 
 
-def format_ideas_ack(niche: str) -> str:
-    """Format the acknowledgement reply for a recognized `/ideas <niche>` command (D049)."""
-    return (
-        f'Got it — looking into ideas for "{niche}". '
-        "The discovery worker isn't wired up yet (lands in P3-S2/P3-S3)."
-    )
+def format_signals_summary(niche: str, run_id: str, artifact_key: str, signals: list[Signal]) -> str:
+    """Format a readable summary of a discovery `SignalsArtifact` for `/ideas <niche>` (D049, P3-S3).
+
+    Lists the top `_TOP_SIGNALS_COUNT` signals (by score, descending) with their
+    source and title, plus the run_id and artifact key for traceability. Plain
+    string only — never serializes the artifact itself to chat.
+    """
+    if not signals:
+        return f'No signals found for "{niche}" (run {run_id}).'
+
+    top_signals = sorted(signals, key=lambda signal: signal.score, reverse=True)[:_TOP_SIGNALS_COUNT]
+    lines = [f'Top signals for "{niche}" ({len(signals)} found, run {run_id}):']
+    for signal in top_signals:
+        lines.append(f"- [{signal.source}] {signal.title} (score {signal.score:g})")
+    lines.append(f"Artifact: {artifact_key}")
+    return "\n".join(lines)
 
 
 def format_ideas_usage() -> str:

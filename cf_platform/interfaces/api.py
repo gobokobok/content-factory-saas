@@ -12,6 +12,7 @@ from cf_platform.core.artifact_manager import (
     ArtifactStorage,
     InMemoryArtifactRepository,
     R2ArtifactStorage,
+    read_artifact,
 )
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.db import check_db_health, get_checkpointer, get_pool
@@ -39,8 +40,8 @@ from cf_platform.core.worker_registry import (
 )
 from cf_platform.interfaces.telegram import (
     TelegramClient,
-    format_ideas_ack,
     format_ideas_usage,
+    format_signals_summary,
     format_unrecognized_command,
     is_chat_allowed,
     parse_ideas_command,
@@ -48,7 +49,7 @@ from cf_platform.interfaces.telegram import (
 from cf_platform.sources.google_trends import GoogleTrendsAdapter
 from cf_platform.sources.reddit import RedditAdapter
 from cf_platform.sources.youtube import YouTubeAdapter
-from cf_platform.workers.discovery import DISCOVERY_REGISTRATION
+from cf_platform.workers.discovery import DISCOVERY_REGISTRATION, SignalsArtifact, build_discovery_worker
 from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
 
 router = APIRouter()
@@ -128,6 +129,13 @@ def build_discovery_adapters(settings: PlatformSettings) -> list[tuple[str, Sour
         ("google_trends", GoogleTrendsAdapter()),
         ("youtube", YouTubeAdapter(settings.YOUTUBE_API_KEY)),
     ]
+
+
+def get_discovery_adapters(
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> list[tuple[str, SourceAdapter]]:
+    """FastAPI dependency wrapping build_discovery_adapters — overridable with stub adapters in tests."""
+    return build_discovery_adapters(settings)
 
 
 async def get_graph_checkpointer() -> BaseCheckpointSaver:
@@ -326,13 +334,23 @@ async def telegram_webhook(
     update: TelegramUpdate,
     request: Request,
     settings: PlatformSettings = Depends(get_platform_settings),
+    adapters: list[tuple[str, SourceAdapter]] = Depends(get_discovery_adapters),
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    registry: WorkerRegistry = Depends(get_worker_registry),
+    runs: RunRepository = Depends(get_run_repository),
+    executions: ExecutionRepository = Depends(get_execution_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+    checkpointer: BaseCheckpointSaver = Depends(get_graph_checkpointer),
 ) -> dict:
     """Validate Telegram's secret token, parse trigger commands, and reply via a formatter (D049).
 
-    Trigger-only: this route contains no business logic. `/ideas <niche>` is
-    acknowledged here; the discovery worker itself is wired up in P3-S2/P3-S3.
-    Internal Artifact/state schemas are never serialized to chat — every reply is
-    built by a format_*() helper in cf_platform.interfaces.telegram.
+    Trigger-only at the chat layer: `/ideas <niche>` runs the discovery worker
+    (P3-S2) through the same observability spine as `/echo` — one run, one
+    `signals` artifact, one `WorkerExecution` — then replies with a summary built
+    by `format_signals_summary()`. Internal Artifact/state schemas are never
+    serialized to chat — every reply is a plain string from a format_*() helper in
+    cf_platform.interfaces.telegram.
 
     TELEGRAM_ALLOWED_CHAT_IDS (temporary single-operator allowlist ahead of S19):
     updates from chats not on the list are acked with no reply sent.
@@ -353,7 +371,28 @@ async def telegram_webhook(
     elif not niche:
         reply = format_ideas_usage()
     else:
-        reply = format_ideas_ack(niche)
+        run = await create_run(_PLATFORM_USER_ID, "discovery", {"niche": niche}, runs)
+        run = await transition_run(run.run_id, "running", runs)
+
+        graph = build_observed_node_graph(
+            "discovery",
+            "discovery",
+            build_discovery_worker(adapters, trace_events),
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
+            checkpointer=checkpointer,
+        )
+        state = StageState(run_id=run.run_id, user_id=_PLATFORM_USER_ID, inputs={"niche": niche})
+        result = await run_graph(graph, state, thread_id=run.run_id)
+
+        await transition_run(run.run_id, "complete", runs)
+
+        artifact_key = result.artifacts["discovery"]
+        _, body = await read_artifact(storage, artifact_key)
+        signals_artifact = SignalsArtifact.model_validate(body)
+        reply = format_signals_summary(niche, run.run_id, artifact_key, signals_artifact.signals)
 
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
     await client.send_message(update.message.chat.id, reply)

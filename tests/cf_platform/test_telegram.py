@@ -4,10 +4,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cf_platform.core.schemas import Signal
 from cf_platform.interfaces.telegram import (
     TelegramClient,
-    format_ideas_ack,
     format_ideas_usage,
+    format_signals_summary,
     format_unrecognized_command,
     is_chat_allowed,
     parse_ideas_command,
@@ -42,12 +43,40 @@ class TestParseIdeasCommand:
 class TestFormatters:
     """format_*() helpers never serialize internal schemas — only plain strings (D049)."""
 
-    def test_format_ideas_ack_includes_niche(self):
-        """The ack reply echoes back the requested niche."""
-        reply = format_ideas_ack("starter homes")
+    def test_format_signals_summary_lists_top_signals(self):
+        """The summary includes the niche, run_id, artifact key, and each signal's source/title."""
+        signals = [
+            Signal(source="reddit", title="Starter homes are back", score=120.0),
+            Signal(source="youtube", title="Why starter homes vanished", score=98000.0),
+        ]
+
+        reply = format_signals_summary("starter homes", "run-123", "users/operator/runs/run-123/discovery/discovery@v1.json", signals)
 
         assert "starter homes" in reply
+        assert "run-123" in reply
+        assert "users/operator/runs/run-123/discovery/discovery@v1.json" in reply
+        assert "Why starter homes vanished" in reply
+        assert "Starter homes are back" in reply
         assert isinstance(reply, str)
+
+    def test_format_signals_summary_orders_by_score_descending(self):
+        """Higher-scoring signals appear before lower-scoring ones."""
+        signals = [
+            Signal(source="reddit", title="low score", score=1.0),
+            Signal(source="youtube", title="high score", score=999.0),
+        ]
+
+        reply = format_signals_summary("starter homes", "run-123", "key", signals)
+
+        assert reply.index("high score") < reply.index("low score")
+
+    def test_format_signals_summary_empty_signals(self):
+        """An empty signals list produces a plain 'no signals found' message, not an empty list."""
+        reply = format_signals_summary("starter homes", "run-123", "key", [])
+
+        assert "starter homes" in reply
+        assert "run-123" in reply
+        assert "No signals found" in reply
 
     def test_format_ideas_usage_mentions_command(self):
         """The usage reply mentions the /ideas command shape."""
