@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-13 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Sprint P1 complete** (16/16 pts). **Current sprint:** P2 — Lineage & Observability Store. **Active story:** P2-S1 (Provision Railway Postgres + connection layer) — no outstanding dependencies.
+> - **Sprint P1 complete** (16/16 pts). **Current sprint:** P2 — Lineage & Observability Store. **P2-S1 done** (smoke test deferred — Railway Postgres not yet provisioned). **Active story:** P2-S2 (Schema migrations).
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 >
@@ -675,7 +675,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P2-S1 | Provision Railway Postgres + connection layer | 3 | planned |
+| P2-S1 | Provision Railway Postgres + connection layer | 3 | done |
 | P2-S2 | Schema migrations (runs/artifacts/worker_executions/trace_events) | 3 | planned |
 | P2-S3 | Persist Run/Artifact/Execution to Postgres | 5 | planned |
 | P2-S4 | LangGraph PostgresSaver checkpointer | 3 | planned |

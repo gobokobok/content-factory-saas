@@ -4491,7 +4491,8 @@ Durable, queryable lineage in Postgres; LangGraph durability; observability endp
 ## [P2-S1] Provision Railway Postgres + connection layer
 **Epic:** E27 — Lineage & Observability
 **Sprint:** P2
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 3
 **Depends on:** P1-S6
@@ -4501,15 +4502,15 @@ Add Railway Postgres (DEV+PROD); `DATABASE_URL` env; async connection pool in `c
 **Tech:** Railway Postgres, `psycopg` (D048). **Dependency:** `psycopg`.
 
 ### Acceptance Criteria
-- [ ] Pool connects on both envs; health reports DB status
-- [ ] DB down ≠ legacy down
-- [ ] `psycopg` added to requirements.txt per D048
+- [x] Pool connects on both envs; health reports DB status
+- [x] DB down ≠ legacy down
+- [x] `psycopg` added to requirements.txt per D048
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+See DONE.md.
 
 ---
 

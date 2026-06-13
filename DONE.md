@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P2-S1] Provision Railway Postgres + connection layer
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/core/db.py` (new): `get_pool(database_url) -> Optional[AsyncConnectionPool]` — process-local singleton, created with `open=False` so an unreachable/unset database never raises at construction. `check_db_health(database_url) -> str` — returns `"ok"` after a `SELECT 1` round trip, `"unavailable"` if `database_url` is empty or any connection/query error occurs (never raises — D048 fault isolation). Opens a closed pool lazily (`pool.open(wait=False)`) before first use.
+- `cf_platform/core/config.py`: `PlatformSettings` gains `DATABASE_URL: str = ""` (optional, empty default — matches D048's "DB outage ≠ legacy down" requirement; an unset var degrades to `"unavailable"` rather than failing platform startup).
+- `cf_platform/interfaces/api.py`: `GET /platform/health` is now `async`, calls `check_db_health(settings.DATABASE_URL)`, and returns `{"status": "ok", "database": "ok"|"unavailable"}`. `"status"` always reports `"ok"` for the platform subsystem itself regardless of database state.
+- `requirements.txt`: `psycopg[binary,pool]>=3.2.0` added per D048 (pre-authorized, no new DECISIONS.md entry needed).
+- `.env.example`: `DATABASE_URL` documented under a new "Platform v2 (P2+)" section, commented out, with a note that it's optional/fault-isolated.
+- `tests/cf_platform/test_db.py` (new, 8 tests): `get_pool` returns `None` when unset, returns a (closed) pool when set, returns the same singleton on repeat calls; `check_db_health` covers unset URL, successful `SELECT 1` (mocked pool/connection/cursor), connection error (never raises), and lazily opening a closed pool.
+- `tests/cf_platform/test_api.py`: `test_platform_health_returns_200` updated to assert the new `database` field; new `test_platform_health_ok_when_database_unset` asserts `{"status": "ok", "database": "unavailable"}` with no `DATABASE_URL` set (matches local `.env.local`, which has no `DATABASE_URL`). `test_mount_succeeds_registers_route` relaxed to check `status == "ok"` only.
+- 908 total passing (was 900).
+- **Smoke test deferred:** `DATABASE_URL` is not yet provisioned on Railway DEV/PROD — operator confirmed Postgres add-on has not been added yet. Code is fault-isolated by design (verified via unit tests: empty/unreachable `DATABASE_URL` → `/platform/health` still returns `{"status": "ok", "database": "unavailable"}`, never 500). Once the operator provisions Railway Postgres on both `content-factory-dev` and `content-factory-prod` and sets `DATABASE_URL`, re-check `/platform/health` on DEV to confirm `"database": "ok"` — this closes the "Pool connects on both envs" AC for real infrastructure.
+- **Sprint P2 next story:** P2-S2 (Schema migrations) — depends on P2-S1 (done). Will add `cf_platform/db/migrations/0001_init.sql` (per D048: raw SQL, numbered, idempotent `CREATE TABLE IF NOT EXISTS`) covering `runs`, `artifacts`, `worker_executions`, `trace_events` + reserved `published_videos`/`video_metrics`, plus a small migration runner using the pool from this story.
+**Smoke test:** DEFERRED — requires `DATABASE_URL` for Railway Postgres on DEV (and PROD). Once provisioned, `GET /platform/health` should return `{"status": "ok", "database": "ok"}`; with the DB stopped, it should return `{"status": "ok", "database": "unavailable"}` without affecting `/health` (legacy).
+**Promoted to backlog:** none
+
+---
+
 ## [P1-S6] Echo graph end-to-end smoke
 **Completed:** 2026-06-13
 **Handover:**

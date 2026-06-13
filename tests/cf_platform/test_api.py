@@ -40,13 +40,24 @@ def _client_with_settings() -> TestClient:
 
 class TestPlatformHealthRoute:
     def test_platform_health_returns_200(self):
-        """GET /platform/health returns 200 with status ok."""
+        """GET /platform/health returns 200 with status ok and a database field."""
         client = _client_with_settings()
 
         response = client.get("/platform/health")
 
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["database"] in ("ok", "unavailable")
+
+    def test_platform_health_ok_when_database_unset(self):
+        """GET /platform/health reports status ok and database unavailable when DATABASE_URL is unset (D048)."""
+        client = _client_with_settings()
+
+        response = client.get("/platform/health")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok", "database": "unavailable"}
 
     def test_legacy_route_unaffected(self):
         """Mounting the platform router does not break an existing legacy route."""
@@ -67,7 +78,7 @@ class TestMountPlatformRouterFaultIsolation:
         client = TestClient(fresh_app)
         response = client.get("/platform/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        assert response.json()["status"] == "ok"
 
     def test_mount_failure_is_swallowed(self):
         """An import failure in cf_platform.interfaces.api does not raise."""

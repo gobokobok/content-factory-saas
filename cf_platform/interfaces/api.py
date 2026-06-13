@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage, R2ArtifactStorage
 from cf_platform.core.config import get_platform_settings
+from cf_platform.core.db import check_db_health
 from cf_platform.core.execution_engine import run_graph
 from cf_platform.core.run_manager import InMemoryRunRepository, RunRepository, create_run, transition_run
 from cf_platform.core.schemas import StageState
@@ -29,9 +30,16 @@ _worker_registry.register("echo", ECHO_REGISTRATION)
 
 
 @router.get("/health")
-def platform_health() -> dict:
-    """Return the cf_platform subsystem health status."""
-    return {"status": "ok"}
+async def platform_health() -> dict:
+    """Return the cf_platform subsystem health status, including a DB check (D048).
+
+    The "status" field always reports "ok" for the platform subsystem itself —
+    a database outage is reported via "database" but does not affect "status"
+    (DB down != legacy down, P2-S1).
+    """
+    settings = get_platform_settings()
+    database_status = await check_db_health(settings.DATABASE_URL)
+    return {"status": "ok", "database": database_status}
 
 
 def get_run_repository() -> RunRepository:
