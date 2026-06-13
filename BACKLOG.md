@@ -4454,7 +4454,8 @@ Adopt `langgraph` (D052). Implement the Worker=Node contract: nodes are `WorkerN
 ## [P1-S6] Echo graph end-to-end smoke
 **Epic:** E26 — Platform Foundation
 **Sprint:** P1
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 2
 **Depends on:** P1-S5
@@ -4464,15 +4465,21 @@ Adopt `langgraph` (D052). Implement the Worker=Node contract: nodes are `WorkerN
 **Tech:** FastAPI, LangGraph, R2.
 
 ### Acceptance Criteria
-- [ ] End-to-end call returns a run_id and a real R2 artifact key
-- [ ] Lineage record present for the echo worker
-- [ ] **Human touchpoint:** operator calls `/platform/echo` and sees the artifact in R2
+- [x] End-to-end call returns a run_id and a real R2 artifact key
+- [x] Lineage record present for the echo worker
+- [x] **Human touchpoint:** operator calls `/platform/echo` and sees the artifact in R2
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/core/config.py` (new): `PlatformSettings` (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`) + `get_platform_settings()` — cf_platform's own minimal settings, read independently of `src/config.py` (D047: cf_platform may not import `src/` outside the legacy adapter). Same ENV var names as the legacy bucket; no new ENV vars.
+- `cf_platform/workers/echo.py` (new): `EchoArtifact(message: str)`, pure `echo_worker(state) -> WorkerOutput`, `ECHO_REGISTRATION` (`WorkerRegistration`, `worker_version="1.0.0"`, `prompt_version="v1"`, `model="none"`).
+- `cf_platform/interfaces/api.py`: added `POST /echo` (mounted at `/platform/echo`). Module-level in-memory singletons — `InMemoryRunRepository`, `InMemoryExecutionRepository`, `WorkerRegistry` (pre-registered with `"echo"` → `ECHO_REGISTRATION`) — exposed via `get_run_repository()`/`get_execution_repository()`/`get_worker_registry()`/`get_artifact_storage()` FastAPI `Depends()` providers (swappable for tests and for P2's Postgres-backed repos). Route: `create_run` → `transition_run("running")` → `build_observed_node_graph("echo","echo", echo_worker, ...)` → `run_graph` → `transition_run("complete")` → `EchoResponse(run_id, artifact_key)`. Fixed `user_id="operator"` (single-operator platform; per-user isolation is S19).
+- `tests/cf_platform/test_echo_route.py` (new, 4 tests): response shape (`run_id` + `artifact_key` prefix), artifact body/lineage round-trip via `read_artifact`, exactly-one `WorkerExecution` recorded, `RunRecord` reaches `status="complete"`. All against `InMemoryArtifactStorage` via `app.dependency_overrides`. 900 total passing (was 896).
+- No new ENV vars, no new dependencies, no DECISIONS.md entry.
+- **P1 is the last "interfaces only / spine" sprint with no operator UI deliverable** — P1's human touchpoint is a direct API call + R2 inspection (not pipeline.html). The first operator-facing platform UI surface is the Telegram trigger in **P3-S1**; no follow-up story needed for this story specifically.
+- **Sprint P1 complete** (16/16 pts). Next: **P2-S1** (Provision Railway Postgres + connection layer), per SPRINT.md execution order P2-S1 → P2-S2 → (P2-S3 ∥ P2-S4) → P2-S5.
 
 ---
 

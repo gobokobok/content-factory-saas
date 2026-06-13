@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P1-S6] Echo graph end-to-end smoke
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/core/config.py` (new): `PlatformSettings` (`R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`/`R2_BUCKET_NAME`) + `get_platform_settings()` — cf_platform's own minimal settings, independent of `src/config.py` (D047). Same ENV var names; no new ENV vars.
+- `cf_platform/workers/echo.py` (new): `EchoArtifact(message: str)`, pure `echo_worker(state) -> WorkerOutput`, `ECHO_REGISTRATION` (`WorkerRegistration`, `worker_version="1.0.0"`, `prompt_version="v1"`, `model="none"`).
+- `cf_platform/interfaces/api.py`: `POST /echo` (→ `/platform/echo {text}`). Module-level in-memory singletons (`InMemoryRunRepository`, `InMemoryExecutionRepository`, `WorkerRegistry` pre-registered with `"echo"`) exposed via `get_run_repository()`/`get_execution_repository()`/`get_worker_registry()`/`get_artifact_storage()` `Depends()` providers — swappable for tests and for P2's Postgres-backed repos. Route: `create_run` → `transition_run("running")` → `build_observed_node_graph("echo","echo", echo_worker, ...)` → `run_graph` → `transition_run("complete")` → returns `EchoResponse(run_id, artifact_key)`. Fixed `user_id="operator"` (per-user isolation is S19).
+- `tests/cf_platform/test_echo_route.py` (new, 4 tests): response shape, artifact body/lineage round-trip, exactly-one `WorkerExecution`, run reaches `status="complete"` — all against `InMemoryArtifactStorage`. 900 total passing (was 896).
+- No new ENV vars, no new dependencies, no DECISIONS.md entry.
+- **Sprint P1 complete** (16/16 pts — P1-S1 through P1-S6 all done). The full spine (Run Manager → LangGraph execution engine → observability wrapper → Artifact Manager → R2) is proven end-to-end.
+- **Sprint P2 next story:** P2-S1 (Provision Railway Postgres + connection layer) — no dependencies outstanding, can start now.
+**Smoke test:** PASSED — 2026-06-13. Ran `uvicorn src.main:app` locally against `.env.local` (real DEV R2 credentials), authenticated with a signed session cookie, called `POST /platform/echo {"text": "P1-S6 smoke test"}`. Response: `{"run_id": "383fb415-...", "artifact_key": "users/operator/runs/383fb415-.../echo/echo@v1.json"}`. Independently fetched that key from the live `content-factory-dev` R2 bucket via `R2ArtifactStorage.get_json` — confirmed `body.message == "P1-S6 smoke test"` and `artifact.lineage.worker == "echo"`. This is Sprint P1's human touchpoint.
+**Promoted to backlog:** none
+
+---
+
 ## [P1-S5] Observability wrapper (Layer B)
 **Completed:** 2026-06-13
 **Handover:**

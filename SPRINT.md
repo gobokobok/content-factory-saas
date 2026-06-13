@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
-> As of 2026-06-12 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Current sprint:** P1 — Platform Skeleton & Core. P1-S1–S5 done; **active story:** P1-S6 (Echo graph end-to-end smoke) — depends on P1-S5 (done).
+> As of 2026-06-13 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
+> - **Sprint P1 complete** (16/16 pts). **Current sprint:** P2 — Lineage & Observability Store. **Active story:** P2-S1 (Provision Railway Postgres + connection layer) — no outstanding dependencies.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 >
@@ -644,8 +644,9 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 # Sprint P1 — Platform Skeleton & Core
 
 **Goal:** A working spine — create a run, execute a single-node LangGraph graph through the observability wrapper, write a versioned R2 artifact, record a `WorkerExecution` (in-memory until P2).
-**Status:** planned
+**Status:** done
 **Points:** 16
+**Velocity:** 16/16 pts (100%)
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
@@ -654,15 +655,15 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 | P1-S3 | Artifact Manager → R2 (immutable, versioned) | 3 | done |
 | P1-S4 | LangGraph execution engine (Layer A) ⚠️ keystone | 3 | done |
 | P1-S5 | Observability wrapper (Layer B) | 3 | done |
-| P1-S6 | Echo graph end-to-end smoke | 2 | planned |
+| P1-S6 | Echo graph end-to-end smoke | 2 | done |
 
 **Execution order:** P1-S1 → (P1-S2 ∥ P1-S3) → P1-S4 → P1-S5 → P1-S6. Spike P1-S4 first.
 
 ## Sprint P1 Definition of Done
 - [x] `langgraph` adopted (D052); worker=node contract implemented
-- [ ] Wrapper emits exactly one artifact + one execution record per node
+- [x] Wrapper emits exactly one artifact + one execution record per node
 - [x] Legacy routes unaffected; platform init fault-isolated
-- [ ] **Human touchpoint:** operator calls `/platform/echo` and sees the artifact in R2
+- [x] **Human touchpoint:** operator calls `/platform/echo` and sees the artifact in R2
 
 ---
 
