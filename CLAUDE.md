@@ -16,7 +16,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 _Legacy Sprints 1–13 are done and running in DEV/PROD; the legacy pipeline stays untouched (D047). S14–S17 (video-UX polish) are paused._
 
 ## Active story
-**P1-S2 / P1-S3** — Run Manager / Artifact Manager → R2 (P1-S1 done; both depend only on P1-S1 and can proceed in parallel per SPRINT.md execution order)
+**P1-S3** — Artifact Manager → R2 (immutable, versioned). P1-S1 and P1-S2 done; P1-S3 depends only on P1-S1 and can proceed now.
 
 ## Environments
 

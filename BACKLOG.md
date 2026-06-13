@@ -4330,7 +4330,8 @@ Create the `cf_platform/` package; mount `cf_platform/interfaces/api.py` under `
 ## [P1-S2] Run Manager
 **Epic:** E26 — Platform Foundation
 **Sprint:** P1
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 3
 **Depends on:** P1-S1
@@ -4340,15 +4341,18 @@ Create the `cf_platform/` package; mount `cf_platform/interfaces/api.py` under `
 **Tech:** Python, repository pattern. **Artifacts:** `RunRecord` rows (in-memory).
 
 ### Acceptance Criteria
-- [ ] `create_run` returns a unique `run_id` and a valid `RunRecord`
-- [ ] Lifecycle transitions enforced; invalid transitions rejected
-- [ ] Repository interface swappable (no Postgres coupling yet)
+- [x] `create_run` returns a unique `run_id` and a valid `RunRecord`
+- [x] Lifecycle transitions enforced; invalid transitions rejected
+- [x] Repository interface swappable (no Postgres coupling yet)
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/core/run_manager.py` (new): `RunStatus = Literal["created","running","complete","failed"]`; `_VALID_TRANSITIONS` dict encodes `created→running→{complete,failed}` (complete/failed terminal). `RunRepository` Protocol (`async save(run) -> RunRecord`, `async get(run_id) -> RunRecord`). `InMemoryRunRepository` — process-local dict-backed implementation. `create_run(user_id, block, inputs, repository) -> RunRecord` mints `run_id` via `uuid4`, status `"created"`, `created_at == updated_at`. `transition_run(run_id, new_status, repository, error=None) -> RunRecord` validates against `_VALID_TRANSITIONS`, bumps `updated_at`, persists via `repository.save`. `InvalidTransitionError` and `RunNotFoundError` exceptions added.
+- `tests/cf_platform/test_run_manager.py` (new, 11 tests): `TestCreateRun` (valid record, unique `run_id`, repository round-trip), `TestTransitionRun` (created→running, running→complete, running→failed with error, `updated_at` advances, invalid `created→complete` rejected, terminal-state rejection, unknown `run_id` → `RunNotFoundError`), `TestRepositorySwappable` (alternate repository implementing the Protocol works with no Postgres coupling).
+- No new ENV vars, no new dependencies, no HTTP routes (no UI pairing needed — pure core module). 871 total passing (was 860).
+- **Sprint P1 next story:** P1-S3 (Artifact Manager → R2) can proceed — depends only on P1-S1 (done). P1-S4 (LangGraph execution engine) depends on both P1-S2 (done) and P1-S3.
 
 ---
 

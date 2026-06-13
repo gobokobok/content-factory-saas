@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P1-S2] Run Manager
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/core/run_manager.py` (new): `RunStatus = Literal["created","running","complete","failed"]`; `_VALID_TRANSITIONS` encodes `created→running→{complete,failed}` (complete/failed terminal, reject any further transition). `RunRepository` Protocol (`async save(run) -> RunRecord`, `async get(run_id) -> RunRecord`) — swappable, no Postgres coupling. `InMemoryRunRepository` — process-local dict-backed implementation for P1. `create_run(user_id, block, inputs, repository) -> RunRecord` mints `run_id` via `uuid4`, status `"created"`, `created_at == updated_at`. `transition_run(run_id, new_status, repository, error=None) -> RunRecord` validates the transition, bumps `updated_at`, persists via `repository.save`. `InvalidTransitionError` and `RunNotFoundError` exceptions added.
+- `tests/cf_platform/test_run_manager.py` (new, 11 tests): creation (valid record, unique `run_id`, repository round-trip), all valid/invalid transitions, terminal-state rejection, unknown `run_id`, and an alternate repository implementation proving Protocol swappability.
+- No new ENV vars, no new dependencies, no HTTP routes. 871 total passing (was 860).
+- **Sprint P1 next story:** P1-S3 (Artifact Manager → R2) — depends only on P1-S1 (done), can proceed now. P1-S4 (LangGraph execution engine) depends on both P1-S2 (done) and P1-S3.
+**Smoke test:** N/A — pure core module (repository pattern, in-memory only), no HTTP surface or operator-visible artifact in P1. Verified via 11 unit tests; CI green (871 passing).
+**Promoted to backlog:** none
+
+---
+
 ## [P1-S1] cf_platform/ scaffold + router mount
 **Completed:** 2026-06-13
 **Handover:**

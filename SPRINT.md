@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-12 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Current sprint:** P0 — Boundary Design & Contracts. P0-S1–S4 done; **active story:** P0-S5 (final story of Sprint P0).
+> - **Current sprint:** P1 — Platform Skeleton & Core. P1-S1–S2 done; **active story:** P1-S3 (Artifact Manager → R2 — can proceed in parallel with P1-S2, which is now done).
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 >
@@ -650,7 +650,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | P1-S1 | cf_platform/ scaffold + router mount | 2 | done |
-| P1-S2 | Run Manager | 3 | planned |
+| P1-S2 | Run Manager | 3 | done |
 | P1-S3 | Artifact Manager → R2 (immutable, versioned) | 3 | planned |
 | P1-S4 | LangGraph execution engine (Layer A) ⚠️ keystone | 3 | planned |
 | P1-S5 | Observability wrapper (Layer B) | 3 | planned |
