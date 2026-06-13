@@ -71,6 +71,26 @@ async def _run_platform_migrations() -> None:
         )
 
 
+async def _setup_platform_checkpointer() -> None:
+    """Create the LangGraph checkpoint tables for cf_platform's checkpointer (P2-S4, D048).
+
+    Fault-isolated: any failure (including a missing/unreachable DATABASE_URL) is
+    logged and swallowed so legacy startup never fails because of the platform's
+    checkpointer setup, mirroring _run_platform_migrations's isolation (D047, D048).
+    """
+    try:
+        from cf_platform.core.config import get_platform_settings
+        from cf_platform.core.db import get_checkpointer, setup_checkpointer
+
+        checkpointer = get_checkpointer(get_platform_settings().DATABASE_URL)
+        result = await setup_checkpointer(checkpointer)
+        logging.getLogger(__name__).info("cf_platform checkpointer setup: %s", result)
+    except Exception:
+        logging.getLogger(__name__).exception(
+            "cf_platform checkpointer setup failed — continuing"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Validate all ENV vars at startup. Crash fast if anything is missing or invalid."""
@@ -88,6 +108,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         raise SystemExit(1) from exc
 
     await _run_platform_migrations()
+    await _setup_platform_checkpointer()
 
     yield
 

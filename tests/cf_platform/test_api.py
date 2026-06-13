@@ -1,14 +1,31 @@
 """Tests for cf_platform/interfaces/api.py and its fault-isolated mount in src/main.py (P1-S1)."""
 
 import sys
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+
+from cf_platform.core.artifact_manager import InMemoryArtifactRepository
+from cf_platform.core.postgres_repos import (
+    PostgresArtifactRepository,
+    PostgresExecutionRepository,
+    PostgresRunRepository,
+)
+from cf_platform.core.run_manager import InMemoryRunRepository
+from cf_platform.core.worker_registry import InMemoryExecutionRepository
+from cf_platform.interfaces.api import (
+    get_artifact_repository,
+    get_execution_repository,
+    get_graph_checkpointer,
+    get_run_repository,
+)
 from src.config import Settings, get_settings
-from src.main import _mount_platform_router, _run_platform_migrations, app
+from src.main import _mount_platform_router, _run_platform_migrations, _setup_platform_checkpointer, app
 
 
 @pytest.fixture(autouse=True)
@@ -120,3 +137,73 @@ class TestRunPlatformMigrationsFaultIsolation:
         """An import failure in cf_platform.core.migrations does not raise."""
         with patch.dict(sys.modules, {"cf_platform.core.migrations": None}):
             await _run_platform_migrations()  # must not raise
+
+
+class TestRepositoryProviderSelection:
+    """get_*_repository() picks Postgres-backed repos when DATABASE_URL is set, else in-memory (D048)."""
+
+    def test_returns_in_memory_repos_when_pool_unset(self):
+        """With no Postgres pool (DATABASE_URL unset), provider functions return the in-memory singletons."""
+        with patch("cf_platform.interfaces.api.get_pool", return_value=None):
+            assert isinstance(get_run_repository(), InMemoryRunRepository)
+            assert isinstance(get_execution_repository(), InMemoryExecutionRepository)
+            assert isinstance(get_artifact_repository(), InMemoryArtifactRepository)
+
+    def test_returns_postgres_repos_when_pool_set(self):
+        """With a Postgres pool available (DATABASE_URL set), provider functions return Postgres-backed repos."""
+        with patch("cf_platform.interfaces.api.get_pool", return_value=MagicMock()):
+            assert isinstance(get_run_repository(), PostgresRunRepository)
+            assert isinstance(get_execution_repository(), PostgresExecutionRepository)
+            assert isinstance(get_artifact_repository(), PostgresArtifactRepository)
+
+
+class TestGetGraphCheckpointer:
+    """get_graph_checkpointer() picks a Postgres-backed checkpointer when DATABASE_URL is set (D048, P2-S4)."""
+
+    @pytest.mark.asyncio
+    async def test_returns_memory_saver_when_database_url_unset(self):
+        """With DATABASE_URL unset, get_graph_checkpointer returns a MemorySaver."""
+        checkpointer = await get_graph_checkpointer()
+
+        assert isinstance(checkpointer, MemorySaver)
+
+    @pytest.mark.asyncio
+    async def test_returns_postgres_saver_when_database_url_set(self):
+        """With DATABASE_URL set, get_graph_checkpointer returns an AsyncPostgresSaver."""
+        with patch(
+            "cf_platform.interfaces.api.get_platform_settings",
+            return_value=MagicMock(DATABASE_URL="postgresql://user:pass@localhost/db"),
+        ):
+            checkpointer = await get_graph_checkpointer()
+
+        assert isinstance(checkpointer, AsyncPostgresSaver)
+
+
+class TestSetupPlatformCheckpointerFaultIsolation:
+    @pytest.mark.asyncio
+    async def test_calls_setup_checkpointer_with_checkpointer(self):
+        """_setup_platform_checkpointer calls setup_checkpointer with the platform's checkpointer."""
+        with patch(
+            "cf_platform.core.db.setup_checkpointer", new_callable=AsyncMock
+        ) as mock_setup:
+            mock_setup.return_value = "ok"
+
+            await _setup_platform_checkpointer()
+
+        mock_setup.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_swallows_exception(self):
+        """A failure in setup_checkpointer is logged and swallowed — never raised."""
+        with patch(
+            "cf_platform.core.db.setup_checkpointer",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("db exploded"),
+        ):
+            await _setup_platform_checkpointer()  # must not raise
+
+    @pytest.mark.asyncio
+    async def test_swallows_import_failure(self):
+        """An import failure in cf_platform.core.db does not raise."""
+        with patch.dict(sys.modules, {"cf_platform.core.db": None}):
+            await _setup_platform_checkpointer()  # must not raise

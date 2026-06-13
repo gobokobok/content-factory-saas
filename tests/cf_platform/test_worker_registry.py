@@ -1,9 +1,10 @@
-"""Tests for cf_platform/core/worker_registry.py (P1-S5)."""
+"""Tests for cf_platform/core/worker_registry.py (P1-S5, P2-S4)."""
 
 import pytest
+from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
 
-from cf_platform.core.artifact_manager import InMemoryArtifactStorage, read_artifact
+from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemoryArtifactStorage, read_artifact
 from cf_platform.core.execution_engine import run_graph
 from cf_platform.core.schemas import StageState, WorkerOutput
 from cf_platform.core.worker_registry import (
@@ -88,9 +89,18 @@ class TestWrap:
         registry = WorkerRegistry()
         storage = InMemoryArtifactStorage()
         executions = InMemoryExecutionRepository()
+        artifacts = InMemoryArtifactRepository()
 
         with pytest.raises(WorkerNotRegisteredError):
-            wrap("echo", "echo", echo_worker, registry=registry, storage=storage, executions=executions)
+            wrap(
+                "echo",
+                "echo",
+                echo_worker,
+                registry=registry,
+                storage=storage,
+                executions=executions,
+                artifact_repo=artifacts,
+            )
 
     @pytest.mark.asyncio
     async def test_emits_exactly_one_artifact_and_execution(self):
@@ -99,8 +109,17 @@ class TestWrap:
         registry.register("echo", _registration())
         storage = InMemoryArtifactStorage()
         executions = InMemoryExecutionRepository()
+        artifacts = InMemoryArtifactRepository()
 
-        node_fn = wrap("echo", "echo", echo_worker, registry=registry, storage=storage, executions=executions)
+        node_fn = wrap(
+            "echo",
+            "echo",
+            echo_worker,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
+        )
         state = StageState(run_id="r1", user_id="u1", inputs={"message": "hello"})
 
         result = await node_fn(state)
@@ -109,6 +128,9 @@ class TestWrap:
         recorded = await executions.list_for_run("r1")
         assert len(recorded) == 1
         assert result == {"artifacts": {"echo": recorded[0].artifact_r2_key}}
+        indexed = await artifacts.list_for_run("r1")
+        assert len(indexed) == 1
+        assert indexed[0].r2_key == recorded[0].artifact_r2_key
 
     @pytest.mark.asyncio
     async def test_artifact_body_and_lineage_match_registration(self):
@@ -117,8 +139,17 @@ class TestWrap:
         registry.register("echo", _registration())
         storage = InMemoryArtifactStorage()
         executions = InMemoryExecutionRepository()
+        artifacts = InMemoryArtifactRepository()
 
-        node_fn = wrap("echo", "echo", echo_worker, registry=registry, storage=storage, executions=executions)
+        node_fn = wrap(
+            "echo",
+            "echo",
+            echo_worker,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
+        )
         state = StageState(run_id="r1", user_id="u1", inputs={"message": "hello"})
 
         result = await node_fn(state)
@@ -140,8 +171,17 @@ class TestWrap:
         registry.register("echo", _registration())
         storage = InMemoryArtifactStorage()
         executions = InMemoryExecutionRepository()
+        artifacts = InMemoryArtifactRepository()
 
-        node_fn = wrap("echo", "echo", echo_worker, registry=registry, storage=storage, executions=executions)
+        node_fn = wrap(
+            "echo",
+            "echo",
+            echo_worker,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
+        )
         state = StageState(run_id="r1", user_id="u1", inputs={"message": "hello"})
 
         result = await node_fn(state)
@@ -170,8 +210,17 @@ class TestWrap:
         registry.register("echo", _registration())
         storage = InMemoryArtifactStorage()
         executions = InMemoryExecutionRepository()
+        artifacts = InMemoryArtifactRepository()
 
-        node_fn = wrap("echo", "echo", recording_worker, registry=registry, storage=storage, executions=executions)
+        node_fn = wrap(
+            "echo",
+            "echo",
+            recording_worker,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
+        )
         state = StageState(run_id="r1", user_id="u1", inputs={})
 
         await node_fn(state)
@@ -189,9 +238,16 @@ class TestBuildObservedNodeGraph:
         registry.register("echo", _registration())
         storage = InMemoryArtifactStorage()
         executions = InMemoryExecutionRepository()
+        artifacts = InMemoryArtifactRepository()
 
         graph = build_observed_node_graph(
-            "echo", "echo", echo_worker, registry=registry, storage=storage, executions=executions
+            "echo",
+            "echo",
+            echo_worker,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
         )
         state = StageState(run_id="r1", user_id="u1", inputs={"message": "hello"})
 
@@ -202,3 +258,62 @@ class TestBuildObservedNodeGraph:
         artifact, body = await read_artifact(storage, r2_key)
         assert body == {"message": "hello"}
         assert (await executions.list_for_run("r1"))[0].artifact_r2_key == r2_key
+        assert (await artifacts.list_for_run("r1"))[0].r2_key == r2_key
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_memory_saver_when_checkpointer_not_provided(self):
+        """build_observed_node_graph defaults to an in-memory MemorySaver checkpointer (P2-S4)."""
+        registry = WorkerRegistry()
+        registry.register("echo", _registration())
+        storage = InMemoryArtifactStorage()
+        executions = InMemoryExecutionRepository()
+        artifacts = InMemoryArtifactRepository()
+
+        graph = build_observed_node_graph(
+            "echo",
+            "echo",
+            echo_worker,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
+        )
+
+        assert isinstance(graph.checkpointer, MemorySaver)
+
+    @pytest.mark.asyncio
+    async def test_resumes_from_checkpoint_after_rebuild_with_same_checkpointer(self):
+        """A run resumes from its last checkpoint when a new graph is built with the same checkpointer (P2-S4)."""
+        registry = WorkerRegistry()
+        registry.register("echo", _registration())
+        storage = InMemoryArtifactStorage()
+        executions = InMemoryExecutionRepository()
+        artifacts = InMemoryArtifactRepository()
+        checkpointer = MemorySaver()
+
+        first_graph = build_observed_node_graph(
+            "echo",
+            "echo",
+            echo_worker,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
+            checkpointer=checkpointer,
+        )
+        state = StageState(run_id="r2", user_id="u1", inputs={"message": "durable"})
+        result = await run_graph(first_graph, state, thread_id="t2")
+
+        second_graph = build_observed_node_graph(
+            "echo",
+            "echo",
+            echo_worker,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifacts,
+            checkpointer=checkpointer,
+        )
+        snapshot = await second_graph.aget_state({"configurable": {"thread_id": "t2"}})
+
+        assert snapshot.values["artifacts"]["echo"] == result.artifacts["echo"]

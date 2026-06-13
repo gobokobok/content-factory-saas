@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-13 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Sprint P1 complete** (16/16 pts). **Current sprint:** P2 — Lineage & Observability Store. **P2-S1 done** (smoke test passed). **P2-S2 done** (smoke test deferred — needs Railway DEV deploy). **Active story:** P2-S3 or P2-S4 (parallel, per execution order).
+> - **Sprint P1 complete** (16/16 pts). **Current sprint:** P2 — Lineage & Observability Store. **P2-S1 done** (smoke test passed). **P2-S2 done** (smoke test deferred — needs Railway DEV deploy). **P2-S3 done** (smoke test deferred — needs Railway DEV deploy). **P2-S4 done** (smoke test deferred — needs Railway DEV deploy). **Active story:** P2-S5 (Observability endpoints, now unblocked).
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 >
@@ -677,8 +677,8 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 |----|-------|--------|--------|
 | P2-S1 | Provision Railway Postgres + connection layer | 3 | done |
 | P2-S2 | Schema migrations (runs/artifacts/worker_executions/trace_events) | 3 | done |
-| P2-S3 | Persist Run/Artifact/Execution to Postgres | 5 | planned |
-| P2-S4 | LangGraph PostgresSaver checkpointer | 3 | planned |
+| P2-S3 | Persist Run/Artifact/Execution to Postgres | 5 | done |
+| P2-S4 | LangGraph PostgresSaver checkpointer | 3 | done |
 | P2-S5 | Observability endpoints | 2 | planned |
 
 **Execution order:** P2-S1 → P2-S2 → (P2-S3 ∥ P2-S4) → P2-S5.

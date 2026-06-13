@@ -12,14 +12,15 @@ indexed by `worker@prompt_version` so older versions remain retrievable for repl
 
 import time
 from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Protocol
+from typing import Any, Awaitable, Callable, Optional, Protocol
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from pydantic import BaseModel
 
-from cf_platform.core.artifact_manager import ArtifactStorage, write_artifact
+from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage, write_artifact
 from cf_platform.core.schemas import LineageEnvelope, StageState, WorkerExecution, WorkerNode
 
 
@@ -107,13 +108,16 @@ def wrap(
     registry: WorkerRegistry,
     storage: ArtifactStorage,
     executions: ExecutionRepository,
+    artifact_repo: ArtifactRepository,
 ) -> Callable[[StageState], Awaitable[dict[str, Any]]]:
     """Wrap a pure WorkerNode into a LangGraph node function with full observability.
 
     Resolves the worker's pinned configuration from registry, calls `node(state)`,
     writes `output.artifact` via the Artifact Manager (assigning the r2_key the
-    worker body never sees), records exactly one WorkerExecution, and returns
-    `{"artifacts": {node_name: r2_key}}` for the StageState.artifacts reducer (D056).
+    worker body never sees), records the artifact's lineage row via `artifact_repo`
+    (Postgres index, R2 stays blob truth — P2-S3), records exactly one
+    WorkerExecution, and returns `{"artifacts": {node_name: r2_key}}` for the
+    StageState.artifacts reducer (D056).
 
     Raises WorkerNotRegisteredError immediately if worker has no registration.
     """
@@ -144,6 +148,7 @@ def wrap(
             user_id=state.user_id,
             lineage=lineage,
         )
+        await artifact_repo.record(artifact)
         execution = WorkerExecution(
             run_id=state.run_id,
             worker=worker,
@@ -171,18 +176,33 @@ def build_observed_node_graph(
     registry: WorkerRegistry,
     storage: ArtifactStorage,
     executions: ExecutionRepository,
+    artifact_repo: ArtifactRepository,
+    checkpointer: Optional[BaseCheckpointSaver] = None,
 ) -> CompiledStateGraph:
     """Compile a 1-node StateGraph (START -> node_name -> END) wrapping `node` via wrap().
 
     Like execution_engine.build_single_node_graph, but the node writes a real,
-    versioned artifact via the Artifact Manager and records a WorkerExecution
-    instead of a JSON placeholder (Layer B).
+    versioned artifact via the Artifact Manager, records its lineage row via
+    `artifact_repo`, and records a WorkerExecution instead of a JSON placeholder
+    (Layer B).
+
+    `checkpointer` defaults to `MemorySaver()` (in-memory, process-local). Pass a
+    `cf_platform.core.db.get_checkpointer(...)` result for durable, restart-resumable
+    checkpoints (P2-S4).
     """
     graph = StateGraph(StageState)
     graph.add_node(
         node_name,
-        wrap(worker, node_name, node, registry=registry, storage=storage, executions=executions),
+        wrap(
+            worker,
+            node_name,
+            node,
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifact_repo,
+        ),
     )
     graph.add_edge(START, node_name)
     graph.add_edge(node_name, END)
-    return graph.compile(checkpointer=MemorySaver())
+    return graph.compile(checkpointer=checkpointer or MemorySaver())

@@ -4543,7 +4543,7 @@ See DONE.md.
 ## [P2-S3] Persist Run/Artifact/Execution to Postgres
 **Epic:** E27 — Lineage & Observability
 **Sprint:** P2
-**Status:** planned
+**Status:** done
 **Priority:** high
 **Points:** 5
 **Depends on:** P2-S2
@@ -4556,22 +4556,23 @@ Swap P1 in-memory repos for Postgres-backed repos. **R2 stays blob truth; PG is 
 P2-S1 verified `DATABASE_URL`/Postgres on `content-factory-dev` only (`{"status":"ok","database":"ok"}` from `/platform/health`, 2026-06-13). Before this story ships to PROD, confirm `content-factory-prod` also has a Postgres plugin + `DATABASE_URL` set and `/platform/health` returns `"database": "ok"` there too.
 
 ### Acceptance Criteria
-- [ ] Echo run now persists rows in `runs`, `artifacts`, `worker_executions`
-- [ ] Artifact bodies remain in R2 only (PG holds keys)
-- [ ] Re-running a step is idempotent
+- [x] Echo run now persists rows in `runs`, `artifacts`, `worker_executions`
+- [x] Artifact bodies remain in R2 only (PG holds keys)
+- [x] Re-running a step is idempotent
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+See DONE.md [P2-S3] entry for full details. `cf_platform/core/postgres_repos.py` (new): `PostgresRunRepository`, `PostgresArtifactRepository`, `PostgresExecutionRepository` — idempotent upserts (`ON CONFLICT (run_id) DO UPDATE` for runs, `ON CONFLICT (run_id, stage, name, version) DO NOTHING` for artifacts). New `ArtifactRepository` protocol + `InMemoryArtifactRepository` in `cf_platform/core/artifact_manager.py`. `wrap()`/`build_observed_node_graph()` now take a required `artifact_repo` kwarg and record the artifact's lineage row. `cf_platform/interfaces/api.py` provider functions (`get_run_repository`, `get_execution_repository`, `get_artifact_repository`) select Postgres-backed repos when `DATABASE_URL`/`get_pool()` is set, else in-memory fallback (D048). 927 total passing (was 917).
 
 ---
 
 ## [P2-S4] LangGraph PostgresSaver checkpointer
 **Epic:** E27 — Lineage & Observability
 **Sprint:** P2
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-13
 **Priority:** high
 **Points:** 3
 **Depends on:** P2-S1
@@ -4581,15 +4582,15 @@ Replace `MemorySaver` with the Postgres checkpointer on the same DB. A graph run
 **Tech:** LangGraph (`langgraph-checkpoint-postgres`), Postgres. **Dependency:** `langgraph-checkpoint-postgres` (D052).
 
 ### Acceptance Criteria
-- [ ] Kill/restart mid-run → run resumes from last checkpoint
-- [ ] Checkpointer uses the same `DATABASE_URL`
-- [ ] Dependency added per D052
+- [x] Kill/restart mid-run → run resumes from last checkpoint
+- [x] Checkpointer uses the same `DATABASE_URL`
+- [x] Dependency added per D052
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+See DONE.md — [P2-S4] LangGraph PostgresSaver checkpointer.
 
 ---
 

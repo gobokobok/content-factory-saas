@@ -45,6 +45,40 @@ class ArtifactStorage(Protocol):
         ...
 
 
+class ArtifactRepository(Protocol):
+    """Postgres-index interface for Artifact rows (P2-S3, D048).
+
+    Records the lineage row for an artifact already written to R2 by
+    `write_artifact` — Postgres holds the `r2_key` + lineage columns, never the
+    artifact body (R2 stays blob truth). Swappable: `InMemoryArtifactRepository`
+    for tests, `PostgresArtifactRepository` (cf_platform/core/postgres_repos.py)
+    in production.
+    """
+
+    async def record(self, artifact: Artifact) -> None:
+        """Persist the lineage index row for artifact. Idempotent on (run_id, stage, name, version)."""
+        ...
+
+
+class InMemoryArtifactRepository:
+    """In-memory ArtifactRepository implementation — process-local, not durable."""
+
+    def __init__(self) -> None:
+        """Initialize an empty in-memory store."""
+        self._artifacts: list[Artifact] = []
+
+    async def record(self, artifact: Artifact) -> None:
+        """Append artifact to the in-memory list, skipping exact (run_id, stage, name, version) duplicates."""
+        key = (artifact.run_id, artifact.stage, artifact.name, artifact.version)
+        if any((a.run_id, a.stage, a.name, a.version) == key for a in self._artifacts):
+            return
+        self._artifacts.append(artifact)
+
+    async def list_for_run(self, run_id: str) -> list[Artifact]:
+        """Return all recorded artifacts for run_id, in recording order."""
+        return [artifact for artifact in self._artifacts if artifact.run_id == run_id]
+
+
 class InMemoryArtifactStorage:
     """In-memory ArtifactStorage implementation — process-local, not durable."""
 

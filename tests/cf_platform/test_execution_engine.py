@@ -1,6 +1,7 @@
-"""Tests for cf_platform/core/execution_engine.py (P1-S4)."""
+"""Tests for cf_platform/core/execution_engine.py (P1-S4, P2-S4)."""
 
 import pytest
+from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
 
 from cf_platform.core.execution_engine import build_single_node_graph, run_graph
@@ -57,6 +58,27 @@ class TestBuildSingleNodeGraph:
 
         assert snap_a.values["artifacts"]["echo"] == '{"message":"a"}'
         assert snap_b.values["artifacts"]["echo"] == '{"message":"b"}'
+
+    @pytest.mark.asyncio
+    async def test_resumes_from_checkpoint_after_rebuild_with_same_checkpointer(self):
+        """A run resumes from its last checkpoint when a new graph is built with the same checkpointer (P2-S4)."""
+        checkpointer = MemorySaver()
+        state = StageState(run_id="r6", user_id="u1", inputs={"message": "durable"})
+
+        first_graph = build_single_node_graph("echo", echo_worker, checkpointer=checkpointer)
+        await run_graph(first_graph, state, thread_id="t6")
+
+        second_graph = build_single_node_graph("echo", echo_worker, checkpointer=checkpointer)
+        snapshot = await second_graph.aget_state({"configurable": {"thread_id": "t6"}})
+
+        assert snapshot.values["artifacts"]["echo"] == '{"message":"durable"}'
+
+    @pytest.mark.asyncio
+    async def test_defaults_to_memory_saver_when_checkpointer_not_provided(self):
+        """build_single_node_graph defaults to an in-memory MemorySaver checkpointer."""
+        graph = build_single_node_graph("echo", echo_worker)
+
+        assert isinstance(graph.checkpointer, MemorySaver)
 
 
 class TestWorkerPurity:

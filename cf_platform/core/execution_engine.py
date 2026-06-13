@@ -10,8 +10,9 @@ Pure execution only — no lineage, no artifact persistence (that's Layer B, P1-
 worker's artifact body, not a real r2_key; the observability wrapper replaces it.
 """
 
-from typing import Any, TypeVar
+from typing import Any, Optional, TypeVar
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -21,12 +22,18 @@ from cf_platform.core.schemas import StageState, WorkerNode
 StateT = TypeVar("StateT", bound=StageState)
 
 
-def build_single_node_graph(node_name: str, worker: WorkerNode) -> CompiledStateGraph:
+def build_single_node_graph(
+    node_name: str, worker: WorkerNode, checkpointer: Optional[BaseCheckpointSaver] = None
+) -> CompiledStateGraph:
     """Compile a 1-node StateGraph (START -> node_name -> END) wrapping `worker`.
 
-    Checkpointed in memory via `MemorySaver`. The node calls the pure `worker` body with
-    the current state and merges `WorkerOutput.artifact` into `state.artifacts[node_name]`
-    as a JSON-encoded placeholder — the worker body never sees or assigns its own r2_key.
+    The node calls the pure `worker` body with the current state and merges
+    `WorkerOutput.artifact` into `state.artifacts[node_name]` as a JSON-encoded
+    placeholder — the worker body never sees or assigns its own r2_key.
+
+    `checkpointer` defaults to `MemorySaver()` (in-memory, process-local). Pass a
+    `cf_platform.core.db.get_checkpointer(...)` result for durable, restart-resumable
+    checkpoints (P2-S4).
     """
 
     async def _node_fn(state: StageState) -> dict[str, Any]:
@@ -37,7 +44,7 @@ def build_single_node_graph(node_name: str, worker: WorkerNode) -> CompiledState
     graph.add_node(node_name, _node_fn)
     graph.add_edge(START, node_name)
     graph.add_edge(node_name, END)
-    return graph.compile(checkpointer=MemorySaver())
+    return graph.compile(checkpointer=checkpointer or MemorySaver())
 
 
 async def run_graph(graph: CompiledStateGraph, state: StateT, thread_id: str) -> StateT:
