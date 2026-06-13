@@ -4551,6 +4551,9 @@ _filled on completion_
 Swap P1 in-memory repos for Postgres-backed repos. **R2 stays blob truth; PG is the index** — artifact rows store the R2 key + lineage columns, never the body. The wrapper writes a `worker_executions` row per node. Idempotent upserts.
 **Tech:** Postgres, R2, repository pattern.
 
+### Note
+P2-S1 verified `DATABASE_URL`/Postgres on `content-factory-dev` only (`{"status":"ok","database":"ok"}` from `/platform/health`, 2026-06-13). Before this story ships to PROD, confirm `content-factory-prod` also has a Postgres plugin + `DATABASE_URL` set and `/platform/health` returns `"database": "ok"` there too.
+
 ### Acceptance Criteria
 - [ ] Echo run now persists rows in `runs`, `artifacts`, `worker_executions`
 - [ ] Artifact bodies remain in R2 only (PG holds keys)
