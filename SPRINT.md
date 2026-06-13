@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-13 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Sprint P1 complete** (16/16 pts). **Current sprint:** P2 — Lineage & Observability Store. **P2-S1 done** (smoke test passed). **P2-S2 done** (smoke test deferred — needs Railway DEV deploy). **P2-S3 done** (smoke test deferred — needs Railway DEV deploy). **P2-S4 done** (smoke test deferred — needs Railway DEV deploy). **Active story:** P2-S5 (Observability endpoints, now unblocked).
+> - **Sprint P1 complete** (16/16 pts). **Current sprint:** P2 — Lineage & Observability Store. **P2-S1 done** (smoke test passed). **P2-S2 done** (smoke test deferred — needs Railway DEV deploy). **P2-S3 done** (smoke test passed on Railway DEV). **P2-S4 done** (smoke test deferred — needs Railway DEV deploy). **Active story:** P2-S5 (Observability endpoints, now unblocked).
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 >
