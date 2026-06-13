@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P1-S4] LangGraph execution engine (Layer A)
+**Completed:** 2026-06-13
+**Handover:**
+- `cf_platform/core/execution_engine.py` (new): `build_single_node_graph(node_name, worker) -> CompiledStateGraph` — builds a `StateGraph(StageState)` with `START -> node_name -> END`, compiled with `MemorySaver`. The node wrapper calls the pure `WorkerNode` (`StageState -> WorkerOutput`) and merges `output.artifact.model_dump_json()` into `state.artifacts[node_name]` via the existing `merge_refs` reducer — the worker body never sees or assigns its own r2_key. `run_graph(graph, state, thread_id) -> StateT` — invokes via `ainvoke` under `{"configurable": {"thread_id": thread_id}}` and re-validates the result dict back into the caller's `StageState` subclass via `type(state).model_validate(result)`.
+- `state.artifacts[node_name]` currently holds a JSON-encoded **placeholder** of the artifact body (not a real r2_key) — pure-execution scope only (no lineage/Artifact Manager wiring). **P1-S5's observability wrapper replaces this placeholder with a real `write_artifact()` r2_key** and additionally records a `WorkerExecution`.
+- `requirements.txt`: `langgraph>=0.6.0,<0.7.0` added (D052; pulls in `langchain-core`, `langgraph-checkpoint`, `langgraph-prebuilt`, `langgraph-sdk`, `langsmith` as transitive deps — `langchain-anthropic` is NOT adopted, `anthropic`/`ModelRouter` stay inside nodes per D052). Verified installs and imports cleanly on Python 3.9 (this repo's runtime).
+- `tests/cf_platform/test_execution_engine.py` (new, 4 tests): round trip (state → WorkerOutput → state via a trivial `EchoArtifact` worker), `MemorySaver` checkpoint persistence for a `thread_id` (via `graph.aget_state`), independent checkpoints across different `thread_id`s, and a purity check confirming the worker callable receives only `StageState` (no storage/DB args).
+- No new ENV vars, no DECISIONS.md entry needed (D052 pre-authorizes `langgraph`). 885 total passing (was 881).
+- **Sprint P1 next story:** P1-S5 (Observability wrapper, Layer B) — depends on P1-S4 (done). It will resolve worker_version/prompt_version/model/sampling_params via the Worker Registry, write a real artifact via `write_artifact()` (P1-S3), record a `WorkerExecution` (in-memory until P2), and replace the placeholder ref written by `build_single_node_graph`'s node wrapper.
+**Smoke test:** N/A — pure core module (LangGraph mechanics over in-memory `MemorySaver`), no HTTP surface or operator-visible artifact in P1. Verified via 4 unit tests; CI green (885 passing). Human touchpoint (`POST /platform/echo` → artifact in R2) lands in P1-S6.
+**Promoted to backlog:** none
+
+---
+
 ## [P1-S3] Artifact Manager → R2 (immutable, versioned)
 **Completed:** 2026-06-13
 **Handover:**
