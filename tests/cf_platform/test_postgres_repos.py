@@ -9,9 +9,10 @@ from cf_platform.core.postgres_repos import (
     PostgresArtifactRepository,
     PostgresExecutionRepository,
     PostgresRunRepository,
+    PostgresTraceEventRepository,
 )
 from cf_platform.core.run_manager import RunNotFoundError
-from cf_platform.core.schemas import Artifact, LineageEnvelope, RunRecord, WorkerExecution
+from cf_platform.core.schemas import Artifact, LineageEnvelope, RunRecord, TraceEvent, WorkerExecution
 
 
 def _mock_pool(fetchone=None, fetchall=None):
@@ -257,6 +258,73 @@ class TestPostgresExecutionRepository:
         """list_for_run() returns an empty list when no rows match run_id."""
         pool, _, _ = _mock_pool(fetchall=[])
         repo = PostgresExecutionRepository(pool)
+
+        result = await repo.list_for_run("r1")
+
+        assert result == []
+
+
+def _trace_event() -> TraceEvent:
+    """Build a sample TraceEvent for tests."""
+    return TraceEvent(
+        run_id="r1",
+        worker="discovery",
+        source="reddit",
+        op="fetch",
+        latency_ms=123,
+        cost_usd=None,
+        status="ok",
+        meta={"signal_count": 5},
+    )
+
+
+class TestPostgresTraceEventRepository:
+    @pytest.mark.asyncio
+    async def test_record_inserts_trace_event_row(self):
+        """record() issues an INSERT into trace_events and returns the event unchanged."""
+        pool, cursor, conn = _mock_pool()
+        repo = PostgresTraceEventRepository(pool)
+        event = _trace_event()
+
+        result = await repo.record(event)
+
+        assert result == event
+        cursor.execute.assert_awaited_once()
+        sql, params = cursor.execute.call_args[0]
+        assert "INSERT INTO trace_events" in sql
+        assert event.run_id in params
+        assert event.source in params
+        conn.commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_list_for_run_maps_rows_to_trace_events(self):
+        """list_for_run() maps trace_events rows back into TraceEvent models, ordered by id."""
+        event = _trace_event()
+        row = (
+            event.run_id,
+            event.worker,
+            event.source,
+            event.op,
+            event.latency_ms,
+            event.cost_usd,
+            event.status,
+            event.meta,
+        )
+        pool, cursor, _ = _mock_pool(fetchall=[row])
+        repo = PostgresTraceEventRepository(pool)
+
+        result = await repo.list_for_run("r1")
+
+        assert result == [event]
+        sql = cursor.execute.call_args[0][0]
+        assert "FROM trace_events" in sql
+        assert "ORDER BY id" in sql
+
+    @pytest.mark.asyncio
+    async def test_list_for_run_empty_when_no_rows(self):
+        """list_for_run() returns an empty list when no rows match run_id."""
+        pool, _, _ = _mock_pool(fetchall=[])
+        repo = PostgresTraceEventRepository(pool)
 
         result = await repo.list_for_run("r1")
 

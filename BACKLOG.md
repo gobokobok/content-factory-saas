@@ -4622,6 +4622,8 @@ See DONE.md [P2-S5] entry for full details.
 ## EPIC 28 — Discovery & Execution Interfaces (Sprint P3)
 Telegram trigger + first real worker; signals stored with lineage (D049, D050).
 
+> **Future candidate (P8+):** Once P3-S2's `SourceAdapter` implementations (Reddit/Google Trends/YouTube, all raw httpx per D050) have run in DEV/PROD for a while, evaluate replacing the fragile-by-nature adapters (esp. `GoogleTrendsAdapter`'s unofficial-API scraping) with a managed scraping provider — Apify or ScrapeBadger — behind the same `SourceAdapter` Protocol. Swap is a new adapter file per source, no Discovery Worker changes (D050 contract). Needs its own DECISIONS.md entry (new dependency + likely paid tier) before implementation.
+
 ---
 
 ## [P3-S1] Telegram webhook (trigger-only)
@@ -4653,25 +4655,34 @@ See DONE.md [P3-S1] entry for full details.
 ## [P3-S2] Discovery worker v1 + source adapters
 **Epic:** E28 — Discovery & Execution Interfaces
 **Sprint:** P3
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-14
 **Priority:** high
 **Points:** 5
 **Depends on:** P2-S3, P0-S3
 
 ### Goal
 `discovery` node: from `{niche, audience?, subtopic?}`, query Reddit + Google Trends + YouTube via `SourceAdapter` implementations in `cf_platform/sources/`; normalize into one `signals` artifact. Partial-failure isolation (one dead source ≠ dead worker). Adapters emit `trace_event` rows per fetch (D050) — never artifacts. X/Twitter dropped (later via Apify).
-**Tech:** Reddit/Trends/YouTube (httpx-first), LangGraph node, ModelRouter (Haiku to cluster). **Env:** `REDDIT_*`, `YOUTUBE_API_KEY`. **Artifacts:** `signals` (plan §6).
+**Tech:** Reddit/Trends/YouTube (raw httpx, no SDKs/pytrends), LangGraph node, no LLM call (`model="none"`). **Env:** `REDDIT_*`, `YOUTUBE_API_KEY`. **Artifacts:** `signals` (plan §6).
 
 ### Acceptance Criteria
-- [ ] 3 adapters implement the P0 `SourceAdapter` Protocol
-- [ ] Worker emits exactly one `signals` artifact; each source fetch emits a `trace_event`
-- [ ] One failing source does not fail the worker
+- [x] 3 adapters implement the P0 `SourceAdapter` Protocol
+- [x] Worker emits exactly one `signals` artifact; each source fetch emits a `trace_event`
+- [x] One failing source does not fail the worker
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+Implemented `RedditAdapter`, `GoogleTrendsAdapter`, `YouTubeAdapter` (`cf_platform/sources/`) as `SourceAdapter` (D050) — all raw httpx, no new dependencies. `GoogleTrendsAdapter` uses the unofficial `explore` → `widgetdata/relatedsearches` handshake; see the P8+ Apify/ScrapeBadger note above EPIC 28 if it proves fragile in DEV/PROD.
+
+Added `TraceEventRepository` (in-memory + Postgres, mirrors `ArtifactRepository`) for D050 trace events, with `trace_events` table already present from migration 0001.
+
+`cf_platform/workers/discovery.py`: `build_discovery_worker(adapters, trace_repo) -> WorkerNode` aggregates `Signal`s into `SignalsArtifact {niche, generated_at, signals}` — no dedup/scoring/ranking (deferred to P4 Topic Generator). Per-adapter `try/except` records an `ok`/`error` `TraceEvent` and lets remaining sources continue (AC #3). Registered as `DISCOVERY_REGISTRATION` ("discovery") in `_worker_registry`; `build_discovery_adapters(settings)` in `cf_platform/interfaces/api.py` constructs the three adapters from `PlatformSettings`. No new API route this story — P3-S3 wires the worker into the `/ideas` Telegram flow.
+
+New env vars (all optional, empty = that adapter's fetch degrades to an error trace event): `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET`, `REDDIT_USER_AGENT`, `YOUTUBE_API_KEY`. `GoogleTrendsAdapter` needs no credentials.
+
+176 cf_platform tests pass (1004 total). Ready for P3-S3 to call `build_discovery_worker(build_discovery_adapters(settings), trace_repo)` and format the `signals` artifact for chat.
 
 ---
 

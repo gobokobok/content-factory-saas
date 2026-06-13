@@ -20,6 +20,7 @@ from cf_platform.core.postgres_repos import (
     PostgresArtifactRepository,
     PostgresExecutionRepository,
     PostgresRunRepository,
+    PostgresTraceEventRepository,
 )
 from cf_platform.core.run_manager import (
     InMemoryRunRepository,
@@ -28,7 +29,8 @@ from cf_platform.core.run_manager import (
     create_run,
     transition_run,
 )
-from cf_platform.core.schemas import StageState
+from cf_platform.core.schemas import SourceAdapter, StageState
+from cf_platform.core.trace_repo import InMemoryTraceEventRepository, TraceEventRepository
 from cf_platform.core.worker_registry import (
     ExecutionRepository,
     InMemoryExecutionRepository,
@@ -43,6 +45,10 @@ from cf_platform.interfaces.telegram import (
     is_chat_allowed,
     parse_ideas_command,
 )
+from cf_platform.sources.google_trends import GoogleTrendsAdapter
+from cf_platform.sources.reddit import RedditAdapter
+from cf_platform.sources.youtube import YouTubeAdapter
+from cf_platform.workers.discovery import DISCOVERY_REGISTRATION
 from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
 
 router = APIRouter()
@@ -54,8 +60,10 @@ _PLATFORM_USER_ID = "operator"
 _run_repository = InMemoryRunRepository()
 _execution_repository = InMemoryExecutionRepository()
 _artifact_repository = InMemoryArtifactRepository()
+_trace_event_repository = InMemoryTraceEventRepository()
 _worker_registry = WorkerRegistry()
 _worker_registry.register("echo", ECHO_REGISTRATION)
+_worker_registry.register("discovery", DISCOVERY_REGISTRATION)
 
 
 @router.get("/health")
@@ -95,9 +103,31 @@ def get_artifact_repository() -> ArtifactRepository:
     return _artifact_repository
 
 
+def get_trace_event_repository() -> TraceEventRepository:
+    """Return a Postgres-backed TraceEventRepository when DATABASE_URL is set, else the in-memory fallback (D048, D050)."""
+    pool = get_pool(get_platform_settings().DATABASE_URL)
+    if pool is not None:
+        return PostgresTraceEventRepository(pool)
+    return _trace_event_repository
+
+
 def get_worker_registry() -> WorkerRegistry:
-    """Return the process-local WorkerRegistry, pre-populated with the echo worker."""
+    """Return the process-local WorkerRegistry, pre-populated with the echo and discovery workers."""
     return _worker_registry
+
+
+def build_discovery_adapters(settings: PlatformSettings) -> list[tuple[str, SourceAdapter]]:
+    """Return the (source_name, SourceAdapter) pairs for the discovery worker (D050).
+
+    Adapters are constructed unconditionally even with empty credentials — a
+    missing credential surfaces as an "error" trace event for that one source
+    (partial-failure isolation, AC #3) rather than at construction time.
+    """
+    return [
+        ("reddit", RedditAdapter(settings.REDDIT_CLIENT_ID, settings.REDDIT_CLIENT_SECRET, settings.REDDIT_USER_AGENT)),
+        ("google_trends", GoogleTrendsAdapter()),
+        ("youtube", YouTubeAdapter(settings.YOUTUBE_API_KEY)),
+    ]
 
 
 async def get_graph_checkpointer() -> BaseCheckpointSaver:

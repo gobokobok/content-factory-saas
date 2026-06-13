@@ -12,6 +12,13 @@ P3-S1 adds TELEGRAM_BOT_TOKEN/TELEGRAM_WEBHOOK_SECRET (D049) — optional/empty 
 default; an unset secret rejects all webhook calls rather than failing startup.
 TELEGRAM_ALLOWED_CHAT_IDS restricts which chats the bot will reply to (temporary,
 single-operator allowlist ahead of S19 multi-tenant auth); empty means unrestricted.
+
+P3-S2 adds REDDIT_CLIENT_ID/REDDIT_CLIENT_SECRET/REDDIT_USER_AGENT and
+YOUTUBE_API_KEY (D050) — optional/empty by default; the Discovery worker's
+partial-failure isolation (AC #3) means a missing credential degrades that one
+source adapter to an error trace event rather than failing the worker or startup.
+GoogleTrendsAdapter needs no credentials (raw httpx against the public, unofficial
+Trends API).
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,6 +42,10 @@ class PlatformSettings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     TELEGRAM_WEBHOOK_SECRET: str = ""
     TELEGRAM_ALLOWED_CHAT_IDS: str = ""
+    REDDIT_CLIENT_ID: str = ""
+    REDDIT_CLIENT_SECRET: str = ""
+    REDDIT_USER_AGENT: str = ""
+    YOUTUBE_API_KEY: str = ""
 
 
 def get_platform_settings() -> PlatformSettings:

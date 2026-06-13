@@ -20,7 +20,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool
 
 from cf_platform.core.run_manager import RunNotFoundError
-from cf_platform.core.schemas import Artifact, LineageEnvelope, RunRecord, WorkerExecution
+from cf_platform.core.schemas import Artifact, LineageEnvelope, RunRecord, TraceEvent, WorkerExecution
 
 
 async def _ensure_open(pool: AsyncConnectionPool) -> None:
@@ -276,6 +276,65 @@ class PostgresExecutionRepository:
                 )
                 rows = await cur.fetchall()
         return [_row_to_execution(row) for row in rows]
+
+
+class PostgresTraceEventRepository:
+    """Postgres-backed TraceEventRepository — appends TraceEvent rows (D050)."""
+
+    def __init__(self, pool: AsyncConnectionPool) -> None:
+        """Store the shared connection pool."""
+        self._pool = pool
+
+    async def record(self, event: TraceEvent) -> TraceEvent:
+        """Insert a new trace_events row and return event unchanged."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    INSERT INTO trace_events (run_id, worker, source, op, latency_ms, cost_usd, status, meta)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        event.run_id,
+                        event.worker,
+                        event.source,
+                        event.op,
+                        event.latency_ms,
+                        event.cost_usd,
+                        event.status,
+                        Jsonb(event.meta),
+                    ),
+                )
+            await conn.commit()
+        return event
+
+    async def list_for_run(self, run_id: str) -> list[TraceEvent]:
+        """Return all recorded trace events for run_id, ordered by insertion (id)."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    SELECT run_id, worker, source, op, latency_ms, cost_usd, status, meta
+                    FROM trace_events WHERE run_id = %s ORDER BY id
+                    """,
+                    (run_id,),
+                )
+                rows = await cur.fetchall()
+        return [
+            TraceEvent(
+                run_id=run_id_,
+                worker=worker,
+                source=source,
+                op=op,
+                latency_ms=latency_ms,
+                cost_usd=float(cost_usd) if cost_usd is not None else None,
+                status=status,
+                meta=meta,
+            )
+            for run_id_, worker, source, op, latency_ms, cost_usd, status, meta in rows
+        ]
 
 
 def _row_to_execution(row: tuple[Any, ...]) -> WorkerExecution:
