@@ -12,7 +12,17 @@ _Entries added here when a story reaches Definition of Done._
 - Tests (5 new): `tests/cf_platform/test_telegram.py` — `format_signals_summary` with signals (asserts source/title/run_id/artifact key present, score-descending ordering) and with an empty list (asserts "No signals found" fallback). `tests/cf_platform/test_api.py` — `/ideas <niche>` end-to-end through `TestClient` with a stub `SourceAdapter` + `InMemoryArtifactStorage` override, asserting the reply contains the niche and the signal title; and an empty-signals case asserting "No signals found". 1007 total passing (was 1004).
 - No new ENV vars, no new dependencies, no DECISIONS.md entry needed — this story is pure wiring of P3-S1 (Telegram trigger) and P3-S2 (discovery worker + adapters) through the existing P1/P2 observability spine; nothing new to configure.
 - **Sprint P3 complete** (10/10 pts — P3-S1, P3-S2, P3-S3 all done). Sprint P4 (Niche→Ideas Block) is next, starting with P4-S1 (Topic Generator worker), which consumes the `signals` artifact this story makes reachable end-to-end.
-**Smoke test:** DEFERRED — requires deploy to Railway DEV (`content-factory-dev`). On next deploy: send `/ideas <niche>` from the allowed Telegram chat and confirm the reply is a signals summary (top signals by score, run_id, artifact key) rather than the old "isn't wired up yet" ack.
+**Smoke test:** PASSED (live, Railway DEV + real Telegram chat `968448961`) — `/ideas starter homes` ran the discovery worker against real Reddit/Google Trends/YouTube adapters (run `07404169-dcd9-421c-91d9-dca611ad27f6`) and replied:
+```
+Top signals for "starter homes" (10 found, run 07404169-dcd9-421c-91d9-dca611ad27f6):
+- [youtube] Why Americans Can't Find Starter Homes (score 1.07825e+06)
+- [youtube] How To AVOID being HOUSE POOR As A Millennial and Gen Z First Time Homebuyer 🏡 (score 967530)
+- [youtube] starter homes are rage bait (score 689224)
+- [youtube] Small (NOT TINY) San Antonio Starter Home 🏡 3 Bed | 2 Bath | Under $200K + Down Payment Assistance! (score 74577)
+- [youtube] Why Americans Can't Find Starter Homes (score 50848)
+Artifact: users/operator/runs/07404169-dcd9-421c-91d9-dca611ad27f6/discovery/discovery@v1.json
+```
+10 signals found across sources; top 5 shown sorted by score descending, matching `format_signals_summary`. Confirms AC #1 and the Sprint P3 human touchpoint end-to-end.
 **Promoted to backlog:** none
 
 ---
@@ -32,7 +42,7 @@ _Entries added here when a story reaches Definition of Done._
 - **Architecture note:** considered (and rejected, by user decision) a parallel `TrendProvider`/`TrendSignal` abstraction with dedup/scoring — `SourceAdapter`/`Signal` (P0-S3/D050) already *is* that abstraction; a second one would conflict. Dedup/topic generation/scoring is explicitly P4 (Topic Generator / Opportunity Scoring) work over this story's `signals` artifact.
 - **P8+ candidate logged** in BACKLOG.md above EPIC 28: once these adapters (esp. Google Trends) have run in DEV/PROD a while, evaluate Apify/ScrapeBadger behind the same `SourceAdapter` Protocol (new DECISIONS.md entry required — new dependency + likely paid tier).
 - **Sprint P3 next story:** P3-S3 (Reply formatter + wire discovery) — depends on P3-S1 (done) and P3-S2 (done). It extends `cf_platform/interfaces/telegram.py`'s formatters to summarize the `signals` artifact and replaces the `/ideas` "not wired up yet" ack with a real discovery run.
-**Smoke test:** DEFERRED — no new route this story; worker is registered but not yet reachable from chat. Unblocked once P3-S3 wires `build_discovery_worker(build_discovery_adapters(settings), trace_repo)` into the `/ideas` Telegram handler — that story's smoke test exercises discovery end-to-end.
+**Smoke test:** RESOLVED via P3-S3 — `/ideas <niche>` now wires `build_discovery_worker(build_discovery_adapters(settings), trace_repo)` into the Telegram handler; P3-S3's live Railway DEV smoke test (`/ideas starter homes`, run `07404169-dcd9-421c-91d9-dca611ad27f6`) exercised these adapters end-to-end and PASSED — see P3-S3 entry above.
 **Promoted to backlog:** none
 
 ---

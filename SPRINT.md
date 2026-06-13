@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-13 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Sprint P1 complete** (16/16 pts). **Sprint P2 complete** (16/16 pts) — Lineage & Observability Store. P2-S1 (smoke test passed), P2-S2 (smoke test deferred), P2-S3 (smoke test passed on Railway DEV), P2-S4 (smoke test deferred), P2-S5 (smoke test passed via TestClient) — all done. **PROD follow-up still open:** confirm `content-factory-prod` has `DATABASE_URL`/Postgres set before P2 work ships to PROD. **Sprint P3 complete** (10/10 pts) — Telegram Trigger + Discovery Worker. **P3-S1 done** (smoke test passed live on Railway DEV via Telegram). **P3-S2 done** (3 SourceAdapters + discovery worker registered, no live smoke test — no new route that story). **P3-S3 done** (`/ideas <niche>` wired to the discovery worker + reply formatter, 1007 tests passing; live Telegram smoke test pending next DEV deploy). **Current sprint:** P4 — Niche→Ideas Block. **Active story:** P4-S1 (Topic Generator worker).
+> - **Sprint P1 complete** (16/16 pts). **Sprint P2 complete** (16/16 pts) — Lineage & Observability Store. P2-S1 (smoke test passed), P2-S2 (smoke test deferred), P2-S3 (smoke test passed on Railway DEV), P2-S4 (smoke test deferred), P2-S5 (smoke test passed via TestClient) — all done. **PROD follow-up still open:** confirm `content-factory-prod` has `DATABASE_URL`/Postgres set before P2 work ships to PROD. **Sprint P3 complete** (10/10 pts) — Telegram Trigger + Discovery Worker. **P3-S1 done** (smoke test passed live on Railway DEV via Telegram). **P3-S2 done** (3 SourceAdapters + discovery worker registered, no live smoke test — no new route that story). **P3-S3 done** (`/ideas <niche>` wired to the discovery worker + reply formatter, 1007 tests passing; live Telegram smoke test passed on Railway DEV). **Current sprint:** P4 — Niche→Ideas Block. **Active story:** P4-S1 (Topic Generator worker).
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 >
@@ -708,7 +708,7 @@ Post-MVP: **Epic 32** Legacy Rebuild (~3 sprints), **Epic 34** Replay & Evaluati
 ## Sprint P3 Definition of Done
 - [x] 3 `SourceAdapter`s; partial-failure isolation; adapters emit trace events
 - [x] Discovery emits one `signals` artifact with lineage
-- [ ] **Human touchpoint:** `/ideas <niche>` → signals summary in Telegram (smoke test pending live verification on Railway DEV)
+- [x] **Human touchpoint:** `/ideas <niche>` → signals summary in Telegram (smoke test passed live on Railway DEV)
 
 ---
 

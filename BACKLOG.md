@@ -4712,7 +4712,7 @@ New env vars (all optional, empty = that adapter's fetch degrades to an error tr
 - Tests (5 new): `tests/cf_platform/test_telegram.py` — `format_signals_summary` with signals (lists source/title, run_id, artifact key), score-descending ordering, and empty-signals fallback. `tests/cf_platform/test_api.py` — `/ideas <niche>` runs discovery via stub `SourceAdapter`s + `InMemoryArtifactStorage` and replies with the signals summary; empty-signals case replies "No signals found". 1007 total passing (was 1004).
 - No new ENV vars, no new dependencies, no DECISIONS.md entry needed — pure wiring of P3-S1 (trigger) + P3-S2 (worker) through the existing P1/P2 observability spine.
 - **Sprint P3 complete** (10/10 pts — P3-S1, P3-S2, P3-S3 all done).
-**Smoke test:** pending live verification on Railway DEV via Telegram — see DONE.md.
+**Smoke test:** PASSED (live, Railway DEV + real Telegram chat) — see DONE.md for the full transcript.
 **Promoted to backlog:** none
 
 ---
