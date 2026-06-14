@@ -61,6 +61,11 @@ class Settings(BaseSettings):
 
     # Storyboard chunking (S13-S1)
     STORYBOARD_CHUNK_SIZE: int = 10
+    # Word-count cap per chunk. Comma-list scenes can multiply scene count well
+    # beyond what paragraph count predicts; this caps output tokens per Claude
+    # call independent of paragraph density. ~150 words keeps chunks safely
+    # under the 8192 max_tokens output limit even for list-heavy scripts.
+    STORYBOARD_CHUNK_MAX_WORDS: int = 150
 
     # Asset acquisition parallelism (S13-S2)
     # Default is 4 — conservative for Railway containers with CLIP reranking enabled

@@ -754,6 +754,48 @@ class TestSplitScriptIntoChunks:
         chunks = _split_script_into_chunks("", max_paragraphs=10)
         assert len(chunks) == 1
 
+    def test_word_count_cap_splits_few_long_paragraphs(self):
+        """A handful of long paragraphs under max_paragraphs still split on word count."""
+        # 3 paragraphs of 60 words each = 180 words, over max_words=150,
+        # but well under max_paragraphs=10.
+        paras = [" ".join(f"word{i}-{j}" for j in range(60)) for i in range(3)]
+        script = "\n\n".join(paras)
+        chunks = _split_script_into_chunks(script, max_paragraphs=10, max_words=150)
+        assert len(chunks) == 2
+        assert "word0-0" in chunks[0]
+        assert "word2-59" in chunks[1]
+
+    def test_word_count_cap_does_not_split_short_script(self):
+        """A script under both the paragraph and word caps stays a single chunk."""
+        paras = [" ".join(f"word{i}-{j}" for j in range(20)) for i in range(3)]
+        script = "\n\n".join(paras)
+        chunks = _split_script_into_chunks(script, max_paragraphs=10, max_words=150)
+        assert len(chunks) == 1
+
+    def test_single_dense_paragraph_splits_by_line(self):
+        """A script with no blank lines (one sentence per line) still splits.
+
+        re.split on blank lines treats this as a single 'paragraph'; the
+        word-count cap must fall through to line-level splitting.
+        """
+        lines = [" ".join(f"w{i}_{j}" for j in range(7)) + "." for i in range(60)]
+        script = "\n".join(lines)  # single newlines only — no blank lines
+        chunks = _split_script_into_chunks(script, max_paragraphs=10, max_words=150)
+        assert len(chunks) > 1
+        # every word still present across all chunks, none dropped
+        all_words = " ".join(chunks).split()
+        assert all_words.count("w0_0") == 1
+        assert all_words.count("w59_6.") == 1
+
+    def test_single_huge_line_splits_by_sentence(self):
+        """A paragraph with no internal newlines falls through to sentence splitting."""
+        sentences = [f"This is sentence number {i}" for i in range(40)]
+        script = ". ".join(sentences) + "."
+        chunks = _split_script_into_chunks(script, max_paragraphs=10, max_words=20)
+        assert len(chunks) > 1
+        assert "sentence number 0" in chunks[0]
+        assert "sentence number 39" in chunks[-1]
+
 
 class TestSliceAlignmentForChunk:
     def _words(self, n: int) -> list[WordTimestamp]:

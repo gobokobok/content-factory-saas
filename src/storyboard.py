@@ -250,22 +250,77 @@ def _format_timestamps(words: list[WordTimestamp]) -> str:
     return "\n".join(f'[{w.start_ms}ms–{w.end_ms}ms] "{w.word}"' for w in words)
 
 
-def _split_script_into_chunks(script: str, max_paragraphs: int = 10) -> list[str]:
-    """Split a voiceover script into chunks of at most max_paragraphs paragraphs.
+def _split_into_units(text: str, max_words: int) -> list[str]:
+    """Break a block of text into the smallest pieces that fit under max_words.
 
-    Splits on blank-line boundaries. Returns [script] when the script fits in one
-    chunk (paragraph count ≤ max_paragraphs). The last chunk absorbs any remainder.
-    Never cuts mid-sentence because splits happen only at paragraph boundaries.
+    Tries, in order: the block itself, line-by-line (single newlines), then
+    sentence-by-sentence. Falls through to the next level only for pieces that
+    still exceed max_words, so short pieces are never split unnecessarily.
     """
-    paragraphs = re.split(r"\n\s*\n", script.strip())
+    if len(text.split()) <= max_words:
+        return [text]
+
+    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    if len(lines) > 1:
+        units: list[str] = []
+        for line in lines:
+            units.extend(_split_into_units(line, max_words))
+        return units
+
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", text) if s.strip()]
+    if len(sentences) > 1:
+        return sentences
+
+    return [text]
+
+
+def _split_script_into_chunks(
+    script: str, max_paragraphs: int = 10, max_words: int = 150
+) -> list[str]:
+    """Split a voiceover script into chunks bounded by paragraph count and word count.
+
+    Splits on blank-line boundaries into paragraphs, then greedily packs them
+    into chunks, each capped at max_paragraphs items and max_words words. The
+    word-count cap exists because comma-list scenes can multiply scene count
+    well beyond what paragraph count predicts, risking output truncation at the
+    8192-token Claude limit.
+
+    Any paragraph that alone exceeds max_words (e.g. a script written as one
+    sentence per line with no blank lines, so the whole script is "one
+    paragraph") is first broken into lines, then sentences, via
+    _split_into_units — so dense scripts still split correctly. Returns
+    [script] when everything fits in one chunk. Never cuts mid-sentence.
+    """
+    stripped = script.strip()
+    paragraphs = re.split(r"\n\s*\n", stripped)
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
 
-    if len(paragraphs) <= max_paragraphs:
-        return [script.strip()]
+    if not paragraphs:
+        return [stripped]
 
-    chunks = []
-    for i in range(0, len(paragraphs), max_paragraphs):
-        chunks.append("\n\n".join(paragraphs[i : i + max_paragraphs]))
+    units: list[str] = []
+    for p in paragraphs:
+        units.extend(_split_into_units(p, max_words))
+
+    chunks: list[str] = []
+    current: list[str] = []
+    current_words = 0
+
+    for u in units:
+        words = len(u.split())
+        if current and (
+            len(current) >= max_paragraphs or current_words + words > max_words
+        ):
+            chunks.append("\n\n".join(current))
+            current = []
+            current_words = 0
+        current.append(u)
+        current_words += words
+
+    chunks.append("\n\n".join(current))
+
+    if len(chunks) == 1:
+        return [stripped]
 
     return chunks
 
@@ -354,7 +409,11 @@ async def generate_storyboard(
     Returns (storyboard, validation_result). Raises StoryboardValidationError if
     Haiku finds schema violations in the generated storyboard.
     """
-    chunks = _split_script_into_chunks(script, max_paragraphs=settings.STORYBOARD_CHUNK_SIZE)
+    chunks = _split_script_into_chunks(
+        script,
+        max_paragraphs=settings.STORYBOARD_CHUNK_SIZE,
+        max_words=settings.STORYBOARD_CHUNK_MAX_WORDS,
+    )
     router = ModelRouter(settings)
     model = router.model_for(GENERATE)
 
