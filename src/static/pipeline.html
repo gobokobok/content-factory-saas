@@ -1233,6 +1233,11 @@
         currentProjectName = name;
         history.pushState(null, '', `#run/${encodeURIComponent(run_id)}/input`);
         renderRunList();
+        // Settings selects can't be saved until a run exists — onchange handlers
+        // earlier (e.g. picking 16:9 on the new-project form) were no-ops because
+        // saveVideoSettings() bails without currentRunId. Persist whatever the
+        // controls currently show now that the run exists.
+        await saveVideoSettings();
         return true;
       } catch (err) {
         alert(`Network error: ${err.message}`);
