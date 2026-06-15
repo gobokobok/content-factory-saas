@@ -15,6 +15,7 @@ from src.ffmpeg_builder import (
     assign_words_to_scenes,
     build_ffmpeg_script,
     compute_scene_durations_from_alignment,
+    fill_caption_gaps,
     get_audio_duration,
     redistribute_scene_durations,
 )
@@ -1106,6 +1107,59 @@ class TestComputeSceneDurationsFromAlignment:
         result = compute_scene_durations_from_alignment(scenes, [[_wts("a", 0, 300)]])
         assert result[0] is not scenes[0]
         assert scenes[0].duration_s == 5.0
+
+
+class TestFillCaptionGaps:
+    def test_covered_scene_text_appended_to_preceding_scene(self):
+        # Scene 02 is unmatched and "covered" — its voiceover_line text should be
+        # appended as filler words to scene 01's word list, timed in [400, 2000).
+        scenes = [
+            _scene_with_vo("01", "a", 3.0),
+            _scene_with_vo("02", "unmatched filler text", 1.0),
+            _scene_with_vo("03", "c", 3.0),
+        ]
+        scene_words = [[_wts("a", 0, 400)], [], [_wts("c", 2000, 2500)]]
+        result = fill_caption_gaps(scenes, scene_words)
+        assert len(result[0]) == 1 + 3  # original word + 3 filler words
+        filler_words = [w.word for w in result[0][1:]]
+        assert filler_words == ["unmatched", "filler", "text"]
+        # Filler words occupy [400, 2000) ms, after scene 01's own word
+        assert result[0][1].start_ms == 400
+        assert result[0][-1].end_ms == pytest.approx(2000, abs=5)
+
+    def test_unmatched_scene_unchanged(self):
+        scenes = [
+            _scene_with_vo("01", "a", 3.0),
+            _scene_with_vo("02", "unmatched", 1.0),
+            _scene_with_vo("03", "c", 3.0),
+        ]
+        scene_words = [[_wts("a", 0, 400)], [], [_wts("c", 2000, 2500)]]
+        result = fill_caption_gaps(scenes, scene_words)
+        assert result[1] == []
+
+    def test_no_unmatched_scenes_returns_equivalent_lists(self):
+        scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "b", 3.0)]
+        scene_words = [[_wts("a", 0, 400)], [_wts("b", 500, 900)]]
+        result = fill_caption_gaps(scenes, scene_words)
+        assert result == scene_words
+
+    def test_does_not_mutate_input(self):
+        scenes = [
+            _scene_with_vo("01", "a", 3.0),
+            _scene_with_vo("02", "unmatched", 1.0),
+            _scene_with_vo("03", "c", 3.0),
+        ]
+        scene_words = [[_wts("a", 0, 400)], [], [_wts("c", 2000, 2500)]]
+        fill_caption_gaps(scenes, scene_words)
+        assert len(scene_words[0]) == 1
+
+    def test_trailing_unmatched_scene_with_no_next_match_unaffected(self):
+        # Scene 02 is unmatched and is the last scene — no next_matched_idx, so
+        # scene 01 gets no filler appended.
+        scenes = [_scene_with_vo("01", "a", 3.0), _scene_with_vo("02", "trailing", 1.0)]
+        scene_words = [[_wts("a", 0, 400)], []]
+        result = fill_caption_gaps(scenes, scene_words)
+        assert len(result[0]) == 1
 
 
 # ── Unit: concat demuxer assembly ────────────────────────────────────────────

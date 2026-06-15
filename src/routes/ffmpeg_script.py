@@ -14,6 +14,7 @@ from src.ffmpeg_builder import (
     assign_words_to_scenes,
     build_ffmpeg_script,
     compute_scene_durations_from_alignment,
+    fill_caption_gaps,
     get_audio_duration,
     redistribute_scene_durations,
 )
@@ -69,19 +70,19 @@ def generate_ffmpeg_script(
         if word_timestamps:
             sw = assign_words_to_scenes(storyboard.scenes, word_timestamps)
             updated_scenes = compute_scene_durations_from_alignment(storyboard.scenes, sw)
+            unmatched = [i for i, w in enumerate(sw) if not w]
+            scene_words = fill_caption_gaps(storyboard.scenes, sw) if unmatched else sw
             storyboard = storyboard.model_copy(update={"scenes": updated_scenes})
-            scene_words = sw
             logger.info(
                 "Scene durations corrected from alignment: run=%s words=%d",
                 run_id,
                 len(word_timestamps),
             )
-            unmatched = [i for i, w in enumerate(sw) if not w]
             if unmatched:
                 logger.warning(
                     "Alignment matching found no words for %d/%d scene(s) "
-                    "in run=%s: indices=%s — these scenes keep storyboard "
-                    "duration_s and contribute no captions",
+                    "in run=%s: indices=%s — captions for these scenes are "
+                    "filled into the preceding matched scene's caption stream",
                     len(unmatched),
                     len(sw),
                     run_id,

@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from src.alignment import proportional_fallback
 from src.captions import build_ass, build_captions_ass, build_word_synced_captions_ass
 from src.exceptions import FFmpegBuildError
 from src.models import AudioSettings, AssetManifest, ManifestEntry, Storyboard, StoryboardScene, VideoSettings, WordTimestamp
@@ -243,6 +244,61 @@ def compute_scene_durations_from_alignment(
         )
 
     return updated
+
+
+def fill_caption_gaps(
+    scenes: list[StoryboardScene],
+    scene_words: list[list[WordTimestamp]],
+) -> list[list[WordTimestamp]]:
+    """
+    Inject filler captions for unmatched scenes whose audio gap was absorbed into a
+    preceding matched scene (see compute_scene_durations_from_alignment's "covered"
+    scenes).
+
+    Those scenes get no Dialogue events from build_word_synced_captions_ass (their
+    scene_words list is empty), so their voiceover_line text is appended as
+    proportionally-timed filler words to the preceding matched scene's word list,
+    spanning from that scene's last matched word to the next matched scene's first
+    word. Returns a new scene_words list; does not mutate the input.
+    """
+    n = len(scenes)
+    first_start_ms: list[Optional[int]] = [
+        scene_words[i][0].start_ms if i < len(scene_words) and scene_words[i] else None
+        for i in range(n)
+    ]
+    next_matched_idx: list[Optional[int]] = [None] * n
+    for i in range(n):
+        for j in range(i + 1, n):
+            if first_start_ms[j] is not None:
+                next_matched_idx[i] = j
+                break
+
+    result = [list(words) for words in scene_words]
+
+    for i in range(n):
+        j = next_matched_idx[i]
+        if first_start_ms[i] is None or j is None or not result[i]:
+            continue
+        gap_text = " ".join(
+            scenes[k].voiceover_line.strip() for k in range(i + 1, j) if scenes[k].voiceover_line.strip()
+        )
+        if not gap_text:
+            continue
+        gap_start_ms = result[i][-1].end_ms
+        gap_duration_s = (first_start_ms[j] - gap_start_ms) / 1000.0
+        if gap_duration_s <= 0:
+            continue
+        result[i].extend(
+            WordTimestamp(
+                word=w.word,
+                start_ms=w.start_ms + gap_start_ms,
+                end_ms=w.end_ms + gap_start_ms,
+                confidence=0.0,
+            )
+            for w in proportional_fallback(gap_text, gap_duration_s)
+        )
+
+    return result
 
 
 def build_ffmpeg_script(
