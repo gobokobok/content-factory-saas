@@ -15,12 +15,7 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Debug - show Railway project status
-        run: railway status
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
-
       - name: Deploy to PROD
-        run: railway up --detach
+        run: railway up --service content-factory-saas --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
