@@ -47,7 +47,11 @@ class Settings(BaseSettings):
     REPLICATE_MAX_POLL_ATTEMPTS: int = 60
 
     # FFmpeg
-    FFMPEG_TIMEOUT_SECONDS: int = 300
+    # ffmpeg_script.sh runs as a single subprocess covering all per-scene clips,
+    # concat, and captioning. 300s was too short even for a ~3min/40-scene
+    # video (timed out mid-caption-encode). 1800s gives headroom for current
+    # script lengths; longer videos will need a background-render redesign.
+    FFMPEG_TIMEOUT_SECONDS: int = 1800
 
     # CLIP reranking (E4-S4)
     CLIP_RERANK_ENABLED: bool = False
