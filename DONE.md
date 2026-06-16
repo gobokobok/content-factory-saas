@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P4-S5] Block interfaces (REST + Telegram)
+**Completed:** 2026-06-17
+**Handover:**
+- `cf_platform/interfaces/telegram.py`: `format_ranked_ideas(niche, run_id, artifact_key, ranked_ideas) -> str` added — D049-compliant; shows selected topic title + angle + all 7-axis scores (novelty, relevance, emotion, demand, competition, evergreen, monetize) + final composite score + top 3 alternatives. `TYPE_CHECKING` guard on `RankedIdeasArtifact` import avoids circular dependency at runtime.
+- `cf_platform/interfaces/api.py`: new `NicheToIdeasRequest(niche, audience?, mode?)` / `NicheToIdeasResponse(run_id, ranked_ideas_artifact_key, selected, alternatives)` models. `POST /platform/blocks/niche-to-ideas` route runs the full `build_niche_to_ideas_graph(...)` — 1 run, 4 artifacts (discovery, candidate_topics, scored_topics, ranked_ideas), 4 WorkerExecution rows — reads the terminal `ranked_ideas` artifact and returns the full body inline. Telegram `/ideas` handler rewired to the same full block (replaces the P3-S3 single-node discovery path); replies via `format_ranked_ideas`. Run block name updated from `"discovery"` to `"niche_to_ideas"`.
+- `tests/cf_platform/test_block_niche_to_ideas_route.py` (new, 17 tests): `TestFormatRankedIdeas` (8 tests — niche/run_id/key present, title, all 7 axis labels, final score, alternatives listed, empty alternatives, capped at 3, artifact key) + `TestNicheToIdeasRoute` (9 tests — 200 shape, selected title, alternatives, all 7 axes, mode default, mode top_n, audience field, UUID run_id, artifact_key embeds run_id).
+- `tests/cf_platform/test_api.py`: 3 Telegram webhook tests updated — `_stub_niche_to_ideas_workers` context manager added to patch all 4 builder factories; `test_ideas_command_runs_discovery_and_sends_signals_summary` renamed to `test_ideas_command_runs_full_block_and_sends_ranked_ideas_reply`; `test_ideas_command_with_no_signals_sends_no_signals_reply` replaced with `test_ideas_command_reply_contains_seven_axis_scores`. Allowlist test `test_allowed_chat_id_gets_normal_reply` also updated.
+- 1083 total passing (was 1066). No new ENV vars, no new dependencies.
+**Smoke test:** DEFERRED — requires push to Railway DEV (commit `2a87350` pushed to `main`, auto-deploy in progress). On next deploy: send `/ideas starter homes` in Telegram chat `968448961`, confirm reply contains the selected idea title, 7-axis scores, and at least one alternative. Also call `POST /platform/blocks/niche-to-ideas {"niche": "starter homes"}` directly and verify the JSON response shape.
+**Promoted to backlog:** none
+
+---
+
 ## [P4-S4] Assemble niche_to_ideas StateGraph (+ NicheToIdeasState)
 **Completed:** 2026-06-17
 **Handover:**

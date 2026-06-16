@@ -4836,7 +4836,8 @@ Implement `NicheToIdeasState` (plan §5) and compile the 4 nodes into `cf_platfo
 ## [P4-S5] Block interfaces (REST + Telegram)
 **Epic:** E29 — Niche→Ideas Block
 **Sprint:** P4
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-06-17
 **Priority:** high
 **Points:** 2
 **Depends on:** P4-S4
@@ -4846,14 +4847,19 @@ Implement `NicheToIdeasState` (plan §5) and compile the 4 nodes into `cf_platfo
 **Tech:** FastAPI, Telegram.
 
 ### Acceptance Criteria
-- [ ] REST + Telegram both run the full block
-- [ ] **Human touchpoint:** Telegram niche → ranked ideas with 7-axis scores + alternatives
+- [x] REST + Telegram both run the full block
+- [x] **Human touchpoint:** Telegram niche → ranked ideas with 7-axis scores + alternatives
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/interfaces/telegram.py`: `format_ranked_ideas(niche, run_id, artifact_key, ranked_ideas) -> str` — D049-compliant formatter; shows selected title + angle + all 7-axis scores + final composite + top 3 alternatives. `TYPE_CHECKING` guard on `RankedIdeasArtifact` import to avoid circular deps.
+- `cf_platform/interfaces/api.py`: `NicheToIdeasRequest(niche, audience?, mode?)` and `NicheToIdeasResponse(run_id, ranked_ideas_artifact_key, selected, alternatives)` Pydantic models. `POST /platform/blocks/niche-to-ideas` endpoint runs `build_niche_to_ideas_graph(...)` end-to-end — 1 run, 4 artifacts, 4 WorkerExecution rows — reads back `ranked_ideas` artifact and returns the full body. Telegram `/ideas` handler rewired: now uses `build_niche_to_ideas_graph` instead of single-node discovery graph; replies via `format_ranked_ideas`. Block name in run creation updated to `"niche_to_ideas"`.
+- `tests/cf_platform/test_block_niche_to_ideas_route.py` (new, 17 tests): `TestFormatRankedIdeas` (8) and `TestNicheToIdeasRoute` (9); all use `_stub_niche_to_ideas_workers()` context manager that patches all 4 builder factories.
+- `tests/cf_platform/test_api.py`: updated 3 Telegram `/ideas` tests to patch all 4 workers (discovery-only path removed); 2 tests renamed to reflect block-level reply; `_stub_niche_to_ideas_workers` context manager added at module level.
+- 1083 total passing (was 1066). No new ENV vars. No new dependencies.
+**Promoted to backlog:** none
 
 ---
 
