@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel
 
@@ -411,47 +411,27 @@ class TelegramUpdate(BaseModel):
     message: Optional[TelegramMessage] = None
 
 
-@router.post("/telegram/webhook", include_in_schema=False)
-async def telegram_webhook(
-    update: TelegramUpdate,
-    request: Request,
-    settings: PlatformSettings = Depends(get_platform_settings),
-    adapters: list[tuple[str, SourceAdapter]] = Depends(get_discovery_adapters),
-    storage: ArtifactStorage = Depends(get_artifact_storage),
-    registry: WorkerRegistry = Depends(get_worker_registry),
-    runs: RunRepository = Depends(get_run_repository),
-    executions: ExecutionRepository = Depends(get_execution_repository),
-    artifacts: ArtifactRepository = Depends(get_artifact_repository),
-    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
-    checkpointer: BaseCheckpointSaver = Depends(get_graph_checkpointer),
-) -> dict:
-    """Validate Telegram's secret token, parse trigger commands, and reply via a formatter (D049).
+async def _run_ideas_and_reply(
+    chat_id: int,
+    niche: str,
+    settings: PlatformSettings,
+    adapters: list,
+    storage: ArtifactStorage,
+    registry: WorkerRegistry,
+    runs: RunRepository,
+    executions: ExecutionRepository,
+    artifacts: ArtifactRepository,
+    trace_events: TraceEventRepository,
+    checkpointer: BaseCheckpointSaver,
+) -> None:
+    """Run the full niche→ideas block in the background and push the reply to Telegram.
 
-    `/ideas <niche>` runs the full niche→ideas block (P4-S5): all four workers
-    (discovery → topic_generator → opportunity_scorer → topic_selector) through the
-    observability spine — one run, 4 artifacts, 4 WorkerExecution rows — then
-    replies with ranked ideas + 7-axis scores via `format_ranked_ideas()`. Internal
-    Artifact/state schemas are never serialized to chat (D049).
-
-    TELEGRAM_ALLOWED_CHAT_IDS (temporary single-operator allowlist ahead of S19):
-    updates from chats not on the list are acked with no reply sent.
+    Separated from the webhook handler so the handler can return {"ok": True} immediately —
+    Telegram's webhook has a 60-second response timeout; LLM graph runs take 25–55 s and
+    would trigger retries and duplicate runs if awaited inline.
     """
-    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if not settings.TELEGRAM_WEBHOOK_SECRET or secret != settings.TELEGRAM_WEBHOOK_SECRET:
-        raise HTTPException(status_code=401, detail="Invalid webhook secret token")
-
-    if update.message is None or update.message.text is None:
-        return {"ok": True}
-
-    if not is_chat_allowed(update.message.chat.id, settings.TELEGRAM_ALLOWED_CHAT_IDS):
-        return {"ok": True}
-
-    niche = parse_ideas_command(update.message.text)
-    if niche is None:
-        reply = format_unrecognized_command(update.message.text)
-    elif not niche:
-        reply = format_ideas_usage()
-    else:
+    client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
+    try:
         run = await create_run(_PLATFORM_USER_ID, "niche_to_ideas", {"niche": niche}, runs)
         run = await transition_run(run.run_id, "running", runs)
 
@@ -469,14 +449,74 @@ async def telegram_webhook(
             run_id=run.run_id, user_id=_PLATFORM_USER_ID, inputs={"niche": niche}
         )
         result = await run_graph(graph, state, thread_id=run.run_id)
-
         await transition_run(run.run_id, "complete", runs)
 
         ranked_key = result.artifacts["ranked_ideas"]
         _, body_dict = await read_artifact(storage, ranked_key)
         ranked_artifact = RankedIdeasArtifact.model_validate(body_dict)
         reply = format_ranked_ideas(niche, run.run_id, ranked_key, ranked_artifact)
+    except Exception as exc:  # noqa: BLE001
+        reply = f"Error running /ideas: {exc}"
 
+    await client.send_message(chat_id, reply)
+
+
+@router.post("/telegram/webhook", include_in_schema=False)
+async def telegram_webhook(
+    update: TelegramUpdate,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    settings: PlatformSettings = Depends(get_platform_settings),
+    adapters: list[tuple[str, SourceAdapter]] = Depends(get_discovery_adapters),
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    registry: WorkerRegistry = Depends(get_worker_registry),
+    runs: RunRepository = Depends(get_run_repository),
+    executions: ExecutionRepository = Depends(get_execution_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+    checkpointer: BaseCheckpointSaver = Depends(get_graph_checkpointer),
+) -> dict:
+    """Validate Telegram's secret token, parse trigger commands, and reply via a formatter (D049).
+
+    `/ideas <niche>` schedules the full niche→ideas block as a FastAPI BackgroundTask so
+    the webhook returns {"ok": True} immediately — well within Telegram's 60 s timeout.
+    The graph result is pushed to chat via `TelegramClient.send_message` when done.
+
+    TELEGRAM_ALLOWED_CHAT_IDS (temporary single-operator allowlist ahead of S19):
+    updates from chats not on the list are acked with no reply sent.
+    """
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if not settings.TELEGRAM_WEBHOOK_SECRET or secret != settings.TELEGRAM_WEBHOOK_SECRET:
+        raise HTTPException(status_code=401, detail="Invalid webhook secret token")
+
+    if update.message is None or update.message.text is None:
+        return {"ok": True}
+
+    if not is_chat_allowed(update.message.chat.id, settings.TELEGRAM_ALLOWED_CHAT_IDS):
+        return {"ok": True}
+
+    chat_id = update.message.chat.id
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
-    await client.send_message(update.message.chat.id, reply)
+
+    niche = parse_ideas_command(update.message.text)
+    if niche is None:
+        await client.send_message(chat_id, format_unrecognized_command(update.message.text))
+    elif not niche:
+        await client.send_message(chat_id, format_ideas_usage())
+    else:
+        background_tasks.add_task(
+            _run_ideas_and_reply,
+            chat_id=chat_id,
+            niche=niche,
+            settings=settings,
+            adapters=adapters,
+            storage=storage,
+            registry=registry,
+            runs=runs,
+            executions=executions,
+            artifacts=artifacts,
+            trace_events=trace_events,
+            checkpointer=checkpointer,
+        )
+
     return {"ok": True}
