@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P4-S1] Topic Generator worker
+**Completed:** 2026-06-16
+**Handover:**
+- `cf_platform/workers/topic_generator.py` (new): `CandidateTopic(title, angle)` and `CandidateTopicsArtifact(niche, generated_at, topics)` Pydantic models. `TOPIC_GENERATOR_REGISTRATION` pins `worker_version="1.0.0"`, `prompt_version="v1"`, `model="claude-sonnet-4-6"`, `prompt=_TOPIC_GENERATOR_PROMPT_V1` (content-strategist system prompt asking for 5-10 narrative-worthy YouTube Shorts topics with title + angle per topic, JSON-only output). `build_topic_generator_worker(storage, anthropic_api_key) -> WorkerNode` factory — same closure pattern as `build_discovery_worker`; returned worker reads `state.artifacts["discovery"]` → `read_artifact(storage, key)` → `SignalsArtifact.model_validate(body)` → formats signals list → calls `anthropic.AsyncAnthropic.messages.create` (model `claude-sonnet-4-6`, max_tokens=1024) → `json.loads` → `CandidateTopicsArtifact`. Raises `KeyError` on missing `discovery` ref, `ValueError` on non-JSON Claude response.
+- `cf_platform/core/config.py`: `PlatformSettings` gains `ANTHROPIC_API_KEY: str = ""` (D048 fault-isolation default; same ENV var name as `src/config.py`, always set in practice).
+- Tests (9 new): `tests/cf_platform/test_topic_generator.py` — happy path end-to-end with mocked anthropic client (asserts niche/topics/control); signals text present in user message sent to Claude; invalid JSON raises ValueError; missing `discovery` key raises KeyError; empty signals list writes `(no signals)` to prompt; registration pin checks (model, prompt_version, worker_version, prompt non-empty). 1025 total passing.
+- No new dependencies (`anthropic>=0.40.0` already in `requirements.txt`). Worker NOT yet registered in `cf_platform/interfaces/api.py` — wiring lands in P4-S4 (assemble StateGraph) and P4-S5 (block interfaces).
+**Smoke test:** DEFERRED — no route wires this worker yet. Smoke test is part of P4-S4/P4-S5 when the full `niche_to_ideas` StateGraph and REST/Telegram interfaces are assembled.
+**Promoted to backlog:** none
+
+---
+
 ## [P3-S3] Reply formatter + wire discovery
 **Completed:** 2026-06-14
 **Handover:**

@@ -19,6 +19,11 @@ partial-failure isolation (AC #3) means a missing credential degrades that one
 source adapter to an error trace event rather than failing the worker or startup.
 GoogleTrendsAdapter needs no credentials (raw httpx against the public, unofficial
 Trends API).
+
+P4-S1 adds ANTHROPIC_API_KEY (same ENV var as src/config.py) — optional/empty
+by default per D048 fault isolation; a missing key will fail at Claude call time
+inside the Topic Generator worker rather than at platform startup. In practice
+this key is always set since the legacy pipeline also requires it.
 """
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -46,6 +51,7 @@ class PlatformSettings(BaseSettings):
     REDDIT_CLIENT_SECRET: str = ""
     REDDIT_USER_AGENT: str = ""
     YOUTUBE_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
 
 
 def get_platform_settings() -> PlatformSettings:

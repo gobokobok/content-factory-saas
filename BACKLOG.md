@@ -4725,7 +4725,7 @@ Full first E2E block as a LangGraph StateGraph; per-node lineage; Telegram + RES
 ## [P4-S1] Topic Generator worker
 **Epic:** E29 — Niche→Ideas Block
 **Sprint:** P4
-**Status:** planned
+**Status:** done
 **Priority:** high
 **Points:** 3
 **Depends on:** P3-S2
@@ -4735,14 +4735,19 @@ LangGraph node `signals → candidate_topics` (narrative-worthy topics). Version
 **Tech:** LangGraph node, anthropic + ModelRouter (GENERATE/Sonnet). **Artifacts:** `candidate_topics`.
 
 ### Acceptance Criteria
-- [ ] Node emits one `candidate_topics` artifact with lineage
-- [ ] Prompt version pinned and recorded
+- [x] Node emits one `candidate_topics` artifact with lineage
+- [x] Prompt version pinned and recorded
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/workers/topic_generator.py` (new): `CandidateTopic(title, angle)` and `CandidateTopicsArtifact(niche, generated_at, topics)` Pydantic models. `TOPIC_GENERATOR_REGISTRATION` pins `worker_version="1.0.0"`, `prompt_version="v1"`, `model="claude-sonnet-4-6"`, `prompt=_TOPIC_GENERATOR_PROMPT_V1` (the full content-strategist system prompt). `build_topic_generator_worker(storage, anthropic_api_key) -> WorkerNode` factory — same closure pattern as `build_discovery_worker`; the returned worker reads `state.artifacts["discovery"]` → `read_artifact(storage, key)` → `SignalsArtifact.model_validate(body)` → formats signals into a user message → calls `anthropic.AsyncAnthropic.messages.create` with the pinned model and prompt → `json.loads` response → `CandidateTopicsArtifact`. Raises `KeyError` on missing `discovery` ref, `ValueError` on non-JSON Claude response.
+- `cf_platform/core/config.py`: `PlatformSettings` gains `ANTHROPIC_API_KEY: str = ""` (D048 fault-isolation default; same ENV var name as `src/config.py`, always set in practice since the legacy pipeline requires it).
+- Tests (9 new): `tests/cf_platform/test_topic_generator.py` — `TestTopicGeneratorWorker` (5 tests: happy path end-to-end with mocked anthropic client, asserts niche/topics/control; verifies signals text present in user message sent to Claude; invalid JSON raises ValueError; missing `discovery` key raises KeyError; empty signals list writes `(no signals)` to prompt and still calls Claude). `TestTopicGeneratorRegistration` (4 tests: model is `claude-sonnet-4-6`, prompt_version is `v1`, worker_version is `1.0.0`, prompt is non-empty). 1025 total passing (was 1007 after P3-S3; some intermediate tests added in between).
+- No new dependencies (`anthropic>=0.40.0` already in `requirements.txt`). No new DECISIONS.md entry needed. Worker NOT yet registered in `cf_platform/interfaces/api.py` — that wiring lands in P4-S4 (assemble StateGraph) and P4-S5 (block interfaces).
+**Smoke test:** DEFERRED — no route wires this worker yet; exercised only via unit tests. Smoke test will be part of P4-S4/P4-S5 when the full `niche_to_ideas` StateGraph and REST/Telegram interfaces are assembled.
+**Promoted to backlog:** none
 
 ---
 
@@ -4756,7 +4761,8 @@ _filled on completion_
 
 ### Goal
 Node scores each topic on the 7 axes (novelty, audience_relevance, emotional_trigger, search_demand, competition, evergreen_potential, monetization_relevance) + `final_score` via a versioned rubric prompt.
-**Tech:** LangGraph node, ModelRouter (Haiku/Sonnet). **Artifacts:** `scored_topics`.
+**Tech:** LangGraph node, anthropic + ModelRouter (REASON/Sonnet 4.6 + adaptive thinking). **Artifacts:** `scored_topics`.
+**Model rationale:** Scoring across 7 axes (including subjective axes like `emotional_trigger`, `evergreen_potential`) requires reasoning before scoring — standard LLMs cluster scores high (sycophancy). Sonnet 4.6 with `thinking: {type: "adaptive"}` provides internal CoT before the JSON output without adding a new provider. Haiku 4.5 was the original pick but carries too high a risk of flat, uncalibrated scores that degrade everything downstream.
 
 ### Acceptance Criteria
 - [ ] Each topic scored on all 7 axes + final_score
