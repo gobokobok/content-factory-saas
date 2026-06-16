@@ -30,7 +30,8 @@ from cf_platform.core.run_manager import (
     create_run,
     transition_run,
 )
-from cf_platform.core.schemas import SourceAdapter, StageState
+from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph, register_niche_to_ideas_workers
+from cf_platform.core.schemas import NicheToIdeasState, SourceAdapter, StageState
 from cf_platform.core.trace_repo import InMemoryTraceEventRepository, TraceEventRepository
 from cf_platform.core.worker_registry import (
     ExecutionRepository,
@@ -41,7 +42,7 @@ from cf_platform.core.worker_registry import (
 from cf_platform.interfaces.telegram import (
     TelegramClient,
     format_ideas_usage,
-    format_signals_summary,
+    format_ranked_ideas,
     format_unrecognized_command,
     is_chat_allowed,
     parse_ideas_command,
@@ -49,9 +50,9 @@ from cf_platform.interfaces.telegram import (
 from cf_platform.sources.google_trends import GoogleTrendsAdapter
 from cf_platform.sources.reddit import RedditAdapter
 from cf_platform.sources.youtube import YouTubeAdapter
-from cf_platform.blocks.niche_to_ideas import register_niche_to_ideas_workers
-from cf_platform.workers.discovery import DISCOVERY_REGISTRATION, SignalsArtifact, build_discovery_worker
 from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
+from cf_platform.workers.opportunity_scorer import TopicScore
+from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
 router = APIRouter()
 
@@ -213,6 +214,86 @@ async def echo(
     return EchoResponse(run_id=run.run_id, artifact_key=result.artifacts["echo"])
 
 
+class NicheToIdeasRequest(BaseModel):
+    """Request body for POST /platform/blocks/niche-to-ideas."""
+
+    niche: str
+    audience: Optional[str] = None
+    mode: Optional[str] = "single"
+
+
+class NicheToIdeasResponse(BaseModel):
+    """Response body for POST /platform/blocks/niche-to-ideas."""
+
+    run_id: str
+    ranked_ideas_artifact_key: str
+    selected: TopicScore
+    alternatives: list[TopicScore]
+
+
+@router.post("/blocks/niche-to-ideas", response_model=NicheToIdeasResponse)
+async def niche_to_ideas(
+    body: NicheToIdeasRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    registry: WorkerRegistry = Depends(get_worker_registry),
+    runs: RunRepository = Depends(get_run_repository),
+    executions: ExecutionRepository = Depends(get_execution_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+    checkpointer: BaseCheckpointSaver = Depends(get_graph_checkpointer),
+    settings: PlatformSettings = Depends(get_platform_settings),
+    adapters: list[tuple[str, SourceAdapter]] = Depends(get_discovery_adapters),
+) -> NicheToIdeasResponse:
+    """Run the full niche→ideas block and return the ranked ideas.
+
+    Executes all four workers (discovery → topic_generator → opportunity_scorer →
+    topic_selector) as a single LangGraph run, producing 4 artifacts and 4
+    WorkerExecution rows. Returns the selected idea and alternatives from the terminal
+    `ranked_ideas` artifact so callers get structured data without a second request.
+
+    `audience` is stored in run inputs for future use; `mode` is passed into
+    NicheToIdeasState to control single-vs-top_n selection routing (P4-S4).
+    """
+    run_inputs: dict[str, Any] = {"niche": body.niche}
+    if body.audience:
+        run_inputs["audience"] = body.audience
+
+    run = await create_run(_PLATFORM_USER_ID, "niche_to_ideas", run_inputs, runs)
+    run = await transition_run(run.run_id, "running", runs)
+
+    graph = build_niche_to_ideas_graph(
+        storage=storage,
+        registry=registry,
+        executions=executions,
+        artifact_repo=artifacts,
+        adapters=adapters,
+        trace_repo=trace_events,
+        anthropic_api_key=settings.ANTHROPIC_API_KEY,
+        checkpointer=checkpointer,
+    )
+    mode = body.mode if body.mode in ("single", "top_n") else "single"
+    state = NicheToIdeasState(
+        run_id=run.run_id,
+        user_id=_PLATFORM_USER_ID,
+        inputs=run_inputs,
+        mode=mode,  # type: ignore[arg-type]
+    )
+    result = await run_graph(graph, state, thread_id=run.run_id)
+
+    await transition_run(run.run_id, "complete", runs)
+
+    ranked_key = result.artifacts["ranked_ideas"]
+    _, body_dict = await read_artifact(storage, ranked_key)
+    ranked_artifact = RankedIdeasArtifact.model_validate(body_dict)
+
+    return NicheToIdeasResponse(
+        run_id=run.run_id,
+        ranked_ideas_artifact_key=ranked_key,
+        selected=ranked_artifact.selected,
+        alternatives=ranked_artifact.alternatives,
+    )
+
+
 class RunSummary(BaseModel):
     """Lineage summary for one run, as returned by GET /platform/runs."""
 
@@ -346,12 +427,11 @@ async def telegram_webhook(
 ) -> dict:
     """Validate Telegram's secret token, parse trigger commands, and reply via a formatter (D049).
 
-    Trigger-only at the chat layer: `/ideas <niche>` runs the discovery worker
-    (P3-S2) through the same observability spine as `/echo` — one run, one
-    `signals` artifact, one `WorkerExecution` — then replies with a summary built
-    by `format_signals_summary()`. Internal Artifact/state schemas are never
-    serialized to chat — every reply is a plain string from a format_*() helper in
-    cf_platform.interfaces.telegram.
+    `/ideas <niche>` runs the full niche→ideas block (P4-S5): all four workers
+    (discovery → topic_generator → opportunity_scorer → topic_selector) through the
+    observability spine — one run, 4 artifacts, 4 WorkerExecution rows — then
+    replies with ranked ideas + 7-axis scores via `format_ranked_ideas()`. Internal
+    Artifact/state schemas are never serialized to chat (D049).
 
     TELEGRAM_ALLOWED_CHAT_IDS (temporary single-operator allowlist ahead of S19):
     updates from chats not on the list are acked with no reply sent.
@@ -372,28 +452,30 @@ async def telegram_webhook(
     elif not niche:
         reply = format_ideas_usage()
     else:
-        run = await create_run(_PLATFORM_USER_ID, "discovery", {"niche": niche}, runs)
+        run = await create_run(_PLATFORM_USER_ID, "niche_to_ideas", {"niche": niche}, runs)
         run = await transition_run(run.run_id, "running", runs)
 
-        graph = build_observed_node_graph(
-            "discovery",
-            "discovery",
-            build_discovery_worker(adapters, trace_events),
-            registry=registry,
+        graph = build_niche_to_ideas_graph(
             storage=storage,
+            registry=registry,
             executions=executions,
             artifact_repo=artifacts,
+            adapters=adapters,
+            trace_repo=trace_events,
+            anthropic_api_key=settings.ANTHROPIC_API_KEY,
             checkpointer=checkpointer,
         )
-        state = StageState(run_id=run.run_id, user_id=_PLATFORM_USER_ID, inputs={"niche": niche})
+        state = NicheToIdeasState(
+            run_id=run.run_id, user_id=_PLATFORM_USER_ID, inputs={"niche": niche}
+        )
         result = await run_graph(graph, state, thread_id=run.run_id)
 
         await transition_run(run.run_id, "complete", runs)
 
-        artifact_key = result.artifacts["discovery"]
-        _, body = await read_artifact(storage, artifact_key)
-        signals_artifact = SignalsArtifact.model_validate(body)
-        reply = format_signals_summary(niche, run.run_id, artifact_key, signals_artifact.signals)
+        ranked_key = result.artifacts["ranked_ideas"]
+        _, body_dict = await read_artifact(storage, ranked_key)
+        ranked_artifact = RankedIdeasArtifact.model_validate(body_dict)
+        reply = format_ranked_ideas(niche, run.run_id, ranked_key, ranked_artifact)
 
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
     await client.send_message(update.message.chat.id, reply)

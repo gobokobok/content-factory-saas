@@ -1,17 +1,16 @@
 """Tests for cf_platform/interfaces/api.py and its fault-isolated mount in src/main.py (P1-S1)."""
 
 import sys
+from contextlib import contextmanager
+from datetime import datetime, timezone
 from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-
-from datetime import datetime, timezone
 
 from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemoryArtifactStorage
 from cf_platform.core.config import PlatformSettings, get_platform_settings
@@ -21,7 +20,7 @@ from cf_platform.core.postgres_repos import (
     PostgresRunRepository,
 )
 from cf_platform.core.run_manager import InMemoryRunRepository, create_run, transition_run
-from cf_platform.core.schemas import Artifact, LineageEnvelope, Signal, WorkerExecution
+from cf_platform.core.schemas import Artifact, LineageEnvelope, Signal, WorkerExecution, WorkerOutput
 from cf_platform.core.worker_registry import InMemoryExecutionRepository
 from cf_platform.interfaces.api import (
     get_artifact_repository,
@@ -31,8 +30,67 @@ from cf_platform.interfaces.api import (
     get_graph_checkpointer,
     get_run_repository,
 )
+from cf_platform.workers.discovery import SignalsArtifact
+from cf_platform.workers.opportunity_scorer import ScoredTopicsArtifact, TopicScore
+from cf_platform.workers.topic_generator import CandidateTopic, CandidateTopicsArtifact
+from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from src.config import Settings, get_settings
 from src.main import _mount_platform_router, _run_platform_migrations, _setup_platform_checkpointer, app
+
+_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=timezone.utc)
+
+_STUB_TOPIC = TopicScore(
+    title="Why Starter Homes Vanished",
+    angle="The economics of disappearing entry-level housing",
+    novelty=8.5,
+    audience_relevance=9.0,
+    emotional_trigger=7.5,
+    search_demand=8.0,
+    competition=5.5,
+    evergreen_potential=7.0,
+    monetization_relevance=8.0,
+    final_score=7.86,
+)
+
+
+@contextmanager
+def _stub_niche_to_ideas_workers():
+    """Patch all 4 niche_to_ideas worker builders with minimal stubs (no network calls)."""
+
+    async def _disc(state):
+        return WorkerOutput(artifact=SignalsArtifact(
+            niche=state.inputs.get("niche", "test"),
+            generated_at=_NOW,
+            signals=[Signal(source="youtube", title="Stub signal", score=100.0)],
+        ))
+
+    async def _tgen(state):
+        return WorkerOutput(artifact=CandidateTopicsArtifact(
+            niche="test", generated_at=_NOW,
+            topics=[CandidateTopic(title="Stub Topic", angle="stub")],
+        ))
+
+    async def _scorer(state):
+        return WorkerOutput(artifact=ScoredTopicsArtifact(
+            niche="test", generated_at=_NOW, scored_topics=[_STUB_TOPIC],
+        ))
+
+    async def _sel(state):
+        return WorkerOutput(artifact=RankedIdeasArtifact(
+            niche=state.inputs.get("niche", "test"),
+            generated_at=_NOW,
+            selected=_STUB_TOPIC,
+            alternatives=[],
+            mode="single",
+        ))
+
+    with (
+        patch("cf_platform.blocks.niche_to_ideas.build_discovery_worker", return_value=_disc),
+        patch("cf_platform.blocks.niche_to_ideas.build_topic_generator_worker", return_value=_tgen),
+        patch("cf_platform.blocks.niche_to_ideas.build_opportunity_scorer_worker", return_value=_scorer),
+        patch("cf_platform.blocks.niche_to_ideas.build_topic_selector_worker", return_value=_sel),
+    ):
+        yield
 
 
 @pytest.fixture(autouse=True)
@@ -413,12 +471,11 @@ class TestTelegramWebhookRoute:
 
         assert response.status_code == 401
 
-    def test_ideas_command_runs_discovery_and_sends_signals_summary(self):
-        """A valid /ideas <niche> update runs discovery and replies with a signals summary."""
-        signals = [Signal(source="reddit", title="Starter homes are back", score=120.0)]
-        client = self._client_with_telegram_settings(signals=signals)
+    def test_ideas_command_runs_full_block_and_sends_ranked_ideas_reply(self):
+        """A valid /ideas <niche> update runs the full niche→ideas block and replies with ranked ideas."""
+        client = self._client_with_telegram_settings()
 
-        with patch(
+        with _stub_niche_to_ideas_workers(), patch(
             "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
         ) as mock_send:
             response = client.post(
@@ -433,13 +490,13 @@ class TestTelegramWebhookRoute:
         args, _ = mock_send.call_args
         assert args[0] == 42
         assert "starter homes" in args[1]
-        assert "Starter homes are back" in args[1]
+        assert _STUB_TOPIC.title in args[1]
 
-    def test_ideas_command_with_no_signals_sends_no_signals_reply(self):
-        """A valid /ideas <niche> update where every source returns no signals replies plainly."""
-        client = self._client_with_telegram_settings(signals=[])
+    def test_ideas_command_reply_contains_seven_axis_scores(self):
+        """The ranked-ideas reply includes 7-axis score labels."""
+        client = self._client_with_telegram_settings()
 
-        with patch(
+        with _stub_niche_to_ideas_workers(), patch(
             "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
         ) as mock_send:
             response = client.post(
@@ -449,10 +506,10 @@ class TestTelegramWebhookRoute:
             )
 
         assert response.status_code == 200
-        mock_send.assert_awaited_once()
         args, _ = mock_send.call_args
-        assert "No signals found" in args[1]
-        assert "starter homes" in args[1]
+        reply = args[1]
+        for label in ("novelty", "relevance", "emotion", "demand", "competition", "evergreen", "monetize"):
+            assert label in reply, f"Expected '{label}' in reply"
 
     def test_ideas_without_niche_sends_usage_reply(self):
         """`/ideas` with no niche sends a usage reply, not an ack."""
@@ -533,7 +590,7 @@ class TestTelegramWebhookAllowlist:
         """A chat id present in TELEGRAM_ALLOWED_CHAT_IDS receives the usual reply."""
         client = self._client_with_telegram_settings(TELEGRAM_ALLOWED_CHAT_IDS="968448961")
 
-        with patch(
+        with _stub_niche_to_ideas_workers(), patch(
             "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
         ) as mock_send:
             response = client.post(

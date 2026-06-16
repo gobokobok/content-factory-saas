@@ -9,11 +9,14 @@ D049 rules enforced here:
   Deepgram/ElevenLabs client pattern.
 """
 
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import httpx
 
 from cf_platform.core.schemas import Signal
+
+if TYPE_CHECKING:
+    from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
 _TELEGRAM_API_BASE = "https://api.telegram.org"
 _TOP_SIGNALS_COUNT = 5
@@ -45,6 +48,40 @@ def format_signals_summary(niche: str, run_id: str, artifact_key: str, signals: 
     lines = [f'Top signals for "{niche}" ({len(signals)} found, run {run_id}):']
     for signal in top_signals:
         lines.append(f"- [{signal.source}] {signal.title} (score {signal.score:g})")
+    lines.append(f"Artifact: {artifact_key}")
+    return "\n".join(lines)
+
+
+_TOP_ALTERNATIVES_COUNT = 3
+
+
+def format_ranked_ideas(niche: str, run_id: str, artifact_key: str, ranked_ideas: "RankedIdeasArtifact") -> str:
+    """Format a ranked ideas reply for `/ideas <niche>` after the full block runs (D049, P4-S5).
+
+    Shows the selected idea with its 7-axis scores and final composite score, then
+    the top `_TOP_ALTERNATIVES_COUNT` alternatives by final_score. Plain string only —
+    never serializes the artifact itself to chat.
+    """
+    sel = ranked_ideas.selected
+    score_line = (
+        f"novelty {sel.novelty:.1f} · relevance {sel.audience_relevance:.1f} · "
+        f"emotion {sel.emotional_trigger:.1f} · demand {sel.search_demand:.1f} · "
+        f"competition {sel.competition:.1f} · evergreen {sel.evergreen_potential:.1f} · "
+        f"monetize {sel.monetization_relevance:.1f}  →  {sel.final_score:.2f}"
+    )
+    lines = [
+        f'Ideas for "{niche}" (run {run_id}):',
+        "",
+        f"★ {sel.title}",
+        f"  {sel.angle}",
+        f"  {score_line}",
+    ]
+    top_alts = ranked_ideas.alternatives[:_TOP_ALTERNATIVES_COUNT]
+    if top_alts:
+        lines.append("")
+        lines.append("Alternatives:")
+        for alt in top_alts:
+            lines.append(f"  • {alt.title} ({alt.final_score:.2f})")
     lines.append(f"Artifact: {artifact_key}")
     return "\n".join(lines)
 

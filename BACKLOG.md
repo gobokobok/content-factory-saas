@@ -4836,7 +4836,7 @@ Implement `NicheToIdeasState` (plan §5) and compile the 4 nodes into `cf_platfo
 ## [P4-S5] Block interfaces (REST + Telegram)
 **Epic:** E29 — Niche→Ideas Block
 **Sprint:** P4
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 2
 **Depends on:** P4-S4
