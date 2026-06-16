@@ -4,6 +4,17 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P4-S3] Topic Selector worker
+**Completed:** 2026-06-17
+**Handover:**
+- `cf_platform/workers/topic_selector.py` (new): `RankedIdeasArtifact(niche, generated_at, selected: TopicScore, alternatives: list[TopicScore], mode: str)` and `TOPIC_SELECTOR_REGISTRATION` (model="none", worker_version="1.0.0", prompt_version="v1", no LLM call). `build_topic_selector_worker(storage) -> WorkerNode` factory — reads `state.artifacts["scored_topics"]` → `ScoredTopicsArtifact.model_validate(body)` → sort by `(-final_score, title)` → `selected=topics[0]`, `alternatives=topics[1:]` → `mode=getattr(state, "mode", "single")` → `RankedIdeasArtifact`. Raises `KeyError` on missing `scored_topics` ref; `ValueError` on empty topics list.
+- Tests (10 new): `tests/cf_platform/test_topic_selector.py` — happy path; single topic (empty alternatives); missing key → KeyError; empty list → ValueError; tie-breaking by title ascending; mode defaults to "single"; mode read from state via getattr; niche propagated; registration pins; build returns callable. 1048 total passing (was 1038).
+- No new dependencies, no new ENV vars. Worker NOT yet registered in `cf_platform/interfaces/api.py` — wiring lands in P4-S4 (assemble StateGraph) and P4-S5 (block interfaces).
+**Smoke test:** DEFERRED — no route wires this worker yet. Smoke test is part of P4-S4/P4-S5 when the full `niche_to_ideas` StateGraph and REST/Telegram interfaces are assembled.
+**Promoted to backlog:** none
+
+---
+
 ## [P4-S2] Opportunity Scoring worker
 **Completed:** 2026-06-17
 **Handover:**

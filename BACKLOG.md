@@ -4779,7 +4779,8 @@ See DONE.md
 ## [P4-S3] Topic Selector worker
 **Epic:** E29 — Niche→Ideas Block
 **Sprint:** P4
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-17
 **Priority:** high
 **Points:** 2
 **Depends on:** P4-S2
@@ -4789,14 +4790,16 @@ Node selects best topic (or top-N by `mode`) + alternatives → `ranked_ideas`. 
 **Tech:** LangGraph (conditional edge), Python. **Artifacts:** `ranked_ideas`.
 
 ### Acceptance Criteria
-- [ ] Selector emits one `ranked_ideas` artifact (selected + alternatives)
-- [ ] `mode` routing handled by a graph edge, not inside the worker
+- [x] Selector emits one `ranked_ideas` artifact (selected + alternatives)
+- [x] `mode` routing handled by a graph edge, not inside the worker
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/workers/topic_selector.py` (new): `RankedIdeasArtifact(niche, generated_at, selected: TopicScore, alternatives: list[TopicScore], mode: str)`. `TOPIC_SELECTOR_REGISTRATION` pins `worker_version="1.0.0"`, `prompt_version="v1"`, `model="none"`, `prompt=""`, `sampling_params={}` — no LLM call (pure deterministic). `build_topic_selector_worker(storage) -> WorkerNode` factory — reads `state.artifacts["scored_topics"]` → `read_artifact` → `ScoredTopicsArtifact.model_validate` → sort by `(-final_score, title)` → `selected=topics[0]`, `alternatives=topics[1:]` → reads `mode` via `getattr(state, "mode", "single")` → returns `RankedIdeasArtifact`. Raises `KeyError` on missing `scored_topics` ref; `ValueError` on empty topics list.
+- Tests (10 new): `tests/cf_platform/test_topic_selector.py` — happy path (correct selected/alternatives order); single topic (alternatives empty); missing key → KeyError; empty list → ValueError; tie-breaking by title ascending; mode defaults to "single"; mode read from state; niche propagated; registration pins (model/worker_version/prompt_version); build returns callable. 1048 total passing (was 1038).
+- No new dependencies, no new ENV vars, no DECISIONS.md entry needed. Worker NOT yet registered — wiring lands in P4-S4 (assemble StateGraph) and P4-S5 (block interfaces).
 
 ---
 
