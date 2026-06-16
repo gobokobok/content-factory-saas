@@ -4806,7 +4806,8 @@ Node selects best topic (or top-N by `mode`) + alternatives → `ranked_ideas`. 
 ## [P4-S4] Assemble niche_to_ideas StateGraph (+ NicheToIdeasState)
 **Epic:** E29 — Niche→Ideas Block
 **Sprint:** P4
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-17
 **Priority:** high
 **Points:** 3
 **Depends on:** P4-S1, P4-S2, P4-S3
@@ -4816,15 +4817,19 @@ Implement `NicheToIdeasState` (plan §5) and compile the 4 nodes into `cf_platfo
 **Tech:** LangGraph (StateGraph, PostgresSaver), Run/Artifact/Registry. **Schema:** `NicheToIdeasState`.
 
 ### Acceptance Criteria
-- [ ] `NicheToIdeasState` matches plan §5 (refs + `mode`/`top_n` only)
-- [ ] One run produces 4 artifacts + 4 execution rows
-- [ ] Run resumes after restart
+- [x] `NicheToIdeasState` matches plan §5 (refs + `mode`/`top_n` only)
+- [x] One run produces 4 artifacts + 4 execution rows
+- [x] Run resumes after restart
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/core/schemas.py`: `NicheToIdeasState(StageState)` added — `mode: Literal["single", "top_n"] = "single"`, `top_n: int = 3`. Inherits `artifacts: Annotated[dict[str, str], merge_refs]` reducer.
+- `cf_platform/blocks/niche_to_ideas.py` (new): `register_niche_to_ideas_workers(registry)` registers all 4 workers; `build_niche_to_ideas_graph(*, storage, registry, executions, artifact_repo, adapters, trace_repo, anthropic_api_key, checkpointer?)` compiles the 4-node StateGraph (discovery → topic_generator → opportunity_scorer → topic_selector). Node-to-artifact-key mapping: "discovery"→"discovery", "topic_generator"→"candidate_topics", "opportunity_scorer"→"scored_topics", "topic_selector"→"ranked_ideas".
+- `cf_platform/interfaces/api.py`: `register_niche_to_ideas_workers(_worker_registry)` called at module init; discovery no longer registered separately (subsumed).
+- Tests: 18 new in `tests/cf_platform/test_niche_to_ideas.py`. 1066 total passing (was 1048).
+- No new ENV vars. No new dependencies.
 
 ---
 

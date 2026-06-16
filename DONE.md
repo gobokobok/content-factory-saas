@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P4-S4] Assemble niche_to_ideas StateGraph (+ NicheToIdeasState)
+**Completed:** 2026-06-17
+**Handover:**
+- `cf_platform/core/schemas.py`: `NicheToIdeasState(StageState)` added — `mode: Literal["single", "top_n"] = "single"`, `top_n: int = 3`. Inherits `artifacts: Annotated[dict[str, str], merge_refs]` reducer from `StageState`. Lives alongside `StageState` in core/schemas.py.
+- `cf_platform/blocks/niche_to_ideas.py` (new): `register_niche_to_ideas_workers(registry)` registers all 4 workers (discovery, topic_generator, opportunity_scorer, topic_selector); `build_niche_to_ideas_graph(*, storage, registry, executions, artifact_repo, adapters, trace_repo, anthropic_api_key, checkpointer?)` compiles the 4-node linear StateGraph over `NicheToIdeasState`. Node-to-artifact-key mapping (matched to what downstream workers read from state): "discovery"→"discovery", "topic_generator"→"candidate_topics", "opportunity_scorer"→"scored_topics", "topic_selector"→"ranked_ideas" (terminal). Caller must call `register_niche_to_ideas_workers(registry)` before building.
+- `cf_platform/interfaces/api.py`: `register_niche_to_ideas_workers(_worker_registry)` replaces the inline `registry.register("discovery", ...)` call at module init. All 4 workers now registered at startup.
+- Tests: 18 new in `tests/cf_platform/test_niche_to_ideas.py` — schema defaults, registration, graph compile, 4 artifacts + 4 executions, correct artifact keys, mode/top_n preserved, checkpointer stores state. 1066 total passing (was 1048).
+- No new ENV vars. No new dependencies.
+**Smoke test:** DEFERRED — no REST/Telegram interface wires the block yet. Full block smoke test is part of P4-S5 (Block interfaces: `POST /blocks/niche-to-ideas` + Telegram `/ideas` rewired to the full 4-node block).
+**Promoted to backlog:** none
+
+---
+
 ## [P4-S3] Topic Selector worker
 **Completed:** 2026-06-17
 **Handover:**

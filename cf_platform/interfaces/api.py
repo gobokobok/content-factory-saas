@@ -49,6 +49,7 @@ from cf_platform.interfaces.telegram import (
 from cf_platform.sources.google_trends import GoogleTrendsAdapter
 from cf_platform.sources.reddit import RedditAdapter
 from cf_platform.sources.youtube import YouTubeAdapter
+from cf_platform.blocks.niche_to_ideas import register_niche_to_ideas_workers
 from cf_platform.workers.discovery import DISCOVERY_REGISTRATION, SignalsArtifact, build_discovery_worker
 from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
 
@@ -64,7 +65,7 @@ _artifact_repository = InMemoryArtifactRepository()
 _trace_event_repository = InMemoryTraceEventRepository()
 _worker_registry = WorkerRegistry()
 _worker_registry.register("echo", ECHO_REGISTRATION)
-_worker_registry.register("discovery", DISCOVERY_REGISTRATION)
+register_niche_to_ideas_workers(_worker_registry)
 
 
 @router.get("/health")

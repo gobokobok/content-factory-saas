@@ -151,3 +151,18 @@ class SourceAdapter(Protocol):
     async def fetch(self, niche: str, params: dict[str, Any]) -> list[Signal]:
         """Fetch raw signals for `niche` from this source."""
         ...
+
+
+# ── Per-stage StageState contracts (plan §5, P4-S4) ───────────────────
+
+
+class NicheToIdeasState(StageState):
+    """Stage state for the niche→ideas block (plan §5).
+
+    Typed control channels only — no artifact bodies (D057). Artifact refs populated
+    across nodes: discovery → "discovery", topic_generator → "candidate_topics",
+    opportunity_scorer → "scored_topics", topic_selector → "ranked_ideas" (terminal).
+    """
+
+    mode: Literal["single", "top_n"] = "single"
+    top_n: int = 3
