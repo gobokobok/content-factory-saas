@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P4-S2] Opportunity Scoring worker
+**Completed:** 2026-06-17
+**Handover:**
+- `cf_platform/workers/opportunity_scorer.py` (new): `TopicScore(title, angle, novelty, audience_relevance, emotional_trigger, search_demand, competition, evergreen_potential, monetization_relevance, final_score)` and `ScoredTopicsArtifact(niche, generated_at, scored_topics)` Pydantic models. `OPPORTUNITY_SCORER_REGISTRATION` pins `worker_version="1.0.0"`, `prompt_version="v1"`, `model="claude-sonnet-4-6"`, `sampling_params={"thinking": {"type": "adaptive"}}`, `prompt=_OPPORTUNITY_SCORER_PROMPT_V1` (rubric scoring all 7 axes + weighted final_score formula, JSON-only output). `build_opportunity_scorer_worker(storage, anthropic_api_key) -> WorkerNode` factory — reads `state.artifacts["candidate_topics"]` → `read_artifact(storage, key)` → `CandidateTopicsArtifact.model_validate(body)` → formats numbered topic list → calls `anthropic.AsyncAnthropic.messages.create` (model `claude-sonnet-4-6`, max_tokens=4096, `thinking={"type": "adaptive"}`) → `_extract_text_block(response.content)` filters to first TextBlock (adaptive thinking prepends ThinkingBlock) → `json.loads` → `ScoredTopicsArtifact`. Raises `KeyError` on missing `candidate_topics` ref; `ValueError` on no-text-block response or non-JSON.
+- `_extract_text_block(content)` helper: iterates `response.content`, returns `.text` of first block where `block.type == "text"`. Required because `thinking={type: "adaptive"}` may prepend a ThinkingBlock before the TextBlock; accessing `content[0].text` blindly would fail.
+- Tests (13 new): `tests/cf_platform/test_opportunity_scorer.py` — happy path end-to-end; ThinkingBlock + TextBlock response (adaptive thinking filter); niche and topic titles present in user message; `thinking={"type": "adaptive"}` passed to API call; invalid JSON → ValueError; no text block → ValueError; missing `candidate_topics` key → KeyError; all 7 axes + final_score present in output; registration pin checks (model, prompt_version, worker_version, prompt non-empty, sampling_params adaptive thinking). 1038 total passing (was 1025).
+- No new dependencies. Worker NOT yet registered in `cf_platform/interfaces/api.py` — wiring lands in P4-S4 (assemble StateGraph) and P4-S5 (block interfaces).
+**Smoke test:** DEFERRED — no route wires this worker yet. Smoke test is part of P4-S4/P4-S5.
+**Promoted to backlog:** none
+
+---
+
 ## [P4-S1] Topic Generator worker
 **Completed:** 2026-06-16
 **Handover:**

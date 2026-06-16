@@ -4754,7 +4754,7 @@ LangGraph node `signals → candidate_topics` (narrative-worthy topics). Version
 ## [P4-S2] Opportunity Scoring worker
 **Epic:** E29 — Niche→Ideas Block
 **Sprint:** P4
-**Status:** planned
+**Status:** done
 **Priority:** high
 **Points:** 3
 **Depends on:** P4-S1
@@ -4765,14 +4765,14 @@ Node scores each topic on the 7 axes (novelty, audience_relevance, emotional_tri
 **Model rationale:** Scoring across 7 axes (including subjective axes like `emotional_trigger`, `evergreen_potential`) requires reasoning before scoring — standard LLMs cluster scores high (sycophancy). Sonnet 4.6 with `thinking: {type: "adaptive"}` provides internal CoT before the JSON output without adding a new provider. Haiku 4.5 was the original pick but carries too high a risk of flat, uncalibrated scores that degrade everything downstream.
 
 ### Acceptance Criteria
-- [ ] Each topic scored on all 7 axes + final_score
-- [ ] One `scored_topics` artifact with lineage
+- [x] Each topic scored on all 7 axes + final_score
+- [x] One `scored_topics` artifact with lineage
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+See DONE.md
 
 ---
 
