@@ -448,6 +448,7 @@ class TestFactCheckerErrors:
         state = StageState(
             run_id="run-1", user_id="user-1", inputs={}, artifacts={"script_drafts": drafts_key}
         )
+        # Completely unparseable text (no JSON object at all)
         mock_client = _mock_anthropic_client("All claims check out — the script looks great!")
 
         with patch(
@@ -457,6 +458,34 @@ class TestFactCheckerErrors:
             worker = build_fact_checker_worker(storage, anthropic_api_key="test-key")
             with pytest.raises(ValueError, match="invalid JSON"):
                 await worker(state)
+
+    @pytest.mark.asyncio
+    async def test_json_with_trailing_prose_is_parsed(self):
+        """Regression: Claude adds text after the closing } — extra data must be stripped."""
+        storage = InMemoryArtifactStorage()
+        drafts_key = await _seed_script_drafts(storage)
+        state = StageState(
+            run_id="run-1", user_id="user-1", inputs={}, artifacts={"script_drafts": drafts_key}
+        )
+        # Simulate Claude adding a preamble sentence and a trailing comment around valid JSON
+        json_with_prose = (
+            'Here is my fact-check analysis:\n\n'
+            '{"claims": [{"claim": "Starbucks closed 900 stores", "verdict": "supported",'
+            ' "source": "https://example.com", "note": "Confirmed by press release."}]}\n\n'
+            'I have verified each claim using authoritative sources.'
+        )
+        mock_client = _mock_anthropic_client(json_with_prose)
+
+        with patch(
+            "cf_platform.workers.fact_checker.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            worker = build_fact_checker_worker(storage, anthropic_api_key="test-key")
+            output = await worker(state)
+
+        report = output.artifact
+        assert len(report.claims) == 1  # type: ignore[union-attr]
+        assert report.claims[0].verdict == "supported"  # type: ignore[union-attr]
 
 
 # ── registration ──────────────────────────────────────────────────────────

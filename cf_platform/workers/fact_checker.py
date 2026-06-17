@@ -31,7 +31,7 @@ import anthropic
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
-from cf_platform.core.llm_utils import strip_markdown_fences
+from cf_platform.core.llm_utils import extract_json_object, strip_markdown_fences
 from cf_platform.core.schemas import ControlSignal, StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.script_writer import ScriptDraftsArtifact
@@ -148,14 +148,16 @@ def build_fact_checker_worker(
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
         response = await client.messages.create(
             model=FACT_CHECKER_REGISTRATION.model,
-            max_tokens=2048,
+            max_tokens=4096,
             system=FACT_CHECKER_REGISTRATION.prompt,
             tools=[{"type": "web_search_20260209", "name": "web_search"}],
             messages=[{"role": "user", "content": user_message}],
         )
 
         # Server-side tool responses may contain mixed content blocks (server_tool_use,
-        # web_search_result, text) — extract only the final text block for JSON parsing
+        # web_search_result, text) — extract only the final text block for JSON parsing.
+        # Claude occasionally adds prose before or after the JSON object; extract_json_object
+        # isolates the {…} to avoid "Extra data" / "Expecting value" parse errors.
         text_blocks = [b for b in response.content if b.type == "text"]
         if not text_blocks:
             raise ValueError(
@@ -165,8 +167,9 @@ def build_fact_checker_worker(
         raw_text = strip_markdown_fences(text_blocks[-1].text)
 
         try:
-            raw_report: dict[str, Any] = json.loads(raw_text)
-        except json.JSONDecodeError as exc:
+            json_str = extract_json_object(raw_text)
+            raw_report: dict[str, Any] = json.loads(json_str)
+        except (json.JSONDecodeError, ValueError) as exc:
             raise ValueError(
                 f"fact_checker@v1 returned invalid JSON: {exc}"
                 f"\nRaw response: {raw_text!r}"
