@@ -118,6 +118,18 @@ def _extract_text_block(content: list[Any]) -> str:
     )
 
 
+def _strip_markdown_fences(text: str) -> str:
+    """Strip leading ```json / ``` fences that Claude occasionally wraps around JSON output."""
+    text = text.strip()
+    if text.startswith("```"):
+        # Remove opening fence line (```json or ```)
+        text = text[text.index("\n") + 1:] if "\n" in text else text
+        # Remove closing fence
+        if text.rstrip().endswith("```"):
+            text = text.rstrip()[:-3]
+    return text.strip()
+
+
 def build_opportunity_scorer_worker(
     storage: ArtifactStorage,
     anthropic_api_key: str,
@@ -164,7 +176,7 @@ def build_opportunity_scorer_worker(
             messages=[{"role": "user", "content": user_message}],
         )
 
-        raw_text = _extract_text_block(response.content).strip()
+        raw_text = _strip_markdown_fences(_extract_text_block(response.content))
         try:
             raw_scores: list[dict[str, Any]] = json.loads(raw_text)
         except json.JSONDecodeError as exc:

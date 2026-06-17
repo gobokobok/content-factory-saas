@@ -460,7 +460,8 @@ async def _run_ideas_and_reply(
         reply = format_ranked_ideas(niche, run.run_id, ranked_key, ranked_artifact)
     except Exception as exc:  # noqa: BLE001
         _logger.exception("_run_ideas_and_reply failed for niche=%r chat_id=%s: %s", niche, chat_id, exc)
-        reply = f"Error running /ideas: {exc}"
+        short = str(exc)[:200]
+        reply = f"Error running /ideas: {type(exc).__name__}: {short}"
 
     try:
         await client.send_message(chat_id, reply)
