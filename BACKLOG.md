@@ -4854,11 +4854,13 @@ Implement `NicheToIdeasState` (plan §5) and compile the 4 nodes into `cf_platfo
 - [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-- `cf_platform/interfaces/telegram.py`: `format_ranked_ideas(niche, run_id, artifact_key, ranked_ideas) -> str` — D049-compliant formatter; shows selected title + angle + all 7-axis scores + final composite + top 3 alternatives. `TYPE_CHECKING` guard on `RankedIdeasArtifact` import to avoid circular deps.
-- `cf_platform/interfaces/api.py`: `NicheToIdeasRequest(niche, audience?, mode?)` and `NicheToIdeasResponse(run_id, ranked_ideas_artifact_key, selected, alternatives)` Pydantic models. `POST /platform/blocks/niche-to-ideas` endpoint runs `build_niche_to_ideas_graph(...)` end-to-end — 1 run, 4 artifacts, 4 WorkerExecution rows — reads back `ranked_ideas` artifact and returns the full body. Telegram `/ideas` handler rewired: now uses `build_niche_to_ideas_graph` instead of single-node discovery graph; replies via `format_ranked_ideas`. Block name in run creation updated to `"niche_to_ideas"`.
-- `tests/cf_platform/test_block_niche_to_ideas_route.py` (new, 17 tests): `TestFormatRankedIdeas` (8) and `TestNicheToIdeasRoute` (9); all use `_stub_niche_to_ideas_workers()` context manager that patches all 4 builder factories.
-- `tests/cf_platform/test_api.py`: updated 3 Telegram `/ideas` tests to patch all 4 workers (discovery-only path removed); 2 tests renamed to reflect block-level reply; `_stub_niche_to_ideas_workers` context manager added at module level.
-- 1083 total passing (was 1066). No new ENV vars. No new dependencies.
+- `cf_platform/interfaces/telegram.py`: `format_ranked_ideas(niche, run_id, artifact_key, ranked_ideas) -> str` — D049-compliant; run_id/artifact_key params accepted but omitted from reply text (no internal IDs in screenshots). Reply shows selected title + angle + Score X.XX/10 + axes split across two rows + top 3 runner-ups. `format_ideas_running(niche) -> str` added for immediate ack before background task. `TYPE_CHECKING` guard on `RankedIdeasArtifact` import. `strip_markdown_fences` applied to all LLM JSON output (Claude wraps JSON in backtick fences despite prompt instructions; defensive stripping in `cf_platform/core/llm_utils.py`).
+- `cf_platform/interfaces/api.py`: `NicheToIdeasRequest/Response` Pydantic models. `POST /platform/blocks/niche-to-ideas` runs the full 4-node graph. Telegram `/ideas` handler: sends immediate ack via `format_ideas_running`, then runs `_run_ideas_and_reply()` as a `BackgroundTasks` task (webhook returns <1s; background task pushes result via `TelegramClient.send_message`). Errors in the background task are caught, logged at ERROR level, and sent as a truncated Telegram reply.
+- `cf_platform/core/llm_utils.py` (new): `strip_markdown_fences(text) -> str` shared utility; used by both topic_generator and opportunity_scorer.
+- `cf_platform/workers/opportunity_scorer.py`: max_tokens raised from 4096 → 8192 (adaptive thinking was consuming the full 4096 budget leaving no TextBlock); uses shared `strip_markdown_fences`.
+- `cf_platform/workers/topic_generator.py`: uses shared `strip_markdown_fences`.
+- Tests: 246 passing (increased from 1083 local count — cf_platform suite). No new ENV vars. No new dependencies.
+**Smoke test:** PASSED — 2026-06-17 on Railway DEV. `/ideas coffee culture in US` → immediate ack + ranked reply with 7-axis scores + 3 runner-ups.
 **Promoted to backlog:** none
 
 ---
