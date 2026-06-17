@@ -5,6 +5,7 @@ for reproducibility), D056 (worker = LangGraph node), and D057 (artifacts are tr
 state is a message bus, refs + control only — no `state_delta`).
 """
 
+import operator
 from datetime import datetime
 from typing import Annotated, Any, Awaitable, Callable, Literal, Optional, Protocol
 
@@ -166,3 +167,28 @@ class NicheToIdeasState(StageState):
 
     mode: Literal["single", "top_n"] = "single"
     top_n: int = 3
+
+
+class IdeaToScriptState(StageState):
+    """Stage state for the idea→script block (plan §5, P5-S4).
+
+    Typed control channels only — no artifact bodies (D057).
+
+    `iteration` uses `operator.add` as its reducer so any node returning
+    `{"iteration": 1}` increments the counter without overwriting the
+    accumulated value. The graph (not any worker) owns this counter (D057).
+
+    Artifact refs populated across nodes:
+      script_writer    → "script_drafts"
+      script_scorer    → "script_scores"
+      fact_checker     → "factcheck_report"
+      script_refiner   → "script_drafts"  (new version each retry)
+      (terminal P5-S5) → "script"
+    """
+
+    iteration: Annotated[int, operator.add] = 0
+    max_iterations: int = 3
+    quality_threshold: float = 0.8
+    unverified_threshold: float = 0.3
+    scorer_verdict: ControlSignal = "continue"
+    factcheck_verdict: ControlSignal = "continue"

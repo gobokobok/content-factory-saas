@@ -105,7 +105,7 @@ Fact-check node verifies claims via a web-search tool (D053) → `factcheck_repo
 ## [P5-S4] Refine loop + convergence logic
 **Epic:** E30 — Idea→Script Block
 **Sprint:** P5
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 5
 **Depends on:** P5-S2, P5-S3

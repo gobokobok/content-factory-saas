@@ -113,6 +113,7 @@ def wrap(
     storage: ArtifactStorage,
     executions: ExecutionRepository,
     artifact_repo: ArtifactRepository,
+    control_channel: Optional[str] = None,
 ) -> Callable[[StageState], Awaitable[dict[str, Any]]]:
     """Wrap a pure WorkerNode into a LangGraph node function with full observability.
 
@@ -122,6 +123,11 @@ def wrap(
     (Postgres index, R2 stays blob truth — P2-S3), records exactly one
     WorkerExecution, and returns `{"artifacts": {node_name: r2_key}}` for the
     StageState.artifacts reducer (D056).
+
+    When `control_channel` is provided, the node also returns
+    `{control_channel: output.control}` so the calling graph can store the
+    worker's routing signal in a typed state field without worker bodies ever
+    reading or writing iteration bookkeeping (D057).
 
     Raises WorkerNotRegisteredError immediately if worker has no registration.
     """
@@ -167,7 +173,10 @@ def wrap(
             latency_ms=latency_ms,
         )
         await executions.record(execution)
-        return {"artifacts": {node_name: artifact.r2_key}}
+        result: dict[str, Any] = {"artifacts": {node_name: artifact.r2_key}}
+        if control_channel is not None:
+            result[control_channel] = output.control
+        return result
 
     return _node_fn
 
