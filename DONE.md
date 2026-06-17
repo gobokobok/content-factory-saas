@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P5-S1] Script Writer worker (write ×N)
+**Completed:** 2026-06-17
+**Handover:**
+- `cf_platform/workers/script_writer.py`: `build_script_writer_worker(storage, anthropic_api_key, n_drafts=3) → WorkerNode`
+- Reads `state.artifacts["ranked_ideas"]` (RankedIdeasArtifact) → calls Claude Haiku 4.5 → returns `ScriptDraftsArtifact` with N `ScriptDraft` objects (draft_number + script).
+- `SCRIPT_WRITER_REGISTRATION` pins model=`claude-haiku-4-5`, prompt_version=v1, worker_version=1.0.0.
+- N is resolved from `getattr(state, "max_iterations", n_drafts)` — compatible with both standalone use and `IdeaToScriptState` graph (P5-S5).
+- `ScriptDraftsArtifact`, `ScriptDraft` models exported — importable by P5-S2 scorer.
+- Model choice rationale: Haiku 4.5 for constrained short-form creative generation (150–200 words, runs N×per iteration); Sonnet reserved for scorer/fact-check. Full-pipeline cost ~$0.13/run.
+- 13 tests in `tests/cf_platform/test_script_writer.py`; total suite 1096 tests passing.
+**Smoke test:** DEFERRED — requires P5-S5 graph + `/platform/blocks/idea-to-script` endpoint to be wired.
+**Promoted to backlog:** none
+
+---
+
 ## [P4-S5] Block interfaces (REST + Telegram)
 **Completed:** 2026-06-17
 **Handover:**

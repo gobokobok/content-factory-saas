@@ -4873,23 +4873,28 @@ Second block; cyclic write→score→fact-check→refine. Promotes /tools/script
 ## [P5-S1] Script Writer worker (write ×N)
 **Epic:** E30 — Idea→Script Block
 **Sprint:** P5
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-17
 **Priority:** high
 **Points:** 3
 **Depends on:** P4-S4
 
 ### Goal
 Node generates N drafts from an idea + niche context. Versioned prompt (Step 2a heritage).
-**Tech:** LangGraph node, ModelRouter (Sonnet). **Artifacts:** `script_drafts`.
+**Tech:** LangGraph node, Haiku 4.5 (constrained creative; Sonnet reserved for scorer/fact-check). **Artifacts:** `script_drafts`.
 
 ### Acceptance Criteria
-- [ ] Node emits one `script_drafts` artifact (N drafts) with lineage
+- [x] Node emits one `script_drafts` artifact (N drafts) with lineage
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/workers/script_writer.py`: `build_script_writer_worker(storage, anthropic_api_key, n_drafts=3) → WorkerNode`
+- Exports: `ScriptDraftsArtifact`, `ScriptDraft`, `SCRIPT_WRITER_REGISTRATION`
+- Model: `claude-haiku-4-5` (updated from Sonnet after cost review — ~$0.13/full pipeline run)
+- N drafts from `getattr(state, "max_iterations", n_drafts)` — IdeaToScriptState-compatible
+- 13 tests; 1096 suite total
 
 ---
 
