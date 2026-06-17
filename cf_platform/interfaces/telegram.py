@@ -63,30 +63,41 @@ def format_ranked_ideas(niche: str, run_id: str, artifact_key: str, ranked_ideas
 
     Shows the selected idea with its 7-axis scores and final composite score, then
     the top `_TOP_ALTERNATIVES_COUNT` alternatives by final_score. Plain string only —
-    never serializes the artifact itself to chat.
+    never serializes the artifact itself to chat. run_id and artifact_key are accepted
+    for call-site consistency but intentionally omitted from the reply text.
     """
     sel = ranked_ideas.selected
-    score_line = (
+    score_row1 = (
         f"novelty {sel.novelty:.1f} · relevance {sel.audience_relevance:.1f} · "
-        f"emotion {sel.emotional_trigger:.1f} · demand {sel.search_demand:.1f} · "
+        f"emotion {sel.emotional_trigger:.1f} · demand {sel.search_demand:.1f}"
+    )
+    score_row2 = (
         f"competition {sel.competition:.1f} · evergreen {sel.evergreen_potential:.1f} · "
-        f"monetize {sel.monetization_relevance:.1f}  →  {sel.final_score:.2f}"
+        f"monetize {sel.monetization_relevance:.1f}"
     )
     lines = [
-        f'Ideas for "{niche}" (run {run_id}):',
+        f'Ideas — "{niche}"',
         "",
         f"★ {sel.title}",
+        f"",
         f"  {sel.angle}",
-        f"  {score_line}",
+        f"",
+        f"  Score: {sel.final_score:.2f} / 10",
+        f"  {score_row1}",
+        f"  {score_row2}",
     ]
     top_alts = ranked_ideas.alternatives[:_TOP_ALTERNATIVES_COUNT]
     if top_alts:
         lines.append("")
-        lines.append("Alternatives:")
+        lines.append("Runner-ups:")
         for alt in top_alts:
             lines.append(f"  • {alt.title} ({alt.final_score:.2f})")
-    lines.append(f"Artifact: {artifact_key}")
     return "\n".join(lines)
+
+
+def format_ideas_running(niche: str) -> str:
+    """Format the immediate ack sent before the background graph run starts (D049)."""
+    return f'Running ideas for "{niche}"... results in ~60 s.'
 
 
 def format_ideas_usage() -> str:

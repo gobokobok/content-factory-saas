@@ -44,6 +44,7 @@ from cf_platform.core.worker_registry import (
 )
 from cf_platform.interfaces.telegram import (
     TelegramClient,
+    format_ideas_running,
     format_ideas_usage,
     format_ranked_ideas,
     format_unrecognized_command,
@@ -512,6 +513,7 @@ async def telegram_webhook(
     elif not niche:
         await client.send_message(chat_id, format_ideas_usage())
     else:
+        await client.send_message(chat_id, format_ideas_running(niche))
         background_tasks.add_task(
             _run_ideas_and_reply,
             chat_id=chat_id,

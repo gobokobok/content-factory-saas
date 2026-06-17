@@ -471,8 +471,8 @@ class TestTelegramWebhookRoute:
 
         assert response.status_code == 401
 
-    def test_ideas_command_runs_full_block_and_sends_ranked_ideas_reply(self):
-        """A valid /ideas <niche> update runs the full niche→ideas block and replies with ranked ideas."""
+    def test_ideas_command_sends_ack_then_ranked_ideas_reply(self):
+        """A valid /ideas <niche> update sends an immediate ack, then the ranked-ideas result."""
         client = self._client_with_telegram_settings()
 
         with _stub_niche_to_ideas_workers(), patch(
@@ -486,14 +486,18 @@ class TestTelegramWebhookRoute:
 
         assert response.status_code == 200
         assert response.json() == {"ok": True}
-        mock_send.assert_awaited_once()
-        args, _ = mock_send.call_args
-        assert args[0] == 42
-        assert "starter homes" in args[1]
-        assert _STUB_TOPIC.title in args[1]
+        # Two messages: immediate ack + ranked-ideas result
+        assert mock_send.await_count == 2
+        ack_args, _ = mock_send.call_args_list[0]
+        assert ack_args[0] == 42
+        assert "starter homes" in ack_args[1]
+        result_args, _ = mock_send.call_args_list[1]
+        assert result_args[0] == 42
+        assert "starter homes" in result_args[1]
+        assert _STUB_TOPIC.title in result_args[1]
 
     def test_ideas_command_reply_contains_seven_axis_scores(self):
-        """The ranked-ideas reply includes 7-axis score labels."""
+        """The ranked-ideas reply (second message) includes 7-axis score labels."""
         client = self._client_with_telegram_settings()
 
         with _stub_niche_to_ideas_workers(), patch(
@@ -506,8 +510,9 @@ class TestTelegramWebhookRoute:
             )
 
         assert response.status_code == 200
-        args, _ = mock_send.call_args
-        reply = args[1]
+        # Second call is the ranked-ideas result
+        result_args, _ = mock_send.call_args_list[1]
+        reply = result_args[1]
         for label in ("novelty", "relevance", "emotion", "demand", "competition", "evergreen", "monetize"):
             assert label in reply, f"Expected '{label}' in reply"
 
@@ -600,7 +605,8 @@ class TestTelegramWebhookAllowlist:
             )
 
         assert response.status_code == 200
-        mock_send.assert_awaited_once()
+        # ack + result = 2 messages for an /ideas command
+        assert mock_send.await_count == 2
 
     def test_disallowed_chat_id_gets_no_reply(self):
         """A chat id absent from TELEGRAM_ALLOWED_CHAT_IDS is acked with no reply sent."""

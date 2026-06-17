@@ -151,12 +151,12 @@ def _make_client() -> TestClient:
 class TestFormatRankedIdeas:
     """format_ranked_ideas produces a D049-compliant plain-string reply."""
 
-    def test_contains_niche_and_run_id(self):
-        """Reply contains the niche string and run_id for traceability."""
+    def test_contains_niche(self):
+        """Reply contains the niche string. run_id and artifact_key are intentionally omitted."""
         ranked = _make_ranked_ideas("starter homes")
         reply = format_ranked_ideas("starter homes", "run-abc", "some/key@v1.json", ranked)
         assert "starter homes" in reply
-        assert "run-abc" in reply
+        assert "run-abc" not in reply
 
     def test_selected_title_in_output(self):
         """Selected idea title appears prominently in the reply."""
@@ -186,10 +186,10 @@ class TestFormatRankedIdeas:
         assert "Alt Two" in reply
 
     def test_no_alternatives_omits_section(self):
-        """When alternatives is empty, the Alternatives section is not emitted."""
+        """When alternatives is empty, the Runner-ups section is not emitted."""
         ranked = _make_ranked_ideas(alternatives=[])
         reply = format_ranked_ideas("housing", "run-1", "key@v1.json", ranked)
-        assert "Alternatives" not in reply
+        assert "Runner-ups" not in reply
 
     def test_at_most_three_alternatives(self):
         """Only the first 3 alternatives are shown even if more exist."""
@@ -201,11 +201,11 @@ class TestFormatRankedIdeas:
         assert "Alt 2" in reply
         assert "Alt 3" not in reply
 
-    def test_artifact_key_in_output(self):
-        """The artifact key appears at the end of the reply."""
+    def test_artifact_key_not_in_output(self):
+        """The artifact key is intentionally omitted from the reply (internal storage path)."""
         ranked = _make_ranked_ideas()
         reply = format_ranked_ideas("housing", "run-1", "users/op/ranked@v1.json", ranked)
-        assert "users/op/ranked@v1.json" in reply
+        assert "users/op/ranked@v1.json" not in reply
 
 
 # ── POST /platform/blocks/niche-to-ideas ──────────────────────────────────────
