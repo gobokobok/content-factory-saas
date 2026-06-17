@@ -105,7 +105,8 @@ Fact-check node verifies claims via a web-search tool (D053) → `factcheck_repo
 ## [P5-S4] Refine loop + convergence logic
 **Epic:** E30 — Idea→Script Block
 **Sprint:** P5
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-06-17
 **Priority:** high
 **Points:** 5
 **Depends on:** P5-S2, P5-S3
@@ -115,14 +116,18 @@ Cyclic graph: writer → scorer → fact-check → refine, bounded by `iteration
 **Tech:** LangGraph (cycles, conditional edges), PostgresSaver.
 
 ### Acceptance Criteria
-- [ ] Loop converges or stops at `max_iterations`; never infinite
-- [ ] Iteration count is a typed state channel, not a worker delta (D057)
+- [x] Loop converges or stops at `max_iterations`; never infinite
+- [x] Iteration count is a typed state channel, not a worker delta (D057)
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/core/schemas.py`: `IdeaToScriptState` added — `iteration: Annotated[int, operator.add]`, `max_iterations=3`, `quality_threshold=0.8`, `unverified_threshold=0.3`, `scorer_verdict`, `factcheck_verdict`. All existing workers forward-compatible via `getattr(state, ...)`.
+- `cf_platform/core/worker_registry.py`: `wrap()` gains `control_channel: Optional[str] = None` — when set, also returns `{control_channel: output.control}` in the node dict (backward-compatible).
+- `cf_platform/workers/script_refiner.py`: `build_script_refiner_worker(storage, anthropic_api_key) → WorkerNode`. Exports `ScriptRefinerArtifact` (actually returns `ScriptDraftsArtifact`), `SCRIPT_REFINER_REGISTRATION`.
+- `cf_platform/blocks/idea_to_script.py`: `register_idea_to_script_workers(registry)`, `build_refine_loop_graph(*, storage, registry, executions, artifact_repo, anthropic_api_key, checkpointer?) → CompiledStateGraph`. Cyclic graph with `_route_after_evaluation` and `_increment_iteration` non-worker node. P5-S5 extends this file with REST/Telegram interface + terminal "script" artifact.
+- 33 tests; 1173 total passing.
 
 ---
 

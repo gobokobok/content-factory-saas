@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P5-S4] Refine loop + convergence logic
+**Completed:** 2026-06-17
+**Handover:**
+- `cf_platform/core/schemas.py`: `IdeaToScriptState(StageState)` added — `iteration: Annotated[int, operator.add] = 0`, `max_iterations: int = 3`, `quality_threshold: float = 0.8`, `unverified_threshold: float = 0.3`, `scorer_verdict: ControlSignal = "continue"`, `factcheck_verdict: ControlSignal = "continue"`. Existing workers (P5-S1/S2/S3) are forward-compatible via `getattr(state, ...)` — they work with both plain `StageState` and `IdeaToScriptState`.
+- `cf_platform/core/worker_registry.py`: `wrap()` gains optional `control_channel: Optional[str] = None` kwarg. When set, `wrap()` also returns `{control_channel: output.control}` alongside `{"artifacts": {...}}` — allows scorer and fact-checker to publish their routing verdicts into typed state fields without worker bodies doing any bookkeeping (D057). Fully backward-compatible.
+- `cf_platform/workers/script_refiner.py`: `build_script_refiner_worker(storage, anthropic_api_key) → WorkerNode` factory. Reads `state.artifacts["script_drafts"]`, `"script_scores"`, `"factcheck_report"` → calls Claude Sonnet 4.6 to produce a corrected, improved `ScriptDraftsArtifact` (1 refined draft). Always returns `control="continue"` — the loop edge decides iteration. `SCRIPT_REFINER_REGISTRATION` pins model=`claude-sonnet-4-6`, prompt_version=v1, worker_version=1.0.0.
+- `cf_platform/blocks/idea_to_script.py` (new, partial — REST/Telegram in P5-S5): `register_idea_to_script_workers(registry)` registers all 4 workers. `_route_after_evaluation(state: IdeaToScriptState) → str`: "done" if `iteration >= max_iterations` OR both verdicts "continue"; "retry" otherwise. `_increment_iteration` non-worker node returns `{"iteration": 1}`. `build_refine_loop_graph(*, storage, registry, executions, artifact_repo, anthropic_api_key, checkpointer?) → CompiledStateGraph`: cyclic graph — `START → script_writer → script_scorer → fact_checker → route → [done: END] [retry: increment_iteration → script_refiner → script_writer (cycle)]`. Scorer and fact_checker are wrapped with `control_channel="scorer_verdict"` / `"factcheck_verdict"`.
+- 33 tests: 13 in `tests/cf_platform/test_script_refiner.py` (happy path, best-draft selection, score/claim formatting, empty claims, invalid JSON, 3× KeyError, 4 registration pins, niche/title preserved); 20 in `tests/cf_platform/test_refine_loop.py` (state schema/reducer, router logic 6 cases, increment node, registration, build/compile, 2 wrap() control_channel tests, 3 end-to-end loop runs). Total suite 1173 passing (was 1140).
+- No new ENV vars. No new dependencies.
+**Smoke test:** DEFERRED — requires P5-S5 graph assembly + `POST /platform/blocks/idea-to-script` endpoint to wire `build_refine_loop_graph` into a real run.
+**Promoted to backlog:** none
+
+---
+
 ## [P5-S3] Fact-check tool integration (web search)
 **Completed:** 2026-06-17
 **Handover:**

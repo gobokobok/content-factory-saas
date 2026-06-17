@@ -13,11 +13,11 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 
 ## Current sprint
 **Platform v2 — Sprint P5** — Idea→Script Block. Canonical spec: docs/v2_platform_plan.md; decisions D047–D057.
-_P5-S1 done (Script Writer). P5-S2 done (Quality Scorer). Next: P5-S3 (Fact-check)._
+_P5-S1 done (Script Writer). P5-S2 done (Quality Scorer). P5-S3 done (Fact Checker). P5-S4 done (Refine loop). Next: P5-S5 (Assemble graph + interfaces)._
 _Legacy Sprints 1–13 running in DEV/PROD, untouched (D047). S14–S17 paused._
 
 ## Active story
-**P5-S3** — Fact-check tool integration (web search).
+**P5-S5** — Assemble idea_to_script graph + interfaces (+ IdeaToScriptState).
 
 ## Environments
 
