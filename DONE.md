@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P5-S2] Quality/virality scorer worker
+**Completed:** 2026-06-17
+**Handover:**
+- `cf_platform/workers/script_quality_scorer.py`: `build_script_quality_scorer_worker(storage, anthropic_api_key) → WorkerNode`
+- Exports: `ScriptScoresArtifact`, `ScriptDraftScore`, `SCRIPT_QUALITY_SCORER_REGISTRATION`
+- Reads `state.artifacts["script_drafts"]` → `ScriptDraftsArtifact` → calls Claude Sonnet 4.6 to score each draft on four virality/quality axes.
+- Rubric axes (all 0–10): `hook_strength`, `data_quality`, `narrative_flow`, `virality_potential`, `overall_score` (weighted composite).
+- Control signal: `"continue"` if `best_overall_score / 10.0 >= quality_threshold`, else `"retry"`. No loop bookkeeping inside the worker — graph owns `iteration` (D057).
+- `quality_threshold` read via `getattr(state, "quality_threshold", 0.8)` — forward-compatible with `IdeaToScriptState` (P5-S5) without importing it.
+- Model: `claude-sonnet-4-6`, prompt_version v1, worker_version 1.0.0.
+- 17 tests in `tests/cf_platform/test_script_quality_scorer.py`; total suite 1120 passing (was 1103).
+**Smoke test:** DEFERRED — requires P5-S5 graph + `/platform/blocks/idea-to-script` endpoint.
+**Promoted to backlog:** none
+
+---
+
 ## [P5-S1] Script Writer worker (write ×N)
 **Completed:** 2026-06-17
 **Handover:**

@@ -4903,7 +4903,7 @@ Node generates N drafts from an idea + niche context. Versioned prompt (Step 2a 
 ## [P5-S2] Quality/virality scorer worker
 **Epic:** E30 — Idea→Script Block
 **Sprint:** P5
-**Status:** in-progress
+**Status:** done
 **Priority:** high
 **Points:** 3
 **Depends on:** P5-S1
@@ -4913,14 +4913,22 @@ Node ranks drafts by virality/quality rubric → `script_scores`. Emits `control
 **Tech:** LangGraph node, ModelRouter. **Artifacts:** `script_scores`.
 
 ### Acceptance Criteria
-- [ ] One `script_scores` artifact; control signal returned
-- [ ] No loop bookkeeping inside the worker (graph owns `iteration`)
+- [x] One `script_scores` artifact; control signal returned
+- [x] No loop bookkeeping inside the worker (graph owns `iteration`)
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/workers/script_quality_scorer.py`: `build_script_quality_scorer_worker(storage, anthropic_api_key) → WorkerNode`
+- Exports: `ScriptScoresArtifact`, `ScriptDraftScore`, `SCRIPT_QUALITY_SCORER_REGISTRATION`
+- Reads `state.artifacts["script_drafts"]` → `ScriptDraftsArtifact` → scores each draft via Claude Sonnet 4.6
+- Rubric axes (0–10): `hook_strength`, `data_quality`, `narrative_flow`, `virality_potential`, `overall_score`
+- Control: `"continue"` if `best_overall_score / 10.0 >= quality_threshold`, else `"retry"`
+- `quality_threshold` read via `getattr(state, "quality_threshold", 0.8)` — forward-compatible with `IdeaToScriptState.quality_threshold`
+- No loop bookkeeping — worker never reads `state.iteration`
+- Model: `claude-sonnet-4-6`, prompt_version v1, worker_version 1.0.0
+- 17 tests in `tests/cf_platform/test_script_quality_scorer.py`; total suite 1120 passing
 
 ---
 
