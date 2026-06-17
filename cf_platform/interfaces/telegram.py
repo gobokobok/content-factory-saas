@@ -9,11 +9,14 @@ D049 rules enforced here:
   Deepgram/ElevenLabs client pattern.
 """
 
+import logging
 from typing import TYPE_CHECKING, Optional
 
 import httpx
 
 from cf_platform.core.schemas import Signal
+
+_logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from cf_platform.workers.topic_selector import RankedIdeasArtifact
@@ -124,6 +127,7 @@ class TelegramClient:
         token must not crash the webhook handler).
         """
         if not self._bot_token:
+            _logger.warning("TelegramClient.send_message called but TELEGRAM_BOT_TOKEN is not set — reply suppressed")
             return
         url = f"{_TELEGRAM_API_BASE}/bot{self._bot_token}/sendMessage"
         async with httpx.AsyncClient() as client:

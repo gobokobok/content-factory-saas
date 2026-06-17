@@ -1,7 +1,10 @@
 """Platform-facing REST API routes for cf_platform, mounted under /platform in src/main.py."""
 
+import logging
 from datetime import datetime
 from typing import Any, Optional
+
+_logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langgraph.checkpoint.base import BaseCheckpointSaver
@@ -456,9 +459,13 @@ async def _run_ideas_and_reply(
         ranked_artifact = RankedIdeasArtifact.model_validate(body_dict)
         reply = format_ranked_ideas(niche, run.run_id, ranked_key, ranked_artifact)
     except Exception as exc:  # noqa: BLE001
+        _logger.exception("_run_ideas_and_reply failed for niche=%r chat_id=%s: %s", niche, chat_id, exc)
         reply = f"Error running /ideas: {exc}"
 
-    await client.send_message(chat_id, reply)
+    try:
+        await client.send_message(chat_id, reply)
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception("TelegramClient.send_message failed for chat_id=%s: %s", chat_id, exc)
 
 
 @router.post("/telegram/webhook", include_in_schema=False)
