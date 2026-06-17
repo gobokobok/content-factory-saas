@@ -3,8 +3,8 @@
 ## Startup protocol
 On every new session, read in this order:
 1. **This file** (CLAUDE.md)
-2. **SPRINT.md** — current sprint and active story
-3. **The active story** in BACKLOG.md
+2. **SPRINT.md** — current sprint status and story table (active sprints only; history in SPRINT_ARCHIVE.md)
+3. **The active story** in **BACKLOG_ACTIVE.md** (current + next two sprints; full archive in BACKLOG.md)
 4. **DONE.md** — last 3 entries for recent context
 5. **CONVENTIONS.md** — coding standards before touching any code
 
@@ -12,12 +12,12 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Platform v2 — Sprint P5** — Idea→Script Block. Canonical spec: docs/v2_platform_plan.md; sprints in SPRINT.md (Platform Track); decisions D047–D057.
-_Legacy Sprints 1–13 are done and running in DEV/PROD; the legacy pipeline stays untouched (D047). S14–S17 (video-UX polish) are paused._
-_Sprint P4 complete (13/13 pts). Smoke test for P4-S4/P4-S5 deferred to Railway DEV deploy of commit 2a87350._
+**Platform v2 — Sprint P5** — Idea→Script Block. Canonical spec: docs/v2_platform_plan.md; decisions D047–D057.
+_P5-S1 done (Script Writer). P5-S2 done (Quality Scorer). Next: P5-S3 (Fact-check)._
+_Legacy Sprints 1–13 running in DEV/PROD, untouched (D047). S14–S17 paused._
 
 ## Active story
-**P5-S1** — Script Writer worker (write ×N). First story of Sprint P5.
+**P5-S3** — Fact-check tool integration (web search).
 
 ## Environments
 
@@ -31,9 +31,11 @@ _Sprint P4 complete (13/13 pts). Smoke test for P4-S4/P4-S5 deferred to Railway 
 
 | File | Purpose |
 |------|---------|
-| BACKLOG.md | All epics and stories |
-| SPRINT.md | Current sprint, story statuses |
-| DONE.md | Completed stories log |
+| BACKLOG_ACTIVE.md | **Active stories — current + next two sprints (read this)** |
+| BACKLOG.md | Full story archive (all epics; read for sprint planning only) |
+| SPRINT.md | Active sprints (P5–P7) + Platform Track overview |
+| SPRINT_ARCHIVE.md | Legacy sprints S1–S19 + completed platform sprints P0–P4 |
+| DONE.md | Completed stories log (last 5 entries inline; older in DONE_ARCHIVE.md) |
 | DECISIONS.md | All architecture and dependency decisions |
 | CONVENTIONS.md | Python coding standards |
 | ENV.md | All environment variables (no values) |

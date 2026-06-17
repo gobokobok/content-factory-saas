@@ -1,4 +1,7 @@
-# Content Factory — Backlog
+# Content Factory — Backlog (Full Archive)
+
+> **Active stories (P5–P7) are in BACKLOG_ACTIVE.md.** Read that file during normal sessions.
+> This file is the complete archive — read it only when planning a new sprint or searching history.
 
 ---
 
