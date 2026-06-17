@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-13 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Sprint P1 complete** (16/16 pts). **Sprint P2 complete** (16/16 pts). **Sprint P3 complete** (10/10 pts). **Sprint P4 complete** (13/13 pts). **Current sprint:** P5 — Idea→Script Block. **P5-S1 done** (Script Writer worker, Haiku 4.5, 1103 tests passing; smoke test deferred to P5-S5). **P5-S2 done** (Script Quality Scorer worker, Sonnet 4.6, 1120 tests passing; smoke test deferred to P5-S5). **Next:** P5-S3.
+> - **Sprint P1 complete** (16/16 pts). **Sprint P2 complete** (16/16 pts). **Sprint P3 complete** (10/10 pts). **Sprint P4 complete** (13/13 pts). **Current sprint:** P5 — Idea→Script Block. **P5-S1 done** (Script Writer worker, Haiku 4.5, 1103 tests passing; smoke test deferred to P5-S5). **P5-S2 done** (Script Quality Scorer worker, Sonnet 4.6, 1120 tests passing; smoke test deferred to P5-S5). **P5-S3 done** (Fact Checker worker, Sonnet 4.6 + web_search_20260209, 1140 tests passing; smoke test deferred to P5-S5). **Next:** P5-S4.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
@@ -37,7 +37,7 @@ Legacy Script→Video stays untouched and operable (D047).
 |----|-------|--------|--------|
 | P5-S1 | Script Writer worker (write ×N) | 3 | done |
 | P5-S2 | Quality/virality scorer worker | 3 | done |
-| P5-S3 | Fact-check tool integration (web search) | 3 | planned |
+| P5-S3 | Fact-check tool integration (web search) | 3 | done |
 | P5-S4 | Refine loop + convergence logic ⚠️ spike | 5 | planned |
 | P5-S5 | Assemble idea_to_script graph + interfaces (+ IdeaToScriptState) | 2 | planned |
 

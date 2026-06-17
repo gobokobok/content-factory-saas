@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P5-S3] Fact-check tool integration (web search)
+**Completed:** 2026-06-17
+**Handover:**
+- `cf_platform/workers/fact_checker.py`: `build_fact_checker_worker(storage, anthropic_api_key) → WorkerNode`
+- Exports: `FactcheckReportArtifact`, `ClaimVerification`, `FACT_CHECKER_REGISTRATION`
+- Reads `state.artifacts["script_drafts"]` → checks first draft only (runs parallel to P5-S2 scorer; best draft unknown at execution time).
+- Calls Claude Sonnet 4.6 with `tools=[{"type": "web_search_20260209", "name": "web_search"}]` (D053 resolved — Anthropic server-side tool, no new dependency, no new ENV var).
+- Server-side tool responses may include mixed content blocks; worker extracts the last `type="text"` block for JSON parsing.
+- `FactcheckReportArtifact` fields: `idea_title`, `draft_number`, `claims` (list of `ClaimVerification` with `claim`, `verdict`, `source`, `note`), `verified_count`, `refuted_count`, `unverifiable_count`, `checked_at`.
+- Control signal: `"continue"` if `(refuted + unverifiable) / total ≤ unverified_threshold`, else `"retry"`. Empty claims list → ratio 0.0 → always continue.
+- `unverified_threshold` read via `getattr(state, "unverified_threshold", 0.3)` — forward-compatible with `IdeaToScriptState` (P5-S5).
+- Model: `claude-sonnet-4-6`, prompt_version v1, worker_version 1.0.0.
+- 20 tests in `tests/cf_platform/test_fact_checker.py`; total suite 1140 passing (was 1120).
+**Smoke test:** DEFERRED — requires P5-S5 graph + `/platform/blocks/idea-to-script` endpoint.
+**Promoted to backlog:** none
+
+---
+
 ## [P5-S2] Quality/virality scorer worker
 **Completed:** 2026-06-17
 **Handover:**

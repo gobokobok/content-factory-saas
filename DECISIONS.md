@@ -42,11 +42,11 @@ All significant architecture decisions and new dependency introductions are logg
 ---
 
 ## D053 — Web-search tool for the Idea→Script fact-check loop
-**Date:** 2026-06-12
-**Decision:** The Idea→Script block (P5) includes a fact-check node that verifies claims via a web-search tool, isolated in its own story (P5-S3) so the cyclic refine loop (P5-S4) is not blocked by tool-integration issues. Provider (Anthropic web search tool vs. a search API) is selected at P5 planning.
-**Rationale:** Fact-checking is the quality gate that makes generated scripts trustworthy. Isolating the external dependency de-risks the convergence logic and keeps the loop deterministic in structure.
-**Dependency (when implemented):** a web-search tool/provider — requirements.txt + final provider choice recorded at P5.
-**See:** docs/v2_platform_plan.md §8 (P5).
+**Date:** 2026-06-12 · **Resolved:** 2026-06-17 (P5-S3)
+**Decision:** The Idea→Script block (P5) includes a fact-check node that verifies claims via a web-search tool, isolated in its own story (P5-S3) so the cyclic refine loop (P5-S4) is not blocked by tool-integration issues. **Provider chosen at P5-S3: Anthropic's built-in `web_search_20260209` server-side tool**, passed as `tools=[{"type": "web_search_20260209", "name": "web_search"}]` in the Messages API call. Claude executes searches server-side; no client-side tool loop required.
+**Rationale:** Fact-checking is the quality gate that makes generated scripts trustworthy. Isolating the external dependency de-risks the convergence logic and keeps the loop deterministic in structure. The built-in tool was chosen over a standalone search API because: (1) no new dependency — reuses the existing `anthropic` SDK and `ANTHROPIC_API_KEY`; (2) satisfies the free-tier constraint (billed through Anthropic API usage); (3) no additional ENV vars; (4) consistent with how every other worker calls the SDK.
+**Dependency:** No new dependency. Uses `anthropic>=0.40.0` already in `requirements.txt`.
+**See:** docs/v2_platform_plan.md §8 (P5). `cf_platform/workers/fact_checker.py`.
 
 ---
 

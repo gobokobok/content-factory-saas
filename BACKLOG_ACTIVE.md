@@ -76,7 +76,7 @@ Node ranks drafts by virality/quality rubric → `script_scores`. Emits `control
 ## [P5-S3] Fact-check tool integration (web search)
 **Epic:** E30 — Idea→Script Block
 **Sprint:** P5
-**Status:** planned
+**Status:** done
 **Priority:** high
 **Points:** 3
 **Depends on:** P5-S1
@@ -86,14 +86,19 @@ Fact-check node verifies claims via a web-search tool (D053) → `factcheck_repo
 **Tech:** LangGraph node, web-search tool, ModelRouter. **Dependency:** web-search provider (D053). **Artifacts:** `factcheck_report`.
 
 ### Acceptance Criteria
-- [ ] Claims verified; `factcheck_report` artifact emitted
-- [ ] Web-search provider chosen + added per D053
+- [x] Claims verified; `factcheck_report` artifact emitted
+- [x] Web-search provider chosen + added per D053
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+**Provider (D053):** Anthropic `web_search_20260209` server-side tool — no new dependency, no new ENV var.
+**Entry:** `build_fact_checker_worker(storage, anthropic_api_key) -> WorkerNode` in `cf_platform/workers/fact_checker.py`.
+**Artifact:** `FactcheckReportArtifact` — idea_title, draft_number, claims (list of ClaimVerification with verdict/source/note), verified_count, refuted_count, unverifiable_count, checked_at.
+**Reads:** `state.artifacts["script_drafts"]` (first draft only — runs parallel to P5-S2).
+**Control:** "continue" if (refuted + unverifiable) / total ≤ unverified_threshold (default 0.3 from `getattr(state, "unverified_threshold", 0.3)`); "retry" otherwise.
+**Tests:** 20 tests passing; full suite 1140 passing.
 
 ---
 
