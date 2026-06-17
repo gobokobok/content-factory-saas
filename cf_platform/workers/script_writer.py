@@ -1,23 +1,30 @@
 """Script Writer worker (P5-S1) — `ranked_ideas → script_drafts`.
 
-Reads the `ranked_ideas` artifact produced by the Topic Selector, extracts the
-selected topic (title + angle + niche), and calls Claude Sonnet to produce N
-narration script drafts for a 60–90s YouTube Short.
+Two entry paths:
+
+  Full pipeline: `state.artifacts["ranked_ideas"]` is present. Title, niche, and
+  angle are read from the RankedIdeasArtifact. If `state.artifacts["discovery"]`
+  is also present the top-5 signals (by score) are extracted as grounding bullets.
+
+  Direct entry (e.g. Telegram /script command): no `ranked_ideas` artifact.
+  `state.inputs["idea_title"]` is required; `state.inputs["niche"]`,
+  `state.inputs["angle"]`, and `state.inputs["supporting_points"]` (list[str])
+  are optional. This path lets the operator skip the niche→ideas block entirely.
+
+  `state.inputs["supporting_points"]` always takes priority over auto-extracted
+  discovery signals, allowing callers to supply curated grounding facts.
 
 Returns all N drafts in a single `ScriptDraftsArtifact`; the scorer (P5-S2)
-picks the best one. N defaults to 3 and can be overridden by `getattr(state,
-"max_iterations", 3)` so the factory is compatible with `IdeaToScriptState`
-when the full idea_to_script graph is assembled in P5-S4/P5-S5.
+picks the best one. N defaults to 3 and can be overridden by
+`getattr(state, "max_iterations", 3)` so the factory is compatible with
+`IdeaToScriptState` when the full idea_to_script graph is assembled in P5-S5.
 
-Pure worker per D040/D056: takes StageState, returns WorkerOutput. All IO
-(reading the ranked_ideas artifact from R2, calling the Anthropic API) is
-injected via the `build_script_writer_worker` factory — the worker body carries
-no hidden state.
+Pure worker per D040/D056.
 """
 
 import json
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 import anthropic
 from pydantic import BaseModel
@@ -26,9 +33,10 @@ from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.llm_utils import strip_markdown_fences
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
+from cf_platform.workers.discovery import SignalsArtifact
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
-_SCRIPT_WRITER_PROMPT_V1 = """\
+_SCRIPT_WRITER_PROMPT_V2 = """\
 You are a script writer for "The Housing Equation", a data-driven YouTube Shorts \
 channel about American housing economics.
 
@@ -37,10 +45,13 @@ words). The script must be:
 - Written in plain conversational English as if spoken directly to camera
 - Grounded in real data or economic patterns (cite at least one specific statistic, \
 trend, or historic fact)
-- Built around the supplied title and narrative angle
+- Built around the supplied title and narrative angle (when provided)
 - Free of filler phrases ("Hey guys", "Don't forget to like", etc.)
 - Structured with a hook in the first 10 seconds, a data-driven middle, and a punchy \
 closing line
+
+When source signals are listed, ground at least one specific claim in those sources \
+rather than inventing statistics.
 
 You will be asked to produce N draft variants. Each variant should explore the same \
 topic and angle but differ in structure, opening hook, or emphasis.
@@ -57,12 +68,14 @@ Today it takes 12. Here is why..."
 """
 
 SCRIPT_WRITER_REGISTRATION = WorkerRegistration(
-    worker_version="1.0.0",
-    prompt_version="v1",
-    prompt=_SCRIPT_WRITER_PROMPT_V1,
+    worker_version="1.1.0",
+    prompt_version="v2",
+    prompt=_SCRIPT_WRITER_PROMPT_V2,
     model="claude-haiku-4-5",
     sampling_params={},
 )
+
+_MAX_SIGNALS = 5
 
 
 class ScriptDraft(BaseModel):
@@ -75,11 +88,32 @@ class ScriptDraft(BaseModel):
 class ScriptDraftsArtifact(BaseModel):
     """Artifact body produced by the script writer worker."""
 
-    niche: str
+    niche: Optional[str]
     idea_title: str
-    idea_angle: str
+    idea_angle: Optional[str]
     drafts: list[ScriptDraft]
     generated_at: datetime
+
+
+def _build_user_message(
+    idea_title: str,
+    niche: Optional[str],
+    angle: Optional[str],
+    supporting_points: list[str],
+    n: int,
+) -> str:
+    """Compose the Claude user message from available context."""
+    parts: list[str] = []
+    if niche:
+        parts.append(f"Niche: {niche}")
+    parts.append(f"Title: {idea_title}")
+    if angle:
+        parts.append(f"Angle: {angle}")
+    if supporting_points:
+        bullets = "\n".join(f"- {p}" for p in supporting_points)
+        parts.append(f"Source signals (use for grounding):\n{bullets}")
+    parts.append(f"\nWrite {n} draft variant(s).")
+    return "\n".join(parts)
 
 
 def build_script_writer_worker(
@@ -89,38 +123,47 @@ def build_script_writer_worker(
 ) -> WorkerNode:
     """Return a script writer WorkerNode bound to storage and the Anthropic API key.
 
-    Reads `state.artifacts["ranked_ideas"]` → extracts selected topic (title + angle +
-    niche) → calls Claude Sonnet (script_writer@v1) for N draft scripts → returns
-    `ScriptDraftsArtifact`.
+    Supports two entry paths (see module docstring). N is resolved as
+    `getattr(state, "max_iterations", n_drafts)`.
 
-    N is resolved as `getattr(state, "max_iterations", n_drafts)` so the factory works
-    both standalone (uses the `n_drafts` default) and inside `IdeaToScriptState` graphs
-    (uses `state.max_iterations` set by the graph builder).
-
-    Raises KeyError if `state.artifacts["ranked_ideas"]` is absent (Topic Selector must
-    run first). Raises ValueError if Claude returns non-JSON or malformed draft objects.
+    Raises KeyError if neither `state.artifacts["ranked_ideas"]` nor
+    `state.inputs["idea_title"]` is present.
+    Raises ValueError if Claude returns non-JSON or malformed draft objects.
     """
 
     async def script_writer(state: StageState) -> WorkerOutput:
-        """Read ranked_ideas artifact, call Claude Sonnet, return ScriptDraftsArtifact."""
+        """Resolve context from state, call Claude Haiku, return ScriptDraftsArtifact."""
+        # ── resolve title / niche / angle ──────────────────────────────────
         ranked_key = state.artifacts.get("ranked_ideas")
-        if not ranked_key:
-            raise KeyError(
-                "state.artifacts['ranked_ideas'] is missing"
-                " — run the Topic Selector worker before Script Writer"
-            )
+        if ranked_key:
+            _, body = await read_artifact(storage, ranked_key)
+            ranked_artifact = RankedIdeasArtifact.model_validate(body)
+            idea_title: str = ranked_artifact.selected.title
+            niche: Optional[str] = ranked_artifact.niche
+            angle: Optional[str] = ranked_artifact.selected.angle
+        else:
+            idea_title = state.inputs.get("idea_title")  # type: ignore[assignment]
+            if not idea_title:
+                raise KeyError(
+                    "state.artifacts['ranked_ideas'] or state.inputs['idea_title'] must be provided"
+                )
+            niche = state.inputs.get("niche")
+            angle = state.inputs.get("angle")
 
-        _, body = await read_artifact(storage, ranked_key)
-        ranked_artifact = RankedIdeasArtifact.model_validate(body)
+        # ── resolve supporting_points ──────────────────────────────────────
+        # inputs override takes priority; fall back to discovery signals
+        supporting_points: list[str] = list(state.inputs.get("supporting_points") or [])
+        if not supporting_points:
+            discovery_key = state.artifacts.get("discovery")
+            if discovery_key:
+                _, disc_body = await read_artifact(storage, discovery_key)
+                disc = SignalsArtifact.model_validate(disc_body)
+                top = sorted(disc.signals, key=lambda s: s.score, reverse=True)[:_MAX_SIGNALS]
+                supporting_points = [f"[{s.source}] {s.title}" for s in top]
 
+        # ── call Claude ────────────────────────────────────────────────────
         effective_n = int(getattr(state, "max_iterations", n_drafts))
-
-        user_message = (
-            f"Niche: {ranked_artifact.niche}\n"
-            f"Title: {ranked_artifact.selected.title}\n"
-            f"Angle: {ranked_artifact.selected.angle}\n\n"
-            f"Write {effective_n} draft variant(s)."
-        )
+        user_message = _build_user_message(idea_title, niche, angle, supporting_points, effective_n)
 
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
         response = await client.messages.create(
@@ -135,14 +178,14 @@ def build_script_writer_worker(
             raw_drafts: list[dict[str, Any]] = json.loads(raw_text)
         except json.JSONDecodeError as exc:
             raise ValueError(
-                f"script_writer@v1 returned invalid JSON: {exc}\nRaw response: {raw_text!r}"
+                f"script_writer@v2 returned invalid JSON: {exc}\nRaw response: {raw_text!r}"
             ) from exc
 
         drafts = [ScriptDraft.model_validate(d) for d in raw_drafts]
         artifact = ScriptDraftsArtifact(
-            niche=ranked_artifact.niche,
-            idea_title=ranked_artifact.selected.title,
-            idea_angle=ranked_artifact.selected.angle,
+            niche=niche,
+            idea_title=idea_title,
+            idea_angle=angle,
             drafts=drafts,
             generated_at=datetime.now(timezone.utc),
         )
