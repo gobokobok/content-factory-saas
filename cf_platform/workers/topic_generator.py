@@ -19,6 +19,7 @@ import anthropic
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
+from cf_platform.core.llm_utils import strip_markdown_fences
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.discovery import SignalsArtifact
@@ -118,7 +119,7 @@ def build_topic_generator_worker(
             messages=[{"role": "user", "content": user_message}],
         )
 
-        raw_text = response.content[0].text.strip()
+        raw_text = strip_markdown_fences(response.content[0].text)
         try:
             raw_topics: list[dict[str, Any]] = json.loads(raw_text)
         except json.JSONDecodeError as exc:

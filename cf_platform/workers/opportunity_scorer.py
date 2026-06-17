@@ -21,6 +21,7 @@ import anthropic
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
+from cf_platform.core.llm_utils import strip_markdown_fences
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.topic_generator import CandidateTopicsArtifact
@@ -118,17 +119,6 @@ def _extract_text_block(content: list[Any]) -> str:
     )
 
 
-def _strip_markdown_fences(text: str) -> str:
-    """Strip leading ```json / ``` fences that Claude occasionally wraps around JSON output."""
-    text = text.strip()
-    if text.startswith("```"):
-        # Remove opening fence line (```json or ```)
-        text = text[text.index("\n") + 1:] if "\n" in text else text
-        # Remove closing fence
-        if text.rstrip().endswith("```"):
-            text = text.rstrip()[:-3]
-    return text.strip()
-
 
 def build_opportunity_scorer_worker(
     storage: ArtifactStorage,
@@ -176,7 +166,7 @@ def build_opportunity_scorer_worker(
             messages=[{"role": "user", "content": user_message}],
         )
 
-        raw_text = _strip_markdown_fences(_extract_text_block(response.content))
+        raw_text = strip_markdown_fences(_extract_text_block(response.content))
         try:
             raw_scores: list[dict[str, Any]] = json.loads(raw_text)
         except json.JSONDecodeError as exc:
