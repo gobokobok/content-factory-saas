@@ -4892,16 +4892,18 @@ Node generates N drafts from an idea + niche context. Versioned prompt (Step 2a 
 ### Handover
 - `cf_platform/workers/script_writer.py`: `build_script_writer_worker(storage, anthropic_api_key, n_drafts=3) → WorkerNode`
 - Exports: `ScriptDraftsArtifact`, `ScriptDraft`, `SCRIPT_WRITER_REGISTRATION`
-- Model: `claude-haiku-4-5` (updated from Sonnet after cost review — ~$0.13/full pipeline run)
-- N drafts from `getattr(state, "max_iterations", n_drafts)` — IdeaToScriptState-compatible
-- 13 tests; 1096 suite total
+- Two entry paths: full pipeline (`state.artifacts["ranked_ideas"]`) or direct (`state.inputs["idea_title"]` only)
+- Supporting points: `state.inputs["supporting_points"]` overrides; auto-extracted from `state.artifacts["discovery"]` (top 5 by score) if present
+- `ScriptDraftsArtifact.niche` and `.idea_angle` are Optional
+- Model: `claude-haiku-4-5`, prompt_version v2, worker_version 1.1.0; ~$0.13/full pipeline run
+- 20 tests; 1103 suite total
 
 ---
 
 ## [P5-S2] Quality/virality scorer worker
 **Epic:** E30 — Idea→Script Block
 **Sprint:** P5
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P5-S1

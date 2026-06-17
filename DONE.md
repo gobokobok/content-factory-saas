@@ -8,12 +8,14 @@ _Entries added here when a story reaches Definition of Done._
 **Completed:** 2026-06-17
 **Handover:**
 - `cf_platform/workers/script_writer.py`: `build_script_writer_worker(storage, anthropic_api_key, n_drafts=3) → WorkerNode`
-- Reads `state.artifacts["ranked_ideas"]` (RankedIdeasArtifact) → calls Claude Haiku 4.5 → returns `ScriptDraftsArtifact` with N `ScriptDraft` objects (draft_number + script).
-- `SCRIPT_WRITER_REGISTRATION` pins model=`claude-haiku-4-5`, prompt_version=v1, worker_version=1.0.0.
-- N is resolved from `getattr(state, "max_iterations", n_drafts)` — compatible with both standalone use and `IdeaToScriptState` graph (P5-S5).
-- `ScriptDraftsArtifact`, `ScriptDraft` models exported — importable by P5-S2 scorer.
-- Model choice rationale: Haiku 4.5 for constrained short-form creative generation (150–200 words, runs N×per iteration); Sonnet reserved for scorer/fact-check. Full-pipeline cost ~$0.13/run.
-- 13 tests in `tests/cf_platform/test_script_writer.py`; total suite 1096 tests passing.
+- Two entry paths: (1) full pipeline — `state.artifacts["ranked_ideas"]` present → title/niche/angle from `RankedIdeasArtifact`; (2) direct entry — `state.inputs["idea_title"]` required, niche/angle optional (enables `/script <title>` Telegram trigger bypassing P4).
+- Supporting points grounding: `state.inputs["supporting_points"]` (list[str]) takes priority; falls back to top-5 signals by score from `state.artifacts["discovery"]` if present; absent → Haiku writes from known data only.
+- `SCRIPT_WRITER_REGISTRATION` pins model=`claude-haiku-4-5`, prompt_version=v2, worker_version=1.1.0.
+- `ScriptDraftsArtifact.niche` and `.idea_angle` are now `Optional` (None on direct entry).
+- `ScriptDraft`, `ScriptDraftsArtifact` exported — importable by P5-S2 scorer.
+- P5-S5 bridge only needs to populate `state.inputs["supporting_points"]` from discovery signals — script writer picks them up automatically.
+- Model rationale: Haiku 4.5 for short constrained creative (runs N× per iteration); Sonnet reserved for scorer/fact-check. Full-pipeline cost ~$0.13/run.
+- 20 tests in `tests/cf_platform/test_script_writer.py`; total suite 1103 passing.
 **Smoke test:** DEFERRED — requires P5-S5 graph + `/platform/blocks/idea-to-script` endpoint to be wired.
 **Promoted to backlog:** none
 
