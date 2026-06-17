@@ -134,7 +134,8 @@ Cyclic graph: writer → scorer → fact-check → refine, bounded by `iteration
 ## [P5-S5] Assemble idea_to_script graph + interfaces (+ IdeaToScriptState)
 **Epic:** E30 — Idea→Script Block
 **Sprint:** P5
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-06-18
 **Priority:** high
 **Points:** 2
 **Depends on:** P5-S4
@@ -144,14 +145,18 @@ Implement `IdeaToScriptState` (plan §5); compile `cf_platform/blocks/idea_to_sc
 **Tech:** LangGraph, FastAPI, Telegram. **Schema:** `IdeaToScriptState`.
 
 ### Acceptance Criteria
-- [ ] `IdeaToScriptState` matches plan §5
-- [ ] **Human touchpoint:** Telegram idea → fact-checked `script` artifact
+- [x] `IdeaToScriptState` matches plan §5 (implemented in P5-S4, verified here)
+- [x] **Human touchpoint:** Telegram idea → fact-checked `script` artifact
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/workers/script_packager.py`: `ScriptArtifact`, `SCRIPT_PACKAGER_REGISTRATION`, `build_script_packager_worker(storage) → WorkerNode`
+- `cf_platform/blocks/idea_to_script.py`: `build_idea_to_script_graph` (full block with packager); `register_idea_to_script_workers` now registers 5 workers; `build_refine_loop_graph` unchanged
+- `cf_platform/interfaces/telegram.py`: `parse_script_command`, `format_script_running`, `format_script_usage`, `format_script_reply`
+- `cf_platform/interfaces/api.py`: `POST /platform/blocks/idea-to-script`; `/script` Telegram command; workers registered at startup
+- 46 new tests; total suite 1219 passing
 
 ---
 

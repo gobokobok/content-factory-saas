@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P5-S5] Assemble idea_to_script graph + interfaces
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/workers/script_packager.py` (new): `ScriptArtifact(idea_title, niche, script, draft_number, overall_score, generated_at)`, `SCRIPT_PACKAGER_REGISTRATION` (model="none", worker_version=1.0.0, prompt_version=v1). `build_script_packager_worker(storage) → WorkerNode` — reads `state.artifacts["script_drafts"]` + `"script_scores"`, selects the draft matching `ScriptScoresArtifact.best_draft_number`, emits `ScriptArtifact`. Raises `KeyError` on missing refs, `ValueError` if `best_draft_number` not found in drafts.
+- `cf_platform/blocks/idea_to_script.py` (extended): `register_idea_to_script_workers(registry)` now registers 5 workers (adds `script_packager`). `build_idea_to_script_graph(*, storage, registry, executions, artifact_repo, anthropic_api_key, checkpointer?) → CompiledStateGraph` — full block; routes "done" → `script_packager` → END (vs. `build_refine_loop_graph` which routes "done" → END). `build_refine_loop_graph` unchanged — loop-isolation tests stay green.
+- `cf_platform/interfaces/telegram.py` (extended): `parse_script_command(text) → Optional[str]`; `format_script_running(idea_title)`, `format_script_usage()`, `format_script_reply(script_artifact) → str` (4000-char truncation for Telegram limit). `format_unrecognized_command` now mentions both `/ideas` and `/script`.
+- `cf_platform/interfaces/api.py` (extended): `register_idea_to_script_workers(_worker_registry)` called at startup. `IdeaToScriptRequest(idea_title, niche?, angle?, supporting_points?, max_iterations?)` / `IdeaToScriptResponse(run_id, script_artifact_key, script, iterations)`. `POST /platform/blocks/idea-to-script` runs the full block and returns the script inline. `_run_script_and_reply(...)` background coroutine for Telegram. `/script <idea_title>` branch in `telegram_webhook` — sends ack then enqueues background run.
+- 46 new tests: 13 in `test_script_packager.py`, 19 in `test_block_idea_to_script_route.py` (format + route + graph compile), 7 added to `test_telegram.py`, 7 added to `test_api.py`. Total suite 1219 passing (was 1173).
+- No new ENV vars. No new dependencies.
+**Smoke test:** DEFERRED — requires deploy to Railway DEV (push to `main` triggers auto-deploy). After deploy: send `/script Why starter homes vanished` in Telegram; expect ack ("Writing script for...") then the full script reply ~90 s later. Confirms the full P5 block end-to-end including P5-S1–S4 workers which all had deferred smoke tests.
+**Promoted to backlog:** none
+
+---
+
 ## [P5-S4] Refine loop + convergence logic
 **Completed:** 2026-06-17
 **Handover:**
