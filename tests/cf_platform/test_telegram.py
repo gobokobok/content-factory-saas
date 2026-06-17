@@ -8,10 +8,14 @@ from cf_platform.core.schemas import Signal
 from cf_platform.interfaces.telegram import (
     TelegramClient,
     format_ideas_usage,
+    format_script_reply,
+    format_script_running,
+    format_script_usage,
     format_signals_summary,
     format_unrecognized_command,
     is_chat_allowed,
     parse_ideas_command,
+    parse_script_command,
 )
 
 
@@ -118,6 +122,77 @@ class TestIsChatAllowed:
         """Whitespace around ids/commas in the allowlist is stripped before comparison."""
         assert is_chat_allowed(968448961, " 968448961 , 123 ") is True
         assert is_chat_allowed(123, " 968448961 , 123 ") is True
+
+
+class TestParseScriptCommand:
+    """parse_script_command extracts the idea title from /script <title> (D049)."""
+
+    def test_parses_idea_title(self):
+        """A normal /script <title> command returns the idea title text."""
+        assert parse_script_command("/script Why starter homes vanished") == "Why starter homes vanished"
+
+    def test_strips_surrounding_whitespace(self):
+        """Leading/trailing whitespace is stripped from the command and title."""
+        assert parse_script_command("  /script   some title  ") == "some title"
+
+    def test_bare_command_returns_empty_string(self):
+        """/script with no title returns an empty string (distinct from 'not a match')."""
+        assert parse_script_command("/script") == ""
+
+    def test_unrelated_text_returns_none(self):
+        """Text that is not a /script command returns None."""
+        assert parse_script_command("hello there") is None
+
+    def test_other_slash_command_returns_none(self):
+        """A different slash command is not mistaken for /script."""
+        assert parse_script_command("/ideas niche") is None
+
+
+class TestScriptFormatters:
+    """format_script_*() helpers for the /script command (D049, P5-S5)."""
+
+    def _make_artifact(self, script: str = "Test script text.") -> object:
+        from datetime import datetime, timezone
+
+        from cf_platform.workers.script_packager import ScriptArtifact
+
+        return ScriptArtifact(
+            idea_title="Why Starter Homes Vanished",
+            niche="US housing",
+            script=script,
+            draft_number=1,
+            overall_score=8.5,
+            generated_at=datetime(2026, 6, 18, 12, 0, 0, tzinfo=timezone.utc),
+        )
+
+    def test_format_script_reply_contains_title(self):
+        """The reply includes the idea title."""
+        reply = format_script_reply(self._make_artifact())
+        assert "Why Starter Homes Vanished" in reply
+
+    def test_format_script_reply_contains_score(self):
+        """The reply includes the quality score."""
+        reply = format_script_reply(self._make_artifact())
+        assert "8.5" in reply
+
+    def test_format_script_reply_contains_script_text(self):
+        """The reply includes the script text itself."""
+        reply = format_script_reply(self._make_artifact(script="Specific script content."))
+        assert "Specific script content." in reply
+
+    def test_format_script_running_contains_title(self):
+        """The running ack includes the idea title."""
+        reply = format_script_running("Why Starter Homes Vanished")
+        assert "Why Starter Homes Vanished" in reply
+
+    def test_format_script_usage_mentions_command(self):
+        """The usage reply mentions the /script command."""
+        assert "/script" in format_script_usage()
+
+    def test_format_unrecognized_command_mentions_script(self):
+        """The unrecognized-command reply now mentions /script as well as /ideas."""
+        reply = format_unrecognized_command("gibberish")
+        assert "/script" in reply
 
 
 class TestTelegramClient:

@@ -53,6 +53,72 @@ _STUB_TOPIC = TopicScore(
 )
 
 
+_STUB_SCRIPT_TEXT = "In 1980, the average American could afford a home after 3 years."
+_STUB_IDEA_TITLE = "Why Starter Homes Vanished"
+
+
+@contextmanager
+def _stub_idea_to_script_workers():
+    """Patch all 5 idea_to_script worker builders with minimal stubs (no Claude calls)."""
+    from cf_platform.workers.fact_checker import FactcheckReportArtifact
+    from cf_platform.workers.script_packager import ScriptArtifact
+    from cf_platform.workers.script_quality_scorer import ScriptDraftScore, ScriptScoresArtifact
+    from cf_platform.workers.script_writer import ScriptDraft, ScriptDraftsArtifact
+
+    async def _writer(state):
+        return WorkerOutput(artifact=ScriptDraftsArtifact(
+            idea_title=_STUB_IDEA_TITLE, niche=None, idea_angle=None,
+            drafts=[ScriptDraft(draft_number=1, script=_STUB_SCRIPT_TEXT)],
+            generated_at=_NOW,
+        ))
+
+    async def _scorer(state):
+        return WorkerOutput(
+            artifact=ScriptScoresArtifact(
+                idea_title=_STUB_IDEA_TITLE,
+                scored_drafts=[ScriptDraftScore(
+                    draft_number=1, hook_strength=9.0, data_quality=9.0,
+                    narrative_flow=9.0, virality_potential=9.0, overall_score=9.0,
+                )],
+                best_draft_number=1,
+                best_score=9.0,
+                generated_at=_NOW,
+            ),
+            control="continue",  # type: ignore[arg-type]
+        )
+
+    async def _fact_checker(state):
+        return WorkerOutput(
+            artifact=FactcheckReportArtifact(
+                idea_title=_STUB_IDEA_TITLE, draft_number=1, claims=[],
+                verified_count=0, refuted_count=0, unverifiable_count=0, checked_at=_NOW,
+            ),
+            control="continue",  # type: ignore[arg-type]
+        )
+
+    async def _refiner(state):
+        return WorkerOutput(artifact=ScriptDraftsArtifact(
+            idea_title=_STUB_IDEA_TITLE, niche=None, idea_angle=None,
+            drafts=[ScriptDraft(draft_number=1, script=_STUB_SCRIPT_TEXT)],
+            generated_at=_NOW,
+        ))
+
+    async def _packager(state):
+        return WorkerOutput(artifact=ScriptArtifact(
+            idea_title=_STUB_IDEA_TITLE, niche=None, script=_STUB_SCRIPT_TEXT,
+            draft_number=1, overall_score=9.0, generated_at=_NOW,
+        ))
+
+    with (
+        patch("cf_platform.blocks.idea_to_script.build_script_writer_worker", return_value=_writer),
+        patch("cf_platform.blocks.idea_to_script.build_script_quality_scorer_worker", return_value=_scorer),
+        patch("cf_platform.blocks.idea_to_script.build_fact_checker_worker", return_value=_fact_checker),
+        patch("cf_platform.blocks.idea_to_script.build_script_refiner_worker", return_value=_refiner),
+        patch("cf_platform.blocks.idea_to_script.build_script_packager_worker", return_value=_packager),
+    ):
+        yield
+
+
 @contextmanager
 def _stub_niche_to_ideas_workers():
     """Patch all 4 niche_to_ideas worker builders with minimal stubs (no network calls)."""
@@ -624,6 +690,76 @@ class TestTelegramWebhookAllowlist:
         assert response.status_code == 200
         assert response.json() == {"ok": True}
         mock_send.assert_not_called()
+
+
+class TestTelegramWebhookScriptCommand:
+    """POST /platform/telegram/webhook — /script <idea_title> command (P5-S5)."""
+
+    def _client(self, **overrides) -> TestClient:
+        settings_kwargs = {
+            **_PLATFORM_SETTINGS_BASE,
+            "TELEGRAM_BOT_TOKEN": "test-bot-token",
+            "TELEGRAM_WEBHOOK_SECRET": "test-secret",
+            "ANTHROPIC_API_KEY": "sk-ant-fake",
+            **overrides,
+        }
+        app.dependency_overrides[get_platform_settings] = lambda: PlatformSettings(**settings_kwargs)
+        app.dependency_overrides[get_artifact_storage] = lambda: InMemoryArtifactStorage()
+        return TestClient(app)
+
+    def _post_script(self, client: TestClient, idea_title: str) -> "TestClient":
+        return client.post(
+            "/platform/telegram/webhook",
+            json={"message": {"chat": {"id": 42}, "text": f"/script {idea_title}"}},
+            headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+        )
+
+    def test_script_command_sends_ack_and_script_reply(self):
+        """A valid /script <title> sends an immediate ack, then the finished script."""
+        client = self._client()
+
+        with _stub_idea_to_script_workers(), patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = self._post_script(client, _STUB_IDEA_TITLE)
+
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
+        # Two messages: ack + script reply
+        assert mock_send.await_count == 2
+        ack_args, _ = mock_send.call_args_list[0]
+        assert ack_args[0] == 42
+        assert _STUB_IDEA_TITLE in ack_args[1]
+
+    def test_script_reply_contains_script_text(self):
+        """The script reply (second message) contains the script body."""
+        client = self._client()
+
+        with _stub_idea_to_script_workers(), patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            self._post_script(client, _STUB_IDEA_TITLE)
+
+        result_args, _ = mock_send.call_args_list[1]
+        assert _STUB_SCRIPT_TEXT in result_args[1]
+
+    def test_bare_script_command_sends_usage_reply(self):
+        """`/script` with no title sends a usage reply."""
+        client = self._client()
+
+        with patch(
+            "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
+        ) as mock_send:
+            response = client.post(
+                "/platform/telegram/webhook",
+                json={"message": {"chat": {"id": 42}, "text": "/script"}},
+                headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
+            )
+
+        assert response.status_code == 200
+        mock_send.assert_awaited_once()
+        args, _ = mock_send.call_args
+        assert "/script" in args[1]
 
 
 class TestTelegramWebhookAuthExempt:

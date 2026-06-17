@@ -33,8 +33,9 @@ from cf_platform.core.run_manager import (
     create_run,
     transition_run,
 )
+from cf_platform.blocks.idea_to_script import build_idea_to_script_graph, register_idea_to_script_workers
 from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph, register_niche_to_ideas_workers
-from cf_platform.core.schemas import NicheToIdeasState, SourceAdapter, StageState
+from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, SourceAdapter, StageState
 from cf_platform.core.trace_repo import InMemoryTraceEventRepository, TraceEventRepository
 from cf_platform.core.worker_registry import (
     ExecutionRepository,
@@ -47,10 +48,15 @@ from cf_platform.interfaces.telegram import (
     format_ideas_running,
     format_ideas_usage,
     format_ranked_ideas,
+    format_script_reply,
+    format_script_running,
+    format_script_usage,
     format_unrecognized_command,
     is_chat_allowed,
     parse_ideas_command,
+    parse_script_command,
 )
+from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.sources.google_trends import GoogleTrendsAdapter
 from cf_platform.sources.reddit import RedditAdapter
 from cf_platform.sources.youtube import YouTubeAdapter
@@ -71,6 +77,7 @@ _trace_event_repository = InMemoryTraceEventRepository()
 _worker_registry = WorkerRegistry()
 _worker_registry.register("echo", ECHO_REGISTRATION)
 register_niche_to_ideas_workers(_worker_registry)
+register_idea_to_script_workers(_worker_registry)
 
 
 @router.get("/health")
@@ -298,6 +305,92 @@ async def niche_to_ideas(
     )
 
 
+class IdeaToScriptRequest(BaseModel):
+    """Request body for POST /platform/blocks/idea-to-script."""
+
+    idea_title: str
+    niche: Optional[str] = None
+    angle: Optional[str] = None
+    supporting_points: Optional[list[str]] = None
+    max_iterations: Optional[int] = None
+
+
+class IdeaToScriptResponse(BaseModel):
+    """Response body for POST /platform/blocks/idea-to-script."""
+
+    run_id: str
+    script_artifact_key: str
+    script: str
+    iterations: int
+
+
+@router.post("/blocks/idea-to-script", response_model=IdeaToScriptResponse)
+async def idea_to_script(
+    body: IdeaToScriptRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    registry: WorkerRegistry = Depends(get_worker_registry),
+    runs: RunRepository = Depends(get_run_repository),
+    executions: ExecutionRepository = Depends(get_execution_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+    checkpointer: BaseCheckpointSaver = Depends(get_graph_checkpointer),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> IdeaToScriptResponse:
+    """Run the full idea→script block and return the terminal script artifact.
+
+    Executes the cyclic write→score→fact-check→refine loop (bounded by
+    `max_iterations`, default 3) followed by the terminal `script_packager` node
+    that selects the best draft and writes the `ScriptArtifact` to R2.
+
+    Returns the selected script text, the R2 artifact key, and the number of
+    refine iterations performed. The REST caller gets the full script body inline
+    so a second request is not needed.
+
+    `max_iterations` overrides the default of 3 when provided.
+    """
+    run_inputs: dict[str, Any] = {"idea_title": body.idea_title}
+    if body.niche:
+        run_inputs["niche"] = body.niche
+    if body.angle:
+        run_inputs["angle"] = body.angle
+    if body.supporting_points:
+        run_inputs["supporting_points"] = body.supporting_points
+
+    run = await create_run(_PLATFORM_USER_ID, "idea_to_script", run_inputs, runs)
+    run = await transition_run(run.run_id, "running", runs)
+
+    state_kwargs: dict[str, Any] = {}
+    if body.max_iterations is not None:
+        state_kwargs["max_iterations"] = body.max_iterations
+
+    graph = build_idea_to_script_graph(
+        storage=storage,
+        registry=registry,
+        executions=executions,
+        artifact_repo=artifacts,
+        anthropic_api_key=settings.ANTHROPIC_API_KEY,
+        checkpointer=checkpointer,
+    )
+    state = IdeaToScriptState(
+        run_id=run.run_id,
+        user_id=_PLATFORM_USER_ID,
+        inputs=run_inputs,
+        **state_kwargs,
+    )
+    result = await run_graph(graph, state, thread_id=run.run_id)
+    await transition_run(run.run_id, "complete", runs)
+
+    script_key = result.artifacts["script"]
+    _, body_dict = await read_artifact(storage, script_key)
+    script_artifact = ScriptArtifact.model_validate(body_dict)
+
+    return IdeaToScriptResponse(
+        run_id=run.run_id,
+        script_artifact_key=script_key,
+        script=script_artifact.script,
+        iterations=result.iteration,
+    )
+
+
 class RunSummary(BaseModel):
     """Lineage summary for one run, as returned by GET /platform/runs."""
 
@@ -470,6 +563,62 @@ async def _run_ideas_and_reply(
         _logger.exception("TelegramClient.send_message failed for chat_id=%s: %s", chat_id, exc)
 
 
+async def _run_script_and_reply(
+    chat_id: int,
+    idea_title: str,
+    settings: PlatformSettings,
+    storage: ArtifactStorage,
+    registry: WorkerRegistry,
+    runs: RunRepository,
+    executions: ExecutionRepository,
+    artifacts: ArtifactRepository,
+    checkpointer: BaseCheckpointSaver,
+) -> None:
+    """Run the full idea→script block in the background and push the script to Telegram.
+
+    Separated from the webhook handler so the handler can return {"ok": True} immediately —
+    Telegram's 60-second response timeout is too short for a multi-iteration LLM graph.
+    """
+    client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
+    try:
+        run_inputs: dict[str, Any] = {"idea_title": idea_title}
+        run = await create_run(_PLATFORM_USER_ID, "idea_to_script", run_inputs, runs)
+        run = await transition_run(run.run_id, "running", runs)
+
+        graph = build_idea_to_script_graph(
+            storage=storage,
+            registry=registry,
+            executions=executions,
+            artifact_repo=artifacts,
+            anthropic_api_key=settings.ANTHROPIC_API_KEY,
+            checkpointer=checkpointer,
+        )
+        state = IdeaToScriptState(
+            run_id=run.run_id, user_id=_PLATFORM_USER_ID, inputs=run_inputs
+        )
+        result = await run_graph(graph, state, thread_id=run.run_id)
+        await transition_run(run.run_id, "complete", runs)
+
+        script_key = result.artifacts["script"]
+        _, body_dict = await read_artifact(storage, script_key)
+        script_artifact = ScriptArtifact.model_validate(body_dict)
+        reply = format_script_reply(script_artifact)
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception(
+            "_run_script_and_reply failed for idea_title=%r chat_id=%s: %s",
+            idea_title,
+            chat_id,
+            exc,
+        )
+        short = str(exc)[:200]
+        reply = f"Error running /script: {type(exc).__name__}: {short}"
+
+    try:
+        await client.send_message(chat_id, reply)
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception("TelegramClient.send_message failed for chat_id=%s: %s", chat_id, exc)
+
+
 @router.post("/telegram/webhook", include_in_schema=False)
 async def telegram_webhook(
     update: TelegramUpdate,
@@ -508,25 +657,45 @@ async def telegram_webhook(
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
 
     niche = parse_ideas_command(update.message.text)
-    if niche is None:
-        await client.send_message(chat_id, format_unrecognized_command(update.message.text))
-    elif not niche:
-        await client.send_message(chat_id, format_ideas_usage())
+    idea_title = parse_script_command(update.message.text)
+
+    if niche is not None:
+        if not niche:
+            await client.send_message(chat_id, format_ideas_usage())
+        else:
+            await client.send_message(chat_id, format_ideas_running(niche))
+            background_tasks.add_task(
+                _run_ideas_and_reply,
+                chat_id=chat_id,
+                niche=niche,
+                settings=settings,
+                adapters=adapters,
+                storage=storage,
+                registry=registry,
+                runs=runs,
+                executions=executions,
+                artifacts=artifacts,
+                trace_events=trace_events,
+                checkpointer=checkpointer,
+            )
+    elif idea_title is not None:
+        if not idea_title:
+            await client.send_message(chat_id, format_script_usage())
+        else:
+            await client.send_message(chat_id, format_script_running(idea_title))
+            background_tasks.add_task(
+                _run_script_and_reply,
+                chat_id=chat_id,
+                idea_title=idea_title,
+                settings=settings,
+                storage=storage,
+                registry=registry,
+                runs=runs,
+                executions=executions,
+                artifacts=artifacts,
+                checkpointer=checkpointer,
+            )
     else:
-        await client.send_message(chat_id, format_ideas_running(niche))
-        background_tasks.add_task(
-            _run_ideas_and_reply,
-            chat_id=chat_id,
-            niche=niche,
-            settings=settings,
-            adapters=adapters,
-            storage=storage,
-            registry=registry,
-            runs=runs,
-            executions=executions,
-            artifacts=artifacts,
-            trace_events=trace_events,
-            checkpointer=checkpointer,
-        )
+        await client.send_message(chat_id, format_unrecognized_command(update.message.text))
 
     return {"ok": True}

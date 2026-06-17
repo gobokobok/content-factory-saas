@@ -19,6 +19,7 @@ from cf_platform.core.schemas import Signal
 _logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
+    from cf_platform.workers.script_packager import ScriptArtifact
     from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
 _TELEGRAM_API_BASE = "https://api.telegram.org"
@@ -105,9 +106,53 @@ def format_ideas_usage() -> str:
     return "Usage: /ideas <niche> — e.g. /ideas starter homes"
 
 
+def parse_script_command(text: str) -> Optional[str]:
+    """Parse a `/script <idea_title>` command.
+
+    Returns the idea title text (possibly empty if no title was given), or None if
+    `text` is not a `/script` command at all.
+    """
+    stripped = text.strip()
+    if not (stripped == "/script" or stripped.startswith("/script ")):
+        return None
+    return stripped[len("/script"):].strip()
+
+
+def format_script_running(idea_title: str) -> str:
+    """Format the immediate ack sent before the background idea→script run starts (D049)."""
+    return f'Writing script for "{idea_title}"... results in ~90 s.'
+
+
+def format_script_usage() -> str:
+    """Format the reply when `/script` is sent without an idea title (D049)."""
+    return "Usage: /script <idea title> — e.g. /script Why starter homes vanished"
+
+
+_SCRIPT_REPLY_CHAR_LIMIT = 4000
+
+
+def format_script_reply(script_artifact: "ScriptArtifact") -> str:
+    """Format the finished script reply after the idea→script block runs (D049, P5-S5).
+
+    Shows the idea title, quality score, and the full script text. Truncates to
+    `_SCRIPT_REPLY_CHAR_LIMIT` characters to stay within Telegram's 4096-char limit.
+    Plain string only — never serializes the artifact itself to chat.
+    """
+    lines = [
+        f'Script — "{script_artifact.idea_title}"',
+        f"Score: {script_artifact.overall_score:.1f}/10",
+        "",
+        script_artifact.script,
+    ]
+    text = "\n".join(lines)
+    if len(text) > _SCRIPT_REPLY_CHAR_LIMIT:
+        text = text[:_SCRIPT_REPLY_CHAR_LIMIT - 3] + "..."
+    return text
+
+
 def format_unrecognized_command(text: str) -> str:
     """Format the reply for any unrecognized command or message (D049)."""
-    return "Sorry, I didn't understand that. Try: /ideas <niche>"
+    return "Sorry, I didn't understand that. Try: /ideas <niche> or /script <idea title>"
 
 
 def is_chat_allowed(chat_id: int, allowed_chat_ids: str) -> bool:

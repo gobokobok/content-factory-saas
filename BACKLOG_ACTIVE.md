@@ -134,7 +134,7 @@ Cyclic graph: writer → scorer → fact-check → refine, bounded by `iteration
 ## [P5-S5] Assemble idea_to_script graph + interfaces (+ IdeaToScriptState)
 **Epic:** E30 — Idea→Script Block
 **Sprint:** P5
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 2
 **Depends on:** P5-S4

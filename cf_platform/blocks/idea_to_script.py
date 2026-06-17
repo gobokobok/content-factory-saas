@@ -1,20 +1,20 @@
-"""idea_to_script refine loop (P5-S4) — writer → scorer → fact_checker → refine (cyclic).
+"""idea_to_script block — writer → scorer → fact_checker → refine (cyclic) → packager.
 
-Assembles the cyclic Idea→Script loop as a LangGraph StateGraph over
-IdeaToScriptState. Each iteration runs:
+Provides two graph factories:
 
-  script_writer     → state.artifacts["script_drafts"]  (ScriptDraftsArtifact)
-  script_scorer     → state.artifacts["script_scores"]   (ScriptScoresArtifact)
-                                                          state.scorer_verdict
-  fact_checker      → state.artifacts["factcheck_report"](FactcheckReportArtifact)
-                                                          state.factcheck_verdict
+  build_refine_loop_graph  (P5-S4) — cyclic loop only, ends at END after convergence.
+                                      Used by loop-isolation tests.
 
-After each scorer+fact_checker pass the graph checks `_route_after_evaluation`:
-  - "done"  if iteration >= max_iterations OR both verdicts are "continue"
-  - "retry" otherwise → increment_iteration node sets {"iteration": 1}
-              → script_refiner produces improved script_drafts → back to writer
+  build_idea_to_script_graph (P5-S5) — full assembled block; routes "done" to a
+                                        terminal script_packager node that emits the
+                                        final `ScriptArtifact`. Use for REST + Telegram.
 
-The terminal "script" artifact and REST/Telegram interface land in P5-S5.
+Graph topology (build_idea_to_script_graph):
+
+  START → script_writer → script_scorer → fact_checker
+        → conditional(_route_after_evaluation):
+            "done"  → script_packager → END
+            "retry" → increment_iteration → script_refiner → script_writer (cycle)
 
 Canonical spec: docs/v2_platform_plan.md §5.
 """
@@ -30,6 +30,7 @@ from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorag
 from cf_platform.core.schemas import IdeaToScriptState
 from cf_platform.core.worker_registry import ExecutionRepository, WorkerRegistry, wrap
 from cf_platform.workers.fact_checker import FACT_CHECKER_REGISTRATION, build_fact_checker_worker
+from cf_platform.workers.script_packager import SCRIPT_PACKAGER_REGISTRATION, build_script_packager_worker
 from cf_platform.workers.script_quality_scorer import (
     SCRIPT_QUALITY_SCORER_REGISTRATION,
     build_script_quality_scorer_worker,
@@ -39,15 +40,16 @@ from cf_platform.workers.script_writer import SCRIPT_WRITER_REGISTRATION, build_
 
 
 def register_idea_to_script_workers(registry: WorkerRegistry) -> None:
-    """Register all four idea_to_script workers in registry (idempotent re-register is fine).
+    """Register all five idea_to_script workers in registry (idempotent re-register is fine).
 
-    Call once at startup before build_refine_loop_graph() — wrap() resolves each
-    worker's pinned config from the registry at graph-build time.
+    Registers: script_writer, script_scorer, fact_checker, script_refiner, script_packager.
+    Call once at startup before building either graph factory in this module.
     """
     registry.register("script_writer", SCRIPT_WRITER_REGISTRATION)
     registry.register("script_scorer", SCRIPT_QUALITY_SCORER_REGISTRATION)
     registry.register("fact_checker", FACT_CHECKER_REGISTRATION)
     registry.register("script_refiner", SCRIPT_REFINER_REGISTRATION)
+    registry.register("script_packager", SCRIPT_PACKAGER_REGISTRATION)
 
 
 def _route_after_evaluation(state: IdeaToScriptState) -> str:
@@ -172,5 +174,113 @@ def build_refine_loop_graph(
     )
     graph.add_edge("increment_iteration", "script_refiner")
     graph.add_edge("script_refiner", "script_writer")
+
+    return graph.compile(checkpointer=checkpointer or MemorySaver())
+
+
+def build_idea_to_script_graph(
+    *,
+    storage: ArtifactStorage,
+    registry: WorkerRegistry,
+    executions: ExecutionRepository,
+    artifact_repo: ArtifactRepository,
+    anthropic_api_key: str,
+    checkpointer: Optional[BaseCheckpointSaver] = None,
+) -> CompiledStateGraph:
+    """Compile the full idea→script StateGraph with terminal script_packager (P5-S5).
+
+    Extends the refine loop with a `script_packager` node on the "done" path so the
+    graph always terminates with a `ScriptArtifact` in `state.artifacts["script"]`:
+
+      START → script_writer → script_scorer → fact_checker
+            → conditional(route_after_evaluation):
+                "done"  → script_packager → END
+                "retry" → increment_iteration → script_refiner → script_writer (cycle)
+
+    Use this factory for the REST endpoint and Telegram handler.
+    `build_refine_loop_graph()` (P5-S4) remains unchanged for loop-isolation tests.
+
+    The caller must register all five workers with `register_idea_to_script_workers()`
+    before calling this function. The `checkpointer` defaults to MemorySaver().
+
+    Raises WorkerNotRegisteredError at build time if any worker is absent.
+    """
+    graph: StateGraph = StateGraph(IdeaToScriptState)
+
+    graph.add_node(
+        "script_writer",
+        wrap(
+            "script_writer",
+            "script_drafts",
+            build_script_writer_worker(storage, anthropic_api_key),
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifact_repo,
+        ),
+    )
+    graph.add_node(
+        "script_scorer",
+        wrap(
+            "script_scorer",
+            "script_scores",
+            build_script_quality_scorer_worker(storage, anthropic_api_key),
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifact_repo,
+            control_channel="scorer_verdict",
+        ),
+    )
+    graph.add_node(
+        "fact_checker",
+        wrap(
+            "fact_checker",
+            "factcheck_report",
+            build_fact_checker_worker(storage, anthropic_api_key),
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifact_repo,
+            control_channel="factcheck_verdict",
+        ),
+    )
+    graph.add_node("increment_iteration", _increment_iteration)
+    graph.add_node(
+        "script_refiner",
+        wrap(
+            "script_refiner",
+            "script_drafts",
+            build_script_refiner_worker(storage, anthropic_api_key),
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifact_repo,
+        ),
+    )
+    graph.add_node(
+        "script_packager",
+        wrap(
+            "script_packager",
+            "script",
+            build_script_packager_worker(storage),
+            registry=registry,
+            storage=storage,
+            executions=executions,
+            artifact_repo=artifact_repo,
+        ),
+    )
+
+    graph.add_edge(START, "script_writer")
+    graph.add_edge("script_writer", "script_scorer")
+    graph.add_edge("script_scorer", "fact_checker")
+    graph.add_conditional_edges(
+        "fact_checker",
+        _route_after_evaluation,
+        {"done": "script_packager", "retry": "increment_iteration"},
+    )
+    graph.add_edge("increment_iteration", "script_refiner")
+    graph.add_edge("script_refiner", "script_writer")
+    graph.add_edge("script_packager", END)
 
     return graph.compile(checkpointer=checkpointer or MemorySaver())
