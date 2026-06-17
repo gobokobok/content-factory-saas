@@ -77,7 +77,7 @@ OPPORTUNITY_SCORER_REGISTRATION = WorkerRegistration(
     prompt_version="v1",
     prompt=_OPPORTUNITY_SCORER_PROMPT_V1,
     model="claude-sonnet-4-6",
-    sampling_params={"thinking": {"type": "adaptive"}},
+    sampling_params={"thinking": {"type": "adaptive"}, "max_tokens": 8192},
 )
 
 
@@ -158,7 +158,7 @@ def build_opportunity_scorer_worker(
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
         response = await client.messages.create(
             model=OPPORTUNITY_SCORER_REGISTRATION.model,
-            max_tokens=4096,
+            max_tokens=8192,
             thinking={"type": "adaptive"},
             system=OPPORTUNITY_SCORER_REGISTRATION.prompt,
             messages=[{"role": "user", "content": user_message}],
