@@ -164,15 +164,31 @@ def build_fact_checker_worker(
                 "fact_checker@v1 returned no text block"
                 " — Claude may not have produced a final JSON summary"
             )
-        raw_text = strip_markdown_fences(text_blocks[-1].text)
+
+        # Claude emits multiple text blocks interleaved with web_search blocks.
+        # The last block is often a prose comment; scan in reverse for the JSON block.
+        json_str: Optional[str] = None
+        for block in reversed(text_blocks):
+            candidate = strip_markdown_fences(block.text)
+            try:
+                json_str = extract_json_object(candidate)
+                break
+            except ValueError:
+                continue
+
+        if json_str is None:
+            all_texts = "\n---\n".join(b.text for b in text_blocks)
+            raise ValueError(
+                f"fact_checker@v1: no text block contained a JSON object.\n"
+                f"All text blocks:\n{all_texts!r}"
+            )
 
         try:
-            json_str = extract_json_object(raw_text)
             raw_report: dict[str, Any] = json.loads(json_str)
-        except (json.JSONDecodeError, ValueError) as exc:
+        except json.JSONDecodeError as exc:
             raise ValueError(
                 f"fact_checker@v1 returned invalid JSON: {exc}"
-                f"\nRaw response: {raw_text!r}"
+                f"\nExtracted: {json_str!r}"
             ) from exc
 
         claims = [ClaimVerification.model_validate(c) for c in raw_report.get("claims", [])]

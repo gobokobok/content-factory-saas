@@ -130,6 +130,29 @@ def _mock_anthropic_client_mixed(response_text: str) -> MagicMock:
     return mock_client
 
 
+def _mock_anthropic_client_multi_text(json_text: str, trailing_prose: str) -> MagicMock:
+    """Mock client with multiple text blocks; JSON is in an earlier block, prose is last.
+
+    Simulates the live failure mode: Claude emits a JSON summary block, then a
+    closing commentary text block with no JSON — and we must not pick the last one.
+    """
+    search_block = MagicMock()
+    search_block.type = "server_tool_use"
+    result_block = MagicMock()
+    result_block.type = "web_search_result"
+    json_block = MagicMock()
+    json_block.type = "text"
+    json_block.text = json_text
+    prose_block = MagicMock()
+    prose_block.type = "text"
+    prose_block.text = trailing_prose
+    mock_message = MagicMock()
+    mock_message.content = [search_block, result_block, json_block, prose_block]
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=mock_message)
+    return mock_client
+
+
 def _mock_anthropic_client_no_text() -> MagicMock:
     """Mock client whose response contains no text blocks."""
     non_text_block = MagicMock()
@@ -442,13 +465,13 @@ class TestFactCheckerErrors:
                 await worker(state)
 
     @pytest.mark.asyncio
-    async def test_invalid_json_from_claude_raises_value_error(self):
+    async def test_no_json_object_in_any_text_block_raises_value_error(self):
         storage = InMemoryArtifactStorage()
         drafts_key = await _seed_script_drafts(storage)
         state = StageState(
             run_id="run-1", user_id="user-1", inputs={}, artifacts={"script_drafts": drafts_key}
         )
-        # Completely unparseable text (no JSON object at all)
+        # Completely unparseable text (no JSON object in any block)
         mock_client = _mock_anthropic_client("All claims check out — the script looks great!")
 
         with patch(
@@ -456,7 +479,7 @@ class TestFactCheckerErrors:
             return_value=mock_client,
         ):
             worker = build_fact_checker_worker(storage, anthropic_api_key="test-key")
-            with pytest.raises(ValueError, match="invalid JSON"):
+            with pytest.raises(ValueError, match="no text block contained a JSON object"):
                 await worker(state)
 
     @pytest.mark.asyncio
@@ -475,6 +498,35 @@ class TestFactCheckerErrors:
             'I have verified each claim using authoritative sources.'
         )
         mock_client = _mock_anthropic_client(json_with_prose)
+
+        with patch(
+            "cf_platform.workers.fact_checker.anthropic.AsyncAnthropic",
+            return_value=mock_client,
+        ):
+            worker = build_fact_checker_worker(storage, anthropic_api_key="test-key")
+            output = await worker(state)
+
+        report = output.artifact
+        assert len(report.claims) == 1  # type: ignore[union-attr]
+        assert report.claims[0].verdict == "supported"  # type: ignore[union-attr]
+
+    @pytest.mark.asyncio
+    async def test_json_in_non_last_text_block_is_parsed(self):
+        """Regression: live failure where last text block was prose commentary, not JSON.
+
+        Claude emitted: [server_tool_use][web_search_result][text: JSON][text: prose comment]
+        The previous code took text_blocks[-1] (prose), found no {}, raised ValueError.
+        The fix scans in reverse and picks the first block that contains a JSON object.
+        """
+        storage = InMemoryArtifactStorage()
+        drafts_key = await _seed_script_drafts(storage)
+        state = StageState(
+            run_id="run-1", user_id="user-1", inputs={}, artifacts={"script_drafts": drafts_key}
+        )
+        mock_client = _mock_anthropic_client_multi_text(
+            json_text=_claims_json(["supported"]),
+            trailing_prose="The script's phrasing implies a cleaner predictive sequence than the evidence supports.",
+        )
 
         with patch(
             "cf_platform.workers.fact_checker.anthropic.AsyncAnthropic",
