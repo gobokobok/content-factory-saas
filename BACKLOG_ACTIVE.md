@@ -198,11 +198,13 @@ _filled on completion_
 **Status:** planned
 **Priority:** high
 **Points:** 5
-**Depends on:** P6-S1
+**Depends on:** P6-S1, P6-S5
 
 ### Goal
 Implement `PipelineState` (plan §5); wrap the adapter as a LangGraph node; compile `cf_platform/orchestrator/full_pipeline.py` composing `niche_to_ideas → idea_to_script → legacy_render`. One run threads run_id + artifacts end-to-end with full lineage; checkpointed.
 **Tech:** LangGraph (subgraph composition, PostgresSaver), adapter. **Schema:** `PipelineState`.
+
+> **Duration note (P6-S5):** `PipelineState` must carry `target_duration_seconds: int = 60`. The orchestrator writes it into `IdeaToScriptState` when constructing the block's initial state — this is the "specified once at the top, flows down" contract.
 
 ### Acceptance Criteria
 - [ ] Parent graph runs all three stages in one run
@@ -254,7 +256,40 @@ Telegram `/produce <niche>` runs the whole chain; returns a presigned R2 URL for
 
 ### Acceptance Criteria
 - [ ] One command → finished video; lineage spans blocks + legacy
+- [ ] `/produce` accepts optional `--duration <seconds>` flag (default 60); passed into `PipelineState.target_duration_seconds`
 - [ ] **Human touchpoint:** operator runs `/produce <niche>` and downloads the video
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## [P6-S5] Target duration parameter (run-level → script writer)
+**Epic:** E31 — Orchestrator + Legacy Bridge
+**Sprint:** P6
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P5-S5
+
+### Goal
+Add `target_duration_seconds` as a typed run-level parameter that enters at the top of the pipeline and is consumed by the script writer and scorer. Specified once (niche trigger / `/produce` / REST), never re-derived.
+
+**Design:** `target_duration_seconds` is added to `IdeaToScriptState` now (block-level); P6-S2 adds it to `PipelineState` and the orchestrator passes it down. Script writer computes `target_words = round(target_duration_seconds * 160 / 60)` and tells Claude explicitly. Scorer flags if delivered word count is >20% off — deterministically (no extra LLM call).
+
+**Execution order in P6:** `(P6-S1 ∥ P6-S5) → P6-S2 → (P6-S3 ∥ P6-S4)`.
+
+### Acceptance Criteria
+- [ ] `IdeaToScriptState.target_duration_seconds: int = 60` typed channel in `cf_platform/core/schemas.py`
+- [ ] Script writer prompt includes `"Write approximately {target_words} words ({target_duration_seconds}s at 160 wpm)"`; `target_words` computed in the worker (not by Claude)
+- [ ] Script quality scorer flags a draft as length-penalised if actual word count is >20% over or under `target_words`; penalty is applied to `overall_score` (not a hard reject)
+- [ ] `POST /platform/blocks/idea-to-script` request body accepts `target_duration_seconds: int = 60` and passes it to initial graph state
+- [ ] Telegram `/script <title> [--duration <seconds>]` parser extracts the flag; defaults to 60 if absent
+- [ ] P6-S2 note: `PipelineState.target_duration_seconds` must carry this field; orchestrator writes it into `IdeaToScriptState` at block entry. (Tracked in P6-S2 AC.)
+- [ ] Tests: script writer uses target_words in prompt; scorer penalises out-of-range scripts; REST passes duration to state; Telegram parses `--duration`
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`

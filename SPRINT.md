@@ -20,10 +20,10 @@ Legacy Script→Video stays untouched and operable (D047).
 | P3 | Telegram trigger + Discovery worker | 10 | done | `/ideas <niche>` → signals in Telegram |
 | P4 | Niche→Ideas block | 13 | done | Telegram niche → ranked ideas w/ scores |
 | **P5** | **Idea→Script block** | **16** | **active** | Telegram idea → fact-checked script |
-| P6 | Orchestrator + legacy bridge | 13 | planned | `/produce <niche>` → finished video |
+| P6 | Orchestrator + legacy bridge | 16 | planned | `/produce <niche>` → finished video |
 | P7 | Analytics & attribution | 11 | planned | Retention-by-prompt-version report |
 
-**MVP (P0–P6) = 97 pts; with P7 = 108 pts.**
+**MVP (P0–P6) = 100 pts; with P7 = 111 pts.**
 
 ---
 
@@ -61,8 +61,9 @@ Legacy Script→Video stays untouched and operable (D047).
 | P6-S2 | Legacy-as-node + parent graph (+ PipelineState) | 5 | planned |
 | P6-S3 | Human-in-the-loop gates | 3 | planned |
 | P6-S4 | End-to-end /produce → video | 2 | planned |
+| P6-S5 | Target duration parameter (run-level → script writer) | 3 | planned |
 
-**Execution order:** P6-S1 → P6-S2 → (P6-S3 ∥ P6-S4). P6-S3 needs P2-S4.
+**Execution order:** (P6-S1 ∥ P6-S5) → P6-S2 → (P6-S3 ∥ P6-S4). P6-S3 needs P2-S4. P6-S2 must add `PipelineState.target_duration_seconds` and pass it to `IdeaToScriptState`.
 
 ## Sprint P6 Definition of Done
 - [ ] Only the adapter imports `src/`; legacy unchanged and still operable
