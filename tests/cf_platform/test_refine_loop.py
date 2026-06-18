@@ -4,19 +4,18 @@ Covers:
 - IdeaToScriptState schema: defaults, iteration reducer (Annotated[int, operator.add])
 - IdeaToScriptState: scorer_verdict / factcheck_verdict default to "continue"
 - IdeaToScriptState: all six typed channels present and correct defaults
-- _route_after_evaluation: "done" when iteration >= max_iterations
-- _route_after_evaluation: "done" when both verdicts are "continue"
-- _route_after_evaluation: "retry" when scorer_verdict is "retry"
-- _route_after_evaluation: "retry" when factcheck_verdict is "retry"
-- _route_after_evaluation: "done" overrides verdict check when cap reached
+- _route_after_scorer: "done" when iteration >= max_iterations
+- _route_after_scorer: "done" when scorer_verdict is "continue"
+- _route_after_scorer: "retry" when scorer_verdict is "retry"
+- _route_after_scorer: "done" overrides verdict check when cap reached
 - register_idea_to_script_workers: all 4 workers present in registry
 - build_refine_loop_graph: compiles without error with registered workers
 - build_refine_loop_graph: raises WorkerNotRegisteredError with empty registry
 - control_channel in wrap(): stores control signal in state field
-- Loop run: converges to END when both workers return "continue" on first pass
-- Loop run: stops at max_iterations even when workers keep returning "retry"
+- Loop run: converges to END when scorer returns "continue" on first pass
+- Loop run: stops at max_iterations even when scorer keeps returning "retry"
 - Loop run: iteration counter increments correctly across retries
-- Artifact keys: script_drafts, script_scores, factcheck_report present after run
+- Artifact keys: script_drafts, script_scores present after run (no fact_checker in loop)
 """
 
 import json
@@ -29,7 +28,7 @@ import pytest
 
 from cf_platform.blocks.idea_to_script import (
     _increment_iteration,
-    _route_after_evaluation,
+    _route_after_scorer,
     build_refine_loop_graph,
     register_idea_to_script_workers,
 )
@@ -136,37 +135,34 @@ def test_artifacts_reducer_inherited():
     assert merge_refs in artifacts_hint.__metadata__
 
 
-# ── _route_after_evaluation ────────────────────────────────────────────
+# ── _route_after_scorer ────────────────────────────────────────────────
+# fact_checker no longer participates in loop routing — it runs once after
+# the loop exits on the "done" path (build_idea_to_script_graph only).
 
 
 def test_route_done_when_iteration_at_cap():
     state = _make_state(iteration=3, max_iterations=3, scorer_verdict="retry")
-    assert _route_after_evaluation(state) == "done"
+    assert _route_after_scorer(state) == "done"
 
 
-def test_route_done_when_both_continue():
-    state = _make_state(iteration=0, scorer_verdict="continue", factcheck_verdict="continue")
-    assert _route_after_evaluation(state) == "done"
+def test_route_done_when_scorer_continues():
+    state = _make_state(iteration=0, scorer_verdict="continue")
+    assert _route_after_scorer(state) == "done"
 
 
 def test_route_retry_when_scorer_retries():
-    state = _make_state(iteration=0, scorer_verdict="retry", factcheck_verdict="continue")
-    assert _route_after_evaluation(state) == "retry"
-
-
-def test_route_retry_when_factcheck_retries():
-    state = _make_state(iteration=0, scorer_verdict="continue", factcheck_verdict="retry")
-    assert _route_after_evaluation(state) == "retry"
+    state = _make_state(iteration=0, scorer_verdict="retry")
+    assert _route_after_scorer(state) == "retry"
 
 
 def test_route_done_cap_overrides_retry_verdict():
     state = _make_state(iteration=3, max_iterations=3, scorer_verdict="retry", factcheck_verdict="retry")
-    assert _route_after_evaluation(state) == "done"
+    assert _route_after_scorer(state) == "done"
 
 
 def test_route_retry_before_cap():
-    state = _make_state(iteration=2, max_iterations=3, scorer_verdict="retry", factcheck_verdict="continue")
-    assert _route_after_evaluation(state) == "retry"
+    state = _make_state(iteration=2, max_iterations=3, scorer_verdict="retry")
+    assert _route_after_scorer(state) == "retry"
 
 
 # ── _increment_iteration ───────────────────────────────────────────────
@@ -445,7 +441,7 @@ async def test_loop_converges_on_first_pass_when_quality_passes():
     assert final_state.iteration == 0  # no retries
     assert "script_drafts" in final_state.artifacts
     assert "script_scores" in final_state.artifacts
-    assert "factcheck_report" in final_state.artifacts
+    # fact_checker not in refine loop — only runs in build_idea_to_script_graph
 
 
 @pytest.mark.asyncio
