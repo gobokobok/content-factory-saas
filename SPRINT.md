@@ -19,19 +19,19 @@ Legacy Script→Video stays untouched and operable (D047).
 | P2 | Lineage & observability store | 16 | done | Per-worker cost/latency/version; resume after restart |
 | P3 | Telegram trigger + Discovery worker | 10 | done | `/ideas <niche>` → signals in Telegram |
 | P4 | Niche→Ideas block | 13 | done | Telegram niche → ranked ideas w/ scores |
-| **P5** | **Idea→Script block** | **16** | **active** | Telegram idea → fact-checked script |
+| **P5** | **Idea→Script block** | **24** | **active** | Telegram idea → fact-checked script |
 | P6 | Orchestrator + legacy bridge | 19 | planned | `/produce <niche>` → finished video |
 | P7 | Analytics & attribution | 11 | planned | Retention-by-prompt-version report |
 
-**MVP (P0–P6) = 103 pts; with P7 = 114 pts.**
+**MVP (P0–P6) = 111 pts; with P7 = 122 pts.**
 
 ---
 
 # Sprint P5 — Idea→Script Block
 
-**Goal:** Second block; cyclic write→score→fact-check→refine with bounded convergence; external search isolated.
+**Goal:** P5-S1–S5 built the cyclic loop (shipped); P5-S6 rearchitects as Blueprint IR + single-pass + patch repair (target $0.05–$0.10/run).
 **Status:** active
-**Points:** 16
+**Points:** 24
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
@@ -40,8 +40,9 @@ Legacy Script→Video stays untouched and operable (D047).
 | P5-S3 | Fact-check tool integration (web search) | 3 | done |
 | P5-S4 | Refine loop + convergence logic ⚠️ spike | 5 | done |
 | P5-S5 | Assemble idea_to_script graph + interfaces (+ IdeaToScriptState) | 2 | done |
+| P5-S6 | Rearchitect Idea→Script — Blueprint IR + single-pass + patch repair | 8 | planned |
 
-**Execution order:** P5-S1 → (P5-S2 ∥ P5-S3) → P5-S4 → P5-S5.
+**Execution order:** P5-S1 → (P5-S2 ∥ P5-S3) → P5-S4 → P5-S5 → P5-S6.
 
 ## Sprint P5 Definition of Done
 - [ ] Loop converges or stops at `max_iterations`; iteration is a typed state channel (D057)

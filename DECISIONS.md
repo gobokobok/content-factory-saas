@@ -5,6 +5,15 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D058 — Idea→Script stage: Blueprint IR + single-pass generation + patch repair
+**Date:** 2026-06-18
+**Decision:** The Idea→Script block is redesigned as a deterministic content compiler with three phases: (1) Blueprint IR generation — a structured intermediate representation (hook angle, sections, claims, evidence requirements) produced once by a cheap model before any script text is written; (2) Single-pass script generation — the LLM writes the script exactly once from the finalised blueprint + selected hook, no regeneration loops; (3) Patch-based integrity repair — if the integrity check fails, a Haiku model emits structured `Patch` objects (operation/target/replacement) applied deterministically, never a full rewrite. MAX_INTEGRITY_LOOPS = 2.
+**Rationale:** The previous write→score→fact-check→refine loop re-generated the full script on every pass ($1–$3/run observed in production). The root cause was conflating planning, evaluation, and generation into one agent loop. Separating them into a compiler pipeline eliminates regeneration cost while preserving correction capability. Blueprint IR is the key abstraction: it constrains the generation space before the expensive Sonnet call, making first-pass quality high enough that integrity repair is the exception, not the norm. `web_search` is removed entirely — evaluation uses model knowledge.
+**Consequence:** Replaces `script_writer`, `script_quality_scorer`, `fact_checker`, `script_refiner` workers with 10 specialised nodes. `build_idea_to_script_graph` topology changes completely. Target cost per `/script` run: $0.05–$0.10. Implemented in P5-S6.
+**See:** BACKLOG_ACTIVE.md [P5-S6]. **No new dependencies.**
+
+---
+
 ## D057 — Artifacts are truth; state is a message bus
 **Date:** 2026-06-12
 **Decision:** In the platform layer, LangGraph graph state carries **only** artifact references (`stage_name -> r2_key`) and strict control signals. It never carries artifact bodies and never exposes a free-form mutation channel. The durable source of truth for every output is the artifact in R2, indexed in Postgres. State is ephemeral intra-run transport.

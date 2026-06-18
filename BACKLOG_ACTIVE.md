@@ -160,6 +160,80 @@ Implement `IdeaToScriptState` (plan §5); compile `cf_platform/blocks/idea_to_sc
 
 ---
 
+## [P5-S6] Rearchitect Idea→Script stage — Blueprint IR + single-pass + patch repair
+**Epic:** E30 — Idea→Script Block
+**Sprint:** P5
+**Status:** planned
+**Priority:** high
+**Points:** 8
+**Depends on:** P5-S5
+
+### Goal
+Replace the current write→score→fact-check→refine loop (full script regeneration per iteration, $1–$3/run) with a deterministic content compiler: Blueprint IR → single-pass script generation → Haiku-based integrity check → targeted patch repair if needed. Target cost: $0.05–$0.10/run. Removes `web_search` entirely.
+
+**Decision:** log as D058 — Blueprint IR pattern (spec authored 2026-06-18; the spec document incorrectly labelled itself D057, which is already taken by "Artifacts are truth, state is message bus").
+
+### Architecture (10-node DAG)
+```
+IdeaToScriptInput
+  → [0] context_normalization   (deterministic — no LLM)
+  → [1] blueprint_generation    (Sonnet — single pass, outputs Blueprint IR)
+  → [2] evaluation              (Sonnet — fact + score + signal alignment, ONE call)
+  → [3] blueprint_merge         (deterministic — applies evaluation patches to Blueprint)
+  → [4] hook_generation         (Haiku — 3 hook variants)
+  → [5] hook_selection          (Haiku — pick best)
+  → [6] script_generation       (Sonnet — SINGLE PASS from blueprint + hook, no retries)
+  → [7] integrity_check         (Haiku — hallucination / consistency / structure check)
+      ├── PASS → script_packager → END
+      └── FAIL →
+          → [8] patch_generator  (Haiku — minimal diff instructions, NOT full rewrite)
+          → [9] apply_patch      (deterministic — string merge from Patch schema)
+          → [10] re_check        (Haiku — same as integrity_check, max 1 retry)
+              ├── PASS → script_packager → END
+              └── FAIL → mark manual_review, store artifact → END
+```
+
+**MAX_INTEGRITY_LOOPS = 2** (one repair cycle max; never full rewrite).
+
+### New Schemas (add to `cf_platform/core/schemas.py` or new `idea_to_script_schemas.py`)
+```
+Signal(source, content, signal_type, weight, url?)          — optional, stubs for now
+DirectionContext(angle, narrative_bias, hook_direction?, do_not_focus_on)
+IdeaToScriptInput(idea_title, signals=[], direction_context=None)
+NormalizedContext(primary_angle, evidence_summary, top_signals, controversies, hook_bias)
+Section(title, key_points)
+Blueprint(hook_angle, structure, claims, monetization_angle, required_evidence, signal_summary, direction_alignment_notes)
+IntegrityIssue(description, span?, severity)
+IntegrityReport(passed, issues)
+Patch(operation: replace|insert|delete, target: str, replacement: str?)
+IdeaToScriptOutput(script, blueprint, integrity_report, cost_meta, version)
+```
+
+### Acceptance Criteria
+- [ ] All schemas above defined and importable; `Signal` and `DirectionContext` are optional stubs (no upstream discovery stage required)
+- [ ] `Patch` schema is machine-parseable: `operation`, `target` (verbatim text to find), `replacement` — patch_generator must output structured JSON, not prose instructions
+- [ ] `context_normalization` and `blueprint_merge` and `apply_patch` contain zero LLM calls (pure functions)
+- [ ] `script_generation` calls the LLM exactly once; no retries, no variants, no loop
+- [ ] `evaluation` combines fact-check + score + alignment into ONE Sonnet call (no `web_search` tool)
+- [ ] `MAX_INTEGRITY_LOOPS = 2` enforced; on persistent failure the run stores the artifact with `status=manual_review` and exits gracefully
+- [ ] Existing workers deprecated: `script_writer`, `script_quality_scorer`, `fact_checker`, `script_refiner` replaced by new nodes; `script_packager` retained for final artifact packaging
+- [ ] `build_idea_to_script_graph` topology updated to new 10-node DAG; `build_refine_loop_graph` updated or removed
+- [ ] `IdeaToScriptState` retains `run_id`, `user_id`, `inputs`, `iteration`, `max_iterations`, `artifacts`; removes `scorer_verdict`, `factcheck_verdict`, `quality_threshold`, `unverified_threshold`; gains `integrity_loops: Annotated[int, operator.add]`
+- [ ] `niche` from `state.inputs` flows into `blueprint_generation` and `evaluation` nodes (P6-S6 wires this — AC here is that the nodes read it, defaulting to generic framing when absent)
+- [ ] `target_duration_seconds` in `IdeaToScriptState` (from P6-S5) flows into `script_generation` node — node reads `getattr(state, "target_duration_seconds", 60)` for word-count target
+- [ ] D058 logged in `DECISIONS.md`
+- [ ] REST endpoint `POST /platform/blocks/idea-to-script` and Telegram `/script` command continue to work unchanged (backward-safe interface contract)
+- [ ] **Human touchpoint:** Telegram `/script <idea>` → script artifact under $0.15 (verified in DEV smoke test)
+- [ ] Tests: unit tests for each node; deterministic nodes (normalization, merge, apply_patch) tested without mocks; cost assertion in E2E integration test (~$0.05–$0.10 per mocked run)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
 ## EPIC 31 — Orchestrator + Legacy Bridge (Sprint P6)
 Parent graph chains the blocks + legacy render via the adapter; HITL gates (D047, D052).
 
