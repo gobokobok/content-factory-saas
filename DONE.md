@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P6-S4] End-to-end /produce → video
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/interfaces/telegram.py`: `parse_produce_command(text) → Optional[str]`; `parse_produce_args(args) → tuple[str, int]` (splits niche + `--duration <n>` flag, defaults 60); `format_produce_running(niche)`, `format_produce_usage()`, `format_produce_reply(niche, run_id, video_url)`; `format_unrecognized_command` updated to mention `/produce`.
+- `cf_platform/core/artifact_manager.py`: `ArtifactStorage` Protocol gains `generate_presigned_url(key, expires_in=86400) → str`; `InMemoryArtifactStorage` returns a deterministic fake URL for tests; `R2ArtifactStorage` calls boto3 `generate_presigned_url("get_object", ...)` — no new dependency.
+- `cf_platform/interfaces/api.py`: `_run_produce_and_reply` background coroutine — creates a `full_pipeline` run, builds `PipelineState(inputs={"niche": ...}, target_duration_seconds=...)`, runs `build_full_pipeline_graph`, generates a 24-hour presigned URL for `result.artifacts["video"]`, sends reply to Telegram. `POST /platform/pipeline/produce` REST endpoint (`ProduceRequest(niche, target_duration_seconds=60)` / `ProduceResponse(run_id, video_r2_key, video_url)`) — same logic, synchronous. `/produce` branch added to `telegram_webhook` handler (before `/ideas` and `/script`): parses args, sends ack, schedules `_run_produce_and_reply` as a BackgroundTask. Added imports: `build_full_pipeline_graph`, `PipelineState`, produce formatters/parsers.
+- 26 tests in `tests/cf_platform/test_p6_s4_produce.py`; 1473 total passing (CI green).
+**Smoke test:** DEFERRED — requires DEV deploy with full env (Pexels + ElevenLabs + ffmpeg). Human touchpoint: operator sends `/produce american housing economics` → receives presigned URL → downloads `final.mp4`.
+**Promoted to backlog:** none.
+
+---
+
 ## [P6-S2] Legacy-as-node + parent graph (+ PipelineState)
 **Completed:** 2026-06-18
 **Handover:**

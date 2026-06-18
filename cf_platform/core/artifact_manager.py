@@ -44,6 +44,10 @@ class ArtifactStorage(Protocol):
         """Return all keys starting with prefix. Returns an empty list if none exist."""
         ...
 
+    async def generate_presigned_url(self, key: str, expires_in: int = 86400) -> str:
+        """Return a presigned GET URL for key, valid for expires_in seconds."""
+        ...
+
 
 class ArtifactRepository(Protocol):
     """Postgres-index interface for Artifact rows (P2-S3, D048).
@@ -104,6 +108,10 @@ class InMemoryArtifactStorage:
     async def list_keys(self, prefix: str) -> list[str]:
         """Return all keys starting with prefix. Returns an empty list if none exist."""
         return [key for key in self._objects if key.startswith(prefix)]
+
+    async def generate_presigned_url(self, key: str, expires_in: int = 86400) -> str:
+        """Return a fake presigned URL for testing — not a real R2 URL."""
+        return f"https://fake-r2.example.com/{key}?expires={expires_in}"
 
 
 class R2ArtifactStorage:
@@ -171,6 +179,20 @@ class R2ArtifactStorage:
             return [obj["Key"] for obj in response.get("Contents", [])]
         except (BotoCoreError, ClientError, Exception) as exc:
             raise ArtifactStorageError(f"R2 list failed for prefix '{prefix}': {exc}") from exc
+
+    async def generate_presigned_url(self, key: str, expires_in: int = 86400) -> str:
+        """Generate a presigned GET URL for `key`, valid for `expires_in` seconds (default 24 h)."""
+        return await asyncio.to_thread(self._generate_presigned_url_sync, key, expires_in)
+
+    def _generate_presigned_url_sync(self, key: str, expires_in: int) -> str:
+        try:
+            return self._client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self._bucket, "Key": key},
+                ExpiresIn=expires_in,
+            )
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise ArtifactStorageError(f"R2 presign failed for '{key}': {exc}") from exc
 
 
 def _artifact_prefix(user_id: str, run_id: str, stage: str, name: str) -> str:

@@ -179,9 +179,119 @@ def format_script_reply(script_artifact: "ScriptArtifact") -> str:
     return text
 
 
+def parse_produce_command(text: str) -> Optional[str]:
+    """Parse a `/produce <niche>` command.
+
+    Returns the args text (possibly empty if no niche was given), or None if
+    `text` is not a `/produce` command at all.
+    """
+    stripped = text.strip()
+    if not (stripped == "/produce" or stripped.startswith("/produce ")):
+        return None
+    return stripped[len("/produce"):].strip()
+
+
+_PRODUCE_DURATION_FLAG_RE = re.compile(r"\s*--duration\s+(\d+)\s*$")
+
+
+def parse_produce_args(args: str) -> tuple[str, int]:
+    """Split `args` (text after `/produce`) into (niche, target_duration_seconds).
+
+    Extracts a trailing `--duration <seconds>` flag. Defaults to 60 s when the
+    flag is absent or the value is not a positive integer.
+
+    Examples:
+        "american housing economics"                   → ("american housing economics", 60)
+        "american housing economics --duration 45"     → ("american housing economics", 45)
+        "coffee culture --duration 0"                  → ("coffee culture", 60)
+    """
+    match = _PRODUCE_DURATION_FLAG_RE.search(args)
+    if match:
+        niche = args[: match.start()].strip()
+        try:
+            seconds = int(match.group(1))
+        except ValueError:
+            seconds = _DEFAULT_DURATION_SECONDS
+        duration = seconds if seconds > 0 else _DEFAULT_DURATION_SECONDS
+        return (niche, duration)
+    return (args.strip(), _DEFAULT_DURATION_SECONDS)
+
+
+def format_produce_running(niche: str) -> str:
+    """Format the immediate ack sent before the full pipeline run starts (D049)."""
+    return f'Producing video for "{niche}"... this takes ~5–10 minutes.'
+
+
+def format_produce_usage() -> str:
+    """Format the reply when `/produce` is sent without a niche (D049)."""
+    return "Usage: /produce <niche> [--duration <seconds>] — e.g. /produce american housing economics --duration 45"
+
+
+_PRODUCE_URL_EXPIRY_LABEL = "24 h"
+
+
+def format_produce_reply(niche: str, run_id: str, video_url: str) -> str:
+    """Format the finished video reply after the full pipeline completes (D049, P6-S4).
+
+    Shows the niche, run_id, a presigned download URL, and the URL expiry label.
+    Plain string only — never serializes any internal schema to chat.
+    """
+    return (
+        f'Video ready — "{niche}"\n'
+        f"Run: {run_id}\n\n"
+        f"Download (expires {_PRODUCE_URL_EXPIRY_LABEL}):\n{video_url}"
+    )
+
+
+_HITL_SCRIPT_PREVIEW_LIMIT = 2000
+
+
+def format_script_approval_request(run_id: str, script_preview: str) -> str:
+    """Format the HITL script-approval message sent when the pipeline gate fires (D049, P6-S3).
+
+    Shows the first `_HITL_SCRIPT_PREVIEW_LIMIT` characters of the script and
+    instructions for approving or rejecting. Plain string only.
+    """
+    if len(script_preview) > _HITL_SCRIPT_PREVIEW_LIMIT:
+        preview = script_preview[:_HITL_SCRIPT_PREVIEW_LIMIT] + "..."
+    else:
+        preview = script_preview
+    return (
+        f"Script ready for approval (run {run_id}):\n\n"
+        f"{preview}\n\n"
+        f"Reply /approve {run_id} to continue or /reject {run_id} to cancel."
+    )
+
+
+def parse_hitl_decision(text: str) -> Optional[tuple[str, str]]:
+    """Parse an `/approve <run_id>` or `/reject <run_id>` Telegram command.
+
+    Returns (decision, run_id) where decision is "approve" or "reject".
+    Returns None if `text` is not a complete, recognized HITL command.
+    """
+    stripped = text.strip()
+    for decision in ("approve", "reject"):
+        prefix = f"/{decision} "
+        if stripped.startswith(prefix):
+            run_id = stripped[len(prefix):].strip()
+            if run_id:
+                return (decision, run_id)
+    return None
+
+
+def format_hitl_approved(run_id: str) -> str:
+    """Format the ack sent when the operator approves a pipeline run (D049, P6-S3)."""
+    return f"Run {run_id} approved — continuing to render..."
+
+
+def format_hitl_rejected(run_id: str) -> str:
+    """Format the ack sent when the operator rejects a pipeline run (D049, P6-S3)."""
+    return f"Run {run_id} rejected — pipeline cancelled."
+
+
 def format_unrecognized_command(text: str) -> str:
     """Format the reply for any unrecognized command or message (D049)."""
-    return "Sorry, I didn't understand that. Try: /ideas <niche> or /script <idea title>"
+    return "Sorry, I didn't understand that. Try: /ideas <niche>, /script <idea title>, or /produce <niche>"
 
 
 def is_chat_allowed(chat_id: int, allowed_chat_ids: str) -> bool:

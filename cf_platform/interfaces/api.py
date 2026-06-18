@@ -47,6 +47,9 @@ from cf_platform.interfaces.telegram import (
     TelegramClient,
     format_ideas_running,
     format_ideas_usage,
+    format_produce_reply,
+    format_produce_running,
+    format_produce_usage,
     format_ranked_ideas,
     format_script_reply,
     format_script_running,
@@ -54,9 +57,13 @@ from cf_platform.interfaces.telegram import (
     format_unrecognized_command,
     is_chat_allowed,
     parse_ideas_command,
+    parse_produce_args,
+    parse_produce_command,
     parse_script_command,
     parse_script_duration_args,
 )
+from cf_platform.orchestrator.full_pipeline import build_full_pipeline_graph
+from cf_platform.core.schemas import PipelineState
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.sources.google_trends import GoogleTrendsAdapter
 from cf_platform.sources.reddit import RedditAdapter
@@ -626,6 +633,135 @@ async def _run_script_and_reply(
         _logger.exception("TelegramClient.send_message failed for chat_id=%s: %s", chat_id, exc)
 
 
+_PRODUCE_VIDEO_URL_EXPIRY = 86400  # 24 hours
+
+
+async def _run_produce_and_reply(
+    chat_id: int,
+    niche: str,
+    settings: PlatformSettings,
+    adapters: list,
+    storage: ArtifactStorage,
+    registry: WorkerRegistry,
+    runs: RunRepository,
+    executions: ExecutionRepository,
+    artifacts: ArtifactRepository,
+    trace_events: TraceEventRepository,
+    checkpointer: BaseCheckpointSaver,
+    target_duration_seconds: int = 60,
+) -> None:
+    """Run the full niche→ideas→script→render pipeline in the background and reply with the video URL.
+
+    Separated from the webhook handler so the handler can return {"ok": True} immediately —
+    the full pipeline run takes 5–10 minutes (LLM calls + ffmpeg render).
+    `target_duration_seconds` is parsed from the `/produce ... --duration <n>` flag (P6-S5).
+    """
+    client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
+    try:
+        run_inputs: dict[str, Any] = {"niche": niche}
+        run = await create_run(_PLATFORM_USER_ID, "full_pipeline", run_inputs, runs)
+        run = await transition_run(run.run_id, "running", runs)
+
+        graph = build_full_pipeline_graph(
+            storage=storage,
+            registry=registry,
+            executions=executions,
+            artifact_repo=artifacts,
+            adapters=adapters,
+            trace_repo=trace_events,
+            anthropic_api_key=settings.ANTHROPIC_API_KEY,
+            checkpointer=checkpointer,
+        )
+        state = PipelineState(
+            run_id=run.run_id,
+            user_id=_PLATFORM_USER_ID,
+            inputs=run_inputs,
+            target_duration_seconds=target_duration_seconds,
+        )
+        result = await run_graph(graph, state, thread_id=run.run_id)
+        await transition_run(run.run_id, "complete", runs)
+
+        video_r2_key: str = result.artifacts["video"]
+        video_url = await storage.generate_presigned_url(video_r2_key, expires_in=_PRODUCE_VIDEO_URL_EXPIRY)
+        reply = format_produce_reply(niche, run.run_id, video_url)
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception(
+            "_run_produce_and_reply failed for niche=%r chat_id=%s: %s", niche, chat_id, exc
+        )
+        short = str(exc)[:200]
+        reply = f"Error running /produce: {type(exc).__name__}: {short}"
+
+    try:
+        await client.send_message(chat_id, reply)
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception("TelegramClient.send_message failed for chat_id=%s: %s", chat_id, exc)
+
+
+class ProduceRequest(BaseModel):
+    """Request body for POST /platform/pipeline/produce."""
+
+    niche: str
+    target_duration_seconds: int = 60
+
+
+class ProduceResponse(BaseModel):
+    """Response body for POST /platform/pipeline/produce."""
+
+    run_id: str
+    video_r2_key: str
+    video_url: str
+
+
+@router.post("/pipeline/produce", response_model=ProduceResponse)
+async def produce(
+    body: ProduceRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    registry: WorkerRegistry = Depends(get_worker_registry),
+    runs: RunRepository = Depends(get_run_repository),
+    executions: ExecutionRepository = Depends(get_execution_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+    checkpointer: BaseCheckpointSaver = Depends(get_graph_checkpointer),
+    settings: PlatformSettings = Depends(get_platform_settings),
+    adapters: list[tuple[str, SourceAdapter]] = Depends(get_discovery_adapters),
+) -> ProduceResponse:
+    """Run the full niche→ideas→script→render pipeline and return a presigned video URL.
+
+    Chains all three blocks (niche_to_ideas, idea_to_script, legacy_render) as a single
+    PipelineState run.  Returns the R2 key and a presigned download URL (24-hour expiry)
+    for the finished video file.  The caller is responsible for waiting — this endpoint
+    is synchronous and will hold the connection for the duration of the pipeline run
+    (~5–10 minutes).  For fire-and-forget use, prefer the Telegram `/produce` command.
+    """
+    run_inputs: dict[str, Any] = {"niche": body.niche}
+    run = await create_run(_PLATFORM_USER_ID, "full_pipeline", run_inputs, runs)
+    run = await transition_run(run.run_id, "running", runs)
+
+    graph = build_full_pipeline_graph(
+        storage=storage,
+        registry=registry,
+        executions=executions,
+        artifact_repo=artifacts,
+        adapters=adapters,
+        trace_repo=trace_events,
+        anthropic_api_key=settings.ANTHROPIC_API_KEY,
+        checkpointer=checkpointer,
+    )
+    state = PipelineState(
+        run_id=run.run_id,
+        user_id=_PLATFORM_USER_ID,
+        inputs=run_inputs,
+        target_duration_seconds=body.target_duration_seconds,
+    )
+    result = await run_graph(graph, state, thread_id=run.run_id)
+    await transition_run(run.run_id, "complete", runs)
+
+    video_r2_key: str = result.artifacts["video"]
+    video_url = await storage.generate_presigned_url(video_r2_key, expires_in=_PRODUCE_VIDEO_URL_EXPIRY)
+
+    return ProduceResponse(run_id=run.run_id, video_r2_key=video_r2_key, video_url=video_url)
+
+
 @router.post("/telegram/webhook", include_in_schema=False)
 async def telegram_webhook(
     update: TelegramUpdate,
@@ -663,10 +799,35 @@ async def telegram_webhook(
     chat_id = update.message.chat.id
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
 
+    produce_args = parse_produce_command(update.message.text)
     niche = parse_ideas_command(update.message.text)
     idea_title = parse_script_command(update.message.text)
 
-    if niche is not None:
+    if produce_args is not None:
+        if not produce_args:
+            await client.send_message(chat_id, format_produce_usage())
+        else:
+            parsed_niche, duration = parse_produce_args(produce_args)
+            if not parsed_niche:
+                await client.send_message(chat_id, format_produce_usage())
+            else:
+                await client.send_message(chat_id, format_produce_running(parsed_niche))
+                background_tasks.add_task(
+                    _run_produce_and_reply,
+                    chat_id=chat_id,
+                    niche=parsed_niche,
+                    settings=settings,
+                    adapters=adapters,
+                    storage=storage,
+                    registry=registry,
+                    runs=runs,
+                    executions=executions,
+                    artifacts=artifacts,
+                    trace_events=trace_events,
+                    checkpointer=checkpointer,
+                    target_duration_seconds=duration,
+                )
+    elif niche is not None:
         if not niche:
             await client.send_message(chat_id, format_ideas_usage())
         else:
