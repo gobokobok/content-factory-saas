@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [post-P5-S6] Narrative Lens worker — storytelling angles from verified facts only
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/core/idea_to_script_schemas.py`: `NarrativeLens` schema added — `identity_angle`, `contrarian_angle`, `philosophical_angle`, `emotional_angle`, `story_devices: list[str]`.
+- `cf_platform/workers/narrative_lens.py`: Haiku worker inserted between `blueprint_merge` and `hook_generation`. Reads only `merged_blueprint.claims` + `evaluation.factual_corrections` + `blueprint.required_evidence` — deliberately excludes `signal_summary` and raw context (D059). One Haiku call, ~$0.005/run.
+- `cf_platform/workers/hook_generator.py`: optionally reads `narrative_lens` artifact; injects contrarian/identity/emotional angles into hook generation prompt.
+- `cf_platform/workers/script_generator.py`: optionally reads `narrative_lens` artifact; injects all 4 angles + story devices with "70% rational / 30% emotional" instruction. Forbids inventing new facts to support angles.
+- `cf_platform/blocks/idea_to_script.py`: 12-node DAG (was 11); 12 registered workers.
+- `DECISIONS.md`: D059 (Narrative Lens Contract — no new factual content), D060 (Information Ownership Principle — each worker owns one domain).
+- 18 tests in `test_narrative_lens.py`; 558 total tests passing.
+**Smoke test:** PASSED (2026-06-18) — DEV run: $0.07, 110s. Script quality improved: hook changed from abstract "I spend €200" to tension-forward "Fast fashion addicts are spending 10× more than premium workwear buyers." Contrarian framing moved to paragraph 2 ("The cheap option is the expensive habit"). Closing line became punchy and quotable.
+**Promoted to backlog:** none. Flag noted: hook said "10×" but cost-per-wear math only proves ~1.5×; integrity checker should catch future overstatements.
+
+---
+
 ## [P5-S6] Rearchitect Idea→Script — Blueprint IR + single-pass + patch repair
 **Completed:** 2026-06-18
 **Handover:**
