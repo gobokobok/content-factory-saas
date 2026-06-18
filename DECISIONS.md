@@ -5,6 +5,16 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D061 — TTS provider: ElevenLabs alternatives (candidate)
+**Date:** 2026-06-18
+**Status:** CANDIDATE — not yet implemented
+**Decision:** Evaluate **OpenAI TTS** (`tts-1` / `tts-1-hd`, via `POST /v1/audio/speech`) as a drop-in replacement for ElevenLabs in `src/tts.py`. OpenAI TTS costs $15/M chars (`tts-1`) vs ElevenLabs Starter at ~$22/M chars, is already available under the existing OpenAI account (no new vendor), returns MP3 directly (no PCM→ffmpeg re-encode step needed), and exposes 6 built-in voices. Down-sides: no voice cloning, quality ceiling below ElevenLabs HD, no multilingual accent control.
+**Rationale:** The operator flagged ElevenLabs cost as a concern. OpenAI TTS is the lowest-friction swap — no new API key, simpler response shape, and noticeably cheaper at POC volumes. Google Cloud TTS (WaveNet/Neural2, $4/M chars on free tier) is a stronger long-term option if quality matters, but requires a new GCP service account.
+**Consequence:** If adopted, `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` env vars are replaced by `OPENAI_API_KEY` (likely already present) + `OPENAI_TTS_VOICE` (default `alloy`). No new `requirements.txt` dependency if `openai` SDK is already listed; otherwise add it with a new entry.
+**See:** `src/tts.py`. **No dependencies added yet.**
+
+---
+
 ## D060 — Information Ownership Principle
 **Date:** 2026-06-18
 **Decision:** Every worker in the pipeline owns exactly one type of information and may not cross into another worker's ownership domain. Current assignments: Discovery Worker owns research; Evaluator owns truth (fact-checking + alignment scoring); Narrative Lens Worker owns storytelling; Script Generator owns prose; Integrity Checker owns enforcement. Workers may transform information received from upstream workers but may not create information that belongs to another worker's domain.

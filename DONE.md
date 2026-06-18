@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P6-S5] Target duration parameter (run-level → script writer)
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/core/schemas.py`: `IdeaToScriptState` gains `target_duration_seconds: int = 60` — typed field (plain assignment, not a reducer). Workers already read it via `getattr(state, "target_duration_seconds", 60)`; now a first-class typed channel so P6-S2 can wire `PipelineState → IdeaToScriptState` without `getattr` hacks.
+- `cf_platform/workers/script_packager.py`: `ScriptArtifact` gains `length_ok: bool = True`. Packager computes `target_words = round(generated.target_duration_seconds * 160/60)` and sets `length_ok = abs(word_count - target_words) / max(target_words, 1) <= 0.20`. Deterministic — no LLM call. `_WORDS_PER_SECOND = 160/60` and `_LENGTH_TOLERANCE = 0.20` constants added.
+- `cf_platform/interfaces/telegram.py`: `parse_script_duration_args(args: str) -> Tuple[str, int]` — strips trailing `--duration <n>` flag from the idea title, returns `(title, seconds)`; defaults to 60 when absent or `n <= 0`. `format_script_usage()` updated to mention the flag. `re` import added.
+- `cf_platform/interfaces/api.py`: `IdeaToScriptRequest` gains `target_duration_seconds: int = 60`; route handler sets `state_kwargs["target_duration_seconds"] = body.target_duration_seconds`; `_run_script_and_reply` gains `target_duration_seconds: int = 60` kwarg and passes it to `IdeaToScriptState`; webhook handler calls `parse_script_duration_args(idea_title)` to split the flag before dispatching the background task.
+- 18 tests in `tests/cf_platform/test_p6_s5_duration.py`; 1434 total passing (was 1411, CI green).
+**Smoke test:** DEFERRED — exercised end-to-end when `/produce` lands in P6-S4.
+**Promoted to backlog:** none.
+
+---
+
 ## [P6-S1] Legacy adapter (interface + in-process impl)
 **Completed:** 2026-06-18
 **Handover:**

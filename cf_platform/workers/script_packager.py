@@ -20,6 +20,9 @@ from cf_platform.core.idea_to_script_schemas import GeneratedScriptArtifact
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 
+_WORDS_PER_SECOND = 160 / 60  # standard narration pace
+_LENGTH_TOLERANCE = 0.20  # 20% over/under target_words triggers length_ok=False
+
 SCRIPT_PACKAGER_REGISTRATION = WorkerRegistration(
     worker_version="2.0.0",
     prompt_version="v2",
@@ -42,6 +45,7 @@ class ScriptArtifact(BaseModel):
     overall_score: Optional[float] = None  # not computed in Blueprint IR pipeline (P5-S6)
     draft_number: Optional[int] = None  # not applicable in Blueprint IR pipeline
     status: Literal["ok", "manual_review"] = "ok"
+    length_ok: bool = True  # False when word_count is >20% over or under target_words (P6-S5)
     generated_at: datetime
 
 
@@ -51,12 +55,14 @@ def build_script_packager_worker(storage: ArtifactStorage) -> WorkerNode:
     Reads state.artifacts['generated_script'] → GeneratedScriptArtifact.
     Sets status='manual_review' when state.integrity_loops >= _MAX_INTEGRITY_LOOPS
     and state.integrity_verdict == 'retry' (integrity repair exhausted).
+    Sets length_ok=False when word_count is >20% over or under the target_words
+    derived from generated.target_duration_seconds (P6-S5, deterministic — no LLM).
 
     Raises KeyError if the generated_script artifact reference is absent.
     """
 
     async def script_packager(state: StageState) -> WorkerOutput:
-        """Pick final script from generated_script artifact; set status if manual_review."""
+        """Pick final script from generated_script artifact; set status and length_ok."""
         script_key = state.artifacts.get("generated_script")
         if not script_key:
             raise KeyError(
@@ -74,6 +80,13 @@ def build_script_packager_worker(storage: ArtifactStorage) -> WorkerNode:
             integrity_verdict == "retry" and integrity_loops >= _MAX_INTEGRITY_LOOPS
         )
 
+        # Deterministic length check — no LLM call (P6-S5)
+        target_words = round(generated.target_duration_seconds * _WORDS_PER_SECOND)
+        length_ok = (
+            abs(generated.word_count - target_words) / max(target_words, 1)
+            <= _LENGTH_TOLERANCE
+        )
+
         artifact = ScriptArtifact(
             idea_title=generated.idea_title,
             niche=generated.niche,
@@ -82,6 +95,7 @@ def build_script_packager_worker(storage: ArtifactStorage) -> WorkerNode:
             overall_score=None,
             draft_number=None,
             status="manual_review" if is_manual_review else "ok",
+            length_ok=length_ok,
             generated_at=datetime.now(timezone.utc),
         )
         return WorkerOutput(artifact=artifact)

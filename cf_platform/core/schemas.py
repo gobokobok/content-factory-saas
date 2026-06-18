@@ -197,3 +197,4 @@ class IdeaToScriptState(StageState):
     max_iterations: int = 3
     integrity_loops: Annotated[int, operator.add] = 0
     integrity_verdict: ControlSignal = "continue"
+    target_duration_seconds: int = 60

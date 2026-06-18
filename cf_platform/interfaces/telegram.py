@@ -10,7 +10,8 @@ D049 rules enforced here:
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+import re
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import httpx
 
@@ -118,6 +119,34 @@ def parse_script_command(text: str) -> Optional[str]:
     return stripped[len("/script"):].strip()
 
 
+_DURATION_FLAG_RE = re.compile(r"\s*--duration\s+(\d+)\s*$")
+_DEFAULT_DURATION_SECONDS = 60
+
+
+def parse_script_duration_args(args: str) -> Tuple[str, int]:
+    """Split `args` (text after `/script`) into (idea_title, target_duration_seconds).
+
+    Extracts a trailing `--duration <seconds>` flag. Defaults to 60 s when the
+    flag is absent or the value is not a positive integer. The flag must appear at
+    the end of the string.
+
+    Examples:
+        "Why starter homes vanished"              → ("Why starter homes vanished", 60)
+        "Why starter homes vanished --duration 45" → ("Why starter homes vanished", 45)
+        "Topic --duration 0"                       → ("Topic", 60)  # 0 is not positive
+    """
+    match = _DURATION_FLAG_RE.search(args)
+    if match:
+        title = args[: match.start()].strip()
+        try:
+            seconds = int(match.group(1))
+        except ValueError:
+            seconds = _DEFAULT_DURATION_SECONDS
+        duration = seconds if seconds > 0 else _DEFAULT_DURATION_SECONDS
+        return (title, duration)
+    return (args.strip(), _DEFAULT_DURATION_SECONDS)
+
+
 def format_script_running(idea_title: str) -> str:
     """Format the immediate ack sent before the background idea→script run starts (D049)."""
     return f'Writing script for "{idea_title}"... results in ~90 s.'
@@ -125,7 +154,7 @@ def format_script_running(idea_title: str) -> str:
 
 def format_script_usage() -> str:
     """Format the reply when `/script` is sent without an idea title (D049)."""
-    return "Usage: /script <idea title> — e.g. /script Why starter homes vanished"
+    return "Usage: /script <idea title> [--duration <seconds>] — e.g. /script Why starter homes vanished --duration 45"
 
 
 _SCRIPT_REPLY_CHAR_LIMIT = 4000

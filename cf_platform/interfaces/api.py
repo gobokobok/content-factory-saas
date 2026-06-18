@@ -55,6 +55,7 @@ from cf_platform.interfaces.telegram import (
     is_chat_allowed,
     parse_ideas_command,
     parse_script_command,
+    parse_script_duration_args,
 )
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.sources.google_trends import GoogleTrendsAdapter
@@ -313,6 +314,7 @@ class IdeaToScriptRequest(BaseModel):
     angle: Optional[str] = None
     supporting_points: Optional[list[str]] = None
     max_iterations: Optional[int] = None
+    target_duration_seconds: int = 60
 
 
 class IdeaToScriptResponse(BaseModel):
@@ -358,7 +360,7 @@ async def idea_to_script(
     run = await create_run(_PLATFORM_USER_ID, "idea_to_script", run_inputs, runs)
     run = await transition_run(run.run_id, "running", runs)
 
-    state_kwargs: dict[str, Any] = {}
+    state_kwargs: dict[str, Any] = {"target_duration_seconds": body.target_duration_seconds}
     if body.max_iterations is not None:
         state_kwargs["max_iterations"] = body.max_iterations
 
@@ -573,11 +575,13 @@ async def _run_script_and_reply(
     executions: ExecutionRepository,
     artifacts: ArtifactRepository,
     checkpointer: BaseCheckpointSaver,
+    target_duration_seconds: int = 60,
 ) -> None:
     """Run the full idea→script block in the background and push the script to Telegram.
 
     Separated from the webhook handler so the handler can return {"ok": True} immediately —
     Telegram's 60-second response timeout is too short for a multi-iteration LLM graph.
+    `target_duration_seconds` is parsed from the `/script ... --duration <n>` flag (P6-S5).
     """
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
     try:
@@ -594,7 +598,10 @@ async def _run_script_and_reply(
             checkpointer=checkpointer,
         )
         state = IdeaToScriptState(
-            run_id=run.run_id, user_id=_PLATFORM_USER_ID, inputs=run_inputs
+            run_id=run.run_id,
+            user_id=_PLATFORM_USER_ID,
+            inputs=run_inputs,
+            target_duration_seconds=target_duration_seconds,
         )
         result = await run_graph(graph, state, thread_id=run.run_id)
         await transition_run(run.run_id, "complete", runs)
@@ -682,11 +689,12 @@ async def telegram_webhook(
         if not idea_title:
             await client.send_message(chat_id, format_script_usage())
         else:
-            await client.send_message(chat_id, format_script_running(idea_title))
+            parsed_title, duration = parse_script_duration_args(idea_title)
+            await client.send_message(chat_id, format_script_running(parsed_title))
             background_tasks.add_task(
                 _run_script_and_reply,
                 chat_id=chat_id,
-                idea_title=idea_title,
+                idea_title=parsed_title,
                 settings=settings,
                 storage=storage,
                 registry=registry,
@@ -694,6 +702,7 @@ async def telegram_webhook(
                 executions=executions,
                 artifacts=artifacts,
                 checkpointer=checkpointer,
+                target_duration_seconds=duration,
             )
     else:
         await client.send_message(chat_id, format_unrecognized_command(update.message.text))
