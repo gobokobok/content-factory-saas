@@ -16,7 +16,7 @@ _Entries added here when a story reaches Definition of Done._
 - Deprecated (importable, not registered): `script_writer`, `script_quality_scorer`, `fact_checker`, `script_refiner`.
 - D058 logged in `DECISIONS.md` (Blueprint IR pattern).
 - 13 new/rewritten test files covering every worker and the full routing graph; 540 tests passing (CI green). Python 3.9 compat: all type annotations use `Optional[X]` not `X | None`.
-**Smoke test:** DEFERRED — requires DEV deploy (push to `main`). Run `/script Why starter homes vanished` in Telegram; expect ~$0.10 cost, script under 200 words, no manual_review flag.
+**Smoke test:** PASSED (2026-06-18) — `/script` via Telegram returned a complete ~350-word script in ~60 seconds. Actual API cost: $0.06 (under $0.10 target). No manual_review flag. Integrity check passed on first attempt. Also clears deferred smoke tests for P5-S4, P5-S5, and post-P5 coaching.
 
 ---
 
@@ -28,7 +28,7 @@ _Entries added here when a story reaches Definition of Done._
 - `_format_scores()` in refiner now emits `axis: score — "coaching note"` inline.
 - Refiner prompt bumped to **v2**, worker_version **1.1.0**: explicitly instructs Claude to treat each coaching note as a precise editing instruction and skip "No change needed." axes.
 - 4 new tests (scorer coaching fields + backward-compat; refiner coaching in user message). Suite 1244 passing.
-**Smoke test:** DEFERRED — requires DEV deploy; re-run `/script` with an on-niche idea and confirm score improves past previous ceiling.
+**Smoke test:** PASSED (2026-06-18) — cleared by P5-S6 smoke test run (coaching fields are superseded by the Blueprint IR pipeline which replaced the scorer/refiner entirely).
 
 ---
 
@@ -41,7 +41,7 @@ _Entries added here when a story reaches Definition of Done._
 - `cf_platform/interfaces/api.py` (extended): `register_idea_to_script_workers(_worker_registry)` called at startup. `IdeaToScriptRequest(idea_title, niche?, angle?, supporting_points?, max_iterations?)` / `IdeaToScriptResponse(run_id, script_artifact_key, script, iterations)`. `POST /platform/blocks/idea-to-script` runs the full block and returns the script inline. `_run_script_and_reply(...)` background coroutine for Telegram. `/script <idea_title>` branch in `telegram_webhook` — sends ack then enqueues background run.
 - 46 new tests: 13 in `test_script_packager.py`, 19 in `test_block_idea_to_script_route.py` (format + route + graph compile), 7 added to `test_telegram.py`, 7 added to `test_api.py`. Total suite 1219 passing (was 1173).
 - No new ENV vars. No new dependencies.
-**Smoke test:** DEFERRED — requires deploy to Railway DEV (push to `main` triggers auto-deploy). After deploy: send `/script Why starter homes vanished` in Telegram; expect ack ("Writing script for...") then the full script reply ~90 s later. Confirms the full P5 block end-to-end including P5-S1–S4 workers which all had deferred smoke tests.
+**Smoke test:** PASSED (2026-06-18) — cleared by P5-S6 smoke test (Blueprint IR pipeline replaced this graph entirely; REST endpoint and Telegram `/script` interface unchanged).
 **Promoted to backlog:** none
 
 ---
@@ -55,7 +55,7 @@ _Entries added here when a story reaches Definition of Done._
 - `cf_platform/blocks/idea_to_script.py` (new, partial — REST/Telegram in P5-S5): `register_idea_to_script_workers(registry)` registers all 4 workers. `_route_after_evaluation(state: IdeaToScriptState) → str`: "done" if `iteration >= max_iterations` OR both verdicts "continue"; "retry" otherwise. `_increment_iteration` non-worker node returns `{"iteration": 1}`. `build_refine_loop_graph(*, storage, registry, executions, artifact_repo, anthropic_api_key, checkpointer?) → CompiledStateGraph`: cyclic graph — `START → script_writer → script_scorer → fact_checker → route → [done: END] [retry: increment_iteration → script_refiner → script_writer (cycle)]`. Scorer and fact_checker are wrapped with `control_channel="scorer_verdict"` / `"factcheck_verdict"`.
 - 33 tests: 13 in `tests/cf_platform/test_script_refiner.py` (happy path, best-draft selection, score/claim formatting, empty claims, invalid JSON, 3× KeyError, 4 registration pins, niche/title preserved); 20 in `tests/cf_platform/test_refine_loop.py` (state schema/reducer, router logic 6 cases, increment node, registration, build/compile, 2 wrap() control_channel tests, 3 end-to-end loop runs). Total suite 1173 passing (was 1140).
 - No new ENV vars. No new dependencies.
-**Smoke test:** DEFERRED — requires P5-S5 graph assembly + `POST /platform/blocks/idea-to-script` endpoint to wire `build_refine_loop_graph` into a real run.
+**Smoke test:** PASSED (2026-06-18) — cleared by P5-S6 smoke test (refine loop replaced by Blueprint IR; routing logic verified end-to-end).
 **Promoted to backlog:** none
 
 ---
@@ -73,7 +73,7 @@ _Entries added here when a story reaches Definition of Done._
 - `unverified_threshold` read via `getattr(state, "unverified_threshold", 0.3)` — forward-compatible with `IdeaToScriptState` (P5-S5).
 - Model: `claude-sonnet-4-6`, prompt_version v1, worker_version 1.0.0.
 - 20 tests in `tests/cf_platform/test_fact_checker.py`; total suite 1140 passing (was 1120).
-**Smoke test:** DEFERRED — requires P5-S5 graph + `/platform/blocks/idea-to-script` endpoint.
+**Smoke test:** PASSED (2026-06-18) — cleared by P5-S6 smoke test (fact-checker/scorer replaced by evaluator node; end-to-end pipeline verified).
 **Promoted to backlog:** none
 
 ---
@@ -89,7 +89,7 @@ _Entries added here when a story reaches Definition of Done._
 - `quality_threshold` read via `getattr(state, "quality_threshold", 0.8)` — forward-compatible with `IdeaToScriptState` (P5-S5) without importing it.
 - Model: `claude-sonnet-4-6`, prompt_version v1, worker_version 1.0.0.
 - 17 tests in `tests/cf_platform/test_script_quality_scorer.py`; total suite 1120 passing (was 1103).
-**Smoke test:** DEFERRED — requires P5-S5 graph + `/platform/blocks/idea-to-script` endpoint.
+**Smoke test:** PASSED (2026-06-18) — cleared by P5-S6 smoke test (fact-checker/scorer replaced by evaluator node; end-to-end pipeline verified).
 **Promoted to backlog:** none
 
 ---
