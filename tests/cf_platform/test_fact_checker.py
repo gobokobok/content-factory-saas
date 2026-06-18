@@ -540,6 +540,50 @@ class TestFactCheckerErrors:
         assert report.claims[0].verdict == "supported"  # type: ignore[union-attr]
 
 
+# ── verdict normalisation ─────────────────────────────────────────────────
+
+
+class TestClaimVerificationNormalisation:
+    """ClaimVerification.normalise_verdict maps fuzzy LLM output to canonical values."""
+
+    def test_partially_supported_maps_to_supported(self):
+        """Regression: live failure where Claude returned 'partially supported'."""
+        c = ClaimVerification(claim="x", verdict="partially supported", source="", note="")
+        assert c.verdict == "supported"
+
+    def test_supported_passthrough(self):
+        c = ClaimVerification(claim="x", verdict="supported", source="", note="")
+        assert c.verdict == "supported"
+
+    def test_refuted_passthrough(self):
+        c = ClaimVerification(claim="x", verdict="refuted", source="", note="")
+        assert c.verdict == "refuted"
+
+    def test_unverifiable_passthrough(self):
+        c = ClaimVerification(claim="x", verdict="unverifiable", source="", note="")
+        assert c.verdict == "unverifiable"
+
+    def test_false_maps_to_refuted(self):
+        c = ClaimVerification(claim="x", verdict="false", source="", note="")
+        assert c.verdict == "refuted"
+
+    def test_incorrect_maps_to_refuted(self):
+        c = ClaimVerification(claim="x", verdict="incorrect", source="", note="")
+        assert c.verdict == "refuted"
+
+    def test_inconclusive_maps_to_unverifiable(self):
+        c = ClaimVerification(claim="x", verdict="inconclusive", source="", note="")
+        assert c.verdict == "unverifiable"
+
+    def test_unknown_variant_maps_to_unverifiable(self):
+        c = ClaimVerification(claim="x", verdict="needs more research", source="", note="")
+        assert c.verdict == "unverifiable"
+
+    def test_case_insensitive(self):
+        c = ClaimVerification(claim="x", verdict="Partially Supported", source="", note="")
+        assert c.verdict == "supported"
+
+
 # ── registration ──────────────────────────────────────────────────────────
 
 

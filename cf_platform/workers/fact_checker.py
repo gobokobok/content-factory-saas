@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 import anthropic
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.llm_utils import extract_json_object, strip_markdown_fences
@@ -85,6 +85,23 @@ class ClaimVerification(BaseModel):
     verdict: Literal["supported", "refuted", "unverifiable"]
     source: str
     note: str
+
+    @field_validator("verdict", mode="before")
+    @classmethod
+    def normalise_verdict(cls, v: object) -> str:
+        """Map Claude verdict variants to the canonical three values.
+
+        Claude occasionally returns 'partially supported', 'inconclusive', etc.
+        despite the prompt specifying exactly three values.
+        """
+        if not isinstance(v, str):
+            return v  # let Pydantic raise the real type error
+        low = v.lower().strip()
+        if "support" in low:
+            return "supported"
+        if "refut" in low or "false" in low or "incorrect" in low or "inaccurat" in low:
+            return "refuted"
+        return "unverifiable"
 
 
 class FactcheckReportArtifact(BaseModel):
