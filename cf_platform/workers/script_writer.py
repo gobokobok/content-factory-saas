@@ -165,7 +165,7 @@ def build_script_writer_worker(
         effective_n = int(getattr(state, "max_iterations", n_drafts))
         user_message = _build_user_message(idea_title, niche, angle, supporting_points, effective_n)
 
-        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=90.0)
         response = await client.messages.create(
             model=SCRIPT_WRITER_REGISTRATION.model,
             max_tokens=2048,

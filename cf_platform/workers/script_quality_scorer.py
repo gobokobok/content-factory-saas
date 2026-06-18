@@ -141,7 +141,7 @@ def build_script_quality_scorer_worker(
         drafts_text = [(d.draft_number, d.script) for d in drafts_artifact.drafts]
         user_message = _build_user_message(drafts_artifact.idea_title, drafts_text)
 
-        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=90.0)
         response = await client.messages.create(
             model=SCRIPT_QUALITY_SCORER_REGISTRATION.model,
             max_tokens=1024,

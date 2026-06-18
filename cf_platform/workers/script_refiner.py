@@ -151,7 +151,7 @@ def build_script_refiner_worker(
             claims_text=_format_claims(factcheck_report),
         )
 
-        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=90.0)
         response = await client.messages.create(
             model=SCRIPT_REFINER_REGISTRATION.model,
             max_tokens=1024,

@@ -162,7 +162,7 @@ def build_fact_checker_worker(
             drafts_artifact.idea_title, first_draft.draft_number, first_draft.script
         )
 
-        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=180.0)
         response = await client.messages.create(
             model=FACT_CHECKER_REGISTRATION.model,
             max_tokens=4096,
