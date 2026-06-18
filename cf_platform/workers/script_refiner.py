@@ -1,4 +1,7 @@
-"""Script Refiner worker (P5-S4) — `script_drafts + script_scores + factcheck_report → script_drafts`.
+"""DEPRECATED (P5-S6) — replaced by patch_generator.py + patch_applier.py in the Blueprint IR pipeline (D058).
+Kept importable so legacy tests pass; not registered in the active idea_to_script graph.
+
+Script Refiner worker (P5-S4) — `script_drafts + script_scores + factcheck_report → script_drafts`.
 
 Reads the best-scoring draft (from `script_scores`) together with the factcheck
 report and produces a refined `ScriptDraftsArtifact` containing one corrected,

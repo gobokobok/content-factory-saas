@@ -1,4 +1,7 @@
-"""Fact-checker worker (P5-S3) — `script_drafts → factcheck_report`.
+"""DEPRECATED (P5-S6) — replaced by evaluator.py in the Blueprint IR pipeline (D058).
+Kept importable so legacy tests pass; not registered in the active idea_to_script graph.
+
+Fact-checker worker (P5-S3) — `script_drafts → factcheck_report`.
 
 Reads the first draft from the `script_drafts` artifact produced by the Script
 Writer, extracts specific factual claims, and verifies each via Anthropic's

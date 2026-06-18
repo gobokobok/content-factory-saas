@@ -170,25 +170,30 @@ class NicheToIdeasState(StageState):
 
 
 class IdeaToScriptState(StageState):
-    """Stage state for the idea→script block (plan §5, P5-S4).
+    """Stage state for the idea→script block (plan §5, P5-S6).
 
     Typed control channels only — no artifact bodies (D057).
 
-    `iteration` uses `operator.add` as its reducer so any node returning
-    `{"iteration": 1}` increments the counter without overwriting the
-    accumulated value. The graph (not any worker) owns this counter (D057).
+    Both `iteration` and `integrity_loops` use `operator.add` as their reducer
+    so any node returning `{"iteration": 1}` or `{"integrity_loops": 1}` increments
+    the counter without overwriting the accumulated value. The graph (not any worker)
+    owns these counters (D057).
 
-    Artifact refs populated across nodes:
-      script_writer    → "script_drafts"
-      script_scorer    → "script_scores"
-      fact_checker     → "factcheck_report"
-      script_refiner   → "script_drafts"  (new version each retry)
-      (terminal P5-S5) → "script"
+    Artifact refs populated across nodes (Blueprint IR pipeline, P5-S6):
+      context_normalization → "normalized_context"
+      blueprint_generation  → "blueprint"
+      evaluation            → "evaluation"
+      blueprint_merge       → "merged_blueprint"
+      hook_generation       → "hook_variants"
+      hook_selection        → "selected_hook"
+      script_generation     → "generated_script"
+      integrity_check       → "integrity_report"
+      patch_generator       → "patches"
+      apply_patch           → "generated_script"  (new version, artifact manager versions it)
+      script_packager       → "script"  (terminal)
     """
 
     iteration: Annotated[int, operator.add] = 0
     max_iterations: int = 3
-    quality_threshold: float = 0.8
-    unverified_threshold: float = 0.3
-    scorer_verdict: ControlSignal = "continue"
-    factcheck_verdict: ControlSignal = "continue"
+    integrity_loops: Annotated[int, operator.add] = 0
+    integrity_verdict: ControlSignal = "continue"

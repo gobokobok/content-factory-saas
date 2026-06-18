@@ -1,4 +1,7 @@
-"""Script Writer worker (P5-S1) — `ranked_ideas → script_drafts`.
+"""DEPRECATED (P5-S6) — replaced by blueprint_generator.py + script_generator.py in the Blueprint IR pipeline (D058).
+Kept importable so legacy tests pass; not registered in the active idea_to_script graph.
+
+Script Writer worker (P5-S1) — `ranked_ideas → script_drafts`.
 
 Two entry paths:
 

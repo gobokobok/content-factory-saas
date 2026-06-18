@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-13 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Sprint P1 complete** (16/16 pts). **Sprint P2 complete** (16/16 pts). **Sprint P3 complete** (10/10 pts). **Sprint P4 complete** (13/13 pts). **Sprint P5 complete** (16/16 pts — P5-S1–S5 all done; smoke test for full block pending DEV deploy). **Current sprint:** P6 — Orchestrator + Legacy Bridge. **Next:** P6-S1.
+> - **Sprint P1 complete** (16/16 pts). **Sprint P2 complete** (16/16 pts). **Sprint P3 complete** (10/10 pts). **Sprint P4 complete** (13/13 pts). **Sprint P5 complete** (24/24 pts — all 6 stories done including P5-S6 Blueprint IR rearchitect; DEV smoke test pending deploy). **Current sprint:** P6 — Orchestrator + Legacy Bridge. **Next:** P6-S1.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
@@ -40,7 +40,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P5-S3 | Fact-check tool integration (web search) | 3 | done |
 | P5-S4 | Refine loop + convergence logic ⚠️ spike | 5 | done |
 | P5-S5 | Assemble idea_to_script graph + interfaces (+ IdeaToScriptState) | 2 | done |
-| P5-S6 | Rearchitect Idea→Script — Blueprint IR + single-pass + patch repair | 8 | planned |
+| P5-S6 | Rearchitect Idea→Script — Blueprint IR + single-pass + patch repair | 8 | done |
 
 **Execution order:** P5-S1 → (P5-S2 ∥ P5-S3) → P5-S4 → P5-S5 → P5-S6.
 

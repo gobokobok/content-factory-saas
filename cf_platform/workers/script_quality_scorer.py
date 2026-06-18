@@ -1,4 +1,7 @@
-"""Script Quality Scorer worker (P5-S2) — `script_drafts → script_scores`.
+"""DEPRECATED (P5-S6) — replaced by evaluator.py + integrity_checker.py in the Blueprint IR pipeline (D058).
+Kept importable so legacy tests pass; not registered in the active idea_to_script graph.
+
+Script Quality Scorer worker (P5-S2) — `script_drafts → script_scores`.
 
 Reads the `script_drafts` artifact produced by the Script Writer, then calls
 Claude Sonnet to score each draft on four virality/quality axes plus a weighted

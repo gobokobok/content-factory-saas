@@ -1,25 +1,32 @@
-"""idea_to_script block — writer → scorer → refine (cyclic) → fact_checker → packager.
+"""idea_to_script block — Blueprint IR pipeline (P5-S6, D058).
 
-Provides two graph factories:
-
-  build_refine_loop_graph  (P5-S4) — cyclic loop only (writer/scorer/refiner), ends at
-                                      END after convergence. Used by loop-isolation tests.
-                                      fact_checker is NOT in the loop — it runs once in
-                                      build_idea_to_script_graph on the final draft only.
-
-  build_idea_to_script_graph (P5-S5) — full assembled block; fact_checker runs once after
-                                        the refinement loop converges, then script_packager
-                                        emits the final `ScriptArtifact`. Use for REST +
-                                        Telegram.
+Replaces the cyclic write→score→fact-check→refine loop with a deterministic
+content compiler: context → blueprint → eval → merge → hook → script → integrity
+check → targeted patch repair (max 2 cycles) → package.
 
 Graph topology (build_idea_to_script_graph):
 
-  START → script_writer → script_scorer
-        → conditional(_route_after_scorer):
-            "done"  → fact_checker → script_packager → END
-            "retry" → increment_iteration → script_refiner → script_writer (cycle)
+  START
+    → context_normalization   [0] deterministic
+    → blueprint_generation    [1] Sonnet
+    → evaluation              [2] Sonnet
+    → blueprint_merge         [3] deterministic
+    → hook_generation         [4] Haiku
+    → hook_selection          [5] Haiku
+    → script_generation       [6] Sonnet — single pass, never retried
+    → integrity_check         [7] Haiku
+        "continue" → script_packager → END
+        "retry"    → _increment_integrity_loops
+                    → patch_generator   [8] Haiku
+                    → apply_patch       [9] deterministic
+                    → integrity_check   (cycle, max MAX_INTEGRITY_LOOPS=2)
+        "manual_review" → script_packager → END (status=manual_review)
 
-Canonical spec: docs/v2_platform_plan.md §5.
+`integrity_verdict` is a typed control channel on IdeaToScriptState (D057).
+`integrity_loops` uses Annotated[int, operator.add] so the increment node is
+a pure non-worker that returns {"integrity_loops": 1}.
+
+Canonical spec: docs/v2_platform_plan.md §5 · D058.
 """
 
 from typing import Any, Optional
@@ -32,140 +39,100 @@ from langgraph.graph.state import CompiledStateGraph
 from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage
 from cf_platform.core.schemas import IdeaToScriptState
 from cf_platform.core.worker_registry import ExecutionRepository, WorkerRegistry, wrap
-from cf_platform.workers.fact_checker import FACT_CHECKER_REGISTRATION, build_fact_checker_worker
-from cf_platform.workers.script_packager import SCRIPT_PACKAGER_REGISTRATION, build_script_packager_worker
-from cf_platform.workers.script_quality_scorer import (
-    SCRIPT_QUALITY_SCORER_REGISTRATION,
-    build_script_quality_scorer_worker,
+from cf_platform.workers.blueprint_generator import (
+    BLUEPRINT_GENERATOR_REGISTRATION,
+    build_blueprint_generator_worker,
 )
-from cf_platform.workers.script_refiner import SCRIPT_REFINER_REGISTRATION, build_script_refiner_worker
-from cf_platform.workers.script_writer import SCRIPT_WRITER_REGISTRATION, build_script_writer_worker
+from cf_platform.workers.blueprint_merger import (
+    BLUEPRINT_MERGER_REGISTRATION,
+    build_blueprint_merger_worker,
+)
+from cf_platform.workers.context_normalizer import (
+    CONTEXT_NORMALIZER_REGISTRATION,
+    build_context_normalizer_worker,
+)
+from cf_platform.workers.evaluator import EVALUATOR_REGISTRATION, build_evaluator_worker
+from cf_platform.workers.hook_generator import (
+    HOOK_GENERATOR_REGISTRATION,
+    build_hook_generator_worker,
+)
+from cf_platform.workers.hook_selector import (
+    HOOK_SELECTOR_REGISTRATION,
+    build_hook_selector_worker,
+)
+from cf_platform.workers.integrity_checker import (
+    INTEGRITY_CHECKER_REGISTRATION,
+    build_integrity_checker_worker,
+)
+from cf_platform.workers.patch_applier import (
+    PATCH_APPLIER_REGISTRATION,
+    build_patch_applier_worker,
+)
+from cf_platform.workers.patch_generator import (
+    PATCH_GENERATOR_REGISTRATION,
+    build_patch_generator_worker,
+)
+from cf_platform.workers.script_generator import (
+    SCRIPT_GENERATOR_REGISTRATION,
+    build_script_generator_worker,
+)
+from cf_platform.workers.script_packager import (
+    SCRIPT_PACKAGER_REGISTRATION,
+    build_script_packager_worker,
+)
+
+# Maximum number of patch-repair cycles before routing to manual_review (D058).
+MAX_INTEGRITY_LOOPS = 2
 
 
 def register_idea_to_script_workers(registry: WorkerRegistry) -> None:
-    """Register all five idea_to_script workers in registry (idempotent re-register is fine).
+    """Register all 11 idea_to_script workers in registry (idempotent re-register is fine).
 
-    Registers: script_writer, script_scorer, fact_checker, script_refiner, script_packager.
-    Call once at startup before building either graph factory in this module.
+    Workers: context_normalizer, blueprint_generator, evaluator, blueprint_merger,
+    hook_generator, hook_selector, script_generator, integrity_checker,
+    patch_generator, patch_applier, script_packager.
+
+    Call once at startup before building the graph factory.
     """
-    registry.register("script_writer", SCRIPT_WRITER_REGISTRATION)
-    registry.register("script_scorer", SCRIPT_QUALITY_SCORER_REGISTRATION)
-    registry.register("fact_checker", FACT_CHECKER_REGISTRATION)
-    registry.register("script_refiner", SCRIPT_REFINER_REGISTRATION)
+    registry.register("context_normalizer", CONTEXT_NORMALIZER_REGISTRATION)
+    registry.register("blueprint_generator", BLUEPRINT_GENERATOR_REGISTRATION)
+    registry.register("evaluator", EVALUATOR_REGISTRATION)
+    registry.register("blueprint_merger", BLUEPRINT_MERGER_REGISTRATION)
+    registry.register("hook_generator", HOOK_GENERATOR_REGISTRATION)
+    registry.register("hook_selector", HOOK_SELECTOR_REGISTRATION)
+    registry.register("script_generator", SCRIPT_GENERATOR_REGISTRATION)
+    registry.register("integrity_checker", INTEGRITY_CHECKER_REGISTRATION)
+    registry.register("patch_generator", PATCH_GENERATOR_REGISTRATION)
+    registry.register("patch_applier", PATCH_APPLIER_REGISTRATION)
     registry.register("script_packager", SCRIPT_PACKAGER_REGISTRATION)
 
 
-def _route_after_scorer(state: IdeaToScriptState) -> str:
-    """Conditional edge after script_scorer: decide whether to refine or accept.
+def _route_after_integrity(state: IdeaToScriptState) -> str:
+    """Conditional edge after integrity_check: route to pass, repair, or manual_review.
 
-    Returns "done" when:
-      - `state.iteration >= state.max_iterations` (hard cap, never infinite), OR
-      - `scorer_verdict == "continue"` (quality threshold met)
+    Returns:
+      "pass"          — integrity passed; go to script_packager
+      "manual_review" — integrity failed and repair budget is exhausted; go to
+                        script_packager with status=manual_review
+      "fail"          — integrity failed and budget remains; go to repair cycle
 
-    Returns "retry" otherwise — graph increments iteration, runs refiner, loops
-    back to writer.
-
-    fact_checker is NOT consulted here — it runs exactly once on the "done" path
-    after the loop exits (build_idea_to_script_graph), keeping it out of the hot
-    refinement cycle to avoid repeated expensive web-search round-trips.
-
-    This function is a pure graph edge, not a worker — it emits no artifact and
+    This function is a pure graph edge, not a worker — emits no artifact and
     records no WorkerExecution (D056 / D057).
     """
-    if state.iteration >= state.max_iterations:
-        return "done"
-    if state.scorer_verdict == "continue":
-        return "done"
-    return "retry"
+    if state.integrity_verdict == "continue":  # integrity_check set "continue" = pass
+        return "pass"
+    if state.integrity_loops >= MAX_INTEGRITY_LOOPS:
+        return "manual_review"
+    return "fail"
 
 
-async def _increment_iteration(state: IdeaToScriptState) -> dict[str, Any]:
-    """Non-worker node that increments the iteration counter on the retry path.
+async def _increment_integrity_loops(state: IdeaToScriptState) -> dict[str, Any]:
+    """Non-worker node: increment integrity_loops before the patch repair cycle.
 
-    Returns {"iteration": 1}; the Annotated[int, operator.add] reducer on
-    IdeaToScriptState.iteration accumulates the total count (D057).
+    Returns {"integrity_loops": 1}; the Annotated[int, operator.add] reducer
+    on IdeaToScriptState.integrity_loops accumulates the total count (D057).
     """
-    return {"iteration": 1}
-
-
-def build_refine_loop_graph(
-    *,
-    storage: ArtifactStorage,
-    registry: WorkerRegistry,
-    executions: ExecutionRepository,
-    artifact_repo: ArtifactRepository,
-    anthropic_api_key: str,
-    checkpointer: Optional[BaseCheckpointSaver] = None,
-) -> CompiledStateGraph:
-    """Compile the idea→script cyclic StateGraph over IdeaToScriptState.
-
-    Topology (loop-isolation only — no fact_checker):
-      START → script_writer → script_scorer
-            → conditional(_route_after_scorer):
-                "done"  → END
-                "retry" → increment_iteration → script_refiner → script_writer (cycle)
-
-    fact_checker is intentionally excluded so loop-convergence tests remain
-    fast and do not require web-search stubs. For the full pipeline including
-    fact_checker use build_idea_to_script_graph().
-
-    The caller must call register_idea_to_script_workers() before calling this
-    function. The `checkpointer` defaults to MemorySaver().
-
-    Raises WorkerNotRegisteredError at build time if any required worker is absent.
-    """
-    graph: StateGraph = StateGraph(IdeaToScriptState)
-
-    graph.add_node(
-        "script_writer",
-        wrap(
-            "script_writer",
-            "script_drafts",
-            build_script_writer_worker(storage, anthropic_api_key),
-            registry=registry,
-            storage=storage,
-            executions=executions,
-            artifact_repo=artifact_repo,
-        ),
-    )
-    graph.add_node(
-        "script_scorer",
-        wrap(
-            "script_scorer",
-            "script_scores",
-            build_script_quality_scorer_worker(storage, anthropic_api_key),
-            registry=registry,
-            storage=storage,
-            executions=executions,
-            artifact_repo=artifact_repo,
-            control_channel="scorer_verdict",
-        ),
-    )
-    graph.add_node("increment_iteration", _increment_iteration)
-    graph.add_node(
-        "script_refiner",
-        wrap(
-            "script_refiner",
-            "script_drafts",
-            build_script_refiner_worker(storage, anthropic_api_key),
-            registry=registry,
-            storage=storage,
-            executions=executions,
-            artifact_repo=artifact_repo,
-        ),
-    )
-
-    graph.add_edge(START, "script_writer")
-    graph.add_edge("script_writer", "script_scorer")
-    graph.add_conditional_edges(
-        "script_scorer",
-        _route_after_scorer,
-        {"done": END, "retry": "increment_iteration"},
-    )
-    graph.add_edge("increment_iteration", "script_refiner")
-    graph.add_edge("script_refiner", "script_writer")
-
-    return graph.compile(checkpointer=checkpointer or MemorySaver())
+    return {"integrity_loops": 1}
 
 
 def build_idea_to_script_graph(
@@ -177,101 +144,138 @@ def build_idea_to_script_graph(
     anthropic_api_key: str,
     checkpointer: Optional[BaseCheckpointSaver] = None,
 ) -> CompiledStateGraph:
-    """Compile the full idea→script StateGraph with fact_checker + script_packager (P5-S5).
+    """Compile the full idea→script Blueprint IR StateGraph over IdeaToScriptState (P5-S6).
 
-    fact_checker runs ONCE after the refinement loop converges, not on every iteration.
-    This avoids repeated expensive web-search round-trips during refinement.
+    Topology:
+      START → context_normalization → blueprint_generation → evaluation
+            → blueprint_merge → hook_generation → hook_selection
+            → script_generation → integrity_check
+            → conditional(_route_after_integrity):
+                "pass"          → script_packager → END
+                "fail"          → _increment_integrity_loops
+                                → patch_generator → apply_patch
+                                → integrity_check (cycle)
+                "manual_review" → script_packager → END
 
-      START → script_writer → script_scorer
-            → conditional(_route_after_scorer):
-                "done"  → fact_checker → script_packager → END
-                "retry" → increment_iteration → script_refiner → script_writer (cycle)
+    The caller must call register_idea_to_script_workers() before calling this
+    function. `checkpointer` defaults to MemorySaver().
 
-    Use this factory for the REST endpoint and Telegram handler.
-    `build_refine_loop_graph()` (P5-S4) provides a fact_checker-free loop for
-    loop-convergence tests.
-
-    The caller must register all five workers with `register_idea_to_script_workers()`
-    before calling this function. The `checkpointer` defaults to MemorySaver().
-
-    Raises WorkerNotRegisteredError at build time if any worker is absent.
+    Raises WorkerNotRegisteredError at build time if any required worker is absent.
     """
     graph: StateGraph = StateGraph(IdeaToScriptState)
 
+    _w = lambda worker, node, builder: wrap(  # noqa: E731
+        worker,
+        node,
+        builder,
+        registry=registry,
+        storage=storage,
+        executions=executions,
+        artifact_repo=artifact_repo,
+    )
+
     graph.add_node(
-        "script_writer",
-        wrap(
-            "script_writer",
-            "script_drafts",
-            build_script_writer_worker(storage, anthropic_api_key),
-            registry=registry,
-            storage=storage,
-            executions=executions,
-            artifact_repo=artifact_repo,
+        "context_normalization",
+        _w("context_normalizer", "normalized_context", build_context_normalizer_worker()),
+    )
+    graph.add_node(
+        "blueprint_generation",
+        _w(
+            "blueprint_generator",
+            "blueprint",
+            build_blueprint_generator_worker(storage, anthropic_api_key),
         ),
     )
     graph.add_node(
-        "script_scorer",
-        wrap(
-            "script_scorer",
-            "script_scores",
-            build_script_quality_scorer_worker(storage, anthropic_api_key),
-            registry=registry,
-            storage=storage,
-            executions=executions,
-            artifact_repo=artifact_repo,
-            control_channel="scorer_verdict",
+        "evaluation",
+        _w("evaluator", "evaluation", build_evaluator_worker(storage, anthropic_api_key)),
+    )
+    graph.add_node(
+        "blueprint_merge",
+        _w("blueprint_merger", "merged_blueprint", build_blueprint_merger_worker(storage)),
+    )
+    graph.add_node(
+        "hook_generation",
+        _w(
+            "hook_generator",
+            "hook_variants",
+            build_hook_generator_worker(storage, anthropic_api_key),
         ),
     )
     graph.add_node(
-        "fact_checker",
-        wrap(
-            "fact_checker",
-            "factcheck_report",
-            build_fact_checker_worker(storage, anthropic_api_key),
-            registry=registry,
-            storage=storage,
-            executions=executions,
-            artifact_repo=artifact_repo,
-            control_channel="factcheck_verdict",
+        "hook_selection",
+        _w(
+            "hook_selector",
+            "selected_hook",
+            build_hook_selector_worker(storage, anthropic_api_key),
         ),
     )
-    graph.add_node("increment_iteration", _increment_iteration)
     graph.add_node(
-        "script_refiner",
+        "script_generation",
+        _w(
+            "script_generator",
+            "generated_script",
+            build_script_generator_worker(storage, anthropic_api_key),
+        ),
+    )
+    graph.add_node(
+        "integrity_check",
         wrap(
-            "script_refiner",
-            "script_drafts",
-            build_script_refiner_worker(storage, anthropic_api_key),
+            "integrity_checker",
+            "integrity_report",
+            build_integrity_checker_worker(storage, anthropic_api_key),
             registry=registry,
             storage=storage,
             executions=executions,
             artifact_repo=artifact_repo,
+            control_channel="integrity_verdict",
         ),
+    )
+    graph.add_node("_increment_integrity_loops", _increment_integrity_loops)
+    graph.add_node(
+        "patch_generation",
+        _w(
+            "patch_generator",
+            "patches",
+            build_patch_generator_worker(storage, anthropic_api_key),
+        ),
+    )
+    graph.add_node(
+        "apply_patch",
+        _w("patch_applier", "generated_script", build_patch_applier_worker(storage)),
     )
     graph.add_node(
         "script_packager",
-        wrap(
-            "script_packager",
-            "script",
-            build_script_packager_worker(storage),
-            registry=registry,
-            storage=storage,
-            executions=executions,
-            artifact_repo=artifact_repo,
-        ),
+        _w("script_packager", "script", build_script_packager_worker(storage)),
     )
 
-    graph.add_edge(START, "script_writer")
-    graph.add_edge("script_writer", "script_scorer")
+    # Linear spine
+    graph.add_edge(START, "context_normalization")
+    graph.add_edge("context_normalization", "blueprint_generation")
+    graph.add_edge("blueprint_generation", "evaluation")
+    graph.add_edge("evaluation", "blueprint_merge")
+    graph.add_edge("blueprint_merge", "hook_generation")
+    graph.add_edge("hook_generation", "hook_selection")
+    graph.add_edge("hook_selection", "script_generation")
+    graph.add_edge("script_generation", "integrity_check")
+
+    # Conditional routing after integrity_check
     graph.add_conditional_edges(
-        "script_scorer",
-        _route_after_scorer,
-        {"done": "fact_checker", "retry": "increment_iteration"},
+        "integrity_check",
+        _route_after_integrity,
+        {
+            "pass": "script_packager",
+            "fail": "_increment_integrity_loops",
+            "manual_review": "script_packager",
+        },
     )
-    graph.add_edge("fact_checker", "script_packager")
-    graph.add_edge("increment_iteration", "script_refiner")
-    graph.add_edge("script_refiner", "script_writer")
+
+    # Patch repair cycle
+    graph.add_edge("_increment_integrity_loops", "patch_generation")
+    graph.add_edge("patch_generation", "apply_patch")
+    graph.add_edge("apply_patch", "integrity_check")
+
+    # Terminal
     graph.add_edge("script_packager", END)
 
     return graph.compile(checkpointer=checkpointer or MemorySaver())

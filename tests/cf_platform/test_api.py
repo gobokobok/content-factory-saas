@@ -59,61 +59,83 @@ _STUB_IDEA_TITLE = "Why Starter Homes Vanished"
 
 @contextmanager
 def _stub_idea_to_script_workers():
-    """Patch all 5 idea_to_script worker builders with minimal stubs (no Claude calls)."""
-    from cf_platform.workers.fact_checker import FactcheckReportArtifact
+    """Patch all 11 Blueprint IR builder factories with deterministic stubs (no Claude calls)."""
+    from cf_platform.core.idea_to_script_schemas import (
+        Blueprint, EvaluationArtifact, GeneratedScriptArtifact,
+        HookVariantsArtifact, IntegrityReport, NormalizedContext,
+        PatchSetArtifact, Section, SelectedHookArtifact,
+    )
     from cf_platform.workers.script_packager import ScriptArtifact
-    from cf_platform.workers.script_quality_scorer import ScriptDraftScore, ScriptScoresArtifact
-    from cf_platform.workers.script_writer import ScriptDraft, ScriptDraftsArtifact
 
-    async def _writer(state):
-        return WorkerOutput(artifact=ScriptDraftsArtifact(
-            idea_title=_STUB_IDEA_TITLE, niche=None, idea_angle=None,
-            drafts=[ScriptDraft(draft_number=1, script=_STUB_SCRIPT_TEXT)],
-            generated_at=_NOW,
+    async def _ctx_norm(state):
+        return WorkerOutput(artifact=NormalizedContext(
+            primary_angle="Supply shortage", evidence_summary="Evidence",
+            top_signals=[], controversies=[], hook_bias="Data",
         ))
 
-    async def _scorer(state):
-        return WorkerOutput(
-            artifact=ScriptScoresArtifact(
-                idea_title=_STUB_IDEA_TITLE,
-                scored_drafts=[ScriptDraftScore(
-                    draft_number=1, hook_strength=9.0, data_quality=9.0,
-                    narrative_flow=9.0, virality_potential=9.0, overall_score=9.0,
-                )],
-                best_draft_number=1,
-                best_score=9.0,
-                generated_at=_NOW,
-            ),
-            control="continue",  # type: ignore[arg-type]
-        )
+    async def _bp_gen(state):
+        return WorkerOutput(artifact=Blueprint(
+            hook_angle="Hook", structure=[Section(title="S", key_points=["p"])],
+            claims=["Claim"], monetization_angle="Mon",
+            required_evidence=["Evidence"], signal_summary="Sum",
+            direction_alignment_notes="Notes",
+        ))
 
-    async def _fact_checker(state):
-        return WorkerOutput(
-            artifact=FactcheckReportArtifact(
-                idea_title=_STUB_IDEA_TITLE, draft_number=1, claims=[],
-                verified_count=0, refuted_count=0, unverifiable_count=0, checked_at=_NOW,
-            ),
-            control="continue",  # type: ignore[arg-type]
-        )
+    async def _evaluator(state):
+        return WorkerOutput(artifact=EvaluationArtifact(
+            score=9.0, factual_corrections=[], alignment_notes="",
+            evidence_additions=[], passed=True, notes="",
+        ))
 
-    async def _refiner(state):
-        return WorkerOutput(artifact=ScriptDraftsArtifact(
-            idea_title=_STUB_IDEA_TITLE, niche=None, idea_angle=None,
-            drafts=[ScriptDraft(draft_number=1, script=_STUB_SCRIPT_TEXT)],
-            generated_at=_NOW,
+    async def _bp_merge(state):
+        return WorkerOutput(artifact=Blueprint(
+            hook_angle="Hook", structure=[Section(title="S", key_points=["p"])],
+            claims=["Claim"], monetization_angle="Mon",
+            required_evidence=["Evidence"], signal_summary="Sum",
+            direction_alignment_notes="Notes",
+        ))
+
+    async def _hook_gen(state):
+        return WorkerOutput(artifact=HookVariantsArtifact(hooks=["Hook 1"], generated_at=_NOW))
+
+    async def _hook_sel(state):
+        return WorkerOutput(artifact=SelectedHookArtifact(hook="Hook 1", generated_at=_NOW))
+
+    async def _script_gen(state):
+        return WorkerOutput(artifact=GeneratedScriptArtifact(
+            idea_title=_STUB_IDEA_TITLE, niche=None, script=_STUB_SCRIPT_TEXT,
+            word_count=len(_STUB_SCRIPT_TEXT.split()), target_duration_seconds=60, generated_at=_NOW,
+        ))
+
+    async def _integrity(state):
+        return WorkerOutput(artifact=IntegrityReport(passed=True, issues=[]), control="continue")  # type: ignore[arg-type]
+
+    async def _patch_gen(state):
+        return WorkerOutput(artifact=PatchSetArtifact(patches=[], generated_at=_NOW))
+
+    async def _patch_apply(state):
+        return WorkerOutput(artifact=GeneratedScriptArtifact(
+            idea_title=_STUB_IDEA_TITLE, niche=None, script=_STUB_SCRIPT_TEXT,
+            word_count=len(_STUB_SCRIPT_TEXT.split()), target_duration_seconds=60, generated_at=_NOW,
         ))
 
     async def _packager(state):
         return WorkerOutput(artifact=ScriptArtifact(
             idea_title=_STUB_IDEA_TITLE, niche=None, script=_STUB_SCRIPT_TEXT,
-            draft_number=1, overall_score=9.0, generated_at=_NOW,
+            generated_at=_NOW,
         ))
 
     with (
-        patch("cf_platform.blocks.idea_to_script.build_script_writer_worker", return_value=_writer),
-        patch("cf_platform.blocks.idea_to_script.build_script_quality_scorer_worker", return_value=_scorer),
-        patch("cf_platform.blocks.idea_to_script.build_fact_checker_worker", return_value=_fact_checker),
-        patch("cf_platform.blocks.idea_to_script.build_script_refiner_worker", return_value=_refiner),
+        patch("cf_platform.blocks.idea_to_script.build_context_normalizer_worker", return_value=_ctx_norm),
+        patch("cf_platform.blocks.idea_to_script.build_blueprint_generator_worker", return_value=_bp_gen),
+        patch("cf_platform.blocks.idea_to_script.build_evaluator_worker", return_value=_evaluator),
+        patch("cf_platform.blocks.idea_to_script.build_blueprint_merger_worker", return_value=_bp_merge),
+        patch("cf_platform.blocks.idea_to_script.build_hook_generator_worker", return_value=_hook_gen),
+        patch("cf_platform.blocks.idea_to_script.build_hook_selector_worker", return_value=_hook_sel),
+        patch("cf_platform.blocks.idea_to_script.build_script_generator_worker", return_value=_script_gen),
+        patch("cf_platform.blocks.idea_to_script.build_integrity_checker_worker", return_value=_integrity),
+        patch("cf_platform.blocks.idea_to_script.build_patch_generator_worker", return_value=_patch_gen),
+        patch("cf_platform.blocks.idea_to_script.build_patch_applier_worker", return_value=_patch_apply),
         patch("cf_platform.blocks.idea_to_script.build_script_packager_worker", return_value=_packager),
     ):
         yield

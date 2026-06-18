@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P5-S6] Rearchitect Idea→Script — Blueprint IR + single-pass + patch repair
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/core/idea_to_script_schemas.py` (new): all Blueprint IR schemas — `NormalizedContext`, `Blueprint`, `Section`, `EvaluationArtifact`, `HookVariantsArtifact`, `SelectedHookArtifact`, `GeneratedScriptArtifact`, `IntegrityIssue`, `IntegrityReport`, `Patch`, `PatchSetArtifact`, `IdeaToScriptOutput` plus optional stubs `Signal`, `DirectionContext`, `IdeaToScriptInput`.
+- `cf_platform/core/schemas.py`: `IdeaToScriptState` rewritten — removed `scorer_verdict`, `factcheck_verdict`, `quality_threshold`, `unverified_threshold`; added `integrity_loops: Annotated[int, operator.add] = 0`, `integrity_verdict: ControlSignal = "continue"`; kept `iteration`, `max_iterations`.
+- 10 new workers (all in `cf_platform/workers/`): `context_normalizer` (none), `blueprint_generator` (Sonnet), `evaluator` (Sonnet — combined fact+score+alignment), `blueprint_merger` (none), `hook_generator` (Haiku), `hook_selector` (Haiku, fast-path for single hook), `script_generator` (Sonnet — single pass, no retries), `integrity_checker` (Haiku, emits `control_channel="integrity_verdict"`), `patch_generator` (Haiku, filters low-severity, graceful JSON fallback), `patch_applier` (none — pure `apply_patches()`).
+- `cf_platform/workers/script_packager.py` rewritten (v2.0.0): reads `generated_script` artifact; `ScriptArtifact` gains `word_count` and `status`; `overall_score` and `draft_number` are Optional (None in new arch); backward-safe for callers reading `.script`.
+- `cf_platform/blocks/idea_to_script.py` rewritten: 10-node DAG with integrity repair cycle capped at `MAX_INTEGRITY_LOOPS = 2`; `register_idea_to_script_workers()` registers 11 workers; `build_refine_loop_graph()` removed.
+- `cf_platform/interfaces/telegram.py`: `format_script_reply` — score line only when `overall_score` is not None; `⚠️ Manual review required` shown when `status="manual_review"`.
+- Deprecated (importable, not registered): `script_writer`, `script_quality_scorer`, `fact_checker`, `script_refiner`.
+- D058 logged in `DECISIONS.md` (Blueprint IR pattern).
+- 13 new/rewritten test files covering every worker and the full routing graph; 540 tests passing (CI green). Python 3.9 compat: all type annotations use `Optional[X]` not `X | None`.
+**Smoke test:** DEFERRED — requires DEV deploy (push to `main`). Run `/script Why starter homes vanished` in Telegram; expect ~$0.10 cost, script under 200 words, no manual_review flag.
+
+---
+
 ## [post-P5] Scorer coaching → refiner (improvement, not a story)
 **Completed:** 2026-06-18
 **Handover:**

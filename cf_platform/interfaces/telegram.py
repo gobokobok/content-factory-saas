@@ -134,16 +134,16 @@ _SCRIPT_REPLY_CHAR_LIMIT = 4000
 def format_script_reply(script_artifact: "ScriptArtifact") -> str:
     """Format the finished script reply after the idea→script block runs (D049, P5-S5).
 
-    Shows the idea title, quality score, and the full script text. Truncates to
-    `_SCRIPT_REPLY_CHAR_LIMIT` characters to stay within Telegram's 4096-char limit.
-    Plain string only — never serializes the artifact itself to chat.
+    Shows the idea title, quality score (when available), and the full script text.
+    Truncates to `_SCRIPT_REPLY_CHAR_LIMIT` characters to stay within Telegram's
+    4096-char limit. Plain string only — never serializes the artifact itself to chat.
     """
-    lines = [
-        f'Script — "{script_artifact.idea_title}"',
-        f"Score: {script_artifact.overall_score:.1f}/10",
-        "",
-        script_artifact.script,
-    ]
+    header = f'Script — "{script_artifact.idea_title}"'
+    if script_artifact.overall_score is not None:
+        header += f"\nScore: {script_artifact.overall_score:.1f}/10"
+    if getattr(script_artifact, "status", "ok") == "manual_review":
+        header += "\n⚠️ Manual review required"
+    lines = [header, "", script_artifact.script]
     text = "\n".join(lines)
     if len(text) > _SCRIPT_REPLY_CHAR_LIMIT:
         text = text[:_SCRIPT_REPLY_CHAR_LIMIT - 3] + "..."

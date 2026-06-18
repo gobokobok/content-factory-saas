@@ -1,7 +1,10 @@
-"""Tests for P5-S5: POST /platform/blocks/idea-to-script and Telegram /script formatters.
+"""Tests for P5-S5/P5-S6: POST /platform/blocks/idea-to-script and Telegram /script formatters.
 
 Covers:
-- format_script_reply: shows title, score, script text
+- format_script_reply: shows title, optional score, script text
+- format_script_reply: shows score when overall_score is not None
+- format_script_reply: no score line when overall_score is None
+- format_script_reply: manual_review flag shown in text
 - format_script_reply: truncates long scripts to _SCRIPT_REPLY_CHAR_LIMIT
 - format_script_running: includes idea_title
 - format_script_usage: usage hint present
@@ -21,7 +24,7 @@ Covers:
 import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
-from typing import Generator
+from typing import Generator, Optional
 from unittest.mock import patch
 
 import pytest
@@ -29,6 +32,17 @@ from fastapi.testclient import TestClient
 
 from cf_platform.core.artifact_manager import InMemoryArtifactStorage
 from cf_platform.core.config import PlatformSettings, get_platform_settings
+from cf_platform.core.idea_to_script_schemas import (
+    Blueprint,
+    EvaluationArtifact,
+    GeneratedScriptArtifact,
+    HookVariantsArtifact,
+    IntegrityReport,
+    NormalizedContext,
+    PatchSetArtifact,
+    Section,
+    SelectedHookArtifact,
+)
 from cf_platform.core.schemas import WorkerOutput
 from cf_platform.interfaces.api import get_artifact_storage
 from cf_platform.interfaces.telegram import (
@@ -38,8 +52,6 @@ from cf_platform.interfaces.telegram import (
     parse_script_command,
 )
 from cf_platform.workers.script_packager import ScriptArtifact
-from cf_platform.workers.script_quality_scorer import ScriptDraftScore, ScriptScoresArtifact
-from cf_platform.workers.script_writer import ScriptDraft, ScriptDraftsArtifact
 from src.config import Settings, get_settings
 from src.main import app
 
@@ -73,67 +85,92 @@ _PLATFORM_SETTINGS_BASE = {
 }
 
 
-def _make_script_artifact(script: str = _SCRIPT_TEXT, overall_score: float = 8.5) -> ScriptArtifact:
+def _make_script_artifact(
+    script: str = _SCRIPT_TEXT,
+    overall_score: Optional[float] = 8.5,
+    status: str = "ok",
+) -> ScriptArtifact:
     return ScriptArtifact(
         idea_title=_IDEA_TITLE,
         niche="US housing",
         script=script,
-        draft_number=1,
         overall_score=overall_score,
+        status=status,  # type: ignore[arg-type]
         generated_at=_NOW,
     )
 
 
 @contextmanager
 def _stub_idea_to_script_workers() -> Generator:
-    """Patch all five builder factories with deterministic stubs (no Claude calls)."""
-    drafts_artifact = ScriptDraftsArtifact(
-        idea_title=_IDEA_TITLE, niche=None, idea_angle=None,
-        drafts=[ScriptDraft(draft_number=1, script=_SCRIPT_TEXT)],
-        generated_at=_NOW,
-    )
-    scores_artifact = ScriptScoresArtifact(
-        idea_title=_IDEA_TITLE,
-        scored_drafts=[ScriptDraftScore(
-            draft_number=1, hook_strength=9.0, data_quality=9.0,
-            narrative_flow=9.0, virality_potential=9.0, overall_score=9.0,
-        )],
-        best_draft_number=1,
-        best_score=9.0,
-        generated_at=_NOW,
-    )
-    script_artifact = ScriptArtifact(
-        idea_title=_IDEA_TITLE, niche=None, script=_SCRIPT_TEXT,
-        draft_number=1, overall_score=9.0, generated_at=_NOW,
-    )
+    """Patch all 11 Blueprint IR builder factories with deterministic stubs (no Claude calls)."""
+    script_artifact = _make_script_artifact()
 
-    async def _stub_writer(state):
-        return WorkerOutput(artifact=drafts_artifact)
+    async def _stub_context_normalizer(state):
+        return WorkerOutput(artifact=NormalizedContext(
+            primary_angle="Supply shortage", evidence_summary="Evidence",
+            top_signals=[], controversies=[], hook_bias="Data",
+        ))
 
-    async def _stub_scorer(state):
-        return WorkerOutput(artifact=scores_artifact, control="continue")  # type: ignore[arg-type]
+    async def _stub_blueprint_generator(state):
+        return WorkerOutput(artifact=Blueprint(
+            hook_angle="Hook", structure=[Section(title="S", key_points=["p"])],
+            claims=["Claim"], monetization_angle="Mon",
+            required_evidence=["Evidence"], signal_summary="Sum",
+            direction_alignment_notes="Notes",
+        ))
 
-    async def _stub_fact_checker(state):
-        from cf_platform.workers.fact_checker import FactcheckReportArtifact
-        return WorkerOutput(
-            artifact=FactcheckReportArtifact(
-                idea_title=_IDEA_TITLE, draft_number=1, claims=[],
-                verified_count=0, refuted_count=0, unverifiable_count=0, checked_at=_NOW,
-            ),
-            control="continue",  # type: ignore[arg-type]
-        )
+    async def _stub_evaluator(state):
+        return WorkerOutput(artifact=EvaluationArtifact(
+            score=8.0, factual_corrections=[], alignment_notes="Notes",
+            evidence_additions=[], passed=True, notes="",
+        ))
 
-    async def _stub_refiner(state):
-        return WorkerOutput(artifact=drafts_artifact)
+    async def _stub_blueprint_merger(state):
+        return WorkerOutput(artifact=Blueprint(
+            hook_angle="Hook", structure=[Section(title="S", key_points=["p"])],
+            claims=["Claim"], monetization_angle="Mon",
+            required_evidence=["Evidence"], signal_summary="Sum",
+            direction_alignment_notes="Notes",
+        ))
+
+    async def _stub_hook_generator(state):
+        return WorkerOutput(artifact=HookVariantsArtifact(hooks=["Hook 1"], generated_at=_NOW))
+
+    async def _stub_hook_selector(state):
+        return WorkerOutput(artifact=SelectedHookArtifact(hook="Hook 1", generated_at=_NOW))
+
+    async def _stub_script_generator(state):
+        return WorkerOutput(artifact=GeneratedScriptArtifact(
+            idea_title=_IDEA_TITLE, niche=None, script=_SCRIPT_TEXT,
+            word_count=len(_SCRIPT_TEXT.split()), target_duration_seconds=60, generated_at=_NOW,
+        ))
+
+    async def _stub_integrity_checker(state):
+        return WorkerOutput(artifact=IntegrityReport(passed=True, issues=[]), control="continue")  # type: ignore[arg-type]
+
+    async def _stub_patch_generator(state):
+        return WorkerOutput(artifact=PatchSetArtifact(patches=[], generated_at=_NOW))
+
+    async def _stub_patch_applier(state):
+        return WorkerOutput(artifact=GeneratedScriptArtifact(
+            idea_title=_IDEA_TITLE, niche=None, script=_SCRIPT_TEXT,
+            word_count=len(_SCRIPT_TEXT.split()), target_duration_seconds=60, generated_at=_NOW,
+        ))
 
     async def _stub_packager(state):
         return WorkerOutput(artifact=script_artifact)
 
     with (
-        patch("cf_platform.blocks.idea_to_script.build_script_writer_worker", return_value=_stub_writer),
-        patch("cf_platform.blocks.idea_to_script.build_script_quality_scorer_worker", return_value=_stub_scorer),
-        patch("cf_platform.blocks.idea_to_script.build_fact_checker_worker", return_value=_stub_fact_checker),
-        patch("cf_platform.blocks.idea_to_script.build_script_refiner_worker", return_value=_stub_refiner),
+        patch("cf_platform.blocks.idea_to_script.build_context_normalizer_worker", return_value=_stub_context_normalizer),
+        patch("cf_platform.blocks.idea_to_script.build_blueprint_generator_worker", return_value=_stub_blueprint_generator),
+        patch("cf_platform.blocks.idea_to_script.build_evaluator_worker", return_value=_stub_evaluator),
+        patch("cf_platform.blocks.idea_to_script.build_blueprint_merger_worker", return_value=_stub_blueprint_merger),
+        patch("cf_platform.blocks.idea_to_script.build_hook_generator_worker", return_value=_stub_hook_generator),
+        patch("cf_platform.blocks.idea_to_script.build_hook_selector_worker", return_value=_stub_hook_selector),
+        patch("cf_platform.blocks.idea_to_script.build_script_generator_worker", return_value=_stub_script_generator),
+        patch("cf_platform.blocks.idea_to_script.build_integrity_checker_worker", return_value=_stub_integrity_checker),
+        patch("cf_platform.blocks.idea_to_script.build_patch_generator_worker", return_value=_stub_patch_generator),
+        patch("cf_platform.blocks.idea_to_script.build_patch_applier_worker", return_value=_stub_patch_applier),
         patch("cf_platform.blocks.idea_to_script.build_script_packager_worker", return_value=_stub_packager),
     ):
         yield
@@ -147,21 +184,29 @@ class TestFormatScriptReply:
         text = format_script_reply(_make_script_artifact())
         assert _IDEA_TITLE in text
 
-    def test_shows_score(self):
+    def test_shows_score_when_not_none(self):
         text = format_script_reply(_make_script_artifact(overall_score=8.5))
         assert "8.5" in text
+
+    def test_no_score_line_when_none(self):
+        text = format_script_reply(_make_script_artifact(overall_score=None))
+        assert "Score:" not in text
 
     def test_shows_script_text(self):
         text = format_script_reply(_make_script_artifact())
         assert _SCRIPT_TEXT in text
+
+    def test_manual_review_flag_in_text(self):
+        text = format_script_reply(_make_script_artifact(status="manual_review"))
+        assert "manual_review" in text.lower() or "⚠️" in text
 
     def test_truncates_long_script(self):
         long_script = "x" * 5000
         text = format_script_reply(_make_script_artifact(script=long_script))
         assert len(text) <= 4003  # limit + "..." overhead
 
-    def test_short_script_not_truncated(self):
-        text = format_script_reply(_make_script_artifact())
+    def test_short_script_ends_with_script_text(self):
+        text = format_script_reply(_make_script_artifact(overall_score=None))
         assert text.endswith(_SCRIPT_TEXT)
 
 
