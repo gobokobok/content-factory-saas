@@ -4,6 +4,19 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P6-S1] Legacy adapter (interface + in-process impl)
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/adapters/legacy_video.py` (new): `VideoResult(r2_key, legacy_run_id, status, error?)` Pydantic model; `LegacyVideoAdapter` Protocol (`async def render(run_id, script, trace_repo) → VideoResult`); `InProcessLegacyVideoAdapter` — chains 6 legacy steps: [TTS?] → storyboard → manifest → acquisition → ffmpeg-script → render. Each step emits a `TraceEvent(worker="legacy_render", source=<step>, ...)`. TTS is attempted when `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` are set; skipped gracefully otherwise. Any step failure returns `VideoResult(status="failed", error="<step>: <msg>")` immediately after recording an `error` trace event.
+- Settings injected at construction (`src.config.Settings`); lazy-loaded from ENV when not provided. Platform `run_id` (UUID) doubles as the legacy R2 prefix — no slug conversion needed.
+- Chose option (b) for the spike: chain per-step domain functions (`generate_storyboard`, `build_manifest`, `run_acquisition`, `build_ffmpeg_script`, `render_run`, `generate_tts`) directly from `src/`; `src/pipeline.py` and all `src/` route files are **untouched**.
+- Only `legacy_video.py` imports `src/` (D047 enforced).
+- 16 tests in `tests/cf_platform/test_legacy_video_adapter.py`. 1411 total passing (CI green).
+**Smoke test:** DEFERRED — requires P6-S2 + P6-S4 (`/produce <niche>` end-to-end). The adapter cannot be exercised standalone since it needs a running Pexels/ElevenLabs/ffmpeg environment; full integration is the P6-S4 human touchpoint.
+**Promoted to backlog:** TTS cost — ElevenLabs is expensive per-run; a cheaper alternative (OpenAI TTS, Kokoro, etc.) should be evaluated before full `/produce` rollout. Tracked as background task.
+
+---
+
 ## [post-P5-S6] Narrative Lens worker — storytelling angles from verified facts only
 **Completed:** 2026-06-18
 **Handover:**

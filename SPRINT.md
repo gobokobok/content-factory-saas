@@ -58,7 +58,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P6-S1 | Legacy adapter (interface + in-process impl) | 3 | planned |
+| P6-S1 | Legacy adapter (interface + in-process impl) | 3 | done |
 | P6-S2 | Legacy-as-node + parent graph (+ PipelineState) | 5 | planned |
 | P6-S3 | Human-in-the-loop gates | 3 | planned |
 | P6-S4 | End-to-end /produce → video | 2 | planned |

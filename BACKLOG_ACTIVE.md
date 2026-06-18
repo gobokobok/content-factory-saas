@@ -250,7 +250,8 @@ Parent graph chains the blocks + legacy render via the adapter; HITL gates (D047
 ## [P6-S1] Legacy adapter (interface + in-process impl)
 **Epic:** E31 — Orchestrator + Legacy Bridge
 **Sprint:** P6
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-18
 **Priority:** high
 **Points:** 3
 **Depends on:** P5-S5
@@ -260,17 +261,23 @@ Parent graph chains the blocks + legacy render via the adapter; HITL gates (D047
 **Tech:** Python Protocol; `src/pipeline.py`; R2. **Artifacts:** `VideoResult`.
 
 > **Spike finding (2026-06-13, during P0-S5):** `src/pipeline.py` exposes only `summarize_step()`. The alignment → render chain is frontend-driven REST (no server-side `run_full_pipeline()`). Adapter must either (a) add a chaining function to `src/`, or (b) chain existing per-step functions itself. Decide during this story's design.
+> **Resolution (2026-06-18):** chose (b) — chain per-step domain functions directly; `src/` unchanged.
 
 ### Acceptance Criteria
-- [ ] Adapter produces `final.mp4` in R2 from a script artifact
-- [ ] Only `legacy_video.py` imports `src/`; `src/` unchanged
-- [ ] Legacy DEV/PROD pipeline still works independently
+- [x] Adapter produces `final.mp4` in R2 from a script artifact
+- [x] Only `legacy_video.py` imports `src/`; `src/` unchanged
+- [x] Legacy DEV/PROD pipeline still works independently
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/adapters/legacy_video.py` (new): `VideoResult(r2_key, legacy_run_id, status, error?)` Pydantic model; `LegacyVideoAdapter` Protocol (`async def render(run_id, script, trace_repo) → VideoResult`); `InProcessLegacyVideoAdapter` — chains 6 legacy steps: [TTS?] → storyboard → manifest → acquisition → ffmpeg-script → render; emits one `TraceEvent` per step (`worker="legacy_render"`, `source` = step name); TTS is skipped gracefully when `ELEVENLABS_API_KEY` is absent; any step failure logs the trace event with `status="error"` and returns `VideoResult(status="failed")` immediately.
+- Settings injected at construction (`src.config.Settings`); lazy-loaded from ENV when not provided (supports test injection without breaking D047).
+- Platform `run_id` (UUID) used as the legacy R2 prefix (`runs/{run_id}/`) — no slug conversion; R2 treats it as a plain path segment.
+- `src/` is **unchanged** — all coupling is in `legacy_video.py` only.
+- 16 tests in `tests/cf_platform/test_legacy_video_adapter.py` covering: happy path, TTS skip/fail, all 5 step failure modes, trace event sources, render arg verification, Protocol conformance, VideoResult model.
+- 1411 total tests passing (CI green).
 
 ---
 
