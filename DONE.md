@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P6-S2] Legacy-as-node + parent graph (+ PipelineState)
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/core/schemas.py`: `PipelineState(StageState)` added — `hitl: bool = False`, `target_duration_seconds: int = 60`. Artifact refs populated by block nodes: `"ranked_ideas"` (niche_to_ideas), `"script"` (idea_to_script), `"video"` (legacy_render).
+- `cf_platform/orchestrator/__init__.py` (new): package marker.
+- `cf_platform/orchestrator/full_pipeline.py` (new): `build_full_pipeline_graph(...)` factory compiling a 3-node parent `StateGraph[PipelineState]`:
+  - `niche_to_ideas` node: constructs `NicheToIdeasState` from parent, runs niche subgraph via `run_graph(...)`, returns `ranked_ideas` ref to parent state.
+  - `idea_to_script` node: reads `ranked_ideas` artifact via `read_artifact` to extract `selected.title`; constructs `IdeaToScriptState(idea_title=..., niche=..., target_duration_seconds=state.target_duration_seconds)`; runs script subgraph; returns `script` ref.
+  - `legacy_render` node: plain async node (adapter is IO, not a worker — D057); reads `script` artifact; calls `adapter.render(run_id, script_text, trace_repo)`; returns `{"artifacts": {"video": result.r2_key}}`; raises `RuntimeError` on failure.
+- `legacy_adapter` defaults to `InProcessLegacyVideoAdapter()` (lazy settings load); injectable for testing or future HTTP swap-out (D047).
+- 13 tests in `tests/cf_platform/test_full_pipeline.py` covering: PipelineState schema + defaults + artifact merge, graph compilation, happy-path end-to-end, run_id threading, idea_title extraction, niche flow, niche-absent case, target_duration_seconds flow, adapter called with correct script text, adapter failure propagation, default adapter instantiation.
+- 1447 total tests passing (CI green).
+**Smoke test:** DEFERRED — requires `/produce <niche>` wired up (P6-S4) for end-to-end DEV run.
+
+---
+
 ## [P6-S6] Niche-aware prompts (replace hardcoded channel)
 **Completed:** 2026-06-18
 **Handover:**

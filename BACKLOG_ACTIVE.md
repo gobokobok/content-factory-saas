@@ -284,7 +284,8 @@ Parent graph chains the blocks + legacy render via the adapter; HITL gates (D047
 ## [P6-S2] Legacy-as-node + parent graph (+ PipelineState)
 **Epic:** E31 — Orchestrator + Legacy Bridge
 **Sprint:** P6
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-06-18
 **Priority:** high
 **Points:** 5
 **Depends on:** P6-S1, P6-S5
@@ -296,14 +297,21 @@ Implement `PipelineState` (plan §5); wrap the adapter as a LangGraph node; comp
 > **Duration note (P6-S5):** `PipelineState` must carry `target_duration_seconds: int = 60`. The orchestrator writes it into `IdeaToScriptState` when constructing the block's initial state — this is the "specified once at the top, flows down" contract.
 
 ### Acceptance Criteria
-- [ ] Parent graph runs all three stages in one run
-- [ ] Lineage spans new blocks + legacy node
+- [x] Parent graph runs all three stages in one run
+- [x] Lineage spans new blocks + legacy node
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/core/schemas.py`: `PipelineState(StageState)` added — `hitl: bool = False`, `target_duration_seconds: int = 60`. Artifact refs: `"ranked_ideas"`, `"script"`, `"video"` (terminal).
+- `cf_platform/orchestrator/__init__.py` (new): package marker.
+- `cf_platform/orchestrator/full_pipeline.py` (new): `build_full_pipeline_graph(*, storage, registry, executions, artifact_repo, adapters, trace_repo, anthropic_api_key, legacy_adapter?, checkpointer?) → CompiledStateGraph`. Three inner closure nodes:
+  - `niche_to_ideas_node`: constructs `NicheToIdeasState` from parent state, calls `run_graph(niche_graph, ..., thread_id=f"{run_id}:niche_to_ideas")`, returns `{"artifacts": {"ranked_ideas": result.artifacts["ranked_ideas"]}}`.
+  - `idea_to_script_node`: reads `ranked_ideas` artifact via `read_artifact` to extract `selected.title` as `idea_title`; constructs `IdeaToScriptState` with `idea_title`, `niche` (if present), `target_duration_seconds`; calls `run_graph(script_graph, ..., thread_id=f"{run_id}:idea_to_script")`; returns script ref.
+  - `legacy_render_node`: reads `script` artifact, calls `adapter.render(run_id, script_text, trace_repo)`, returns `{"artifacts": {"video": result.r2_key}}`; raises `RuntimeError` on `status="failed"`.
+- Legacy adapter defaults to `InProcessLegacyVideoAdapter()` when not injected.
+- 13 tests in `tests/cf_platform/test_full_pipeline.py`; 1447 total passing (CI green).
 
 ---
 

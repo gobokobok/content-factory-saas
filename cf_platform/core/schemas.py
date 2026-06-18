@@ -198,3 +198,22 @@ class IdeaToScriptState(StageState):
     integrity_loops: Annotated[int, operator.add] = 0
     integrity_verdict: ControlSignal = "continue"
     target_duration_seconds: int = 60
+
+
+class PipelineState(StageState):
+    """Stage state for the full pipeline orchestrator (plan §5, P6-S2).
+
+    Typed control channels only — no artifact bodies (D057).
+    Composes niche_to_ideas → idea_to_script → legacy_render.
+
+    Artifact refs populated across block nodes:
+      niche_to_ideas  → "ranked_ideas"   (terminal ref from niche_to_ideas block)
+      idea_to_script  → "script"         (terminal ref from idea_to_script block)
+      legacy_render   → "video"          (R2 key for final.mp4)
+
+    `target_duration_seconds` flows from the run trigger (/produce, REST) into
+    IdeaToScriptState when the orchestrator constructs the block's initial state.
+    """
+
+    hitl: bool = False
+    target_duration_seconds: int = 60
