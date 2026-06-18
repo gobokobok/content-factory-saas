@@ -593,11 +593,11 @@ class TestFactCheckerRegistration:
     def test_model_is_sonnet(self):
         assert FACT_CHECKER_REGISTRATION.model == "claude-sonnet-4-6"
 
-    def test_prompt_version_is_v1(self):
-        assert FACT_CHECKER_REGISTRATION.prompt_version == "v1"
+    def test_prompt_version_is_v2(self):
+        assert FACT_CHECKER_REGISTRATION.prompt_version == "v2"
 
     def test_worker_version_is_set(self):
-        assert FACT_CHECKER_REGISTRATION.worker_version == "1.0.0"
+        assert FACT_CHECKER_REGISTRATION.worker_version == "1.1.0"
 
     def test_prompt_is_non_empty(self):
         assert len(FACT_CHECKER_REGISTRATION.prompt) > 50
@@ -605,3 +605,8 @@ class TestFactCheckerRegistration:
     def test_prompt_instructs_json_output(self):
         assert "claims" in FACT_CHECKER_REGISTRATION.prompt
         assert "verdict" in FACT_CHECKER_REGISTRATION.prompt
+
+    def test_prompt_has_no_hardcoded_channel(self):
+        prompt = FACT_CHECKER_REGISTRATION.prompt
+        assert "Housing Equation" not in prompt
+        assert "american housing economics" not in prompt.lower()

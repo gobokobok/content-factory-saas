@@ -24,17 +24,16 @@ from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.discovery import SignalsArtifact
 
-_TOPIC_GENERATOR_PROMPT_V1 = """\
-You are a content strategist for "The Housing Equation", a data-driven YouTube Shorts \
-channel about American housing economics.
+_TOPIC_GENERATOR_PROMPT_V2 = """\
+You are a content strategist for a data-driven short-form video channel.
 
-Given a niche keyword and trending signals (social posts, videos, search trends), \
+Given the channel niche and trending signals (social posts, videos, search trends), \
 identify 5-10 narrative-worthy topics for 60-90 second short-form videos.
 
 For each topic return:
 - "title": a specific, clear title (not clickbait)
 - "angle": one sentence describing the narrative hook and why this topic is uniquely \
-interesting for a housing-focused audience
+interesting for viewers of this niche
 
 Return ONLY a JSON array. No preamble, no markdown fences. Example:
 [
@@ -47,9 +46,9 @@ creating today's supply gap using real price-tier data."
 """
 
 TOPIC_GENERATOR_REGISTRATION = WorkerRegistration(
-    worker_version="1.0.0",
-    prompt_version="v1",
-    prompt=_TOPIC_GENERATOR_PROMPT_V1,
+    worker_version="1.1.0",
+    prompt_version="v2",
+    prompt=_TOPIC_GENERATOR_PROMPT_V2,
     model="claude-sonnet-4-6",
     sampling_params={},
 )

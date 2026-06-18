@@ -39,9 +39,8 @@ from cf_platform.core.schemas import ControlSignal, StageState, WorkerNode, Work
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.script_writer import ScriptDraftsArtifact
 
-_FACT_CHECKER_PROMPT_V1 = """\
-You are a fact-checker for "The Housing Equation", a data-driven YouTube Shorts \
-channel about American housing economics.
+_FACT_CHECKER_PROMPT_V2 = """\
+You are a fact-checker for a data-driven YouTube Shorts channel.
 
 You will receive a script draft. Extract every specific factual claim — statistics, \
 percentages, dates, prices, named policies or programs, and specific numerical data — \
@@ -50,8 +49,8 @@ numbers, and rhetorical framing.
 
 For each claim:
 1. Identify the precise assertion
-2. Search for authoritative sources (Federal Reserve, Census Bureau, HUD, NAR, \
-academic papers, government data)
+2. Search for authoritative sources (government data, academic papers, established \
+research institutions, reputable financial or economic publications)
 3. Assign a verdict: "supported", "refuted", or "unverifiable"
 4. Record the best source URL (empty string if unverifiable)
 5. Write a one-sentence note explaining your verdict
@@ -71,9 +70,9 @@ Example:
 """
 
 FACT_CHECKER_REGISTRATION = WorkerRegistration(
-    worker_version="1.0.0",
-    prompt_version="v1",
-    prompt=_FACT_CHECKER_PROMPT_V1,
+    worker_version="1.1.0",
+    prompt_version="v2",
+    prompt=_FACT_CHECKER_PROMPT_V2,
     model="claude-sonnet-4-6",
     sampling_params={},
 )

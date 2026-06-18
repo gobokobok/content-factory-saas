@@ -340,11 +340,11 @@ class TestOpportunityScorerRegistration:
     def test_model_is_sonnet(self):
         assert OPPORTUNITY_SCORER_REGISTRATION.model == "claude-sonnet-4-6"
 
-    def test_prompt_version_is_v1(self):
-        assert OPPORTUNITY_SCORER_REGISTRATION.prompt_version == "v1"
+    def test_prompt_version_is_v2(self):
+        assert OPPORTUNITY_SCORER_REGISTRATION.prompt_version == "v2"
 
     def test_worker_version_is_set(self):
-        assert OPPORTUNITY_SCORER_REGISTRATION.worker_version == "1.0.0"
+        assert OPPORTUNITY_SCORER_REGISTRATION.worker_version == "1.1.0"
 
     def test_prompt_is_non_empty(self):
         assert len(OPPORTUNITY_SCORER_REGISTRATION.prompt) > 50
@@ -353,3 +353,8 @@ class TestOpportunityScorerRegistration:
         assert OPPORTUNITY_SCORER_REGISTRATION.sampling_params.get("thinking") == {
             "type": "adaptive"
         }
+
+    def test_prompt_has_no_hardcoded_channel(self):
+        prompt = OPPORTUNITY_SCORER_REGISTRATION.prompt
+        assert "Housing Equation" not in prompt
+        assert "american housing economics" not in prompt.lower()

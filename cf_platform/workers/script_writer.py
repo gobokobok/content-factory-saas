@@ -39,9 +39,8 @@ from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.discovery import SignalsArtifact
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
-_SCRIPT_WRITER_PROMPT_V2 = """\
-You are a script writer for "The Housing Equation", a data-driven YouTube Shorts \
-channel about American housing economics.
+_SCRIPT_WRITER_PROMPT_V3 = """\
+You are a script writer for a data-driven YouTube Shorts channel.
 
 Write a narration script for a 60–90 second short-form video (approximately 150–200 \
 words). The script must be:
@@ -52,6 +51,9 @@ trend, or historic fact)
 - Free of filler phrases ("Hey guys", "Don't forget to like", etc.)
 - Structured with a hook in the first 10 seconds, a data-driven middle, and a punchy \
 closing line
+
+If no niche is provided, infer the appropriate content niche from the idea title and \
+write accordingly.
 
 When source signals are listed, ground at least one specific claim in those sources \
 rather than inventing statistics.
@@ -71,9 +73,9 @@ Today it takes 12. Here is why..."
 """
 
 SCRIPT_WRITER_REGISTRATION = WorkerRegistration(
-    worker_version="1.1.0",
-    prompt_version="v2",
-    prompt=_SCRIPT_WRITER_PROMPT_V2,
+    worker_version="1.2.0",
+    prompt_version="v3",
+    prompt=_SCRIPT_WRITER_PROMPT_V3,
     model="claude-haiku-4-5",
     sampling_params={},
 )

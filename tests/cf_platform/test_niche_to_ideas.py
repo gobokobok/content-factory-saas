@@ -159,10 +159,12 @@ class TestRegisterNicheToIdeasWorkers:
         assert registry.resolve("discovery").worker_version == "1.0.0"
 
     def test_worker_versions_pinned(self):
-        """All 4 workers pin worker_version='1.0.0'."""
+        """Each worker pins its expected worker_version."""
         registry = _registered_registry()
-        for name in ("discovery", "topic_generator", "opportunity_scorer", "topic_selector"):
-            assert registry.resolve(name).worker_version == "1.0.0"
+        assert registry.resolve("discovery").worker_version == "1.0.0"
+        assert registry.resolve("topic_generator").worker_version == "1.1.0"
+        assert registry.resolve("opportunity_scorer").worker_version == "1.1.0"
+        assert registry.resolve("topic_selector").worker_version == "1.0.0"
 
 
 # ── Graph compilation ──────────────────────────────────────────────────

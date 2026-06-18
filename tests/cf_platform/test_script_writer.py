@@ -476,14 +476,23 @@ class TestScriptWriterRegistration:
     def test_model_is_haiku(self):
         assert SCRIPT_WRITER_REGISTRATION.model == "claude-haiku-4-5"
 
-    def test_prompt_version_is_v2(self):
-        assert SCRIPT_WRITER_REGISTRATION.prompt_version == "v2"
+    def test_prompt_version_is_v3(self):
+        assert SCRIPT_WRITER_REGISTRATION.prompt_version == "v3"
 
     def test_worker_version_is_set(self):
-        assert SCRIPT_WRITER_REGISTRATION.worker_version == "1.1.0"
+        assert SCRIPT_WRITER_REGISTRATION.worker_version == "1.2.0"
 
     def test_prompt_is_non_empty(self):
         assert len(SCRIPT_WRITER_REGISTRATION.prompt) > 50
 
     def test_sampling_params_default_empty(self):
         assert SCRIPT_WRITER_REGISTRATION.sampling_params == {}
+
+    def test_prompt_has_no_hardcoded_channel(self):
+        prompt = SCRIPT_WRITER_REGISTRATION.prompt
+        assert "Housing Equation" not in prompt
+        assert "american housing economics" not in prompt.lower()
+
+    def test_prompt_includes_niche_inference_fallback(self):
+        assert "infer" in SCRIPT_WRITER_REGISTRATION.prompt.lower()
+        assert "niche" in SCRIPT_WRITER_REGISTRATION.prompt.lower()

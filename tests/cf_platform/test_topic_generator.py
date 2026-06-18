@@ -188,11 +188,16 @@ class TestTopicGeneratorRegistration:
     def test_model_is_sonnet(self):
         assert TOPIC_GENERATOR_REGISTRATION.model == "claude-sonnet-4-6"
 
-    def test_prompt_version_is_v1(self):
-        assert TOPIC_GENERATOR_REGISTRATION.prompt_version == "v1"
+    def test_prompt_version_is_v2(self):
+        assert TOPIC_GENERATOR_REGISTRATION.prompt_version == "v2"
 
     def test_worker_version_is_set(self):
-        assert TOPIC_GENERATOR_REGISTRATION.worker_version == "1.0.0"
+        assert TOPIC_GENERATOR_REGISTRATION.worker_version == "1.1.0"
 
     def test_prompt_is_non_empty(self):
         assert len(TOPIC_GENERATOR_REGISTRATION.prompt) > 50
+
+    def test_prompt_has_no_hardcoded_channel(self):
+        prompt = TOPIC_GENERATOR_REGISTRATION.prompt
+        assert "Housing Equation" not in prompt
+        assert "american housing economics" not in prompt.lower()

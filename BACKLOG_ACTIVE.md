@@ -284,7 +284,7 @@ Parent graph chains the blocks + legacy render via the adapter; HITL gates (D047
 ## [P6-S2] Legacy-as-node + parent graph (+ PipelineState)
 **Epic:** E31 — Orchestrator + Legacy Bridge
 **Sprint:** P6
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 5
 **Depends on:** P6-S1, P6-S5
@@ -359,7 +359,7 @@ _filled on completion_
 ## [P6-S5] Target duration parameter (run-level → script writer)
 **Epic:** E31 — Orchestrator + Legacy Bridge
 **Sprint:** P6
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P5-S5
@@ -468,7 +468,7 @@ _filled on completion_
 ## [P6-S6] Niche-aware prompts (replace hardcoded channel)
 **Epic:** E31 — Orchestrator + Legacy Bridge
 **Sprint:** P6
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P5-S5

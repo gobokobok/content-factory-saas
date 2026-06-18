@@ -26,19 +26,18 @@ from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.topic_generator import CandidateTopicsArtifact
 
-_OPPORTUNITY_SCORER_PROMPT_V1 = """\
-You are an opportunity scorer for "The Housing Equation", a data-driven YouTube \
-Shorts channel about American housing economics.
+_OPPORTUNITY_SCORER_PROMPT_V2 = """\
+You are an opportunity scorer for a data-driven short-form video channel.
 
-You will be given a list of candidate video topics. Score each topic on the following \
-axes from 1.0 to 10.0. Think carefully before assigning each score — avoid clustering \
-scores near 7–8; use the full range.
+You will be given the channel niche and a list of candidate video topics. Score each \
+topic on the following axes from 1.0 to 10.0. Think carefully before assigning each \
+score — avoid clustering scores near 7–8; use the full range.
 
 Axes:
 1. novelty — How fresh and underreported is this angle? \
 1 = stale/overdone, 10 = original insight not yet covered
-2. audience_relevance — How relevant is this to housing-focused viewers \
-(renters, first-time buyers, owners, investors)? 1 = peripheral, 10 = core concern
+2. audience_relevance — How relevant is this to viewers of the stated niche? \
+1 = peripheral, 10 = core concern
 3. emotional_trigger — How strongly does this topic provoke a visceral reaction \
 (anxiety, hope, anger, curiosity)? 1 = flat/neutral, 10 = high emotional charge
 4. search_demand — How much active search interest does this topic have right now? \
@@ -47,9 +46,8 @@ Axes:
 1 = extremely saturated (avoid), 10 = very little competition (opportunity)
 6. evergreen_potential — Will this topic remain relevant 6–12 months from now? \
 1 = ephemeral/news-driven, 10 = timeless principle
-7. monetization_relevance — How likely is this to attract housing-related ad spend \
-(mortgages, real estate, insurance, home equity)? 1 = low advertiser appeal, \
-10 = very high
+7. monetization_relevance — How likely is this to attract relevant ad spend for the \
+niche? 1 = low advertiser appeal, 10 = very high
 8. final_score — Weighted overall opportunity score. \
 Apply these weights: audience_relevance ×2, emotional_trigger ×1.5, \
 competition ×1.5, novelty ×1, search_demand ×1, evergreen_potential ×1, \
@@ -74,9 +72,9 @@ title and angle fields. No preamble, no markdown fences, no commentary. Example:
 """
 
 OPPORTUNITY_SCORER_REGISTRATION = WorkerRegistration(
-    worker_version="1.0.0",
-    prompt_version="v1",
-    prompt=_OPPORTUNITY_SCORER_PROMPT_V1,
+    worker_version="1.1.0",
+    prompt_version="v2",
+    prompt=_OPPORTUNITY_SCORER_PROMPT_V2,
     model="claude-sonnet-4-6",
     sampling_params={"thinking": {"type": "adaptive"}, "max_tokens": 16384},
 )
