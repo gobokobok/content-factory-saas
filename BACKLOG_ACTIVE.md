@@ -376,6 +376,47 @@ _filled on completion_
 
 ---
 
+## [P6-S6] Niche-aware prompts (replace hardcoded channel)
+**Epic:** E31 — Orchestrator + Legacy Bridge
+**Sprint:** P6
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P5-S5
+
+### Goal
+Remove all hardcoded "The Housing Equation" / "American housing economics" references from worker system prompts. Replace with a `niche` string read from `state.inputs["niche"]` at call time. When niche is absent (standalone `/script`), workers use generic framing and the script writer infers the niche from the idea title.
+
+**Design:**
+- Niche is a plain `str | None` — no `ChannelContext` object for MVP.
+- For the full pipeline (P6), niche enters at the top of the run (`/produce <niche>` or REST) and flows through `state.inputs` to every block.
+- When channel integration arrives post-MVP, niche is inferred from the channel automatically — no worker changes needed.
+- `IdeaToScriptRequest.niche` already exists and is already passed to `state.inputs` — the gap is that workers ignore it in favour of hardcoded text.
+
+**Fallback behaviour when niche is None:**
+- Script writer: include in prompt — "If no niche is provided, infer the appropriate content niche from the idea title and write accordingly."
+- Scorer, fact-checker, refiner: use generic framing ("a data-driven YouTube Shorts channel") — no niche-specific bias.
+
+**Execution order in P6:** `(P6-S1 ∥ P6-S5 ∥ P6-S6) → P6-S2 → (P6-S3 ∥ P6-S4)`.
+
+### Acceptance Criteria
+- [ ] No hardcoded "The Housing Equation" or "American housing economics" in any worker prompt
+- [ ] Script writer, scorer, fact-checker, and refiner read `niche = state.inputs.get("niche")` at call time and render their system prompt with it
+- [ ] Script writer falls back to niche-inference when niche is None
+- [ ] Scorer and fact-checker fall back to generic framing when niche is None
+- [ ] `/script smart fashion in europe` with no niche scores fairly on its own merits (not penalised for non-housing content)
+- [ ] Full pipeline run with `niche="american housing economics"` behaves identically to the current hardcoded behaviour
+- [ ] `WorkerRegistration.prompt` stores the prompt **template** (with `{niche}` placeholder or conditional); the rendered prompt at execution time is recorded in the execution lineage record
+- [ ] Tests: each worker renders the correct prompt for (a) niche provided, (b) niche absent
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
 ## Post-MVP outlines (not yet detailed)
 
 **EPIC 32 — Legacy Rebuild** (~3 sprints after P7): re-author Script→Video as native workers; retire `src/` + adapter.
