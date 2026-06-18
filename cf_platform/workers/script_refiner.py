@@ -27,20 +27,20 @@ from cf_platform.workers.fact_checker import FactcheckReportArtifact
 from cf_platform.workers.script_quality_scorer import ScriptScoresArtifact
 from cf_platform.workers.script_writer import ScriptDraft, ScriptDraftsArtifact
 
-_SCRIPT_REFINER_PROMPT_V1 = """\
-You are a script editor for "The Housing Equation", a data-driven YouTube Shorts \
-channel about American housing economics.
+_SCRIPT_REFINER_PROMPT_V2 = """\
+You are a script editor for a data-driven YouTube Shorts channel.
 
 You will receive:
 1. A script draft that has been scored and fact-checked
-2. The quality scores for that draft (hook_strength, data_quality, narrative_flow, \
-virality_potential, overall_score — all 0–10)
+2. Quality scores (0–10) for four axes, each with a coaching note — the single \
+most impactful edit to raise that axis. Treat each coaching note as a precise \
+editing instruction, not a suggestion.
 3. Fact-check results: a list of claims with verdicts (supported / refuted / unverifiable)
 
 Your job is to produce one refined, improved version of the script that:
+- Applies every coaching note marked with a score below 9.0 (skip "No change needed.")
 - Corrects or removes any refuted or unverifiable factual claims (replace with \
 verified alternatives or reframe without the specific number)
-- Addresses the weakest scoring axes (lowest-scoring axes should be visibly improved)
 - Preserves the core topic, angle, and approximate length (150–200 words)
 - Keeps the hook in the first 10 seconds, a data-driven middle, and a punchy close
 
@@ -56,9 +56,9 @@ Today that figure has quadrupled. Here is why..."
 """
 
 SCRIPT_REFINER_REGISTRATION = WorkerRegistration(
-    worker_version="1.0.0",
-    prompt_version="v1",
-    prompt=_SCRIPT_REFINER_PROMPT_V1,
+    worker_version="1.1.0",
+    prompt_version="v2",
+    prompt=_SCRIPT_REFINER_PROMPT_V2,
     model="claude-sonnet-4-6",
     sampling_params={},
 )
@@ -80,18 +80,23 @@ def _build_user_message(
 
 
 def _format_scores(scores_artifact: ScriptScoresArtifact) -> str:
-    """Format the best draft's scores as a readable summary for the prompt."""
+    """Format the best draft's scores with inline coaching notes for the refiner prompt."""
     best = next(
         (s for s in scores_artifact.scored_drafts if s.draft_number == scores_artifact.best_draft_number),
         scores_artifact.scored_drafts[0],
     )
-    return (
-        f"hook_strength: {best.hook_strength}\n"
-        f"data_quality: {best.data_quality}\n"
-        f"narrative_flow: {best.narrative_flow}\n"
-        f"virality_potential: {best.virality_potential}\n"
-        f"overall_score: {best.overall_score}"
-    )
+
+    def _line(axis: str, score: float, coaching: "str | None") -> str:
+        base = f"{axis}: {score}"
+        return f"{base} — \"{coaching}\"" if coaching else base
+
+    return "\n".join([
+        _line("hook_strength", best.hook_strength, best.hook_coaching),
+        _line("data_quality", best.data_quality, best.data_coaching),
+        _line("narrative_flow", best.narrative_flow, best.narrative_coaching),
+        _line("virality_potential", best.virality_potential, best.virality_coaching),
+        f"overall_score: {best.overall_score}",
+    ])
 
 
 def _format_claims(report: FactcheckReportArtifact) -> str:

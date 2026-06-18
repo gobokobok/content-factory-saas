@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [post-P5] Scorer coaching → refiner (improvement, not a story)
+**Completed:** 2026-06-18
+**Handover:**
+- `ScriptDraftScore` gains four optional coaching fields: `hook_coaching`, `data_coaching`, `narrative_coaching`, `virality_coaching` (`Optional[str] = None` — backward-compatible with v1 artifacts).
+- Scorer prompt bumped to **v2**, worker_version **1.1.0**: Claude writes a one-sentence coaching note per axis ("single most impactful edit"); "No change needed." when axis ≥ 9.0. `max_tokens` raised 1024 → 2048.
+- `_format_scores()` in refiner now emits `axis: score — "coaching note"` inline.
+- Refiner prompt bumped to **v2**, worker_version **1.1.0**: explicitly instructs Claude to treat each coaching note as a precise editing instruction and skip "No change needed." axes.
+- 4 new tests (scorer coaching fields + backward-compat; refiner coaching in user message). Suite 1244 passing.
+**Smoke test:** DEFERRED — requires DEV deploy; re-run `/script` with an on-niche idea and confirm score improves past previous ceiling.
+
+---
+
 ## [P5-S5] Assemble idea_to_script graph + interfaces
 **Completed:** 2026-06-18
 **Handover:**

@@ -65,11 +65,11 @@ Node ranks drafts by virality/quality rubric → `script_scores`. Emits `control
 - Exports: `ScriptScoresArtifact`, `ScriptDraftScore`, `SCRIPT_QUALITY_SCORER_REGISTRATION`
 - Reads `state.artifacts["script_drafts"]` → `ScriptDraftsArtifact` → scores each draft via Claude Sonnet 4.6
 - Rubric axes (0–10): `hook_strength`, `data_quality`, `narrative_flow`, `virality_potential`, `overall_score`
+- **v2 (2026-06-18):** `ScriptDraftScore` gains optional coaching fields per axis (`hook_coaching`, `data_coaching`, `narrative_coaching`, `virality_coaching`). Prompt v2 asks Claude for one-sentence coaching note per axis; "No change needed." when ≥ 9.0. `max_tokens` 1024 → 2048. Backward-compatible (fields are `Optional[str] = None`).
 - Control: `"continue"` if `best_overall_score / 10.0 >= quality_threshold`, else `"retry"`
 - `quality_threshold` read via `getattr(state, "quality_threshold", 0.8)` — forward-compatible with `IdeaToScriptState.quality_threshold`
 - No loop bookkeeping — worker never reads `state.iteration`
-- Model: `claude-sonnet-4-6`, prompt_version v1, worker_version 1.0.0
-- 17 tests in `tests/cf_platform/test_script_quality_scorer.py`; total suite 1120 passing
+- Model: `claude-sonnet-4-6`, prompt_version v2, worker_version 1.1.0
 
 ---
 
@@ -125,7 +125,7 @@ Cyclic graph: writer → scorer → fact-check → refine, bounded by `iteration
 ### Handover
 - `cf_platform/core/schemas.py`: `IdeaToScriptState` added — `iteration: Annotated[int, operator.add]`, `max_iterations=3`, `quality_threshold=0.8`, `unverified_threshold=0.3`, `scorer_verdict`, `factcheck_verdict`. All existing workers forward-compatible via `getattr(state, ...)`.
 - `cf_platform/core/worker_registry.py`: `wrap()` gains `control_channel: Optional[str] = None` — when set, also returns `{control_channel: output.control}` in the node dict (backward-compatible).
-- `cf_platform/workers/script_refiner.py`: `build_script_refiner_worker(storage, anthropic_api_key) → WorkerNode`. Exports `ScriptRefinerArtifact` (actually returns `ScriptDraftsArtifact`), `SCRIPT_REFINER_REGISTRATION`.
+- `cf_platform/workers/script_refiner.py`: `build_script_refiner_worker(storage, anthropic_api_key) → WorkerNode`. Exports `ScriptRefinerArtifact` (actually returns `ScriptDraftsArtifact`), `SCRIPT_REFINER_REGISTRATION`. **v2 (2026-06-18):** `_format_scores()` now includes inline coaching notes (`axis: score — "coaching note"`); prompt v2 instructs Claude to treat each note as a precise editing instruction. prompt_version v2, worker_version 1.1.0.
 - `cf_platform/blocks/idea_to_script.py`: `register_idea_to_script_workers(registry)`, `build_refine_loop_graph(*, storage, registry, executions, artifact_repo, anthropic_api_key, checkpointer?) → CompiledStateGraph`. Cyclic graph with `_route_after_evaluation` and `_increment_iteration` non-worker node. P5-S5 extends this file with REST/Telegram interface + terminal "script" artifact.
 - 33 tests; 1173 total passing.
 

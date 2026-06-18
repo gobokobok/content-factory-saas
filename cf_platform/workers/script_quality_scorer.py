@@ -20,7 +20,7 @@ Pure worker per D040/D056.
 
 import json
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 import anthropic
 from pydantic import BaseModel
@@ -31,9 +31,8 @@ from cf_platform.core.schemas import ControlSignal, StageState, WorkerNode, Work
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.script_writer import ScriptDraftsArtifact
 
-_SCRIPT_QUALITY_SCORER_PROMPT_V1 = """\
-You are a content quality scorer for "The Housing Equation", a data-driven YouTube \
-Shorts channel about American housing economics.
+_SCRIPT_QUALITY_SCORER_PROMPT_V2 = """\
+You are a content quality scorer for a data-driven YouTube Shorts channel.
 
 You will be given one or more script drafts for a 60–90 second short-form video. \
 Score each draft on the following axes from 0.0 to 10.0. Avoid clustering near 7–8; \
@@ -53,24 +52,32 @@ virality_potential ×2, data_quality ×1.5, narrative_flow ×1.5. \
 Divide the weighted sum by 7.0 to normalize to 0–10. \
 Do NOT round — keep two decimal places.
 
+For each axis also write a one-sentence coaching note: the single most impactful \
+edit that would raise that axis's score. If the axis is already ≥ 9.0, write \
+"No change needed." Be specific — name the exact line, word, or missing element.
+
 Return ONLY a JSON array with one object per draft, preserving the original \
 draft_number field. No preamble, no markdown fences, no commentary. Example:
 [
   {
     "draft_number": 1,
     "hook_strength": 8.5,
+    "hook_coaching": "No change needed.",
     "data_quality": 7.0,
+    "data_coaching": "Replace 'billions in losses' with the exact Q3 2024 figure from the FHFA report.",
     "narrative_flow": 8.0,
-    "virality_potential": 9.0,
-    "overall_score": 8.50
+    "narrative_coaching": "The closing line repeats the hook — replace with a forward-looking provocation.",
+    "virality_potential": 6.5,
+    "virality_coaching": "Add a relatable personal-scale anchor ('that's $800/month more than your parents paid') before the closing question.",
+    "overall_score": 7.57
   }
 ]\
 """
 
 SCRIPT_QUALITY_SCORER_REGISTRATION = WorkerRegistration(
-    worker_version="1.0.0",
-    prompt_version="v1",
-    prompt=_SCRIPT_QUALITY_SCORER_PROMPT_V1,
+    worker_version="1.1.0",
+    prompt_version="v2",
+    prompt=_SCRIPT_QUALITY_SCORER_PROMPT_V2,
     model="claude-sonnet-4-6",
     sampling_params={},
 )
@@ -79,13 +86,21 @@ _DEFAULT_QUALITY_THRESHOLD = 0.8
 
 
 class ScriptDraftScore(BaseModel):
-    """Scores for one script draft across four quality axes plus a weighted overall."""
+    """Scores for one script draft across four quality axes plus a weighted overall.
+
+    Coaching fields are Optional for backward-compatibility with artifacts written
+    before prompt v2 — old artifacts stored in R2 won't have them.
+    """
 
     draft_number: int
     hook_strength: float
+    hook_coaching: Optional[str] = None
     data_quality: float
+    data_coaching: Optional[str] = None
     narrative_flow: float
+    narrative_coaching: Optional[str] = None
     virality_potential: float
+    virality_coaching: Optional[str] = None
     overall_score: float
 
 
@@ -144,7 +159,7 @@ def build_script_quality_scorer_worker(
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=90.0)
         response = await client.messages.create(
             model=SCRIPT_QUALITY_SCORER_REGISTRATION.model,
-            max_tokens=1024,
+            max_tokens=2048,
             system=SCRIPT_QUALITY_SCORER_REGISTRATION.prompt,
             messages=[{"role": "user", "content": user_message}],
         )

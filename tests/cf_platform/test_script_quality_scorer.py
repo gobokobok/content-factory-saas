@@ -49,12 +49,14 @@ def _lineage(run_id: str = "run-1") -> LineageEnvelope:
 def _scores_json(
     n: int = 3,
     overall_scores: Optional[List[float]] = None,
+    include_coaching: bool = True,
 ) -> str:
     """Build a mock JSON response for n drafts. overall_scores overrides per-draft."""
     if overall_scores is None:
         overall_scores = [6.0 + i * 0.5 for i in range(n)]
-    return json.dumps([
-        {
+    drafts = []
+    for i in range(n):
+        d: dict = {
             "draft_number": i + 1,
             "hook_strength": 7.0,
             "data_quality": 7.5,
@@ -62,8 +64,13 @@ def _scores_json(
             "virality_potential": 8.0,
             "overall_score": overall_scores[i],
         }
-        for i in range(n)
-    ])
+        if include_coaching:
+            d["hook_coaching"] = "Open with the specific dollar figure to create immediate tension."
+            d["data_coaching"] = "Replace the vague percentage with the exact census figure."
+            d["narrative_coaching"] = "No change needed."
+            d["virality_coaching"] = "Add a relatable personal-scale anchor before the closing question."
+        drafts.append(d)
+    return json.dumps(drafts)
 
 
 async def _seed_script_drafts(
@@ -403,11 +410,11 @@ class TestScriptQualityScorerRegistration:
     def test_model_is_sonnet(self):
         assert SCRIPT_QUALITY_SCORER_REGISTRATION.model == "claude-sonnet-4-6"
 
-    def test_prompt_version_is_v1(self):
-        assert SCRIPT_QUALITY_SCORER_REGISTRATION.prompt_version == "v1"
+    def test_prompt_version_is_v2(self):
+        assert SCRIPT_QUALITY_SCORER_REGISTRATION.prompt_version == "v2"
 
     def test_worker_version_is_set(self):
-        assert SCRIPT_QUALITY_SCORER_REGISTRATION.worker_version == "1.0.0"
+        assert SCRIPT_QUALITY_SCORER_REGISTRATION.worker_version == "1.1.0"
 
     def test_prompt_is_non_empty(self):
         assert len(SCRIPT_QUALITY_SCORER_REGISTRATION.prompt) > 50
@@ -419,3 +426,42 @@ class TestScriptQualityScorerRegistration:
         assert "narrative_flow" in prompt
         assert "virality_potential" in prompt
         assert "overall_score" in prompt
+
+    def test_prompt_instructs_coaching_per_axis(self):
+        prompt = SCRIPT_QUALITY_SCORER_REGISTRATION.prompt
+        assert "coaching" in prompt
+        assert "hook_coaching" in prompt
+        assert "data_coaching" in prompt
+
+
+class TestScriptDraftScoreCoaching:
+    """ScriptDraftScore coaching fields are populated from scorer output."""
+
+    def test_coaching_fields_present_when_scorer_returns_them(self):
+        score = ScriptDraftScore(
+            draft_number=1,
+            hook_strength=7.0,
+            hook_coaching="Open with a dollar figure.",
+            data_quality=7.5,
+            data_coaching="Use the exact census stat.",
+            narrative_flow=6.5,
+            narrative_coaching="No change needed.",
+            virality_potential=8.0,
+            virality_coaching="Add a personal-scale anchor.",
+            overall_score=7.4,
+        )
+        assert score.hook_coaching == "Open with a dollar figure."
+        assert score.narrative_coaching == "No change needed."
+
+    def test_coaching_fields_optional_for_old_artifacts(self):
+        """Artifacts written before v2 have no coaching — must not fail validation."""
+        score = ScriptDraftScore(
+            draft_number=1,
+            hook_strength=7.0,
+            data_quality=7.5,
+            narrative_flow=6.5,
+            virality_potential=8.0,
+            overall_score=7.4,
+        )
+        assert score.hook_coaching is None
+        assert score.virality_coaching is None

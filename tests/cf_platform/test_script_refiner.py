@@ -285,6 +285,63 @@ async def test_scores_axes_present_in_user_message():
 
 
 @pytest.mark.asyncio
+async def test_coaching_notes_present_in_user_message_when_available():
+    """Coaching notes from scorer must appear in the refiner's user message."""
+    storage = InMemoryArtifactStorage()
+    run_id = "run-004b"
+
+    scores_with_coaching = ScriptScoresArtifact(
+        idea_title=_IDEA_TITLE,
+        scored_drafts=[
+            ScriptDraftScore(
+                draft_number=1,
+                hook_strength=6.0,
+                hook_coaching="Open with the exact dollar figure to create tension.",
+                data_quality=7.0,
+                data_coaching="Replace 'billions in losses' with the Q3 2024 FHFA figure.",
+                narrative_flow=6.5,
+                narrative_coaching="No change needed.",
+                virality_potential=7.5,
+                virality_coaching="Add a relatable personal-scale anchor before the closing question.",
+                overall_score=6.9,
+            )
+        ],
+        best_draft_number=1,
+        best_score=6.9,
+        generated_at=_NOW,
+    )
+
+    drafts_key = await _write_artifact_to_storage(storage, _make_drafts_artifact(), "script_drafts", run_id)
+    scores_key = await _write_artifact_to_storage(storage, scores_with_coaching, "script_scores", run_id)
+    factcheck_key = await _write_artifact_to_storage(storage, _make_factcheck_artifact(), "factcheck_report", run_id)
+
+    state = _make_state(
+        {"script_drafts": drafts_key, "script_scores": scores_key, "factcheck_report": factcheck_key},
+        run_id=run_id,
+    )
+
+    captured: list = []
+
+    async def _capture(*args, **kwargs):
+        captured.append(kwargs.get("messages", []))
+        return _mock_claude_response()
+
+    with patch("cf_platform.workers.script_refiner.anthropic.AsyncAnthropic") as mock_cls:
+        mock_client = AsyncMock()
+        mock_cls.return_value = mock_client
+        mock_client.messages.create = _capture
+
+        worker = build_script_refiner_worker(storage, "fake-key")
+        await worker(state)
+
+    user_content = captured[0][0]["content"]
+    assert "Open with the exact dollar figure" in user_content
+    assert "Replace 'billions in losses'" in user_content
+    assert "No change needed." in user_content
+    assert "personal-scale anchor" in user_content
+
+
+@pytest.mark.asyncio
 async def test_refuted_claim_present_in_user_message():
     storage = InMemoryArtifactStorage()
     run_id = "run-005"
@@ -442,11 +499,11 @@ def test_registration_pins_model():
 
 
 def test_registration_pins_prompt_version():
-    assert SCRIPT_REFINER_REGISTRATION.prompt_version == "v1"
+    assert SCRIPT_REFINER_REGISTRATION.prompt_version == "v2"
 
 
 def test_registration_pins_worker_version():
-    assert SCRIPT_REFINER_REGISTRATION.worker_version == "1.0.0"
+    assert SCRIPT_REFINER_REGISTRATION.worker_version == "1.1.0"
 
 
 def test_registration_prompt_is_non_empty():
