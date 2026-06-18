@@ -1,14 +1,17 @@
-"""Full pipeline orchestrator (P6-S2) — niche_to_ideas → idea_to_script → legacy_render.
+"""Full pipeline orchestrator (P6-S2, P6-S3) — niche_to_ideas → idea_to_script → [gate] → legacy_render.
 
-Composes the three pipeline blocks as a 3-node parent graph over PipelineState.
-Each block runs as a wrapper node that constructs a block-specific state, invokes
-the block's subgraph, and returns only the terminal artifact ref to the parent.
-The legacy_render node is a plain async node (adapter is IO, not a worker — D057).
+Composes the three pipeline blocks as a parent graph over PipelineState.
+P6-S3 adds the HITL script-approval gate between idea_to_script and legacy_render:
+  - hitl=False (default): gate is bypassed; fully autonomous path unchanged.
+  - hitl=True: gate calls interrupt(); graph pauses until operator resumes via
+    POST /runs/{id}/resume.  Auto-approve via HITL_TIMEOUT_SECONDS is wired by
+    the caller (cf_platform/orchestrator/hitl.py).
 
 Lineage threads end-to-end via run_id:
-  niche_to_ideas   → parent.artifacts["ranked_ideas"]
-  idea_to_script   → parent.artifacts["script"]
-  legacy_render    → parent.artifacts["video"]
+  niche_to_ideas       → parent.artifacts["ranked_ideas"]
+  idea_to_script       → parent.artifacts["script"]
+  script_approval_gate → (no artifact — gate is IO/control only, D057)
+  legacy_render        → parent.artifacts["video"]
 
 Canonical spec: docs/v2_platform_plan.md §5 · PipelineState contract.
 """
@@ -20,6 +23,7 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import interrupt
 
 from cf_platform.adapters.legacy_video import InProcessLegacyVideoAdapter, LegacyVideoAdapter
 from cf_platform.blocks.idea_to_script import build_idea_to_script_graph
@@ -127,6 +131,31 @@ def build_full_pipeline_graph(
         )
         return {"artifacts": {"script": result.artifacts["script"]}}
 
+    async def script_approval_gate(state: PipelineState) -> dict[str, Any]:
+        """Pause for operator script approval when PipelineState.hitl=True (P6-S3).
+
+        Calls interrupt() with the run_id and script R2 key so the caller can
+        surface the script to the operator (via Telegram or REST) without the
+        gate needing a Telegram/notification dependency.
+
+        Resume values:
+          "approve" → returns empty dict; execution continues to legacy_render.
+          "reject"  → raises RuntimeError; run fails.
+
+        The gate emits no artifact and writes nothing to state (D057 — gate is
+        control-only; the script artifact was already produced by idea_to_script).
+        """
+        decision = interrupt(
+            {
+                "type": "script_approval",
+                "run_id": state.run_id,
+                "script_r2_key": state.artifacts["script"],
+            }
+        )
+        if decision == "reject":
+            raise RuntimeError(f"Script rejected by operator for run {state.run_id}")
+        return {}
+
     async def legacy_render_node(state: PipelineState) -> dict[str, Any]:
         """Call the legacy video adapter; return video r2_key.
 
@@ -147,14 +176,24 @@ def build_full_pipeline_graph(
             raise RuntimeError(f"Legacy render failed: {result.error}")
         return {"artifacts": {"video": result.r2_key}}
 
+    def _route_after_script(state: PipelineState) -> str:
+        """Route to the HITL gate when hitl=True; otherwise skip directly to legacy_render."""
+        return "script_approval_gate" if state.hitl else "legacy_render"
+
     graph: StateGraph = StateGraph(PipelineState)
     graph.add_node("niche_to_ideas", niche_to_ideas_node)
     graph.add_node("idea_to_script", idea_to_script_node)
+    graph.add_node("script_approval_gate", script_approval_gate)
     graph.add_node("legacy_render", legacy_render_node)
 
     graph.add_edge(START, "niche_to_ideas")
     graph.add_edge("niche_to_ideas", "idea_to_script")
-    graph.add_edge("idea_to_script", "legacy_render")
+    graph.add_conditional_edges(
+        "idea_to_script",
+        _route_after_script,
+        {"script_approval_gate": "script_approval_gate", "legacy_render": "legacy_render"},
+    )
+    graph.add_edge("script_approval_gate", "legacy_render")
     graph.add_edge("legacy_render", END)
 
     return graph.compile(checkpointer=checkpointer or MemorySaver())

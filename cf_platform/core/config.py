@@ -52,6 +52,7 @@ class PlatformSettings(BaseSettings):
     REDDIT_USER_AGENT: str = ""
     YOUTUBE_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
+    HITL_TIMEOUT_SECONDS: int = 0
 
 
 def get_platform_settings() -> PlatformSettings:

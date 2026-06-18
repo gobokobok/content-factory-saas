@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P6-S3] Human-in-the-loop gates
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/core/config.py`: `HITL_TIMEOUT_SECONDS: int = 0` added to `PlatformSettings` — 0 = no timeout (wait indefinitely); positive = auto-approve after N seconds.
+- `cf_platform/interfaces/telegram.py`: `format_script_approval_request(run_id, script_preview)` (2000-char cap), `parse_hitl_decision(text) → Optional[tuple[str, str]]` (parses `/approve <run_id>` / `/reject <run_id>`), `format_hitl_approved(run_id)`, `format_hitl_rejected(run_id)`.
+- `cf_platform/orchestrator/hitl.py` (new): `auto_approve_after_timeout(run_id, timeout_seconds, graph, thread_id?)` — sleeps then resumes with `Command(resume="approve")`; no-op when `<= 0`; swallows exceptions. Wired into `/produce` by the caller (P6-S4).
+- `cf_platform/orchestrator/full_pipeline.py`: `script_approval_gate` closure node — `interrupt({type, run_id, script_r2_key})`; `"approve"` → `{}`; `"reject"` → `RuntimeError`. `_route_after_script` conditional edge: `hitl=True` routes through gate; `hitl=False` bypasses directly to legacy_render.
+- `cf_platform/interfaces/api.py`: `POST /platform/runs/{run_id}/resume` (202) with `ResumeRequest(decision: Literal["approve","reject"])` / `ResumeResponse`; rebuilds graph and calls `graph.ainvoke(Command(resume=decision))` as a BackgroundTask.
+- 25 tests in `tests/cf_platform/test_p6_s3_hitl.py`; 1498 total passing (CI green).
+- Python 3.9 compat note: gate tests patch `interrupt` directly — LangGraph interrupt requires 3.11+ in async context. Production uses 3.11+; test layer avoids the machinery.
+**Smoke test:** DEFERRED — gate exercises when `hitl=True` is set on a `/produce` run. Full integration test: set `HITL_TIMEOUT_SECONDS=30`, call `/produce <niche>`, confirm run pauses after script step, then `POST /runs/{run_id}/resume {"decision":"approve"}` and confirm video is produced.
+**Promoted to backlog:** none.
+
+---
+
 ## [P6-S4] End-to-end /produce → video
 **Completed:** 2026-06-18
 **Handover:**

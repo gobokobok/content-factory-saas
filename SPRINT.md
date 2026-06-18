@@ -60,7 +60,7 @@ Legacy Script→Video stays untouched and operable (D047).
 |----|-------|--------|--------|
 | P6-S1 | Legacy adapter (interface + in-process impl) | 3 | done |
 | P6-S2 | Legacy-as-node + parent graph (+ PipelineState) | 5 | done |
-| P6-S3 | Human-in-the-loop gates | 3 | in-progress |
+| P6-S3 | Human-in-the-loop gates | 3 | done |
 | P6-S4 | End-to-end /produce → video | 2 | done |
 | P6-S5 | Target duration parameter (run-level → script writer) | 3 | done |
 | P6-S6 | Niche-aware prompts (replace hardcoded channel) | 3 | done |

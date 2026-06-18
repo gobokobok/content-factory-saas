@@ -2,12 +2,13 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 _logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.types import Command
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import (
@@ -496,6 +497,65 @@ async def get_run(
             for execution in execution_records
         ],
     )
+
+
+class ResumeRequest(BaseModel):
+    """Request body for POST /platform/runs/{run_id}/resume (P6-S3)."""
+
+    decision: Literal["approve", "reject"]
+
+
+class ResumeResponse(BaseModel):
+    """Response body for POST /platform/runs/{run_id}/resume (P6-S3)."""
+
+    run_id: str
+    decision: str
+    status: str
+
+
+@router.post("/runs/{run_id}/resume", status_code=202, response_model=ResumeResponse)
+async def resume_run(
+    run_id: str,
+    body: ResumeRequest,
+    background_tasks: BackgroundTasks,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    registry: WorkerRegistry = Depends(get_worker_registry),
+    executions: ExecutionRepository = Depends(get_execution_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+    checkpointer: BaseCheckpointSaver = Depends(get_graph_checkpointer),
+    settings: PlatformSettings = Depends(get_platform_settings),
+    adapters: list[tuple[str, SourceAdapter]] = Depends(get_discovery_adapters),
+) -> ResumeResponse:
+    """Resume an interrupted pipeline run with the given decision (P6-S3).
+
+    Rebuilds the full pipeline graph with the Postgres checkpointer and resumes
+    from the saved checkpoint under thread_id=run_id. Accepted decisions:
+      "approve" — continue to legacy_render.
+      "reject"  — cancel the run (raises RuntimeError inside the gate node).
+
+    Returns 202 immediately; the resumed pipeline continues as a BackgroundTask.
+    """
+
+    async def _resume() -> None:
+        config = {"configurable": {"thread_id": run_id}}
+        try:
+            graph = build_full_pipeline_graph(
+                storage=storage,
+                registry=registry,
+                executions=executions,
+                artifact_repo=artifacts,
+                adapters=adapters,
+                trace_repo=trace_events,
+                anthropic_api_key=settings.ANTHROPIC_API_KEY,
+                checkpointer=checkpointer,
+            )
+            await graph.ainvoke(Command(resume=body.decision), config=config)
+        except Exception as exc:
+            _logger.error("resume_run failed for run_id=%s decision=%s: %s", run_id, body.decision, exc)
+
+    background_tasks.add_task(_resume)
+    return ResumeResponse(run_id=run_id, decision=body.decision, status="resuming")
 
 
 class TelegramChat(BaseModel):
