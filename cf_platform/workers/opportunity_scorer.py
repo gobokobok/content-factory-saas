@@ -78,7 +78,7 @@ OPPORTUNITY_SCORER_REGISTRATION = WorkerRegistration(
     prompt_version="v1",
     prompt=_OPPORTUNITY_SCORER_PROMPT_V1,
     model="claude-sonnet-4-6",
-    sampling_params={"thinking": {"type": "adaptive"}, "max_tokens": 8192},
+    sampling_params={"thinking": {"type": "adaptive"}, "max_tokens": 16384},
 )
 
 
@@ -157,10 +157,12 @@ def build_opportunity_scorer_worker(
             f"{topics_lines}"
         )
 
-        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+        # max_tokens covers thinking + output combined. Adaptive thinking can consume
+        # 6000–12000 tokens; 16384 ensures enough headroom for the JSON output.
+        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=120.0)
         response = await client.messages.create(
             model=OPPORTUNITY_SCORER_REGISTRATION.model,
-            max_tokens=8192,
+            max_tokens=16384,
             thinking={"type": "adaptive"},
             system=OPPORTUNITY_SCORER_REGISTRATION.prompt,
             messages=[{"role": "user", "content": user_message}],
