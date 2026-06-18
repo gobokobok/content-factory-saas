@@ -7,7 +7,7 @@ Covers:
 - _route_after_integrity: returns 'fail' when verdict is 'retry' and loops < MAX
 - _route_after_integrity: returns 'manual_review' when verdict is 'retry' and loops >= MAX
 - _increment_integrity_loops: returns {"integrity_loops": 1}
-- register_idea_to_script_workers: all 11 workers present in registry
+- register_idea_to_script_workers: all 12 workers present in registry
 - build_idea_to_script_graph: compiles without error with registered workers
 - build_idea_to_script_graph: raises WorkerNotRegisteredError without registered workers
 - wrap() control_channel stores integrity_verdict in state (existing test from P5-S4)
@@ -36,14 +36,15 @@ from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemo
 from cf_platform.core.execution_engine import run_graph
 from cf_platform.core.idea_to_script_schemas import (
     Blueprint,
+    EvaluationArtifact,
     GeneratedScriptArtifact,
     HookVariantsArtifact,
     IntegrityReport,
+    NarrativeLens,
     NormalizedContext,
     PatchSetArtifact,
     Section,
     SelectedHookArtifact,
-    EvaluationArtifact,
 )
 from cf_platform.core.schemas import IdeaToScriptState, WorkerOutput
 from cf_platform.core.worker_registry import InMemoryExecutionRepository, WorkerNotRegisteredError, WorkerRegistry
@@ -125,12 +126,12 @@ async def test_increment_integrity_loops_returns_one():
 # ── register_idea_to_script_workers ───────────────────────────────────
 
 
-def test_register_workers_adds_all_eleven():
+def test_register_workers_adds_all_twelve():
     registry = WorkerRegistry()
     register_idea_to_script_workers(registry)
     expected = [
         "context_normalizer", "blueprint_generator", "evaluator",
-        "blueprint_merger", "hook_generator", "hook_selector",
+        "blueprint_merger", "narrative_lens", "hook_generator", "hook_selector",
         "script_generator", "integrity_checker", "patch_generator",
         "patch_applier", "script_packager",
     ]
@@ -235,7 +236,7 @@ def _make_script_artifact(status: str = "ok"):
 
 @contextmanager
 def _stub_all_workers(integrity_passes: bool = True, integrity_loops_before_pass: int = 0):
-    """Patch all 11 builder functions with pure stubs."""
+    """Patch all 12 builder functions with pure stubs."""
     call_count = {"integrity": 0}
 
     async def _stub_context_normalizer(state):
@@ -249,6 +250,13 @@ def _stub_all_workers(integrity_passes: bool = True, integrity_loops_before_pass
 
     async def _stub_blueprint_merger(state):
         return WorkerOutput(artifact=_make_blueprints())
+
+    async def _stub_narrative_lens(state):
+        return WorkerOutput(artifact=NarrativeLens(
+            identity_angle="Identity", contrarian_angle="Contrarian",
+            philosophical_angle="Philosophical", emotional_angle="Emotional",
+            story_devices=["device"],
+        ))
 
     async def _stub_hook_generator(state):
         return WorkerOutput(artifact=HookVariantsArtifact(
@@ -281,6 +289,7 @@ def _stub_all_workers(integrity_passes: bool = True, integrity_loops_before_pass
         patch("cf_platform.blocks.idea_to_script.build_blueprint_generator_worker", return_value=_stub_blueprint_generator),
         patch("cf_platform.blocks.idea_to_script.build_evaluator_worker", return_value=_stub_evaluator),
         patch("cf_platform.blocks.idea_to_script.build_blueprint_merger_worker", return_value=_stub_blueprint_merger),
+        patch("cf_platform.blocks.idea_to_script.build_narrative_lens_worker", return_value=_stub_narrative_lens),
         patch("cf_platform.blocks.idea_to_script.build_hook_generator_worker", return_value=_stub_hook_generator),
         patch("cf_platform.blocks.idea_to_script.build_hook_selector_worker", return_value=_stub_hook_selector),
         patch("cf_platform.blocks.idea_to_script.build_script_generator_worker", return_value=_stub_script_generator),

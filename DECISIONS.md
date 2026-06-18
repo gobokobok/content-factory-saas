@@ -5,6 +5,24 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D060 — Information Ownership Principle
+**Date:** 2026-06-18
+**Decision:** Every worker in the pipeline owns exactly one type of information and may not cross into another worker's ownership domain. Current assignments: Discovery Worker owns research; Evaluator owns truth (fact-checking + alignment scoring); Narrative Lens Worker owns storytelling; Script Generator owns prose; Integrity Checker owns enforcement. Workers may transform information received from upstream workers but may not create information that belongs to another worker's domain.
+**Rationale:** As the pipeline grows from 12 to 30+ workers, unscoped information creation is the primary failure mode — any worker that can generate facts is a second hallucination source. Formalising ownership boundaries makes this structurally impossible: the Narrative Lens cannot generate facts because it only receives verified claims from the Evaluator; the Script Generator cannot verify claims because it does not have access to raw research. Ownership also makes observability clean: any factual error can be attributed to exactly one node.
+**Consequence:** Applied strictly to the Narrative Lens Worker (D059). Future workers must declare their ownership domain in their module docstring. Workers that would need to cross boundaries require a new architecture decision first.
+**See:** D059. **No new dependencies.**
+
+---
+
+## D059 — Narrative Lens Worker Contract: no new factual content
+**Date:** 2026-06-18
+**Decision:** The Narrative Lens Worker (node [4]) receives only verified blueprint claims and evaluation corrections. It MUST NOT invent any fact, number, statistic, study, brand, country, timeline, or comparison. Its output (`NarrativeLens`) contains four storytelling reframings (identity, contrarian, philosophical, emotional) and a list of story devices, all derivable exclusively from the verified claims supplied to it. This is enforced by: (1) prompt contract — explicit forbidden list; (2) input restriction — the worker reads only `merged_blueprint` and `evaluation` artifacts, never signals, raw research, or web results; (3) schema constraint — `NarrativeLens` fields are plain strings (reframings), not claim objects, removing the structural temptation to invent.
+**Rationale:** Without this contract, a creative model (even Haiku) will connect dots inventively and produce plausible-sounding but unverified assertions (e.g. "80% of Europeans prefer durability"). This would silently introduce a second hallucination source after the Evaluator, undermining the Blueprint IR pipeline's factual integrity guarantee. The Narrative Lens is a translator, not a researcher: Facts → Storytelling, not Facts → New Facts.
+**Consequence:** `NarrativeLens` schema has no `supporting_claim_ids` at this stage — enforcement is in the prompt and input restriction. The `_build_user_message()` in narrative_lens.py deliberately omits signals and context; it passes only blueprint.claims, evaluation.factual_corrections, and blueprint.required_evidence.
+**See:** D060. **No new dependencies.**
+
+---
+
 ## D058 — Idea→Script stage: Blueprint IR + single-pass generation + patch repair
 **Date:** 2026-06-18
 **Decision:** The Idea→Script block is redesigned as a deterministic content compiler with three phases: (1) Blueprint IR generation — a structured intermediate representation (hook angle, sections, claims, evidence requirements) produced once by a cheap model before any script text is written; (2) Single-pass script generation — the LLM writes the script exactly once from the finalised blueprint + selected hook, no regeneration loops; (3) Patch-based integrity repair — if the integrity check fails, a Haiku model emits structured `Patch` objects (operation/target/replacement) applied deterministically, never a full rewrite. MAX_INTEGRITY_LOOPS = 2.

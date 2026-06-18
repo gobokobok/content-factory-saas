@@ -38,6 +38,7 @@ from cf_platform.core.idea_to_script_schemas import (
     GeneratedScriptArtifact,
     HookVariantsArtifact,
     IntegrityReport,
+    NarrativeLens,
     NormalizedContext,
     PatchSetArtifact,
     Section,
@@ -133,6 +134,13 @@ def _stub_idea_to_script_workers() -> Generator:
             direction_alignment_notes="Notes",
         ))
 
+    async def _stub_narrative_lens(state):
+        return WorkerOutput(artifact=NarrativeLens(
+            identity_angle="Identity", contrarian_angle="Contrarian",
+            philosophical_angle="Philosophical", emotional_angle="Emotional",
+            story_devices=["device 1"],
+        ))
+
     async def _stub_hook_generator(state):
         return WorkerOutput(artifact=HookVariantsArtifact(hooks=["Hook 1"], generated_at=_NOW))
 
@@ -165,6 +173,7 @@ def _stub_idea_to_script_workers() -> Generator:
         patch("cf_platform.blocks.idea_to_script.build_blueprint_generator_worker", return_value=_stub_blueprint_generator),
         patch("cf_platform.blocks.idea_to_script.build_evaluator_worker", return_value=_stub_evaluator),
         patch("cf_platform.blocks.idea_to_script.build_blueprint_merger_worker", return_value=_stub_blueprint_merger),
+        patch("cf_platform.blocks.idea_to_script.build_narrative_lens_worker", return_value=_stub_narrative_lens),
         patch("cf_platform.blocks.idea_to_script.build_hook_generator_worker", return_value=_stub_hook_generator),
         patch("cf_platform.blocks.idea_to_script.build_hook_selector_worker", return_value=_stub_hook_selector),
         patch("cf_platform.blocks.idea_to_script.build_script_generator_worker", return_value=_stub_script_generator),

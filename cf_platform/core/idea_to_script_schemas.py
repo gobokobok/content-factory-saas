@@ -149,6 +149,24 @@ class PatchSetArtifact(BaseModel):
     generated_at: datetime
 
 
+# ── Narrative lens schemas ──────────────────────────────────────────────
+
+
+class NarrativeLens(BaseModel):
+    """Output of the narrative_lens node — storytelling reframings of verified blueprint facts.
+
+    The Narrative Lens Worker owns storytelling; it MUST NOT create facts (D059).
+    Every angle must be derivable solely from the blueprint claims and evaluation
+    corrections passed to it. No new entities, numbers, studies, or comparisons allowed.
+    """
+
+    identity_angle: str
+    contrarian_angle: str
+    philosophical_angle: str
+    emotional_angle: str
+    story_devices: list[str]
+
+
 # ── Terminal output schema ──────────────────────────────────────────────
 
 

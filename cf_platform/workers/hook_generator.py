@@ -8,16 +8,16 @@ Pure worker per D040/D056.
 """
 
 import json
-from typing import Any
+from datetime import datetime, timezone
+from typing import Any, Optional
 
 import anthropic
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
-from cf_platform.core.idea_to_script_schemas import Blueprint, HookVariantsArtifact
+from cf_platform.core.idea_to_script_schemas import Blueprint, HookVariantsArtifact, NarrativeLens
 from cf_platform.core.llm_utils import strip_markdown_fences
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
-from datetime import datetime, timezone
 
 _HOOK_GENERATOR_PROMPT_V1 = """\
 You are a short-form video hook writer. A hook is the opening 5–15 words that make \
@@ -53,7 +53,7 @@ def build_hook_generator_worker(
     """
 
     async def hook_generator(state: StageState) -> WorkerOutput:
-        """Read merged_blueprint, call Claude Haiku, return HookVariantsArtifact."""
+        """Read merged_blueprint + optional narrative_lens, call Claude Haiku, return HookVariantsArtifact."""
         bp_key = state.artifacts.get("merged_blueprint")
         if not bp_key:
             raise KeyError(
@@ -63,7 +63,13 @@ def build_hook_generator_worker(
         _, bp_body = await read_artifact(storage, bp_key)
         blueprint = Blueprint.model_validate(bp_body)
 
-        user_message = _build_user_message(blueprint)
+        lens: Optional[NarrativeLens] = None
+        lens_key = state.artifacts.get("narrative_lens")
+        if lens_key:
+            _, lens_body = await read_artifact(storage, lens_key)
+            lens = NarrativeLens.model_validate(lens_body)
+
+        user_message = _build_user_message(blueprint, lens)
 
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=60.0)
         response = await client.messages.create(
@@ -91,12 +97,18 @@ def build_hook_generator_worker(
     return hook_generator
 
 
-def _build_user_message(blueprint: Blueprint) -> str:
-    """Compose the Claude user message from the merged blueprint."""
+def _build_user_message(blueprint: Blueprint, lens: Optional[NarrativeLens] = None) -> str:
+    """Compose the Claude user message from the merged blueprint and optional narrative lens."""
     parts = [
         f"Hook angle: {blueprint.hook_angle}",
         f"Signal summary: {blueprint.signal_summary}",
-        "",
-        "Generate 3 hook variants for this video.",
     ]
+    if lens:
+        parts.append("")
+        parts.append("=== NARRATIVE ANGLES (use to make hooks emotionally resonant) ===")
+        parts.append(f"Contrarian: {lens.contrarian_angle}")
+        parts.append(f"Identity:   {lens.identity_angle}")
+        parts.append(f"Emotional:  {lens.emotional_angle}")
+    parts.append("")
+    parts.append("Generate 3 hook variants for this video.")
     return "\n".join(parts)

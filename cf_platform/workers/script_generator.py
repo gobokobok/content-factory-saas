@@ -13,7 +13,12 @@ from typing import Optional
 import anthropic
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
-from cf_platform.core.idea_to_script_schemas import Blueprint, GeneratedScriptArtifact, SelectedHookArtifact
+from cf_platform.core.idea_to_script_schemas import (
+    Blueprint,
+    GeneratedScriptArtifact,
+    NarrativeLens,
+    SelectedHookArtifact,
+)
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 
@@ -81,6 +86,12 @@ def build_script_generator_worker(
         _, hook_body = await read_artifact(storage, hook_key)
         hook_artifact = SelectedHookArtifact.model_validate(hook_body)
 
+        lens: Optional[NarrativeLens] = None
+        lens_key = state.artifacts.get("narrative_lens")
+        if lens_key:
+            _, lens_body = await read_artifact(storage, lens_key)
+            lens = NarrativeLens.model_validate(lens_body)
+
         target_duration: int = int(getattr(state, "target_duration_seconds", 60))
         target_words = round(target_duration * _WORDS_PER_SECOND)
         niche: Optional[str] = state.inputs.get("niche")
@@ -93,6 +104,7 @@ def build_script_generator_worker(
             hook=hook_artifact.hook,
             target_words=target_words,
             target_duration=target_duration,
+            lens=lens,
         )
 
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=120.0)
@@ -126,8 +138,9 @@ def _build_user_message(
     hook: str,
     target_words: int,
     target_duration: int,
+    lens: Optional[NarrativeLens] = None,
 ) -> str:
-    """Compose the Claude user message from the blueprint and selected hook."""
+    """Compose the Claude user message from the blueprint, hook, and optional narrative lens."""
     parts = []
     if niche:
         parts.append(f"Channel niche: {niche}")
@@ -154,6 +167,21 @@ def _build_user_message(
         parts.append(f"  - {evidence}")
     parts.append("")
     parts.append(f"Direction: {blueprint.direction_alignment_notes}")
+    if lens:
+        parts.append("")
+        parts.append(
+            "=== NARRATIVE ANGLES (aim for 70% rational / 30% emotional — use these to "
+            "add identity, surprise, and feeling to the rational content above) ==="
+        )
+        parts.append(f"Identity:     {lens.identity_angle}")
+        parts.append(f"Contrarian:   {lens.contrarian_angle}")
+        parts.append(f"Philosophical: {lens.philosophical_angle}")
+        parts.append(f"Emotional:    {lens.emotional_angle}")
+        if lens.story_devices:
+            parts.append(f"Story devices: {', '.join(lens.story_devices)}")
+        parts.append(
+            "Weave these angles into the prose — do not invent new facts to support them."
+        )
     parts.append("")
     parts.append("Write the full narration script now.")
     return "\n".join(parts)

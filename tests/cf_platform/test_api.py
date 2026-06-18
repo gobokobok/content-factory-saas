@@ -62,7 +62,7 @@ def _stub_idea_to_script_workers():
     """Patch all 11 Blueprint IR builder factories with deterministic stubs (no Claude calls)."""
     from cf_platform.core.idea_to_script_schemas import (
         Blueprint, EvaluationArtifact, GeneratedScriptArtifact,
-        HookVariantsArtifact, IntegrityReport, NormalizedContext,
+        HookVariantsArtifact, IntegrityReport, NarrativeLens, NormalizedContext,
         PatchSetArtifact, Section, SelectedHookArtifact,
     )
     from cf_platform.workers.script_packager import ScriptArtifact
@@ -93,6 +93,13 @@ def _stub_idea_to_script_workers():
             claims=["Claim"], monetization_angle="Mon",
             required_evidence=["Evidence"], signal_summary="Sum",
             direction_alignment_notes="Notes",
+        ))
+
+    async def _narrative_lens(state):
+        return WorkerOutput(artifact=NarrativeLens(
+            identity_angle="Identity", contrarian_angle="Contrarian",
+            philosophical_angle="Philosophical", emotional_angle="Emotional",
+            story_devices=["device 1"],
         ))
 
     async def _hook_gen(state):
@@ -130,6 +137,7 @@ def _stub_idea_to_script_workers():
         patch("cf_platform.blocks.idea_to_script.build_blueprint_generator_worker", return_value=_bp_gen),
         patch("cf_platform.blocks.idea_to_script.build_evaluator_worker", return_value=_evaluator),
         patch("cf_platform.blocks.idea_to_script.build_blueprint_merger_worker", return_value=_bp_merge),
+        patch("cf_platform.blocks.idea_to_script.build_narrative_lens_worker", return_value=_narrative_lens),
         patch("cf_platform.blocks.idea_to_script.build_hook_generator_worker", return_value=_hook_gen),
         patch("cf_platform.blocks.idea_to_script.build_hook_selector_worker", return_value=_hook_sel),
         patch("cf_platform.blocks.idea_to_script.build_script_generator_worker", return_value=_script_gen),

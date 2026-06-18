@@ -1,8 +1,8 @@
-"""idea_to_script block — Blueprint IR pipeline (P5-S6, D058).
+"""idea_to_script block — Blueprint IR pipeline (P5-S6/P5-S7, D058/D059/D060).
 
 Replaces the cyclic write→score→fact-check→refine loop with a deterministic
-content compiler: context → blueprint → eval → merge → hook → script → integrity
-check → targeted patch repair (max 2 cycles) → package.
+content compiler: context → blueprint → eval → merge → narrative lens → hook
+→ script → integrity check → targeted patch repair (max 2 cycles) → package.
 
 Graph topology (build_idea_to_script_graph):
 
@@ -11,14 +11,15 @@ Graph topology (build_idea_to_script_graph):
     → blueprint_generation    [1] Sonnet
     → evaluation              [2] Sonnet
     → blueprint_merge         [3] deterministic
-    → hook_generation         [4] Haiku
-    → hook_selection          [5] Haiku
-    → script_generation       [6] Sonnet — single pass, never retried
-    → integrity_check         [7] Haiku
+    → narrative_lens          [4] Haiku — storytelling angles from verified facts only (D059)
+    → hook_generation         [5] Haiku
+    → hook_selection          [6] Haiku
+    → script_generation       [7] Sonnet — single pass, never retried
+    → integrity_check         [8] Haiku
         "continue" → script_packager → END
         "retry"    → _increment_integrity_loops
-                    → patch_generator   [8] Haiku
-                    → apply_patch       [9] deterministic
+                    → patch_generator   [9]  Haiku
+                    → apply_patch       [10] deterministic
                     → integrity_check   (cycle, max MAX_INTEGRITY_LOOPS=2)
         "manual_review" → script_packager → END (status=manual_review)
 
@@ -26,7 +27,7 @@ Graph topology (build_idea_to_script_graph):
 `integrity_loops` uses Annotated[int, operator.add] so the increment node is
 a pure non-worker that returns {"integrity_loops": 1}.
 
-Canonical spec: docs/v2_platform_plan.md §5 · D058.
+Canonical spec: docs/v2_platform_plan.md §5 · D058/D059/D060.
 """
 
 from typing import Any, Optional
@@ -55,6 +56,10 @@ from cf_platform.workers.evaluator import EVALUATOR_REGISTRATION, build_evaluato
 from cf_platform.workers.hook_generator import (
     HOOK_GENERATOR_REGISTRATION,
     build_hook_generator_worker,
+)
+from cf_platform.workers.narrative_lens import (
+    NARRATIVE_LENS_REGISTRATION,
+    build_narrative_lens_worker,
 )
 from cf_platform.workers.hook_selector import (
     HOOK_SELECTOR_REGISTRATION,
@@ -86,11 +91,11 @@ MAX_INTEGRITY_LOOPS = 2
 
 
 def register_idea_to_script_workers(registry: WorkerRegistry) -> None:
-    """Register all 11 idea_to_script workers in registry (idempotent re-register is fine).
+    """Register all 12 idea_to_script workers in registry (idempotent re-register is fine).
 
     Workers: context_normalizer, blueprint_generator, evaluator, blueprint_merger,
-    hook_generator, hook_selector, script_generator, integrity_checker,
-    patch_generator, patch_applier, script_packager.
+    narrative_lens, hook_generator, hook_selector, script_generator,
+    integrity_checker, patch_generator, patch_applier, script_packager.
 
     Call once at startup before building the graph factory.
     """
@@ -98,6 +103,7 @@ def register_idea_to_script_workers(registry: WorkerRegistry) -> None:
     registry.register("blueprint_generator", BLUEPRINT_GENERATOR_REGISTRATION)
     registry.register("evaluator", EVALUATOR_REGISTRATION)
     registry.register("blueprint_merger", BLUEPRINT_MERGER_REGISTRATION)
+    registry.register("narrative_lens", NARRATIVE_LENS_REGISTRATION)
     registry.register("hook_generator", HOOK_GENERATOR_REGISTRATION)
     registry.register("hook_selector", HOOK_SELECTOR_REGISTRATION)
     registry.register("script_generator", SCRIPT_GENERATOR_REGISTRATION)
@@ -144,11 +150,11 @@ def build_idea_to_script_graph(
     anthropic_api_key: str,
     checkpointer: Optional[BaseCheckpointSaver] = None,
 ) -> CompiledStateGraph:
-    """Compile the full idea→script Blueprint IR StateGraph over IdeaToScriptState (P5-S6).
+    """Compile the full idea→script Blueprint IR StateGraph over IdeaToScriptState (P5-S6/P5-S7).
 
     Topology:
       START → context_normalization → blueprint_generation → evaluation
-            → blueprint_merge → hook_generation → hook_selection
+            → blueprint_merge → narrative_lens → hook_generation → hook_selection
             → script_generation → integrity_check
             → conditional(_route_after_integrity):
                 "pass"          → script_packager → END
@@ -193,6 +199,14 @@ def build_idea_to_script_graph(
     graph.add_node(
         "blueprint_merge",
         _w("blueprint_merger", "merged_blueprint", build_blueprint_merger_worker(storage)),
+    )
+    graph.add_node(
+        "narrative_lens",
+        _w(
+            "narrative_lens",
+            "narrative_lens",
+            build_narrative_lens_worker(storage, anthropic_api_key),
+        ),
     )
     graph.add_node(
         "hook_generation",
@@ -254,7 +268,8 @@ def build_idea_to_script_graph(
     graph.add_edge("context_normalization", "blueprint_generation")
     graph.add_edge("blueprint_generation", "evaluation")
     graph.add_edge("evaluation", "blueprint_merge")
-    graph.add_edge("blueprint_merge", "hook_generation")
+    graph.add_edge("blueprint_merge", "narrative_lens")
+    graph.add_edge("narrative_lens", "hook_generation")
     graph.add_edge("hook_generation", "hook_selection")
     graph.add_edge("hook_selection", "script_generation")
     graph.add_edge("script_generation", "integrity_check")
