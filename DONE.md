@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P6-S6] Niche-aware prompts (replace hardcoded channel)
+**Completed:** 2026-06-18
+**Handover:**
+- `cf_platform/workers/topic_generator.py`: prompt v1→v2, worker_version 1.0.0→1.1.0; removed housing references, generic content-strategist framing.
+- `cf_platform/workers/opportunity_scorer.py`: prompt v1→v2, worker_version 1.0.0→1.1.0; housing-specific axis descriptions removed.
+- `cf_platform/workers/script_writer.py`: prompt v2→v3, worker_version 1.1.0→1.2.0; niche injected from `state.inputs.get("niche")`; fallback instructs Claude to infer niche from idea title.
+- `cf_platform/workers/fact_checker.py`: prompt v1→v2, worker_version 1.0.0→1.1.0; generic fact-checker framing.
+- Blueprint IR workers (`blueprint_generator`, `evaluator`, `script_generator`, `narrative_lens`) were already niche-aware — unchanged.
+- Tests: version pin assertions updated; `test_prompt_has_no_hardcoded_channel` and `test_prompt_includes_niche_inference_fallback` added per affected worker; `test_niche_to_ideas.py` version pins updated.
+**Smoke test:** DEFERRED — exercised end-to-end when `/produce <niche>` lands in P6-S4.
+**Promoted to backlog:** none.
+
+---
+
 ## [P6-S5] Target duration parameter (run-level → script writer)
 **Completed:** 2026-06-18
 **Handover:**

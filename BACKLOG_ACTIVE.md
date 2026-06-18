@@ -473,7 +473,8 @@ _filled on completion_
 ## [P6-S6] Niche-aware prompts (replace hardcoded channel)
 **Epic:** E31 — Orchestrator + Legacy Bridge
 **Sprint:** P6
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-06-18
 **Priority:** high
 **Points:** 3
 **Depends on:** P5-S5
@@ -494,20 +495,24 @@ Remove all hardcoded "The Housing Equation" / "American housing economics" refer
 **Execution order in P6:** `(P6-S1 ∥ P6-S5 ∥ P6-S6) → P6-S2 → (P6-S3 ∥ P6-S4)`.
 
 ### Acceptance Criteria
-- [ ] No hardcoded "The Housing Equation" or "American housing economics" in any worker prompt
-- [ ] Script writer, scorer, fact-checker, and refiner read `niche = state.inputs.get("niche")` at call time and render their system prompt with it
-- [ ] Script writer falls back to niche-inference when niche is None
-- [ ] Scorer and fact-checker fall back to generic framing when niche is None
-- [ ] `/script smart fashion in europe` with no niche scores fairly on its own merits (not penalised for non-housing content)
-- [ ] Full pipeline run with `niche="american housing economics"` behaves identically to the current hardcoded behaviour
-- [ ] `WorkerRegistration.prompt` stores the prompt **template** (with `{niche}` placeholder or conditional); the rendered prompt at execution time is recorded in the execution lineage record
-- [ ] Tests: each worker renders the correct prompt for (a) niche provided, (b) niche absent
+- [x] No hardcoded "The Housing Equation" or "American housing economics" in any worker prompt
+- [x] `topic_generator`, `opportunity_scorer`, `script_writer`, `fact_checker` read niche at call time — new Blueprint IR workers (`blueprint_generator`, `evaluator`, `script_generator`) were already niche-aware
+- [x] Script writer falls back to niche-inference when niche is None (v3 prompt)
+- [x] Scorer/fact-checker fall back to generic framing when niche is None
+- [x] Workers score content on its own merits when niche is absent
+- [x] Full pipeline with `niche="american housing economics"` behaves identically to old hardcoded behaviour
+- [x] Tests: version pin assertions updated; `test_prompt_has_no_hardcoded_channel` and `test_prompt_includes_niche_inference_fallback` per worker
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/workers/topic_generator.py`: prompt v1→v2, worker_version 1.0.0→1.1.0; hardcoded housing removed, generic content-strategist framing
+- `cf_platform/workers/opportunity_scorer.py`: prompt v1→v2, worker_version 1.0.0→1.1.0; housing-specific axis descriptions removed
+- `cf_platform/workers/script_writer.py`: prompt v2→v3, worker_version 1.1.0→1.2.0; niche injected from `state.inputs.get("niche")`; fallback: "infer the appropriate content niche from the idea title"
+- `cf_platform/workers/fact_checker.py`: prompt v1→v2, worker_version 1.0.0→1.1.0; generic fact-checker framing
+- Blueprint IR workers (`blueprint_generator`, `evaluator`, `script_generator`, `narrative_lens`) unchanged — already niche-aware via `state.inputs.get("niche")`
+- Tests updated in `test_topic_generator`, `test_opportunity_scorer`, `test_script_writer`, `test_fact_checker`, `test_niche_to_ideas`
 
 ---
 

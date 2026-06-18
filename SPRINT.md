@@ -63,7 +63,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P6-S3 | Human-in-the-loop gates | 3 | planned |
 | P6-S4 | End-to-end /produce → video | 2 | planned |
 | P6-S5 | Target duration parameter (run-level → script writer) | 3 | done |
-| P6-S6 | Niche-aware prompts (replace hardcoded channel) | 3 | planned |
+| P6-S6 | Niche-aware prompts (replace hardcoded channel) | 3 | done |
 
 **Execution order:** (P6-S1 ∥ P6-S5 ∥ P6-S6) → P6-S2 → (P6-S3 ∥ P6-S4). P6-S3 needs P2-S4. P6-S2 must add `PipelineState.target_duration_seconds` and pass it to `IdeaToScriptState`.
 
