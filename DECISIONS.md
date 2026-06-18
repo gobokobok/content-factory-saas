@@ -5,13 +5,13 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
-## D061 — TTS provider: ElevenLabs alternatives (candidate)
+## D061 — TTS provider: replace ElevenLabs with Gemini 2.5 Flash TTS (candidate)
 **Date:** 2026-06-18
 **Status:** CANDIDATE — not yet implemented
-**Decision:** Evaluate **OpenAI TTS** (`tts-1` / `tts-1-hd`, via `POST /v1/audio/speech`) as a drop-in replacement for ElevenLabs in `src/tts.py`. OpenAI TTS costs $15/M chars (`tts-1`) vs ElevenLabs Starter at ~$22/M chars, is already available under the existing OpenAI account (no new vendor), returns MP3 directly (no PCM→ffmpeg re-encode step needed), and exposes 6 built-in voices. Down-sides: no voice cloning, quality ceiling below ElevenLabs HD, no multilingual accent control.
-**Rationale:** The operator flagged ElevenLabs cost as a concern. OpenAI TTS is the lowest-friction swap — no new API key, simpler response shape, and noticeably cheaper at POC volumes. Google Cloud TTS (WaveNet/Neural2, $4/M chars on free tier) is a stronger long-term option if quality matters, but requires a new GCP service account.
-**Consequence:** If adopted, `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` env vars are replaced by `OPENAI_API_KEY` (likely already present) + `OPENAI_TTS_VOICE` (default `alloy`). No new `requirements.txt` dependency if `openai` SDK is already listed; otherwise add it with a new entry.
-**See:** `src/tts.py`. **No dependencies added yet.**
+**Decision:** Replace ElevenLabs in `src/tts.py` with **Gemini 2.5 Flash TTS** (Google Gemini API, `gemini-2.5-flash-preview-tts` model). The operator already uses Gemini 2.5 Preview TTS for manual voiceover generation in `/tools/script-generator.html` and the `GEMINI_API_KEY` env var is already present. At POC volumes it is effectively free. No new vendor, no new dependency beyond `google-generativeai` (check if already listed).
+**Rationale:** Same model, same key, same quality the operator is already satisfied with — zero marginal cost at current usage. ElevenLabs at ~$22/M chars and OpenAI TTS at ~$15/M chars are both unnecessary spend when an equivalent already-authenticated option is free.
+**Consequence:** `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` replaced by `GEMINI_API_KEY` (already in use) + `GEMINI_TTS_VOICE` (optional, e.g. `Charon`). The PCM→ffmpeg re-encode step in `src/tts.py` may still be needed depending on what format the Gemini TTS endpoint returns.
+**See:** `src/tts.py`, `/tools/script-generator.html`. **No dependencies added yet.**
 
 ---
 
