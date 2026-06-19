@@ -100,16 +100,17 @@ VOICE_PRODUCTION_REGISTRATION = WorkerRegistration(
 def _call_gemini_tts_sync(text: str, api_key: str, voice: str) -> bytes:
     """Call Gemini 2.5 Flash TTS synchronously; return raw PCM bytes.
 
-    google-generativeai is a synchronous SDK — wrap with asyncio.to_thread at
-    the call site.  The inline_data payload is PCM s16le at 24 kHz, mono.
+    google-genai is a synchronous SDK — wrap with asyncio.to_thread at the
+    call site.  The inline_data payload is PCM s16le at 24 kHz, mono.
     """
-    import google.generativeai as genai
-    from google.generativeai import types
+    from google import genai
+    from google.genai import types
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name=_GEMINI_TTS_MODEL,
-        generation_config=types.GenerationConfig(
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=_GEMINI_TTS_MODEL,
+        contents=text,
+        config=types.GenerateContentConfig(
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
@@ -118,7 +119,6 @@ def _call_gemini_tts_sync(text: str, api_key: str, voice: str) -> bytes:
             ),
         ),
     )
-    response = model.generate_content(text)
     data = response.candidates[0].content.parts[0].inline_data.data
     if isinstance(data, str):
         return base64.b64decode(data)
