@@ -88,8 +88,8 @@ Legacy Script→Video stays untouched and operable (D047).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P7-S1 | Idea selection flow | 3 | planned |
-| P7-S2 | YouTube metadata worker | 3 | planned |
+| P7-S1 | Idea selection flow | 3 | done |
+| P7-S2 | YouTube metadata worker | 3 | done |
 | P7-S3 | Produce with selected idea + metadata reply | 2 | planned |
 
 **Execution order:** P7-S1 → (P7-S2 ∥ P7-S3).

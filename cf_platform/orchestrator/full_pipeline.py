@@ -1,4 +1,4 @@
-"""Full pipeline orchestrator (P6-S2, P6-S3) — niche_to_ideas → idea_to_script → [gate] → legacy_render.
+"""Full pipeline orchestrator (P6-S2, P6-S3, P7-S2) — niche_to_ideas → idea_to_script → [gate] → youtube_metadata → voice_production → legacy_render.
 
 Composes the three pipeline blocks as a parent graph over PipelineState.
 P6-S3 adds the HITL script-approval gate between idea_to_script and legacy_render:
@@ -11,6 +11,8 @@ Lineage threads end-to-end via run_id:
   niche_to_ideas       → parent.artifacts["ranked_ideas"]
   idea_to_script       → parent.artifacts["script"]
   script_approval_gate → (no artifact — gate is IO/control only, D057)
+  youtube_metadata     → parent.artifacts["youtube_metadata"]
+  voice_production     → parent.artifacts["voice_alignment"]
   legacy_render        → parent.artifacts["video"]
 
 Canonical spec: docs/v2_platform_plan.md §5 · PipelineState contract.
@@ -39,6 +41,10 @@ from cf_platform.workers.voice_production import (
     VOICE_PRODUCTION_REGISTRATION,
     VoiceAlignmentArtifact,
     build_voice_production_worker,
+)
+from cf_platform.workers.youtube_metadata import (
+    YOUTUBE_METADATA_REGISTRATION,
+    build_youtube_metadata_worker,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,6 +104,22 @@ def build_full_pipeline_graph(
     )
     _adapter: LegacyVideoAdapter = legacy_adapter or InProcessLegacyVideoAdapter()
 
+    # ── YouTube metadata — build observed graph once at compile time ─────
+    registry.register("youtube_metadata", YOUTUBE_METADATA_REGISTRATION)
+    metadata_worker = build_youtube_metadata_worker(
+        storage=storage,
+        anthropic_api_key=anthropic_api_key,
+    )
+    metadata_graph = build_observed_node_graph(
+        "youtube_metadata",
+        "youtube_metadata",
+        metadata_worker,
+        registry=registry,
+        storage=storage,
+        executions=executions,
+        artifact_repo=artifact_repo,
+    )
+
     # ── Voice production — build observed graph once at compile time ──────
     # Ensure the registry has voice_production before wrap() resolves it.
     # Registering here is idempotent (same values as api.py module-level call).
@@ -136,18 +158,24 @@ def build_full_pipeline_graph(
     async def idea_to_script_node(state: PipelineState) -> dict[str, Any]:
         """Run the idea→script block; return script artifact ref.
 
-        Reads the ranked_ideas artifact to extract the selected idea_title so that
-        context_normalizer receives a clean inputs dict (idea_title + niche).
+        When PipelineState.idea_title is set (P7-S1 /pick flow), uses it directly
+        and skips reading the ranked_ideas artifact. Otherwise reads ranked_ideas to
+        extract the selected title from the niche→ideas block output.
         Passes target_duration_seconds from PipelineState into IdeaToScriptState.
         """
-        ranked_r2_key = state.artifacts["ranked_ideas"]
-        _, ranked_body = await read_artifact(storage, ranked_r2_key)
-        ranked = RankedIdeasArtifact.model_validate(ranked_body)
-
-        block_inputs: dict[str, Any] = {"idea_title": ranked.selected.title}
-        niche = state.inputs.get("niche")
-        if niche:
-            block_inputs["niche"] = niche
+        if state.idea_title:
+            block_inputs: dict[str, Any] = {"idea_title": state.idea_title}
+            niche = state.inputs.get("niche")
+            if niche:
+                block_inputs["niche"] = niche
+        else:
+            ranked_r2_key = state.artifacts["ranked_ideas"]
+            _, ranked_body = await read_artifact(storage, ranked_r2_key)
+            ranked = RankedIdeasArtifact.model_validate(ranked_body)
+            block_inputs = {"idea_title": ranked.selected.title}
+            niche = state.inputs.get("niche")
+            if niche:
+                block_inputs["niche"] = niche
 
         block_state = IdeaToScriptState(
             run_id=state.run_id,
@@ -162,6 +190,17 @@ def build_full_pipeline_graph(
             thread_id=f"{state.run_id}:idea_to_script",
         )
         return {"artifacts": {"script": result.artifacts["script"]}}
+
+    async def youtube_metadata_node(state: PipelineState) -> dict[str, Any]:
+        """Generate YouTube metadata from the script artifact; return youtube_metadata ref."""
+        block_state = StageState(
+            run_id=state.run_id,
+            user_id=state.user_id,
+            inputs={"niche": state.inputs.get("niche", "")},
+            artifacts={"script": state.artifacts["script"]},
+        )
+        result = await run_graph(metadata_graph, block_state, thread_id=f"{state.run_id}:youtube_metadata")
+        return {"artifacts": {"youtube_metadata": result.artifacts["youtube_metadata"]}}
 
     async def voice_production_node(state: PipelineState) -> dict[str, Any]:
         """Run TTS + alignment; return voice_alignment artifact ref.
@@ -236,25 +275,31 @@ def build_full_pipeline_graph(
             raise RuntimeError(f"Legacy render failed: {result.error}")
         return {"artifacts": {"video": result.r2_key}}
 
+    def _route_start(state: PipelineState) -> str:
+        """Skip niche_to_ideas when idea_title is already known (P7-S1 /pick flow)."""
+        return "idea_to_script" if state.idea_title else "niche_to_ideas"
+
     def _route_after_script(state: PipelineState) -> str:
-        """Route to the HITL gate when hitl=True; otherwise go to voice_production."""
-        return "script_approval_gate" if state.hitl else "voice_production"
+        """Route to the HITL gate when hitl=True; otherwise go to youtube_metadata."""
+        return "script_approval_gate" if state.hitl else "youtube_metadata"
 
     graph: StateGraph = StateGraph(PipelineState)
     graph.add_node("niche_to_ideas", niche_to_ideas_node)
     graph.add_node("idea_to_script", idea_to_script_node)
     graph.add_node("script_approval_gate", script_approval_gate)
+    graph.add_node("youtube_metadata", youtube_metadata_node)
     graph.add_node("voice_production", voice_production_node)
     graph.add_node("legacy_render", legacy_render_node)
 
-    graph.add_edge(START, "niche_to_ideas")
+    graph.add_conditional_edges(START, _route_start, {"niche_to_ideas": "niche_to_ideas", "idea_to_script": "idea_to_script"})
     graph.add_edge("niche_to_ideas", "idea_to_script")
     graph.add_conditional_edges(
         "idea_to_script",
         _route_after_script,
-        {"script_approval_gate": "script_approval_gate", "voice_production": "voice_production"},
+        {"script_approval_gate": "script_approval_gate", "youtube_metadata": "youtube_metadata"},
     )
-    graph.add_edge("script_approval_gate", "voice_production")
+    graph.add_edge("script_approval_gate", "youtube_metadata")
+    graph.add_edge("youtube_metadata", "voice_production")
     graph.add_edge("voice_production", "legacy_render")
     graph.add_edge("legacy_render", END)
 

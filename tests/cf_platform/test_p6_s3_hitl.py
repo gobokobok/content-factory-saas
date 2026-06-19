@@ -98,6 +98,14 @@ def _make_voice_body(voice_r2: str = "r2://voice@v1.json") -> dict:
     }
 
 
+def _make_metadata_result(metadata_r2: str = "r2://metadata@v1.json") -> StageState:
+    return StageState(
+        run_id=_RUN_ID, user_id=_USER_ID,
+        inputs={},
+        artifacts={"youtube_metadata": metadata_r2},
+    )
+
+
 def _make_voice_result(voice_r2: str = "r2://voice@v1.json") -> StageState:
     return StageState(
         run_id=_RUN_ID, user_id=_USER_ID,
@@ -121,6 +129,7 @@ async def test_hitl_false_skips_gate_and_calls_legacy_render() -> None:
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_metadata_result(),
         _make_voice_result(voice_r2=voice_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
@@ -201,6 +210,7 @@ async def test_hitl_interrupt_called_with_run_id_and_script_key() -> None:
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_metadata_result(),
         _make_voice_result(voice_r2=voice_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
@@ -248,6 +258,7 @@ async def test_hitl_approve_calls_legacy_render() -> None:
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_metadata_result(),
         _make_voice_result(voice_r2=voice_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[

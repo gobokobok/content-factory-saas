@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P7-S2] YouTube metadata worker
+**Completed:** 2026-06-19
+**Handover:**
+- `cf_platform/workers/youtube_metadata.py` (new): `YoutubeMetadataArtifact(title, description, tags, generated_at)`; `YOUTUBE_METADATA_REGISTRATION` (v1.0.0, prompt v1, claude-haiku-4-5); `build_youtube_metadata_worker(storage, anthropic_api_key) → WorkerNode`. Single Haiku call; reads `state.artifacts["script"]` → `ScriptArtifact`; passes idea_title + niche + script. Hard truncates: title ≤70, description ≤500, tags ≤15. `_extract_json` ported from `src/metadata_generator.py` (no src/ import, D047).
+- `cf_platform/orchestrator/full_pipeline.py`: `youtube_metadata_node` inserted between `idea_to_script` and `voice_production`; `_route_after_script` and HITL gate both route to `youtube_metadata` next; worker registered via `build_observed_node_graph` at compile time.
+- `cf_platform/core/schemas.py`: `PipelineState` docstring updated with `"youtube_metadata"` ref.
+- `tests/cf_platform/test_p7_s2_youtube_metadata.py` (new): 11 tests covering _extract_json, registration pins, happy path, niche injection, truncation/capping, missing script key.
+- `test_full_pipeline.py` + `test_p6_s3_hitl.py`: updated for 4-call run_graph sequence (added metadata result); 3 HITL tests fixed.
+- 1592 total tests passing (CI green).
+**Smoke test:** DEFERRED — operator produces a video on DEV; Telegram reply should include `youtube_metadata` artifact in state (visible via `/run` or `/pick` — P7-S3 surfaces it in the reply message).
+**Promoted to backlog:** none.
+
+---
+
 ## [P7-S1] Idea selection flow
 **Completed:** 2026-06-19
 **Handover:**

@@ -201,19 +201,25 @@ class IdeaToScriptState(StageState):
 
 
 class PipelineState(StageState):
-    """Stage state for the full pipeline orchestrator (plan §5, P6-S2).
+    """Stage state for the full pipeline orchestrator (plan §5, P6-S2, P7-S1).
 
     Typed control channels only — no artifact bodies (D057).
     Composes niche_to_ideas → idea_to_script → legacy_render.
 
     Artifact refs populated across block nodes:
-      niche_to_ideas  → "ranked_ideas"   (terminal ref from niche_to_ideas block)
-      idea_to_script  → "script"         (terminal ref from idea_to_script block)
-      legacy_render   → "video"          (R2 key for final.mp4)
+      niche_to_ideas   → "ranked_ideas"      (terminal ref from niche_to_ideas block)
+      idea_to_script   → "script"            (terminal ref from idea_to_script block)
+      youtube_metadata → "youtube_metadata"  (title + description + tags, P7-S2)
+      voice_production → "voice_alignment"   (Gemini TTS + Deepgram timestamps)
+      legacy_render    → "video"             (R2 key for final.mp4)
 
     `target_duration_seconds` flows from the run trigger (/produce, REST) into
     IdeaToScriptState when the orchestrator constructs the block's initial state.
+
+    `idea_title` when set causes the orchestrator to skip niche_to_ideas and start
+    directly at idea_to_script (P7-S1 /pick flow).
     """
 
     hitl: bool = False
     target_duration_seconds: int = 60
+    idea_title: Optional[str] = None

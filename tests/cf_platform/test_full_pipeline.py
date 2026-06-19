@@ -72,6 +72,16 @@ def _make_voice_body(run_id: str = _RUN_ID) -> dict:
     }
 
 
+def _make_metadata_result(run_id: str = _RUN_ID, metadata_r2: str = "r2://metadata@v1.json") -> StageState:
+    """Fake StageState returned by the youtube_metadata observed graph."""
+    return StageState(
+        run_id=run_id,
+        user_id=_USER_ID,
+        inputs={},
+        artifacts={"youtube_metadata": metadata_r2},
+    )
+
+
 def _make_voice_result(run_id: str = _RUN_ID, voice_r2: str = "r2://voice@v1.json") -> StageState:
     """Fake StageState returned by the voice_production observed graph."""
     return StageState(
@@ -186,15 +196,17 @@ def test_build_full_pipeline_graph_compiles() -> None:
 
 @pytest.mark.asyncio
 async def test_full_pipeline_happy_path() -> None:
-    """Full graph threads run_id + artifacts across all four block nodes."""
+    """Full graph threads run_id + artifacts across all five block nodes."""
     ranked_r2 = "r2://ranked_ideas@v1.json"
     script_r2 = "r2://script@v1.json"
+    metadata_r2 = "r2://metadata@v1.json"
     voice_r2 = "r2://voice@v1.json"
     video_r2 = "r2://video/output/final.mp4"
 
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_metadata_result(metadata_r2=metadata_r2),
         _make_voice_result(voice_r2=voice_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
@@ -230,6 +242,7 @@ async def test_full_pipeline_happy_path() -> None:
 
     assert result["artifacts"]["ranked_ideas"] == ranked_r2
     assert result["artifacts"]["script"] == script_r2
+    assert result["artifacts"]["youtube_metadata"] == metadata_r2
     assert result["artifacts"]["voice_alignment"] == voice_r2
     assert result["artifacts"]["video"] == video_r2
 
@@ -249,6 +262,8 @@ async def test_run_id_threads_into_block_states() -> None:
             return _make_niche_result(run_id=state.run_id, ranked_r2=ranked_r2)
         if isinstance(state, IdeaToScriptState):
             return _make_script_result(run_id=state.run_id, script_r2=script_r2)
+        if "youtube_metadata" in thread_id:
+            return _make_metadata_result(run_id=state.run_id)
         return _make_voice_result(run_id=state.run_id)
 
     mock_read_artifact = AsyncMock(side_effect=[
@@ -278,16 +293,19 @@ async def test_run_id_threads_into_block_states() -> None:
         initial = PipelineState(run_id=_RUN_ID, user_id=_USER_ID, inputs={"niche": "housing"})
         await graph.ainvoke(initial, config={"configurable": {"thread_id": "t2"}})
 
-    assert len(captured_states) == 3
+    assert len(captured_states) == 4
     niche_state, niche_thread = captured_states[0]
     script_state, script_thread = captured_states[1]
-    voice_state, voice_thread = captured_states[2]
+    metadata_state, metadata_thread = captured_states[2]
+    voice_state, voice_thread = captured_states[3]
 
     assert niche_state.run_id == _RUN_ID
     assert script_state.run_id == _RUN_ID
+    assert metadata_state.run_id == _RUN_ID
     assert voice_state.run_id == _RUN_ID
     assert niche_thread == f"{_RUN_ID}:niche_to_ideas"
     assert script_thread == f"{_RUN_ID}:idea_to_script"
+    assert metadata_thread == f"{_RUN_ID}:youtube_metadata"
     assert voice_thread == f"{_RUN_ID}:voice_production"
 
 
@@ -306,6 +324,8 @@ async def test_idea_title_extracted_from_ranked_ideas() -> None:
         if isinstance(state, IdeaToScriptState):
             captured_script_state.append(state)
             return _make_script_result(script_r2=script_r2)
+        if "youtube_metadata" in thread_id:
+            return _make_metadata_result()
         return _make_voice_result()
 
     mock_read_artifact = AsyncMock(side_effect=[
@@ -353,6 +373,8 @@ async def test_niche_flows_into_idea_to_script() -> None:
         if isinstance(state, IdeaToScriptState):
             captured.append(state)
             return _make_script_result(script_r2=script_r2)
+        if "youtube_metadata" in thread_id:
+            return _make_metadata_result()
         return _make_voice_result()
 
     mock_read_artifact = AsyncMock(side_effect=[
@@ -399,6 +421,8 @@ async def test_niche_absent_not_injected() -> None:
         if isinstance(state, IdeaToScriptState):
             captured.append(state)
             return _make_script_result(script_r2=script_r2)
+        if "youtube_metadata" in thread_id:
+            return _make_metadata_result()
         return _make_voice_result()
 
     mock_read_artifact = AsyncMock(side_effect=[
@@ -445,6 +469,8 @@ async def test_target_duration_flows_into_idea_to_script() -> None:
         if isinstance(state, IdeaToScriptState):
             captured.append(state)
             return _make_script_result(script_r2=script_r2)
+        if "youtube_metadata" in thread_id:
+            return _make_metadata_result()
         return _make_voice_result()
 
     mock_read_artifact = AsyncMock(side_effect=[
@@ -493,6 +519,7 @@ async def test_legacy_render_node_reads_script_artifact() -> None:
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_metadata_result(),
         _make_voice_result(),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
@@ -537,6 +564,7 @@ async def test_legacy_render_failure_raises_runtime_error() -> None:
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_metadata_result(),
         _make_voice_result(),
     ])
     mock_read_artifact = AsyncMock(side_effect=[

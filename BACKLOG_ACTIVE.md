@@ -467,7 +467,8 @@ Complete the operator loop: pick an idea, get a finished video with ready-to-pas
 ## [P7-S2] YouTube metadata worker
 **Epic:** E34 — Idea Selection + YouTube Metadata
 **Sprint:** P7
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-19
 **Priority:** high
 **Points:** 3
 **Depends on:** P7-S1
@@ -478,17 +479,22 @@ New worker: reads `script` artifact → produces a `youtube_metadata` artifact w
 **Tech:** LangGraph worker, Haiku 4.5. **Artifact:** `youtube_metadata`.
 
 ### Acceptance Criteria
-- [ ] `YoutubeMetadataArtifact(title, description, tags)` Pydantic model defined and stored
-- [ ] `title` ≤ 70 chars enforced (truncated or re-prompted if Claude over-shoots)
-- [ ] Worker wired into `full_pipeline.py` after `idea_to_script_node`
-- [ ] `PipelineState` carries `"youtube_metadata"` artifact ref
-- [ ] Tests: happy path, title truncation, missing script key, registration pins
+- [x] `YoutubeMetadataArtifact(title, description, tags)` Pydantic model defined and stored
+- [x] `title` ≤ 70 chars enforced (truncated if Claude over-shoots)
+- [x] Worker wired into `full_pipeline.py` after `idea_to_script_node`
+- [x] `PipelineState` carries `"youtube_metadata"` artifact ref
+- [x] Tests: happy path, title truncation, missing script key, registration pins
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/workers/youtube_metadata.py` (new): `YoutubeMetadataArtifact(title, description, tags, generated_at)` Pydantic model; `YOUTUBE_METADATA_REGISTRATION` (worker_version 1.0.0, prompt_version v1, model claude-haiku-4-5); `build_youtube_metadata_worker(storage, anthropic_api_key) → WorkerNode`. Reads `state.artifacts["script"]` → `ScriptArtifact`; passes `idea_title`, `niche` (from `state.inputs`), and `script` to Haiku. Hard truncates: title at 70 chars, description at 500, tags capped at 15. `_extract_json` ported from `src/metadata_generator.py` (no `src/` import per D047).
+- `cf_platform/orchestrator/full_pipeline.py`: `youtube_metadata_node` inserted between `idea_to_script` and `voice_production`; `_route_after_script` routes to `youtube_metadata` (was `voice_production`); gate edge also routes to `youtube_metadata`; YOUTUBE_METADATA_REGISTRATION registered at compile time; `build_observed_node_graph` wraps the worker.
+- `cf_platform/core/schemas.py`: `PipelineState` docstring updated to list `"youtube_metadata"` artifact ref.
+- `tests/cf_platform/test_p7_s2_youtube_metadata.py` (new): 11 tests — `_extract_json` (3), registration pins (1), happy path (1), niche in prompt (1), no-niche omits line (1), title truncation (1), description truncation (1), tags cap (1), missing script key (1).
+- `tests/cf_platform/test_full_pipeline.py` + `test_p6_s3_hitl.py`: updated `run_graph` side_effect lists to include youtube_metadata call (4th in sequence); `test_run_id_threads_into_block_states` now asserts 4 captured states.
+- 1592 total tests passing (CI green).
 
 ---
 

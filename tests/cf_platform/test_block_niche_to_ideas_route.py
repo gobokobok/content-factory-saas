@@ -151,12 +151,12 @@ def _make_client() -> TestClient:
 class TestFormatRankedIdeas:
     """format_ranked_ideas produces a D049-compliant plain-string reply."""
 
-    def test_contains_niche(self):
-        """Reply contains the niche string. run_id and artifact_key are intentionally omitted."""
+    def test_contains_niche_and_run_id(self):
+        """Reply contains the niche string and run_id (needed for /pick CTA, P7-S1)."""
         ranked = _make_ranked_ideas("starter homes")
         reply = format_ranked_ideas("starter homes", "run-abc", "some/key@v1.json", ranked)
         assert "starter homes" in reply
-        assert "run-abc" not in reply
+        assert "run-abc" in reply
 
     def test_selected_title_in_output(self):
         """Selected idea title appears prominently in the reply."""
@@ -164,12 +164,13 @@ class TestFormatRankedIdeas:
         reply = format_ranked_ideas("housing", "run-1", "key@v1.json", ranked)
         assert "Why Starter Homes Vanished" in reply
 
-    def test_seven_axis_score_labels_present(self):
-        """All 7 axis labels appear in the reply."""
+    def test_numbered_ideas_and_pick_cta_present(self):
+        """Reply shows numbered ideas 1–N and a /pick call-to-action (P7-S1)."""
         ranked = _make_ranked_ideas()
         reply = format_ranked_ideas("housing", "run-1", "key@v1.json", ranked)
-        for label in ("novelty", "relevance", "emotion", "demand", "competition", "evergreen", "monetize"):
-            assert label in reply, f"Expected axis label '{label}' in reply"
+        assert "1." in reply
+        assert "/pick" in reply
+        assert "Score:" in reply
 
     def test_final_score_in_output(self):
         """The final composite score is included in the reply."""
@@ -191,15 +192,19 @@ class TestFormatRankedIdeas:
         reply = format_ranked_ideas("housing", "run-1", "key@v1.json", ranked)
         assert "Runner-ups" not in reply
 
-    def test_at_most_three_alternatives(self):
-        """Only the first 3 alternatives are shown even if more exist."""
+    def test_at_most_five_ideas_shown(self):
+        """At most 5 ideas shown (selected + up to 4 alternatives) even if more exist (P7-S1)."""
         alts = [_make_topic(f"Alt {i}", float(7 - i * 0.1)) for i in range(6)]
         ranked = _make_ranked_ideas(alternatives=alts)
         reply = format_ranked_ideas("housing", "run-1", "key@v1.json", ranked)
+        # selected=1, alts 0-3 = positions 2-5 → 5 total shown
         assert "Alt 0" in reply
         assert "Alt 1" in reply
         assert "Alt 2" in reply
-        assert "Alt 3" not in reply
+        assert "Alt 3" in reply
+        # Alt 4 and Alt 5 should not appear (beyond top 5)
+        assert "Alt 4" not in reply.split("Pick")[0]
+        assert "Alt 5" not in reply.split("Pick")[0]
 
     def test_artifact_key_not_in_output(self):
         """The artifact key is intentionally omitted from the reply (internal storage path)."""

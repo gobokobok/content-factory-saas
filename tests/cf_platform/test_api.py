@@ -592,8 +592,8 @@ class TestTelegramWebhookRoute:
         assert "starter homes" in result_args[1]
         assert _STUB_TOPIC.title in result_args[1]
 
-    def test_ideas_command_reply_contains_seven_axis_scores(self):
-        """The ranked-ideas reply (second message) includes 7-axis score labels."""
+    def test_ideas_command_reply_contains_numbered_ideas_and_pick_cta(self):
+        """The ranked-ideas reply (second message) shows numbered ideas and a /pick CTA (P7-S1)."""
         client = self._client_with_telegram_settings()
 
         with _stub_niche_to_ideas_workers(), patch(
@@ -606,11 +606,12 @@ class TestTelegramWebhookRoute:
             )
 
         assert response.status_code == 200
-        # Second call is the ranked-ideas result
+        # Second call is the ranked-ideas result.
         result_args, _ = mock_send.call_args_list[1]
         reply = result_args[1]
-        for label in ("novelty", "relevance", "emotion", "demand", "competition", "evergreen", "monetize"):
-            assert label in reply, f"Expected '{label}' in reply"
+        assert "1." in reply, "Expected numbered idea #1 in reply"
+        assert "/pick" in reply, "Expected /pick CTA in reply"
+        assert "Score:" in reply, "Expected Score: line in reply"
 
     def test_ideas_without_niche_sends_usage_reply(self):
         """`/ideas` with no niche sends a usage reply, not an ack."""
