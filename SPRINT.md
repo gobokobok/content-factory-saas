@@ -90,12 +90,12 @@ Legacy Script→Video stays untouched and operable (D047).
 |----|-------|--------|--------|
 | P7-S1 | Idea selection flow | 3 | done |
 | P7-S2 | YouTube metadata worker | 3 | done |
-| P7-S3 | Produce with selected idea + metadata reply | 2 | planned |
+| P7-S3 | Produce with selected idea + metadata reply | 2 | done |
 
 **Execution order:** P7-S1 → (P7-S2 ∥ P7-S3).
 
 ## Sprint P7 Definition of Done
-- [ ] `/ideas <niche>` reply shows 5 numbered ideas
-- [ ] `/pick <run_id> <n>` triggers the full pipeline for the chosen idea
-- [ ] Telegram reply includes presigned video URL + YouTube metadata block
-- [ ] **Human touchpoint:** operator receives a 16:9 video + copy-paste YouTube metadata
+- [x] `/ideas <niche>` reply shows 5 numbered ideas
+- [x] `/pick <run_id> <n>` triggers the full pipeline for the chosen idea
+- [x] Telegram reply includes presigned video URL + YouTube metadata block
+- [ ] **Human touchpoint:** operator receives a 16:9 video + copy-paste YouTube metadata — DEFERRED (requires DEV deploy)

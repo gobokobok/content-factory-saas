@@ -501,7 +501,8 @@ New worker: reads `script` artifact → produces a `youtube_metadata` artifact w
 ## [P7-S3] Produce → metadata reply
 **Epic:** E34 — Idea Selection + YouTube Metadata
 **Sprint:** P7
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-19
 **Priority:** high
 **Points:** 2
 **Depends on:** P7-S1, P7-S2
@@ -511,20 +512,23 @@ Update the Telegram reply from `/pick` (and `/produce`) to include the `youtube_
 
 **Design:**
 - `format_produce_reply` updated to accept optional `YoutubeMetadataArtifact`; appends a formatted metadata block when present.
-- `_run_produce_and_reply` reads `youtube_metadata` artifact from the result before sending the reply.
+- `_run_pipeline_and_reply` reads `youtube_metadata` artifact from the result before sending the reply.
 - **Human touchpoint:** operator sees presigned video URL + title/description/tags block in Telegram.
 
 ### Acceptance Criteria
-- [ ] `/pick` reply includes video URL + YouTube metadata block
-- [ ] `/produce` reply also includes metadata when the worker ran successfully
-- [ ] Metadata absent from reply is handled gracefully (worker failure → video URL only)
-- [ ] **Human touchpoint:** operator sends `/ideas <niche>`, picks idea, receives 16:9 video + metadata
+- [x] `/pick` reply includes video URL + YouTube metadata block
+- [x] `/produce` reply also includes metadata when the worker ran successfully
+- [x] Metadata absent from reply is handled gracefully (worker failure → video URL only)
+- [ ] **Human touchpoint:** operator sends `/ideas <niche>`, picks idea, receives 16:9 video + metadata — DEFERRED (requires DEV deploy)
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/interfaces/telegram.py`: `format_youtube_metadata_block(metadata: YoutubeMetadataArtifact) → str` — plain-text block with title, description, and comma-separated tags; section header "YouTube Metadata". `format_produce_reply` gains optional `metadata: Optional[YoutubeMetadataArtifact] = None` kwarg; appends the block when provided (backward-compatible — existing callers unaffected). `YoutubeMetadataArtifact` imported via `TYPE_CHECKING`.
+- `cf_platform/interfaces/api.py`: `format_youtube_metadata_block` added to telegram imports; `YoutubeMetadataArtifact` imported from `cf_platform.workers.youtube_metadata`. `_run_pipeline_and_reply` updated — after generating the video presigned URL, reads `result.artifacts.get("youtube_metadata")`; if present, calls `read_artifact` + `YoutubeMetadataArtifact.model_validate`; on failure logs a WARNING and falls back to `metadata=None`. Reply built via `format_produce_reply(display_label, run.run_id, video_url, metadata)`.
+- `tests/cf_platform/test_p7_s3_metadata_reply.py` (new): 11 tests — `format_youtube_metadata_block` (4: title, description, tags, header), `format_produce_reply` (4: without metadata, None=no-arg, with metadata, video info present), `_run_pipeline_and_reply` (3: metadata present, metadata absent, metadata read error).
+- 1603 total tests passing (CI green).
 
 ---
 

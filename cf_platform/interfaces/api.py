@@ -63,6 +63,7 @@ from cf_platform.interfaces.telegram import (
     format_testvoice_reply,
     format_testvoice_running,
     format_unrecognized_command,
+    format_youtube_metadata_block,
     is_chat_allowed,
     parse_ideas_command,
     parse_pick_command,
@@ -84,6 +85,7 @@ from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
 from cf_platform.workers.opportunity_scorer import TopicScore
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from cf_platform.workers.voice_production import VOICE_PRODUCTION_REGISTRATION, build_voice_production_worker
+from cf_platform.workers.youtube_metadata import YoutubeMetadataArtifact
 
 router = APIRouter()
 
@@ -775,11 +777,22 @@ async def _run_pipeline_and_reply(
 
         video_r2_key: str = result.artifacts["video"]
         video_url = await storage.generate_presigned_url(video_r2_key, expires_in=_VIDEO_URL_EXPIRY)
-        reply = (
-            f'Video ready — "{display_label}"\n'
-            f"Run: {run.run_id}\n\n"
-            f"Download (expires 24 h):\n{video_url}"
-        )
+
+        # Read youtube_metadata artifact when present; absent or failed → reply without it.
+        metadata: Optional[YoutubeMetadataArtifact] = None
+        meta_key = result.artifacts.get("youtube_metadata")
+        if meta_key:
+            try:
+                _, meta_body = await read_artifact(storage, meta_key)
+                metadata = YoutubeMetadataArtifact.model_validate(meta_body)
+            except Exception as meta_exc:  # noqa: BLE001
+                _logger.warning(
+                    "_run_pipeline_and_reply: could not read youtube_metadata for run_id=%s: %s",
+                    run.run_id,
+                    meta_exc,
+                )
+
+        reply = format_produce_reply(display_label, run.run_id, video_url, metadata)
     except Exception as exc:  # noqa: BLE001
         _logger.exception(
             "_run_pipeline_and_reply failed for label=%r chat_id=%s: %s", display_label, chat_id, exc

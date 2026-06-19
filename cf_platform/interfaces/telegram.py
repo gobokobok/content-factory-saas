@@ -22,6 +22,7 @@ _logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from cf_platform.workers.script_packager import ScriptArtifact
     from cf_platform.workers.topic_selector import RankedIdeasArtifact
+    from cf_platform.workers.youtube_metadata import YoutubeMetadataArtifact
 
 _TELEGRAM_API_BASE = "https://api.telegram.org"
 _TOP_SIGNALS_COUNT = 5
@@ -280,17 +281,41 @@ def format_produce_usage() -> str:
     return "Usage: /produce <idea title> [--duration <seconds>] — e.g. /produce Why starter homes vanished --duration 45"
 
 
-def format_produce_reply(idea_title: str, run_id: str, video_url: str) -> str:
-    """Format the finished video reply after a /produce pipeline completes (D049, P7-S1).
+def format_youtube_metadata_block(metadata: "YoutubeMetadataArtifact") -> str:
+    """Format a YoutubeMetadataArtifact as a copy-paste block for the operator (D049, P7-S3).
+
+    Produces a plain-text block with title, description, and comma-separated tags.
+    Plain string only — never serializes the artifact itself to chat.
+    """
+    tags_line = ", ".join(metadata.tags)
+    return (
+        "\n\n─── YouTube Metadata ───\n"
+        f"Title: {metadata.title}\n\n"
+        f"Description:\n{metadata.description}\n\n"
+        f"Tags: {tags_line}"
+    )
+
+
+def format_produce_reply(
+    idea_title: str,
+    run_id: str,
+    video_url: str,
+    metadata: Optional["YoutubeMetadataArtifact"] = None,
+) -> str:
+    """Format the finished video reply after a /produce pipeline completes (D049, P7-S1/S3).
 
     Shows the idea title, run_id, a presigned download URL, and the URL expiry label.
+    Appends the YouTube metadata block when `metadata` is provided (P7-S3).
     Plain string only — never serializes any internal schema to chat.
     """
-    return (
+    text = (
         f'Video ready — "{idea_title}"\n'
         f"Run: {run_id}\n\n"
         f"Download (expires {_VIDEO_URL_EXPIRY_LABEL}):\n{video_url}"
     )
+    if metadata is not None:
+        text += format_youtube_metadata_block(metadata)
+    return text
 
 
 _HITL_SCRIPT_PREVIEW_LIMIT = 2000
