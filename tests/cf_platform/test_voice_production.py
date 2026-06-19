@@ -165,11 +165,11 @@ async def test_worker_gemini_happy_path_calls_tts_and_alignment() -> None:
         result = await worker(state)
 
     artifact = result.artifact
-    assert artifact.mp3_r2_key == f"runs/{_RUN_ID}/voiceover/generated.mp3"
+    assert artifact.mp3_r2_key == f"runs/{_RUN_ID}/voiceover/generated.wav"
     assert artifact.alignment_method == "deepgram_nova2"
     assert artifact.word_timestamps == fake_timestamps
     mock_storage.put_bytes.assert_awaited_once_with(
-        f"runs/{_RUN_ID}/voiceover/generated.mp3", fake_mp3, "audio/mpeg"
+        f"runs/{_RUN_ID}/voiceover/generated.wav", fake_mp3, "audio/wav"
     )
 
 
@@ -325,8 +325,8 @@ async def test_worker_deepgram_failure_falls_back_to_proportional() -> None:
         result = await worker(state)
 
     assert result.artifact.alignment_method == "proportional_fallback"
-    # MP3 was still uploaded before Deepgram was called
-    assert result.artifact.mp3_r2_key == f"runs/{_RUN_ID}/voiceover/generated.mp3"
+    # WAV was still uploaded before Deepgram was called
+    assert result.artifact.mp3_r2_key == f"runs/{_RUN_ID}/voiceover/generated.wav"
     mock_storage.put_bytes.assert_awaited_once()
 
 

@@ -21,7 +21,8 @@ import asyncio
 import base64
 import logging
 import re
-import subprocess
+import wave
+import io
 from typing import Optional
 
 import httpx
@@ -70,10 +71,10 @@ class VoiceWordTimestamp(BaseModel):
 class VoiceAlignmentArtifact(BaseModel):
     """Terminal artifact of the voice_production worker.
 
-    mp3_r2_key is empty when TTS was skipped (no Gemini key); the legacy
-    render pipeline will produce a silent video.  word_timestamps is always
-    populated — by Deepgram when both keys are present, otherwise by
-    proportional_fallback.
+    mp3_r2_key points to a WAV file in R2; empty when TTS was skipped (no
+    Gemini key), in which case the legacy render pipeline produces a silent
+    video.  word_timestamps is always populated — by Deepgram when both keys
+    are present, otherwise by proportional_fallback.
     """
 
     mp3_r2_key: str
@@ -125,29 +126,23 @@ def _call_gemini_tts_sync(text: str, api_key: str, voice: str) -> bytes:
     return data
 
 
-def _encode_pcm_to_mp3(pcm_bytes: bytes) -> bytes:
-    """Encode raw PCM (s16le, 24 kHz, mono) to MP3 via ffmpeg subprocess."""
-    cmd = [
-        "ffmpeg", "-y",
-        "-f", _GEMINI_PCM_SAMPLE_FMT,
-        "-ar", str(_GEMINI_PCM_SAMPLE_RATE),
-        "-ac", str(_GEMINI_PCM_CHANNELS),
-        "-i", "pipe:0",
-        "-f", "mp3", "pipe:1",
-    ]
-    result = subprocess.run(cmd, input=pcm_bytes, capture_output=True, timeout=120)
-    if result.returncode != 0:
-        snippet = result.stderr[-400:].decode("utf-8", errors="replace")
-        raise RuntimeError(f"ffmpeg PCM→MP3 failed (exit {result.returncode}): {snippet}")
-    return result.stdout
+def _pcm_to_wav(pcm_bytes: bytes) -> bytes:
+    """Wrap raw PCM (s16le, 24 kHz, mono) in a WAV container — no re-encoding."""
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(_GEMINI_PCM_CHANNELS)
+        wf.setsampwidth(2)  # 16-bit = 2 bytes
+        wf.setframerate(_GEMINI_PCM_SAMPLE_RATE)
+        wf.writeframes(pcm_bytes)
+    return buf.getvalue()
 
 
 async def _tts_generate(script: str, api_key: str, voice: str) -> bytes:
-    """Generate MP3 from script via a single Gemini 2.5 Flash TTS call."""
+    """Generate WAV from script via a single Gemini 2.5 Flash TTS call."""
     if not script.strip():
         raise RuntimeError("Script is empty — cannot generate TTS")
     pcm_bytes = await asyncio.to_thread(_call_gemini_tts_sync, script, api_key, voice)
-    return _encode_pcm_to_mp3(pcm_bytes)
+    return _pcm_to_wav(pcm_bytes)
 
 
 # ── Deepgram alignment re-implementation (no src/ import, D047) ──────────────
@@ -249,10 +244,10 @@ def build_voice_production_worker(
         # ── Step 1: TTS ────────────────────────────────────────────────────
         if gemini_api_key and gemini_tts_voice:
             try:
-                mp3_bytes = await _tts_generate(script_text, gemini_api_key, gemini_tts_voice)
-                mp3_r2_key = f"runs/{state.run_id}/voiceover/generated.mp3"
-                await storage.put_bytes(mp3_r2_key, mp3_bytes, "audio/mpeg")
-                logger.info("TTS complete for run %s — %d bytes", state.run_id, len(mp3_bytes))
+                wav_bytes = await _tts_generate(script_text, gemini_api_key, gemini_tts_voice)
+                mp3_r2_key = f"runs/{state.run_id}/voiceover/generated.wav"
+                await storage.put_bytes(mp3_r2_key, wav_bytes, "audio/wav")
+                logger.info("TTS complete for run %s — %d bytes", state.run_id, len(wav_bytes))
             except Exception as exc:
                 logger.warning("TTS failed for run %s — using proportional fallback: %s", state.run_id, exc)
                 mp3_r2_key = ""
