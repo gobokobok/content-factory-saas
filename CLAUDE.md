@@ -12,12 +12,13 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Platform v2 — Sprint P7** — Analytics & Attribution. Canonical spec: docs/v2_platform_plan.md; decisions D047–D062.
-_P6 done (all 7 stories, including P6-S7 Gemini TTS + /testvoice). Next: P7-S1 — publish linkage capture._
+**Platform v2 — Sprint P7** — Idea Selection + YouTube Metadata. Canonical spec: docs/v2_platform_plan.md; decisions D047–D062.
+_P6 done (all 7 stories, including P6-S7 Gemini TTS + /testvoice + hotfixes: 16:9 aspect ratio + sync freeze). Next: P7-S1 — idea selection flow._
 _Legacy Sprints 1–13 running in DEV/PROD, untouched (D047). S14–S17 paused._
+_Backlog order: P8 Footage quality → P9 Legacy rebuild → P10 Analytics → P11 n8n automation → P12 Multi-tenant SaaS frontend._
 
 ## Active story
-**P7-S1** — Publish linkage capture.
+**P7-S1** — Idea selection flow.
 
 ## Environments
 
@@ -33,7 +34,7 @@ _Legacy Sprints 1–13 running in DEV/PROD, untouched (D047). S14–S17 paused._
 |------|---------|
 | BACKLOG_ACTIVE.md | **Active stories — current + next two sprints (read this)** |
 | BACKLOG.md | Full story archive (all epics; read for sprint planning only) |
-| SPRINT.md | Active sprints (P5–P7) + Platform Track overview |
+| SPRINT.md | Active sprints (P7) + Platform Track roadmap (P0–P12) |
 | SPRINT_ARCHIVE.md | Legacy sprints S1–S19 + completed platform sprints P0–P4 |
 | DONE.md | Completed stories log (last 5 entries inline; older in DONE_ARCHIVE.md) |
 | DECISIONS.md | All architecture and dependency decisions |

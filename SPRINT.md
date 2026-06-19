@@ -1,15 +1,15 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
-> As of 2026-06-19 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D062).
-> - **Sprints P1–P6 complete.** **Sprint P7 active** — P7-S1 is next: publish linkage capture.
+> As of 2026-06-19 the active work is the **Platform v2 track (Sprints P0–P12)**, defined in **docs/v2_platform_plan.md** (decisions D047–D062).
+> - **Sprints P1–P6 complete.** **Sprint P7 active** — P7-S1 is next: idea selection flow.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
 
 ---
 
-# CONTENT FACTORY v2 — PLATFORM TRACK (Sprints P0–P7)
+# CONTENT FACTORY v2 — PLATFORM TRACK (Sprints P0–P12)
 
-**Canonical spec:** docs/v2_platform_plan.md · **Decisions:** D047–D057 · **Stories:** BACKLOG_ACTIVE.md (current + next sprint), BACKLOG.md (full archive).
+**Canonical spec:** docs/v2_platform_plan.md · **Decisions:** D047–D062 · **Stories:** BACKLOG_ACTIVE.md (current + next two sprints), BACKLOG.md (full archive).
 Legacy Script→Video stays untouched and operable (D047).
 
 | Sprint | Theme | Pts | Status | Human touchpoint |
@@ -20,10 +20,15 @@ Legacy Script→Video stays untouched and operable (D047).
 | P3 | Telegram trigger + Discovery worker | 10 | done | `/ideas <niche>` → signals in Telegram |
 | P4 | Niche→Ideas block | 13 | done | Telegram niche → ranked ideas w/ scores |
 | P5 | Idea→Script block | 24 | done | Telegram idea → fact-checked script |
-| P6 | Orchestrator + legacy bridge | 24 | done | `/testvoice <run_id>` → presigned MP3 URL (smoke test deferred) |
-| **P7** | **Analytics & attribution** | **11** | **active** | Retention-by-prompt-version report |
+| P6 | Orchestrator + legacy bridge | 24 | done | `/produce <niche>` → presigned video URL + confirmed VO sync |
+| **P7** | **Idea selection + YouTube metadata** | **8** | **active** | `/ideas` → 5 numbered ideas → `/pick <run_id> <n>` → 16:9 video + metadata |
+| P8 | Footage quality | ~10 | planned | Operator sees visibly higher-quality clips in DEV run |
+| P9 | Legacy engine rebuild | ~13 | planned | All workers native LangGraph; src/ adapter retired |
+| P10 | Analytics & attribution | ~11 | planned | Retention-by-prompt-version report |
+| P11 | n8n automation | ~10 | planned | Niche → scheduled YouTube upload with no operator action |
+| P12 | Multi-tenant SaaS frontend | ~20 | planned | Multi-channel, multi-run operator UI |
 
-**MVP (P0–P6) = 111 pts; with P7 = 122 pts.**
+**Core platform (P0–P6) = 116 pts done.**
 
 ---
 
@@ -75,20 +80,22 @@ Legacy Script→Video stays untouched and operable (D047).
 
 ---
 
-# Sprint P7 — Analytics & Attribution
+# Sprint P7 — Idea Selection + YouTube Metadata
 
-**Goal:** Close the loop — which prompt/worker version produced higher-retention videos.
-**Status:** planned
-**Points:** 11
+**Goal:** Operator sees 5 ranked ideas, picks one, and receives a finished 16:9 video with ready-to-paste YouTube metadata (title, description, tags) in a single Telegram flow.
+**Status:** active
+**Points:** 8
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P7-S1 | Publish linkage capture | 3 | planned |
-| P7-S2 | YouTube analytics ingestion worker | 5 | planned |
-| P7-S3 | Attribution query + report | 3 | planned |
+| P7-S1 | Idea selection flow | 3 | planned |
+| P7-S2 | YouTube metadata worker | 3 | planned |
+| P7-S3 | Produce with selected idea + metadata reply | 2 | planned |
 
-**Execution order:** P7-S1 → P7-S2 → P7-S3.
+**Execution order:** P7-S1 → (P7-S2 ∥ P7-S3).
 
 ## Sprint P7 Definition of Done
-- [ ] `published_videos` + `video_metrics` populated; lineage join works
-- [ ] **Human touchpoint:** operator reads a report ranking prompt versions by retention
+- [ ] `/ideas <niche>` reply shows 5 numbered ideas
+- [ ] `/pick <run_id> <n>` triggers the full pipeline for the chosen idea
+- [ ] Telegram reply includes presigned video URL + YouTube metadata block
+- [ ] **Human touchpoint:** operator receives a 16:9 video + copy-paste YouTube metadata

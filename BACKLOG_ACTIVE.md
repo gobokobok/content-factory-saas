@@ -414,13 +414,13 @@ Add `target_duration_seconds` as a typed run-level parameter that enters at the 
 
 ---
 
-## EPIC 33 — Analytics & Attribution (Sprint P7)
-Close the loop: which prompt/worker version → higher retention (D054).
+## EPIC 34 — Idea Selection + YouTube Metadata (Sprint P7)
+Complete the operator loop: pick an idea, get a finished video with ready-to-paste YouTube metadata.
 
 ---
 
-## [P7-S1] Publish linkage capture
-**Epic:** E33 — Analytics & Attribution
+## [P7-S1] Idea selection flow
+**Epic:** E34 — Idea Selection + YouTube Metadata
 **Sprint:** P7
 **Status:** planned
 **Priority:** high
@@ -428,12 +428,23 @@ Close the loop: which prompt/worker version → higher retention (D054).
 **Depends on:** P6-S4
 
 ### Goal
-Capture `run_id ↔ external_video_id`. Until a publish agent exists: `POST /runs/{id}/published {platform, external_id, url}` (operator pastes the YouTube URL) → `published_videos` row.
-**Tech:** Postgres, FastAPI/Telegram. **Schema:** `published_videos`.
+`/ideas <niche>` reply shows 5 numbered ideas (currently shows 1 selected + 3 alternatives = 4 total; needs restructuring). New `/pick <run_id> <n>` command lets the operator select idea N from a prior `/ideas` run, then triggers the full produce pipeline for that idea without re-running discovery.
+
+**Design:**
+- `format_ranked_ideas` updated to show all top ideas numbered 1–5 (use `selected` + `alternatives`, ensure top_n=5 propagated).
+- `parse_pick_command(text) → Optional[tuple[run_id, int]]` — parses `/pick <run_id> <n>`.
+- `/pick` handler: reads `ranked_ideas` artifact for the given run_id, extracts idea N, calls `_run_produce_and_reply` with `idea_title` and `niche` fixed (bypasses the niche→ideas block; runs idea_to_script → voice → legacy_render only).
+- Add `idea_title` override to `ProduceRequest` and `PipelineState`/`full_pipeline_graph` so the orchestrator can skip niche→ideas when an idea is already selected.
+- `format_pick_usage()`, `format_pick_running(run_id, idea_title)`.
+
+**Tech:** Telegram, FastAPI, LangGraph (partial pipeline run).
 
 ### Acceptance Criteria
-- [ ] Endpoint records `published_videos` row linked to the run
-- [ ] Telegram convenience command available
+- [ ] `/ideas <niche>` reply lists ideas numbered 1–5
+- [ ] `/pick <run_id> <n>` triggers the pipeline using the chosen idea; sends running ack
+- [ ] `PipelineState` / orchestrator accepts `idea_title` override to skip niche→ideas
+- [ ] Telegram reply from `/pick` includes presigned video URL (metadata added in P7-S3)
+- [ ] Tests: parse_pick_command (valid, malformed, out-of-range); pick webhook path; PipelineState idea_title override; format_pick_* helpers
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
@@ -443,51 +454,73 @@ _filled on completion_
 
 ---
 
-## [P7-S2] YouTube analytics ingestion worker
-**Epic:** E33 — Analytics & Attribution
-**Sprint:** P7
-**Status:** planned
-**Priority:** high
-**Points:** 5
-**Depends on:** P7-S1
-
-### Goal
-Scheduled worker pulls retention/views/avg-view-%/CTR per video → time-series `video_metrics` rows (D054).
-**Tech:** YouTube Analytics API (OAuth), Postgres, Railway scheduled task. **Dependency:** YouTube OAuth client + scheduler (D054). **Schema:** `video_metrics`.
-
-### Acceptance Criteria
-- [ ] Metrics ingested per published video on a schedule
-- [ ] `video_metrics` time-series populated
-
-### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
-
-### Handover
-_filled on completion_
-
----
-
-## [P7-S3] Attribution query + report
-**Epic:** E33 — Analytics & Attribution
+## [P7-S2] YouTube metadata worker
+**Epic:** E34 — Idea Selection + YouTube Metadata
 **Sprint:** P7
 **Status:** planned
 **Priority:** high
 **Points:** 3
-**Depends on:** P7-S2
+**Depends on:** P7-S1
 
 ### Goal
-`GET /platform/analytics/attribution` joins `video_metrics → published_videos → runs → worker_executions`, aggregating retention by `prompt_version`/`worker_version`/`model` (plan §6 query).
-**Tech:** Postgres (analytical query), FastAPI.
+New worker: reads `script` artifact → produces a `youtube_metadata` artifact with `title` (≤70 chars), `description` (≤500 chars, includes hashtags), and `tags` (list[str], ≤15 tags). One Haiku call. Wired into the full pipeline after `idea_to_script` and before `voice_production`.
+
+**Tech:** LangGraph worker, Haiku 4.5. **Artifact:** `youtube_metadata`.
 
 ### Acceptance Criteria
-- [ ] Endpoint returns retention grouped by prompt/worker version
-- [ ] **Human touchpoint:** operator reads a report ranking prompt versions by retention
+- [ ] `YoutubeMetadataArtifact(title, description, tags)` Pydantic model defined and stored
+- [ ] `title` ≤ 70 chars enforced (truncated or re-prompted if Claude over-shoots)
+- [ ] Worker wired into `full_pipeline.py` after `idea_to_script_node`
+- [ ] `PipelineState` carries `"youtube_metadata"` artifact ref
+- [ ] Tests: happy path, title truncation, missing script key, registration pins
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
 _filled on completion_
+
+---
+
+## [P7-S3] Produce → metadata reply
+**Epic:** E34 — Idea Selection + YouTube Metadata
+**Sprint:** P7
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P7-S1, P7-S2
+
+### Goal
+Update the Telegram reply from `/pick` (and `/produce`) to include the `youtube_metadata` artifact alongside the video URL. Operator can copy-paste title/description/tags directly into YouTube Studio.
+
+**Design:**
+- `format_produce_reply` updated to accept optional `YoutubeMetadataArtifact`; appends a formatted metadata block when present.
+- `_run_produce_and_reply` reads `youtube_metadata` artifact from the result before sending the reply.
+- **Human touchpoint:** operator sees presigned video URL + title/description/tags block in Telegram.
+
+### Acceptance Criteria
+- [ ] `/pick` reply includes video URL + YouTube metadata block
+- [ ] `/produce` reply also includes metadata when the worker ran successfully
+- [ ] Metadata absent from reply is handled gracefully (worker failure → video URL only)
+- [ ] **Human touchpoint:** operator sends `/ideas <niche>`, picks idea, receives 16:9 video + metadata
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+_filled on completion_
+
+---
+
+## Post-P7 backlog (outline only — detailed in BACKLOG.md)
+
+| Sprint | Theme | Key stories |
+|--------|-------|-------------|
+| P8 | Footage quality | Alternative clip sources (licensed stock beyond Pexels), color-grading presets, per-scene quality scoring |
+| P9 | Legacy engine rebuild | Re-author Script→Video as native LangGraph workers; retire src/ + InProcessLegacyVideoAdapter |
+| P10 | Analytics & attribution | Publish linkage capture, YouTube metrics ingestion, retention-by-prompt-version report |
+| P11 | n8n automation | Callback webhook for n8n, YouTube OAuth upload, scheduled publication with operator preview |
+| P12 | Multi-tenant SaaS frontend | Multi-channel per tenant, multi-run per channel, operator UI rebuild |
 
 ---
 
