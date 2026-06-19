@@ -22,6 +22,7 @@ from cf_platform.core.schemas import (
     IdeaToScriptState,
     NicheToIdeasState,
     PipelineState,
+    StageState,
 )
 from cf_platform.interfaces.api import (
     get_artifact_repository,
@@ -88,6 +89,23 @@ def _make_script_result(script_r2: str = "r2://script@v1.json") -> IdeaToScriptS
     )
 
 
+def _make_voice_body(voice_r2: str = "r2://voice@v1.json") -> dict:
+    return {
+        "mp3_r2_key": f"runs/{_RUN_ID}/voiceover/generated.mp3",
+        "word_timestamps": [],
+        "alignment_method": "proportional_fallback",
+        "total_duration_s": 30.0,
+    }
+
+
+def _make_voice_result(voice_r2: str = "r2://voice@v1.json") -> StageState:
+    return StageState(
+        run_id=_RUN_ID, user_id=_USER_ID,
+        inputs={},
+        artifacts={"voice_alignment": voice_r2},
+    )
+
+
 # ── Gate routing: hitl=False bypasses the gate ───────────────────────────────
 
 
@@ -98,12 +116,16 @@ async def test_hitl_false_skips_gate_and_calls_legacy_render() -> None:
     script_r2 = "r2://script@v1.json"
     video_r2 = "r2://video.mp4"
 
+    voice_r2 = "r2://voice@v1.json"
+
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_voice_result(voice_r2=voice_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_META, _make_ranked_body()),
+        (_FAKE_META, _make_voice_body()),
         (_FAKE_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()
@@ -174,12 +196,16 @@ async def test_hitl_interrupt_called_with_run_id_and_script_key() -> None:
         captured.append(value)
         return "approve"  # simulate operator approval
 
+    voice_r2 = "r2://voice@v1.json"
+
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_voice_result(voice_r2=voice_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_META, _make_ranked_body()),
+        (_FAKE_META, _make_voice_body()),
         (_FAKE_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()
@@ -217,12 +243,16 @@ async def test_hitl_approve_calls_legacy_render() -> None:
     script_r2 = "r2://script@v1.json"
     video_r2 = "r2://video.mp4"
 
+    voice_r2 = "r2://voice@v1.json"
+
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
+        _make_voice_result(voice_r2=voice_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_META, _make_ranked_body()),
+        (_FAKE_META, _make_voice_body()),
         (_FAKE_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()

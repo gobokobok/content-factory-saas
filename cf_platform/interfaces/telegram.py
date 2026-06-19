@@ -289,9 +289,41 @@ def format_hitl_rejected(run_id: str) -> str:
     return f"Run {run_id} rejected — pipeline cancelled."
 
 
+def parse_testvoice_command(text: str) -> Optional[str]:
+    """Parse a `/testvoice <run_id>` command.
+
+    Returns the run_id text (possibly empty if absent), or None if `text` is
+    not a `/testvoice` command at all.
+    """
+    stripped = text.strip()
+    if not (stripped == "/testvoice" or stripped.startswith("/testvoice ")):
+        return None
+    return stripped[len("/testvoice"):].strip()
+
+
+def format_testvoice_running(run_id: str) -> str:
+    """Format the immediate ack sent before the background testvoice run starts (D049)."""
+    return f"Generating voice for run {run_id}... presigned MP3 URL in ~30 s."
+
+
+_TESTVOICE_MP3_URL_EXPIRY_LABEL = "1 h"
+
+
+def format_testvoice_reply(run_id: str, mp3_url: str) -> str:
+    """Format the finished testvoice reply after voice_production completes (D049, P6-S7).
+
+    Shows the run_id and a presigned download URL for the generated MP3.
+    Plain string only — never serializes any internal schema to chat.
+    """
+    return (
+        f"Voice ready — run {run_id}\n\n"
+        f"Download MP3 (expires {_TESTVOICE_MP3_URL_EXPIRY_LABEL}):\n{mp3_url}"
+    )
+
+
 def format_unrecognized_command(text: str) -> str:
     """Format the reply for any unrecognized command or message (D049)."""
-    return "Sorry, I didn't understand that. Try: /ideas <niche>, /script <idea title>, or /produce <niche>"
+    return "Sorry, I didn't understand that. Try: /ideas <niche>, /script <idea title>, /produce <niche>, or /testvoice <run_id>"
 
 
 def is_chat_allowed(chat_id: int, allowed_chat_ids: str) -> bool:

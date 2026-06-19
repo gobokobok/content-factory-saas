@@ -21,15 +21,17 @@ from cf_platform.core.trace_repo import TraceEventRepository
 
 # ── src/ imports — ONLY this module may import from src/ (D047) ───────────────
 from src.acquisition import MIN_ACQUIRED_FOR_COMPLETE, run_acquisition
-from src.ffmpeg_builder import build_ffmpeg_script
+from src.ffmpeg_builder import assign_words_to_scenes, build_ffmpeg_script
 from src.manifest import build_manifest
-from src.models import AssetManifest, Storyboard, VideoSettings
+from src.models import AssetManifest, Storyboard, VideoSettings, WordTimestamp as SrcWordTimestamp
 from src.pexels import PexelsClient
 from src.replicate_client import ReplicateClient
 from src.renderer import render_run
 from src.storyboard import generate_storyboard
 from src.storage import R2Client
-from src.tts import generate_tts
+
+# ── Platform imports (D047 one-directional: src/ never imports cf_platform/) ──
+from cf_platform.workers.voice_production import VoiceAlignmentArtifact
 
 if TYPE_CHECKING:
     from src.config import Settings
@@ -60,8 +62,15 @@ class LegacyVideoAdapter(Protocol):
         run_id: str,
         script: str,
         trace_repo: TraceEventRepository,
+        *,
+        voice_alignment: Optional[VoiceAlignmentArtifact] = None,
     ) -> VideoResult:
-        """Run the full legacy render pipeline and return the video result."""
+        """Run the full legacy render pipeline and return the video result.
+
+        voice_alignment: when provided by voice_production_worker, TTS is skipped
+        (MP3 already at runs/{run_id}/voiceover/generated.mp3) and word timestamps
+        are used for scene-timing and caption sync.
+        """
         ...
 
 
@@ -123,11 +132,17 @@ class InProcessLegacyVideoAdapter:
         run_id: str,
         script: str,
         trace_repo: TraceEventRepository,
+        *,
+        voice_alignment: Optional[VoiceAlignmentArtifact] = None,
     ) -> VideoResult:
         """Chain legacy steps and return the R2 key for the finished video.
 
         Each step emits a TraceEvent.  On any step failure, returns a VideoResult
         with status='failed' and the error message from that step.
+
+        When voice_alignment is provided (from voice_production_worker), TTS is
+        skipped and word timestamps are used for storyboard timing and captions.
+        Without voice_alignment, TTS is attempted if ElevenLabs credentials exist.
         """
         s = self._settings
         storage = self._make_storage()
@@ -136,37 +151,31 @@ class InProcessLegacyVideoAdapter:
         storage.create_run_folder(run_id, project_name="platform-run")
         storage.upload_text(f"runs/{run_id}/script.txt", script)
 
-        # ── 1. TTS — optional; non-fatal on failure ───────────────────────
-        if s.ELEVENLABS_API_KEY and s.ELEVENLABS_VOICE_ID:
-            t0 = time.monotonic()
-            try:
-                mp3_bytes, _ = await generate_tts(
-                    script,
-                    api_key=s.ELEVENLABS_API_KEY,
-                    voice_id=s.ELEVENLABS_VOICE_ID,
+        # ── 1. TTS — always handled by voice_production_worker (P6-S7) ───
+        # voice_production_worker runs before this adapter and uploads
+        # runs/{run_id}/voiceover/generated.mp3; render_run picks it up
+        # automatically.  When voice_alignment is None (no worker ran),
+        # the render continues without a voiceover (silent video).
+        if voice_alignment is None:
+            logger.info("No voice_alignment for run %s — rendering without voiceover", run_id)
+
+        # ── 1b. Convert platform timestamps to src timestamps ─────────────
+        src_timestamps: Optional[list[SrcWordTimestamp]] = None
+        if voice_alignment and voice_alignment.word_timestamps:
+            src_timestamps = [
+                SrcWordTimestamp(
+                    word=wt.word,
+                    start_ms=wt.start_ms,
+                    end_ms=wt.end_ms,
+                    confidence=wt.confidence,
                 )
-                storage.upload_bytes(
-                    f"runs/{run_id}/voiceover/generated.mp3",
-                    mp3_bytes,
-                    content_type="audio/mpeg",
-                )
-                await self._trace(
-                    trace_repo, run_id, "tts", "generate",
-                    int((time.monotonic() - t0) * 1000), "ok",
-                )
-            except Exception as exc:
-                await self._trace(
-                    trace_repo, run_id, "tts", "generate",
-                    int((time.monotonic() - t0) * 1000), "error", {"error": str(exc)},
-                )
-                logger.warning(
-                    "TTS failed for run %s — continuing without voiceover: %s", run_id, exc
-                )
+                for wt in voice_alignment.word_timestamps
+            ]
 
         # ── 2. Storyboard ─────────────────────────────────────────────────
         t0 = time.monotonic()
         try:
-            storyboard, validation = await generate_storyboard(script, s, None)
+            storyboard, validation = await generate_storyboard(script, s, src_timestamps)
             storyboard_data = storyboard.model_dump(by_alias=True, mode="json")
             storage.upload_json(f"runs/{run_id}/storyboard.json", storyboard_data)
             await self._trace(
@@ -250,8 +259,9 @@ class InProcessLegacyVideoAdapter:
         t0 = time.monotonic()
         try:
             storyboard_obj = Storyboard.model_validate(storyboard_data)
+            scene_words = assign_words_to_scenes(storyboard_obj.scenes, src_timestamps) if src_timestamps else None
             ffmpeg_script = build_ffmpeg_script(
-                run_id, storyboard_obj, manifest, None, video_settings=VideoSettings()
+                run_id, storyboard_obj, manifest, scene_words, video_settings=VideoSettings()
             )
             storage.upload_text(
                 f"runs/{run_id}/ffmpeg_script.sh",

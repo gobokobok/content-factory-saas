@@ -5,13 +5,24 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
-## D061 — TTS provider: replace ElevenLabs (candidate)
-**Date:** 2026-06-18
-**Status:** CANDIDATE — not yet implemented
-**Decision:** Replace ElevenLabs in `src/tts.py` with **Gemini 2.5 Flash TTS** as the primary candidate. All alternatives are new pipeline integrations regardless of what the operator uses in standalone tools. Gemini TTS wins on cost: free within Google AI Studio free tier at POC volumes, vs ElevenLabs ~$22/M chars. The operator is already familiar with Gemini TTS output quality from manual use. Runners-up: Google Cloud TTS Neural2 (~$4/M, 1M chars/month free tier, requires GCP service account); OpenAI TTS `tts-1` (~$15/M, simplest REST shape).
-**Rationale:** Cost is the driver. Gemini TTS is free at current volumes and the operator has validated the quality. All three options require a new API key and integration work — Gemini has no additional friction advantage, but the price difference is decisive at POC scale.
-**Consequence:** `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` replaced by `GEMINI_API_KEY` + `GEMINI_TTS_VOICE`. New dependency: `google-generativeai` (if not already listed). The PCM→ffmpeg re-encode step in `src/tts.py` may simplify or be removed depending on the format Gemini TTS returns.
-**See:** `src/tts.py`. **No dependencies added yet.**
+## D062 — voice_production as a platform worker (not a legacy bridge call)
+**Date:** 2026-06-19
+**Status:** ACTIVE
+**Decision:** TTS + alignment lives in `cf_platform/workers/voice_production.py` — a first-class platform worker — rather than inside `InProcessLegacyVideoAdapter.render()` or as a call through `src/tts.py`. The adapter only receives the finished `VoiceAlignmentArtifact` (mp3 R2 key + word timestamps) and uses it for scene timing and caption sync. The voice_production worker uses httpx/google-generativeai directly without importing `src/` (D047).
+**Rationale:** Putting TTS inside the adapter would make it untestable in isolation (adapter calls require the full legacy chain: storyboard → manifest → acquisition → ffmpeg → render). As a platform worker, voice_production can be triggered standalone via `/testvoice`, unit-tested with mocks, and observed via the standard lineage system. The platform→adapter boundary stays clean: adapter is IO-only (D057).
+**Consequence:** `full_pipeline.py` topology is `niche_to_ideas → idea_to_script → voice_production → legacy_render`. The `render()` method gains a keyword-only `voice_alignment: Optional[VoiceAlignmentArtifact] = None` parameter — when provided, TTS is skipped in the adapter and word timestamps are passed to `build_ffmpeg_script()` for caption sync.
+**See:** `cf_platform/workers/voice_production.py`, `cf_platform/adapters/legacy_video.py`. **No new dependencies (httpx already present).**
+
+---
+
+## D061 — TTS provider: Gemini 2.5 Flash (replacing ElevenLabs)
+**Date:** 2026-06-18 (decision) · 2026-06-19 (implementation target: P6-S7)
+**Status:** ACTIVE — implementing in P6-S7
+**Decision:** Use **Gemini 2.5 Flash TTS** as the TTS engine in `voice_production.py`. Replaces the ElevenLabs placeholder built in P6-voice session (2026-06-19). ElevenLabs placeholder was built first to validate the worker architecture (D062); Gemini is the intended production engine.
+**Rationale:** Cost is the driver. Gemini TTS is free within Google AI Studio free tier at POC volumes (~30–50 runs/month); ElevenLabs is ~$22/M chars. The operator has validated Gemini TTS output quality from manual use.
+**Consequence:** `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` removed from `PlatformSettings`; replaced by `GEMINI_API_KEY: str = ""` + `GEMINI_TTS_VOICE: str = ""`. Gemini returns PCM/WAV — still re-encode to MP3 via ffmpeg subprocess (same pattern). Deepgram alignment and proportional fallback unchanged. New dependency: `google-generativeai` added to `requirements.txt` in P6-S7.
+**Runners-up considered:** Google Cloud TTS Neural2 (~$4/M, 1M chars/month free tier, requires GCP service account); OpenAI TTS `tts-1` (~$15/M, simplest REST shape).
+**See:** `cf_platform/workers/voice_production.py`. **Dependency `google-generativeai` added in P6-S7.**
 
 ---
 

@@ -4,6 +4,35 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P6-S7] Gemini TTS + /testvoice harness
+**Completed:** 2026-06-19
+**Handover:**
+- `cf_platform/workers/voice_production.py`: ElevenLabs → Gemini 2.5 Flash TTS (`gemini-2.5-flash-preview-tts`). `_call_gemini_tts_sync` wraps synchronous `google-generativeai` SDK in `asyncio.to_thread`; returns MP3 via ffmpeg PCM→MP3 transcode (24 kHz mono s16le). Factory: `build_voice_production_worker(storage, gemini_api_key="", gemini_tts_voice="", deepgram_api_key="")`. `worker_version="2.0.0"`, `model="gemini_deepgram"`.
+- `cf_platform/core/config.py`: `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` removed; `GEMINI_API_KEY: str = ""` and `GEMINI_TTS_VOICE: str = ""` added.
+- `cf_platform/orchestrator/full_pipeline.py`: `gemini_api_key`/`gemini_tts_voice` parameters replace ElevenLabs keys throughout.
+- `cf_platform/adapters/legacy_video.py`: ElevenLabs TTS fallback entirely removed — adapter renders silent video when `voice_alignment is None`, logs info. `generate_tts` import removed.
+- `cf_platform/interfaces/telegram.py`: `parse_testvoice_command`, `format_testvoice_running`, `format_testvoice_reply`; `format_unrecognized_command` updated to mention `/testvoice`.
+- `cf_platform/interfaces/api.py`: `_run_testvoice_and_reply` — reads `script` artifact via `artifact_repo.list_for_run`, calls voice worker directly, returns 1h presigned MP3 URL; `/testvoice` webhook branch wired.
+- `requirements.txt`: `google-generativeai>=0.8.0` added.
+- Tests: `test_p6_s7_testvoice.py` (new, 19 tests); `test_voice_production.py` (Gemini path); `test_legacy_video_adapter.py` (TTS tests updated — adapter always emits exactly 5 trace events). 1531 total passing.
+**Smoke test:** DEFERRED — operator runs `/testvoice <run_id>` (run must have a `script` artifact) on DEV after deploy with `GEMINI_API_KEY` + `GEMINI_TTS_VOICE` set. Expect presigned MP3 URL in ~30s.
+**Promoted to backlog:** none.
+
+---
+
+## [P6-voice session] voice_production scaffolding (2026-06-19) — IN PROGRESS, not yet done
+**Note:** This is intermediate work, not a completed story. Logged here for context. P6-S7 finishes it.
+**Work completed in session:**
+- `cf_platform/workers/voice_production.py` (new): `VoiceWordTimestamp`, `VoiceAlignmentArtifact`, `VOICE_PRODUCTION_REGISTRATION`, `build_voice_production_worker()`. TTS engine: ElevenLabs (placeholder — will be replaced by Gemini in P6-S7 per D061). Deepgram Nova-2 alignment. Proportional fallback (confidence=0.0). Worker re-implements TTS + alignment via httpx without importing `src/` (D047).
+- `cf_platform/core/artifact_manager.py`: `put_bytes(key, data, content_type)` added to `ArtifactStorage` Protocol + both impls (`InMemoryArtifactStorage`, `R2ArtifactStorage`).
+- `cf_platform/core/config.py`: `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, `DEEPGRAM_API_KEY` added to `PlatformSettings` (will change to `GEMINI_API_KEY`/`GEMINI_TTS_VOICE` in P6-S7).
+- `cf_platform/adapters/legacy_video.py`: `render()` gains keyword-only `voice_alignment: Optional[VoiceAlignmentArtifact] = None`; TTS step skipped when voice_alignment provided; word timestamps converted to `src.models.WordTimestamp` and passed to `assign_words_to_scenes()` + `build_ffmpeg_script()` (D062).
+- `cf_platform/orchestrator/full_pipeline.py`: `voice_production_node` inserted between `idea_to_script` and `legacy_render`; `_route_after_script` and `script_approval_gate` now route to `voice_production` (not `legacy_render`); `legacy_render_node` reads `voice_alignment` artifact before `script`.
+- `cf_platform/interfaces/api.py`: `VOICE_PRODUCTION_REGISTRATION` registered; all `build_full_pipeline_graph()` calls pass ElevenLabs/Deepgram keys.
+- Tests: `tests/cf_platform/test_voice_production.py` (new, 22 tests); `test_full_pipeline.py` + `test_p6_s3_hitl.py` updated for 3rd `run_graph` side_effect and reordered `read_artifact` side_effects. 1521 total tests passing (CI green).
+
+---
+
 ## [P6-S3] Human-in-the-loop gates
 **Completed:** 2026-06-18
 **Handover:**

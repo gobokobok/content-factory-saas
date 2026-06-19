@@ -55,6 +55,8 @@ from cf_platform.interfaces.telegram import (
     format_script_reply,
     format_script_running,
     format_script_usage,
+    format_testvoice_reply,
+    format_testvoice_running,
     format_unrecognized_command,
     is_chat_allowed,
     parse_ideas_command,
@@ -62,6 +64,7 @@ from cf_platform.interfaces.telegram import (
     parse_produce_command,
     parse_script_command,
     parse_script_duration_args,
+    parse_testvoice_command,
 )
 from cf_platform.orchestrator.full_pipeline import build_full_pipeline_graph
 from cf_platform.core.schemas import PipelineState
@@ -72,6 +75,7 @@ from cf_platform.sources.youtube import YouTubeAdapter
 from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
 from cf_platform.workers.opportunity_scorer import TopicScore
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
+from cf_platform.workers.voice_production import VOICE_PRODUCTION_REGISTRATION, build_voice_production_worker
 
 router = APIRouter()
 
@@ -87,6 +91,7 @@ _worker_registry = WorkerRegistry()
 _worker_registry.register("echo", ECHO_REGISTRATION)
 register_niche_to_ideas_workers(_worker_registry)
 register_idea_to_script_workers(_worker_registry)
+_worker_registry.register("voice_production", VOICE_PRODUCTION_REGISTRATION)
 
 
 @router.get("/health")
@@ -549,6 +554,9 @@ async def resume_run(
                 trace_repo=trace_events,
                 anthropic_api_key=settings.ANTHROPIC_API_KEY,
                 checkpointer=checkpointer,
+                gemini_api_key=settings.GEMINI_API_KEY,
+                gemini_tts_voice=settings.GEMINI_TTS_VOICE,
+                deepgram_api_key=settings.DEEPGRAM_API_KEY,
             )
             await graph.ainvoke(Command(resume=body.decision), config=config)
         except Exception as exc:
@@ -731,6 +739,9 @@ async def _run_produce_and_reply(
             trace_repo=trace_events,
             anthropic_api_key=settings.ANTHROPIC_API_KEY,
             checkpointer=checkpointer,
+            gemini_api_key=settings.GEMINI_API_KEY,
+            gemini_tts_voice=settings.GEMINI_TTS_VOICE,
+            deepgram_api_key=settings.DEEPGRAM_API_KEY,
         )
         state = PipelineState(
             run_id=run.run_id,
@@ -750,6 +761,68 @@ async def _run_produce_and_reply(
         )
         short = str(exc)[:200]
         reply = f"Error running /produce: {type(exc).__name__}: {short}"
+
+    try:
+        await client.send_message(chat_id, reply)
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception("TelegramClient.send_message failed for chat_id=%s: %s", chat_id, exc)
+
+
+_TESTVOICE_MP3_URL_EXPIRY = 3600  # 1 hour
+
+
+async def _run_testvoice_and_reply(
+    chat_id: int,
+    run_id: str,
+    settings: PlatformSettings,
+    storage: ArtifactStorage,
+    artifacts: ArtifactRepository,
+) -> None:
+    """Read the script artifact for run_id, generate voice, and reply with a presigned MP3 URL.
+
+    Calls voice_production_worker directly (not through the full graph) so the
+    operator can test voice in isolation without re-running the whole pipeline.
+    Reads the latest 'script' artifact for the run from the artifact repository,
+    then invokes build_voice_production_worker with GEMINI_API_KEY + GEMINI_TTS_VOICE
+    from settings.  Returns a presigned URL with a 1-hour expiry.
+
+    Fault isolation: if no script artifact is found, or TTS fails, sends an error
+    reply rather than crashing silently.
+    """
+    client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
+    try:
+        # Look up the latest 'script' artifact for this run.
+        artifact_records = await artifacts.list_for_run(run_id)
+        script_records = [a for a in artifact_records if a.name == "script"]
+        if not script_records:
+            await client.send_message(chat_id, f"No script artifact found for run {run_id}. Run /produce first.")
+            return
+        # Take the highest version.
+        script_r2_key = max(script_records, key=lambda a: a.version).r2_key
+
+        voice_worker = build_voice_production_worker(
+            storage,
+            gemini_api_key=settings.GEMINI_API_KEY,
+            gemini_tts_voice=settings.GEMINI_TTS_VOICE,
+            deepgram_api_key=settings.DEEPGRAM_API_KEY,
+        )
+        state = StageState(
+            run_id=run_id,
+            user_id=_PLATFORM_USER_ID,
+            inputs={},
+            artifacts={"script": script_r2_key},
+        )
+        result = await voice_worker(state)
+        mp3_r2_key: str = result.artifact.mp3_r2_key  # type: ignore[union-attr]
+        if not mp3_r2_key:
+            await client.send_message(chat_id, f"Voice generated with proportional fallback (no TTS key). No MP3 to download for run {run_id}.")
+            return
+        mp3_url = await storage.generate_presigned_url(mp3_r2_key, expires_in=_TESTVOICE_MP3_URL_EXPIRY)
+        reply = format_testvoice_reply(run_id, mp3_url)
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception("_run_testvoice_and_reply failed for run_id=%r chat_id=%s: %s", run_id, chat_id, exc)
+        short = str(exc)[:200]
+        reply = f"Error running /testvoice: {type(exc).__name__}: {short}"
 
     try:
         await client.send_message(chat_id, reply)
@@ -806,6 +879,9 @@ async def produce(
         trace_repo=trace_events,
         anthropic_api_key=settings.ANTHROPIC_API_KEY,
         checkpointer=checkpointer,
+        gemini_api_key=settings.GEMINI_API_KEY,
+        gemini_tts_voice=settings.GEMINI_TTS_VOICE,
+        deepgram_api_key=settings.DEEPGRAM_API_KEY,
     )
     state = PipelineState(
         run_id=run.run_id,
@@ -862,6 +938,7 @@ async def telegram_webhook(
     produce_args = parse_produce_command(update.message.text)
     niche = parse_ideas_command(update.message.text)
     idea_title = parse_script_command(update.message.text)
+    testvoice_run_id = parse_testvoice_command(update.message.text)
 
     if produce_args is not None:
         if not produce_args:
@@ -924,6 +1001,19 @@ async def telegram_webhook(
                 artifacts=artifacts,
                 checkpointer=checkpointer,
                 target_duration_seconds=duration,
+            )
+    elif testvoice_run_id is not None:
+        if not testvoice_run_id:
+            await client.send_message(chat_id, "Usage: /testvoice <run_id> — e.g. /testvoice abc-123")
+        else:
+            await client.send_message(chat_id, format_testvoice_running(testvoice_run_id))
+            background_tasks.add_task(
+                _run_testvoice_and_reply,
+                chat_id=chat_id,
+                run_id=testvoice_run_id,
+                settings=settings,
+                storage=storage,
+                artifacts=artifacts,
             )
     else:
         await client.send_message(chat_id, format_unrecognized_command(update.message.text))

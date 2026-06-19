@@ -30,11 +30,16 @@ from cf_platform.blocks.idea_to_script import build_idea_to_script_graph
 from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph
 from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage, read_artifact
 from cf_platform.core.execution_engine import run_graph
-from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, PipelineState, SourceAdapter
+from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, PipelineState, SourceAdapter, StageState
 from cf_platform.core.trace_repo import TraceEventRepository
-from cf_platform.core.worker_registry import ExecutionRepository, WorkerRegistry
+from cf_platform.core.worker_registry import ExecutionRepository, WorkerRegistry, build_observed_node_graph
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
+from cf_platform.workers.voice_production import (
+    VOICE_PRODUCTION_REGISTRATION,
+    VoiceAlignmentArtifact,
+    build_voice_production_worker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,23 +55,30 @@ def build_full_pipeline_graph(
     anthropic_api_key: str,
     legacy_adapter: Optional[LegacyVideoAdapter] = None,
     checkpointer: Optional[BaseCheckpointSaver] = None,
+    gemini_api_key: str = "",
+    gemini_tts_voice: str = "",
+    deepgram_api_key: str = "",
 ) -> CompiledStateGraph:
-    """Compile the full pipeline StateGraph over PipelineState (P6-S2).
+    """Compile the full pipeline StateGraph over PipelineState (P6-S2, P6-S7).
 
     Topology:
-      START → niche_to_ideas → idea_to_script → legacy_render → END
+      START → niche_to_ideas → idea_to_script → [gate?] → voice_production → legacy_render → END
 
-    Each block node builds a block-specific initial state from PipelineState,
-    runs the corresponding compiled subgraph, and writes only the terminal
-    artifact ref back to the parent state.  The legacy_render node calls the
-    adapter and writes `video` directly — the adapter is IO, not a worker (D057).
+    Nodes:
+      niche_to_ideas / idea_to_script — delegate to compiled subgraphs via run_graph.
+      script_approval_gate — HITL interrupt when PipelineState.hitl=True.
+      voice_production — Gemini TTS + Deepgram alignment; observed via wrap().
+      legacy_render — calls the adapter (IO, not a worker, D057).
 
     `legacy_adapter` defaults to InProcessLegacyVideoAdapter() (lazy settings
     load).  Inject a mock or HTTP impl for testing or future HTTP swap-out.
 
+    Gemini / Deepgram keys default to empty (D048 fault isolation); a missing
+    key causes voice_production to use proportional_fallback timestamps instead.
+
     The caller must have already registered all block workers in `registry`
-    (register_niche_to_ideas_workers + register_idea_to_script_workers).
-    `checkpointer` defaults to MemorySaver() (in-process).
+    (register_niche_to_ideas_workers + register_idea_to_script_workers +
+    voice_production).  `checkpointer` defaults to MemorySaver() (in-process).
     """
     niche_graph = build_niche_to_ideas_graph(
         storage=storage,
@@ -85,6 +97,26 @@ def build_full_pipeline_graph(
         anthropic_api_key=anthropic_api_key,
     )
     _adapter: LegacyVideoAdapter = legacy_adapter or InProcessLegacyVideoAdapter()
+
+    # ── Voice production — build observed graph once at compile time ──────
+    # Ensure the registry has voice_production before wrap() resolves it.
+    # Registering here is idempotent (same values as api.py module-level call).
+    registry.register("voice_production", VOICE_PRODUCTION_REGISTRATION)
+    voice_worker = build_voice_production_worker(
+        storage=storage,
+        gemini_api_key=gemini_api_key,
+        gemini_tts_voice=gemini_tts_voice,
+        deepgram_api_key=deepgram_api_key,
+    )
+    voice_graph = build_observed_node_graph(
+        "voice_alignment",
+        "voice_production",
+        voice_worker,
+        registry=registry,
+        storage=storage,
+        executions=executions,
+        artifact_repo=artifact_repo,
+    )
 
     async def niche_to_ideas_node(state: PipelineState) -> dict[str, Any]:
         """Run the niche→ideas block; return ranked_ideas artifact ref."""
@@ -131,6 +163,22 @@ def build_full_pipeline_graph(
         )
         return {"artifacts": {"script": result.artifacts["script"]}}
 
+    async def voice_production_node(state: PipelineState) -> dict[str, Any]:
+        """Run TTS + alignment; return voice_alignment artifact ref.
+
+        Bridges PipelineState → StageState so the observed voice_production graph
+        can run with the script artifact key as its only input, then merges the
+        resulting voice_alignment key back into the parent state.
+        """
+        block_state = StageState(
+            run_id=state.run_id,
+            user_id=state.user_id,
+            inputs={},
+            artifacts={"script": state.artifacts["script"]},
+        )
+        result = await run_graph(voice_graph, block_state, thread_id=f"{state.run_id}:voice_production")
+        return {"artifacts": {"voice_alignment": result.artifacts["voice_alignment"]}}
+
     async def script_approval_gate(state: PipelineState) -> dict[str, Any]:
         """Pause for operator script approval when PipelineState.hitl=True (P6-S3).
 
@@ -162,7 +210,18 @@ def build_full_pipeline_graph(
         The adapter is IO, not a worker (D057) — it emits TraceEvents, not
         platform artifacts.  This node bridges the adapter result into the
         parent state by writing the R2 key directly into artifacts["video"].
+
+        Reads the voice_alignment artifact (produced by voice_production_node)
+        and passes it to the adapter for timestamp-accurate scene timing and
+        word-level caption sync.
         """
+        # Read voice alignment artifact (always present — voice_production_node runs first).
+        voice_alignment: Optional[VoiceAlignmentArtifact] = None
+        voice_alignment_key = state.artifacts.get("voice_alignment")
+        if voice_alignment_key:
+            _, va_body = await read_artifact(storage, voice_alignment_key)
+            voice_alignment = VoiceAlignmentArtifact.model_validate(va_body)
+
         script_r2_key = state.artifacts["script"]
         _, script_body = await read_artifact(storage, script_r2_key)
         script_artifact = ScriptArtifact.model_validate(script_body)
@@ -171,19 +230,21 @@ def build_full_pipeline_graph(
             run_id=state.run_id,
             script=script_artifact.script,
             trace_repo=trace_repo,
+            voice_alignment=voice_alignment,
         )
         if result.status == "failed":
             raise RuntimeError(f"Legacy render failed: {result.error}")
         return {"artifacts": {"video": result.r2_key}}
 
     def _route_after_script(state: PipelineState) -> str:
-        """Route to the HITL gate when hitl=True; otherwise skip directly to legacy_render."""
-        return "script_approval_gate" if state.hitl else "legacy_render"
+        """Route to the HITL gate when hitl=True; otherwise go to voice_production."""
+        return "script_approval_gate" if state.hitl else "voice_production"
 
     graph: StateGraph = StateGraph(PipelineState)
     graph.add_node("niche_to_ideas", niche_to_ideas_node)
     graph.add_node("idea_to_script", idea_to_script_node)
     graph.add_node("script_approval_gate", script_approval_gate)
+    graph.add_node("voice_production", voice_production_node)
     graph.add_node("legacy_render", legacy_render_node)
 
     graph.add_edge(START, "niche_to_ideas")
@@ -191,9 +252,10 @@ def build_full_pipeline_graph(
     graph.add_conditional_edges(
         "idea_to_script",
         _route_after_script,
-        {"script_approval_gate": "script_approval_gate", "legacy_render": "legacy_render"},
+        {"script_approval_gate": "script_approval_gate", "voice_production": "voice_production"},
     )
-    graph.add_edge("script_approval_gate", "legacy_render")
+    graph.add_edge("script_approval_gate", "voice_production")
+    graph.add_edge("voice_production", "legacy_render")
     graph.add_edge("legacy_render", END)
 
     return graph.compile(checkpointer=checkpointer or MemorySaver())

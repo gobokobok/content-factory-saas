@@ -11,6 +11,7 @@ from cf_platform.core.schemas import (
     IdeaToScriptState,
     NicheToIdeasState,
     PipelineState,
+    StageState,
 )
 from cf_platform.orchestrator.full_pipeline import build_full_pipeline_graph
 from cf_platform.workers.opportunity_scorer import TopicScore
@@ -59,6 +60,26 @@ def _make_script_body(script: str = "Housing prices are rising.") -> dict:
         generated_at=datetime.now(timezone.utc),
     )
     return artifact.model_dump(mode="json")
+
+
+def _make_voice_body(run_id: str = _RUN_ID) -> dict:
+    """Build a VoiceAlignmentArtifact-shaped dict for read_artifact mock returns."""
+    return {
+        "mp3_r2_key": f"runs/{run_id}/voiceover/generated.mp3",
+        "word_timestamps": [],
+        "alignment_method": "proportional_fallback",
+        "total_duration_s": 30.0,
+    }
+
+
+def _make_voice_result(run_id: str = _RUN_ID, voice_r2: str = "r2://voice@v1.json") -> StageState:
+    """Fake StageState returned by the voice_production observed graph."""
+    return StageState(
+        run_id=run_id,
+        user_id=_USER_ID,
+        inputs={},
+        artifacts={"voice_alignment": voice_r2},
+    )
 
 
 def _make_niche_result(run_id: str = _RUN_ID, ranked_r2: str = "r2://ranked@v1.json") -> NicheToIdeasState:
@@ -165,14 +186,20 @@ def test_build_full_pipeline_graph_compiles() -> None:
 
 @pytest.mark.asyncio
 async def test_full_pipeline_happy_path() -> None:
-    """Full graph threads run_id + artifacts across all three block nodes."""
+    """Full graph threads run_id + artifacts across all four block nodes."""
     ranked_r2 = "r2://ranked_ideas@v1.json"
     script_r2 = "r2://script@v1.json"
+    voice_r2 = "r2://voice@v1.json"
     video_r2 = "r2://video/output/final.mp4"
 
-    mock_run_graph = AsyncMock(side_effect=[_make_niche_result(ranked_r2=ranked_r2), _make_script_result(script_r2=script_r2)])
+    mock_run_graph = AsyncMock(side_effect=[
+        _make_niche_result(ranked_r2=ranked_r2),
+        _make_script_result(script_r2=script_r2),
+        _make_voice_result(voice_r2=voice_r2),
+    ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_ARTIFACT_META, _make_ranked_body()),   # idea_to_script_node reads ranked_ideas
+        (_FAKE_ARTIFACT_META, _make_voice_body()),    # legacy_render_node reads voice_alignment
         (_FAKE_ARTIFACT_META, _make_script_body()),   # legacy_render_node reads script
     ])
     mock_adapter = MagicMock()
@@ -203,6 +230,7 @@ async def test_full_pipeline_happy_path() -> None:
 
     assert result["artifacts"]["ranked_ideas"] == ranked_r2
     assert result["artifacts"]["script"] == script_r2
+    assert result["artifacts"]["voice_alignment"] == voice_r2
     assert result["artifacts"]["video"] == video_r2
 
 
@@ -219,10 +247,13 @@ async def test_run_id_threads_into_block_states() -> None:
         captured_states.append((state, thread_id))
         if isinstance(state, NicheToIdeasState):
             return _make_niche_result(run_id=state.run_id, ranked_r2=ranked_r2)
-        return _make_script_result(run_id=state.run_id, script_r2=script_r2)
+        if isinstance(state, IdeaToScriptState):
+            return _make_script_result(run_id=state.run_id, script_r2=script_r2)
+        return _make_voice_result(run_id=state.run_id)
 
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_ARTIFACT_META, _make_ranked_body()),
+        (_FAKE_ARTIFACT_META, _make_voice_body()),
         (_FAKE_ARTIFACT_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()
@@ -247,14 +278,17 @@ async def test_run_id_threads_into_block_states() -> None:
         initial = PipelineState(run_id=_RUN_ID, user_id=_USER_ID, inputs={"niche": "housing"})
         await graph.ainvoke(initial, config={"configurable": {"thread_id": "t2"}})
 
-    assert len(captured_states) == 2
+    assert len(captured_states) == 3
     niche_state, niche_thread = captured_states[0]
     script_state, script_thread = captured_states[1]
+    voice_state, voice_thread = captured_states[2]
 
     assert niche_state.run_id == _RUN_ID
     assert script_state.run_id == _RUN_ID
+    assert voice_state.run_id == _RUN_ID
     assert niche_thread == f"{_RUN_ID}:niche_to_ideas"
     assert script_thread == f"{_RUN_ID}:idea_to_script"
+    assert voice_thread == f"{_RUN_ID}:voice_production"
 
 
 @pytest.mark.asyncio
@@ -269,11 +303,14 @@ async def test_idea_title_extracted_from_ranked_ideas() -> None:
     async def capture_run_graph(graph: Any, state: Any, thread_id: str) -> Any:
         if isinstance(state, NicheToIdeasState):
             return _make_niche_result(ranked_r2=ranked_r2)
-        captured_script_state.append(state)
-        return _make_script_result(script_r2=script_r2)
+        if isinstance(state, IdeaToScriptState):
+            captured_script_state.append(state)
+            return _make_script_result(script_r2=script_r2)
+        return _make_voice_result()
 
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_ARTIFACT_META, _make_ranked_body(title="Starter Homes Vanished")),
+        (_FAKE_ARTIFACT_META, _make_voice_body()),
         (_FAKE_ARTIFACT_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()
@@ -313,11 +350,14 @@ async def test_niche_flows_into_idea_to_script() -> None:
     async def capture_run_graph(graph: Any, state: Any, thread_id: str) -> Any:
         if isinstance(state, NicheToIdeasState):
             return _make_niche_result(ranked_r2=ranked_r2)
-        captured.append(state)
-        return _make_script_result(script_r2=script_r2)
+        if isinstance(state, IdeaToScriptState):
+            captured.append(state)
+            return _make_script_result(script_r2=script_r2)
+        return _make_voice_result()
 
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_ARTIFACT_META, _make_ranked_body()),
+        (_FAKE_ARTIFACT_META, _make_voice_body()),
         (_FAKE_ARTIFACT_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()
@@ -356,11 +396,14 @@ async def test_niche_absent_not_injected() -> None:
     async def capture_run_graph(graph: Any, state: Any, thread_id: str) -> Any:
         if isinstance(state, NicheToIdeasState):
             return _make_niche_result(ranked_r2=ranked_r2)
-        captured.append(state)
-        return _make_script_result(script_r2=script_r2)
+        if isinstance(state, IdeaToScriptState):
+            captured.append(state)
+            return _make_script_result(script_r2=script_r2)
+        return _make_voice_result()
 
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_ARTIFACT_META, _make_ranked_body()),
+        (_FAKE_ARTIFACT_META, _make_voice_body()),
         (_FAKE_ARTIFACT_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()
@@ -399,11 +442,14 @@ async def test_target_duration_flows_into_idea_to_script() -> None:
     async def capture_run_graph(graph: Any, state: Any, thread_id: str) -> Any:
         if isinstance(state, NicheToIdeasState):
             return _make_niche_result(ranked_r2=ranked_r2)
-        captured.append(state)
-        return _make_script_result(script_r2=script_r2)
+        if isinstance(state, IdeaToScriptState):
+            captured.append(state)
+            return _make_script_result(script_r2=script_r2)
+        return _make_voice_result()
 
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_ARTIFACT_META, _make_ranked_body()),
+        (_FAKE_ARTIFACT_META, _make_voice_body()),
         (_FAKE_ARTIFACT_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()
@@ -444,9 +490,14 @@ async def test_legacy_render_node_reads_script_artifact() -> None:
     video_r2 = "r2://video.mp4"
     script_text = "Housing prices skyrocketed last year."
 
-    mock_run_graph = AsyncMock(side_effect=[_make_niche_result(ranked_r2=ranked_r2), _make_script_result(script_r2=script_r2)])
+    mock_run_graph = AsyncMock(side_effect=[
+        _make_niche_result(ranked_r2=ranked_r2),
+        _make_script_result(script_r2=script_r2),
+        _make_voice_result(),
+    ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_ARTIFACT_META, _make_ranked_body()),
+        (_FAKE_ARTIFACT_META, _make_voice_body()),
         (_FAKE_ARTIFACT_META, _make_script_body(script=script_text)),
     ])
     mock_adapter = MagicMock()
@@ -483,9 +534,14 @@ async def test_legacy_render_failure_raises_runtime_error() -> None:
     ranked_r2 = "r2://ranked@v1.json"
     script_r2 = "r2://script@v1.json"
 
-    mock_run_graph = AsyncMock(side_effect=[_make_niche_result(ranked_r2=ranked_r2), _make_script_result(script_r2=script_r2)])
+    mock_run_graph = AsyncMock(side_effect=[
+        _make_niche_result(ranked_r2=ranked_r2),
+        _make_script_result(script_r2=script_r2),
+        _make_voice_result(),
+    ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_ARTIFACT_META, _make_ranked_body()),
+        (_FAKE_ARTIFACT_META, _make_voice_body()),
         (_FAKE_ARTIFACT_META, _make_script_body()),
     ])
     mock_adapter = MagicMock()

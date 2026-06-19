@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
-> As of 2026-06-13 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D057).
-> - **Sprint P1 complete** (16/16 pts). **Sprint P2 complete** (16/16 pts). **Sprint P3 complete** (10/10 pts). **Sprint P4 complete** (13/13 pts). **Sprint P5 complete** (24/24 pts — all 6 stories done including P5-S6 Blueprint IR rearchitect; DEV smoke test pending deploy). **Current sprint:** P6 — Orchestrator + Legacy Bridge. **Next:** P6-S1.
+> As of 2026-06-19 the active work is the **Platform v2 track (Sprints P0–P7)**, defined at the end of this file and in **docs/v2_platform_plan.md** (decisions D047–D062).
+> - **Sprints P1–P6 complete.** **Sprint P7 active** — P7-S1 is next: publish linkage capture.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
@@ -19,9 +19,9 @@ Legacy Script→Video stays untouched and operable (D047).
 | P2 | Lineage & observability store | 16 | done | Per-worker cost/latency/version; resume after restart |
 | P3 | Telegram trigger + Discovery worker | 10 | done | `/ideas <niche>` → signals in Telegram |
 | P4 | Niche→Ideas block | 13 | done | Telegram niche → ranked ideas w/ scores |
-| **P5** | **Idea→Script block** | **24** | **active** | Telegram idea → fact-checked script |
-| P6 | Orchestrator + legacy bridge | 19 | planned | `/produce <niche>` → finished video |
-| P7 | Analytics & attribution | 11 | planned | Retention-by-prompt-version report |
+| P5 | Idea→Script block | 24 | done | Telegram idea → fact-checked script |
+| P6 | Orchestrator + legacy bridge | 24 | done | `/testvoice <run_id>` → presigned MP3 URL (smoke test deferred) |
+| **P7** | **Analytics & attribution** | **11** | **active** | Retention-by-prompt-version report |
 
 **MVP (P0–P6) = 111 pts; with P7 = 122 pts.**
 
@@ -30,7 +30,7 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P5 — Idea→Script Block
 
 **Goal:** P5-S1–S5 built the cyclic loop (shipped); P5-S6 rearchitects as Blueprint IR + single-pass + patch repair (target $0.05–$0.10/run).
-**Status:** active
+**Status:** done
 **Points:** 24
 
 | ID | Title | Points | Status |
@@ -52,9 +52,9 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Sprint P6 — Orchestrator + Legacy Bridge
 
-**Goal:** Parent graph chains niche→ideas → idea→script → legacy render via the adapter; optional HITL gates; one command → video.
-**Status:** planned
-**Points:** 13
+**Goal:** Parent graph chains niche→ideas → idea→script → voice → legacy render via the adapter; optional HITL gates; one command → video.
+**Status:** active
+**Points:** 24
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
@@ -64,13 +64,14 @@ Legacy Script→Video stays untouched and operable (D047).
 | P6-S4 | End-to-end /produce → video | 2 | done |
 | P6-S5 | Target duration parameter (run-level → script writer) | 3 | done |
 | P6-S6 | Niche-aware prompts (replace hardcoded channel) | 3 | done |
+| P6-S7 | Gemini TTS + /testvoice harness | 5 | done |
 
-**Execution order:** (P6-S1 ∥ P6-S5 ∥ P6-S6) → P6-S2 → (P6-S3 ∥ P6-S4). P6-S3 needs P2-S4. P6-S2 must add `PipelineState.target_duration_seconds` and pass it to `IdeaToScriptState`.
+**Execution order:** (P6-S1 ∥ P6-S5 ∥ P6-S6) → P6-S2 → (P6-S3 ∥ P6-S4) → P6-S7.
 
 ## Sprint P6 Definition of Done
-- [ ] Only the adapter imports `src/`; legacy unchanged and still operable
-- [ ] One run threads lineage across blocks + legacy node
-- [ ] **Human touchpoint:** operator runs `/produce <niche>` and downloads the finished video
+- [x] Only the adapter imports `src/`; legacy unchanged and still operable
+- [x] One run threads lineage across blocks + legacy node
+- [ ] **Human touchpoint (P6-S7):** `/testvoice <run_id>` → presigned MP3 URL in ~30s; then `/produce <niche>` → finished video — DEFERRED (requires DEV deploy with `GEMINI_API_KEY`)
 
 ---
 

@@ -99,6 +99,10 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `YT_ANALYTICS_OAUTH_CLIENT_SECRET` | P7+ | YouTube Analytics OAuth client secret (D054). |
 | `YT_ANALYTICS_REFRESH_TOKEN` | P7+ | Channel-owner refresh token for YouTube Analytics (D054). |
 | `PLATFORM_DEFAULT_USER_ID` | P1+ | Default user_id for the R2 key scheme `users/{user_id}/...` until multi-tenant identity (S19) lands. |
+| `HITL_TIMEOUT_SECONDS` | No | Auto-approve timeout for HITL script gate (P6-S3). `0` = wait indefinitely; positive = auto-approve after N seconds. Default: `0`. |
+| `GEMINI_API_KEY` | P6-S7+ | Google AI Studio API key for Gemini 2.5 Flash TTS (D061). When absent, voice_production skips TTS and uses proportional timestamp fallback. |
+| `GEMINI_TTS_VOICE` | P6-S7+ | Gemini TTS voice name (D061). Options: `Kore`, `Nova`, `Aoede`, `Zephyr`, `Puck`, `Charon`, `Fenrir`, `Orbit`, `Stella`, `Juniper`. Default (when unset): no TTS. |
+| `DEEPGRAM_API_KEY` | P6-S7+ | Deepgram Nova-2 API key for word-level timestamp alignment (D045). When absent, voice_production falls back to proportional timestamps (confidence=0.0). |
 
 > Discovery may optionally use `praw`/`pytrends` instead of raw httpx — only if pragmatic, and only with a DECISIONS.md entry. X/Twitter is intentionally excluded (free-tier constraint); added later via Apify.
 

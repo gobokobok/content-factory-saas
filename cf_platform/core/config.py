@@ -53,6 +53,9 @@ class PlatformSettings(BaseSettings):
     YOUTUBE_API_KEY: str = ""
     ANTHROPIC_API_KEY: str = ""
     HITL_TIMEOUT_SECONDS: int = 0
+    GEMINI_API_KEY: str = ""
+    GEMINI_TTS_VOICE: str = ""
+    DEEPGRAM_API_KEY: str = ""
 
 
 def get_platform_settings() -> PlatformSettings:

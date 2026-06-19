@@ -36,6 +36,10 @@ class ArtifactStorage(Protocol):
         """Serialise data as JSON and store it at key."""
         ...
 
+    async def put_bytes(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
+        """Store raw bytes at key with the given content_type."""
+        ...
+
     async def get_json(self, key: str) -> dict[str, Any]:
         """Return the JSON object stored at key. Raises ArtifactStorageError if absent."""
         ...
@@ -93,10 +97,15 @@ class InMemoryArtifactStorage:
     def __init__(self) -> None:
         """Initialize an empty in-memory store."""
         self._objects: dict[str, dict[str, Any]] = {}
+        self._bytes: dict[str, bytes] = {}
 
     async def put_json(self, key: str, data: dict[str, Any]) -> None:
         """Serialise data as JSON and store it at key."""
         self._objects[key] = data
+
+    async def put_bytes(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
+        """Store raw bytes at key (content_type is recorded for API parity; not inspected)."""
+        self._bytes[key] = data
 
     async def get_json(self, key: str) -> dict[str, Any]:
         """Return the JSON object stored at key. Raises ArtifactStorageError if absent."""
@@ -146,6 +155,21 @@ class R2ArtifactStorage:
     async def put_json(self, key: str, data: dict[str, Any]) -> None:
         """Serialise data as JSON and upload it to the given R2 key."""
         await asyncio.to_thread(self._put_json_sync, key, data)
+
+    async def put_bytes(self, key: str, data: bytes, content_type: str = "application/octet-stream") -> None:
+        """Upload raw bytes to the given R2 key with the specified content type."""
+        await asyncio.to_thread(self._put_bytes_sync, key, data, content_type)
+
+    def _put_bytes_sync(self, key: str, data: bytes, content_type: str) -> None:
+        try:
+            self._client.put_object(
+                Bucket=self._bucket,
+                Key=key,
+                Body=data,
+                ContentType=content_type,
+            )
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise ArtifactStorageError(f"R2 put_bytes failed for '{key}': {exc}") from exc
 
     def _put_json_sync(self, key: str, data: dict[str, Any]) -> None:
         try:

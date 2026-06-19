@@ -537,6 +537,76 @@ Remove all hardcoded "The Housing Equation" / "American housing economics" refer
 
 ---
 
+---
+
+## [P6-S7] Gemini TTS + /testvoice harness
+**Epic:** E31 — Orchestrator + Legacy Bridge
+**Sprint:** P6
+**Status:** done
+**Completed:** 2026-06-19
+**Priority:** high
+**Points:** 5
+**Depends on:** P6-S4 (voice_production.py scaffolding built in P6-voice session)
+
+### Goal
+Two-part: (1) **Swap ElevenLabs → Gemini 2.5 Flash TTS** in `voice_production.py` (D061 — cost: free vs ~$22/M chars). (2) **Add `/testvoice <run_id>` Telegram command** so voice can be tested in isolation without running the full pipeline from scratch — reads the script artifact from an existing run, calls voice_production_worker directly, uploads MP3, returns a presigned URL.
+
+**Why this order matters:** running `/produce` end-to-end will fail unpredictably at voice or render; without `/testvoice` every bug fix requires a full restart from niche generation (~$0.10 + 2 min). `/testvoice` gives a 30-second feedback loop.
+
+### Background: current state after P6-voice session (2026-06-19)
+`cf_platform/workers/voice_production.py` exists and is wired into the full pipeline (`idea_to_script → voice_production → legacy_render`). It implements ElevenLabs TTS + Deepgram alignment + proportional fallback. This is a **placeholder** — ElevenLabs is the wrong backend per D061 and the operator has no ElevenLabs key. P6-S7 replaces the TTS engine only; Deepgram alignment and fallback are unchanged.
+
+### Changes needed
+
+**1. Gemini TTS in `voice_production.py`**
+- Replace `_call_elevenlabs`, `_tts_generate`, `_encode_pcm_to_mp3` with a Gemini 2.5 Flash TTS call via `google-generativeai` SDK
+- Gemini TTS model: `gemini-2.5-flash-preview-tts` (or current stable); voice set via `GEMINI_TTS_VOICE` (e.g. `"Kore"`)
+- Gemini TTS returns PCM/WAV — re-encode to MP3 via ffmpeg subprocess (same as ElevenLabs path)
+- Remove `_ELEVENLABS_TTS_URL`, `_OUTPUT_FORMAT`, `_PCM_*` constants; add `_GEMINI_TTS_MODEL`
+- Worker factory signature: replace `elevenlabs_api_key` + `elevenlabs_voice_id` → `gemini_api_key` + `gemini_tts_voice`
+
+**2. PlatformSettings**
+- Remove `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`; add `GEMINI_API_KEY: str = ""`, `GEMINI_TTS_VOICE: str = ""`
+- `DEEPGRAM_API_KEY` stays (alignment is separate from TTS)
+
+**3. `full_pipeline.py` + `api.py`**
+- Pass `gemini_api_key` + `gemini_tts_voice` instead of ElevenLabs keys to `build_voice_production_worker` and `build_full_pipeline_graph`
+
+**4. `/testvoice <run_id>` command**
+- New Telegram command: `/testvoice <run_id>`
+- Handler in `api.py` → background task `_run_testvoice_and_reply`
+- Logic: read `runs/{run_id}/storyboard.json` or ask operator for the script key (simpler: accept raw run_id, read `script` artifact from the run's artifact store by querying the latest `script` artifact for that run_id)
+  - **Simplest approach:** operator provides a `run_id` that already has a `script` artifact; handler looks up the artifact key in the artifact store (`artifact_repo.get_latest(run_id, "script")`), then calls `voice_production_worker` directly (not through the full graph), uploads MP3, returns presigned URL
+- New helpers in `telegram.py`: `parse_testvoice_command`, `format_testvoice_running`, `format_testvoice_reply(run_id, mp3_url)`
+
+**5. Dependencies**
+- Add `google-generativeai` to `requirements.txt` (D061 pre-approved this)
+
+### Acceptance Criteria
+- [x] `voice_production.py` uses Gemini 2.5 Flash TTS; `_tts_generate` calls `google-generativeai` SDK, returns MP3 bytes
+- [x] `ELEVENLABS_*` settings removed; `GEMINI_API_KEY` + `GEMINI_TTS_VOICE` wired through `PlatformSettings` → `build_voice_production_worker`
+- [x] `google-generativeai` in `requirements.txt`
+- [x] `/testvoice <run_id>` command: reads script artifact → calls voice_production → returns presigned URL in ~30s
+- [x] No keys → proportional fallback still works (D048 fault isolation)
+- [x] All tests pass; new tests cover Gemini TTS path (mocked) + /testvoice command
+- [ ] **Human touchpoint:** operator sends `/testvoice <run_id>` → presigned MP3 URL → listens to voice — DEFERRED (requires DEV deploy with `GEMINI_API_KEY` set and an existing run with a `script` artifact)
+
+### Definition of Done
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+- `cf_platform/workers/voice_production.py`: ElevenLabs replaced with Gemini 2.5 Flash TTS (`_GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"`); `_call_gemini_tts_sync(text, api_key, voice) → bytes` (sync SDK call, wrapped in `asyncio.to_thread`); PCM at 24 kHz/mono s16le re-encoded to MP3 via ffmpeg. Worker factory: `build_voice_production_worker(storage, gemini_api_key="", gemini_tts_voice="", deepgram_api_key="") → WorkerNode`. `worker_version="2.0.0"`, `model="gemini_deepgram"`.
+- `cf_platform/core/config.py`: `ELEVENLABS_API_KEY`/`ELEVENLABS_VOICE_ID` removed; `GEMINI_API_KEY: str = ""` and `GEMINI_TTS_VOICE: str = ""` added. `DEEPGRAM_API_KEY` unchanged.
+- `cf_platform/orchestrator/full_pipeline.py`: factory now accepts `gemini_api_key`/`gemini_tts_voice` (was ElevenLabs keys); passes them to `build_voice_production_worker`.
+- `cf_platform/adapters/legacy_video.py`: ElevenLabs fallback branch removed entirely — adapter never calls TTS; `voice_production_worker` always runs before the adapter and provides `voice_alignment`. When `voice_alignment is None`, adapter logs and renders silent video. `generate_tts` import removed.
+- `cf_platform/interfaces/telegram.py`: `parse_testvoice_command(text) → Optional[str]`; `format_testvoice_running(run_id) → str`; `format_testvoice_reply(run_id, mp3_url) → str`; `format_unrecognized_command` updated to list `/testvoice`.
+- `cf_platform/interfaces/api.py`: `_run_testvoice_and_reply(chat_id, run_id, settings, storage, artifacts)` background coroutine — looks up `script` artifact via `artifact_repo.list_for_run(run_id)`, calls `build_voice_production_worker` directly (not through the full graph), generates 1h presigned MP3 URL, sends reply. `/testvoice` branch wired in `telegram_webhook`. `_TESTVOICE_MP3_URL_EXPIRY = 3600`.
+- `requirements.txt`: `google-generativeai>=0.8.0` added.
+- Tests: `test_voice_production.py` (updated — Gemini path); `test_p6_s7_testvoice.py` (new, 19 tests — parsers, formatters, `PlatformSettings` fields, `_run_testvoice_and_reply` 3 paths, webhook 2 paths); `test_legacy_video_adapter.py` (updated — TTS tests replaced; adapter always emits 5 trace events).
+- 1531 total tests passing (CI green).
+
+---
+
 ## Post-MVP outlines (not yet detailed)
 
 **EPIC 32 — Legacy Rebuild** (~3 sprints after P7): re-author Script→Video as native workers; retire `src/` + adapter.
