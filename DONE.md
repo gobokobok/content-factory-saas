@@ -4,6 +4,18 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P7-S3] Produce → metadata reply
+**Completed:** 2026-06-19
+**Handover:**
+- `cf_platform/interfaces/telegram.py`: `format_youtube_metadata_block(metadata: YoutubeMetadataArtifact) → str` — plain-text section with title, description, and comma-separated tags. `format_produce_reply` gains optional `metadata: Optional[YoutubeMetadataArtifact] = None`; appends the block when provided. `YoutubeMetadataArtifact` imported via `TYPE_CHECKING`.
+- `cf_platform/interfaces/api.py`: `format_youtube_metadata_block` + `YoutubeMetadataArtifact` imported. `_run_pipeline_and_reply` reads `result.artifacts.get("youtube_metadata")`, calls `read_artifact` + `YoutubeMetadataArtifact.model_validate`; on failure logs WARNING and falls back to `metadata=None`. Reply sent via `format_produce_reply(display_label, run.run_id, video_url, metadata)`.
+- `tests/cf_platform/test_p7_s3_metadata_reply.py` (new): 11 tests covering formatter (4), format_produce_reply backward compat + metadata (4), _run_pipeline_and_reply with metadata / without / read error (3).
+- 1603 total tests passing (CI green).
+**Smoke test:** DEFERRED — operator produces a video on DEV via `/pick` or `/produce`; Telegram reply should show video URL followed by YouTube metadata block (title/description/tags).
+**Promoted to backlog:** none.
+
+---
+
 ## [P7-S2] YouTube metadata worker
 **Completed:** 2026-06-19
 **Handover:**
@@ -148,8 +160,9 @@ _Entries added here when a story reaches Definition of Done._
 - Chose option (b) for the spike: chain per-step domain functions (`generate_storyboard`, `build_manifest`, `run_acquisition`, `build_ffmpeg_script`, `render_run`, `generate_tts`) directly from `src/`; `src/pipeline.py` and all `src/` route files are **untouched**.
 - Only `legacy_video.py` imports `src/` (D047 enforced).
 - 16 tests in `tests/cf_platform/test_legacy_video_adapter.py`. 1411 total passing (CI green).
-**Smoke test:** DEFERRED — requires P6-S2 + P6-S4 (`/produce <niche>` end-to-end). The adapter cannot be exercised standalone since it needs a running Pexels/ElevenLabs/ffmpeg environment; full integration is the P6-S4 human touchpoint.
+**Smoke test:** PASSED — 2026-06-20 end-to-end run via `/pick` produced a complete video.
 **Promoted to backlog:** TTS cost — ElevenLabs is expensive per-run; a cheaper alternative (OpenAI TTS, Kokoro, etc.) should be evaluated before full `/produce` rollout. Tracked as background task.
+**Post-close fix (2026-06-20):** `run_acquisition` was called without `batch_size`, ignoring `ACQUISITION_BATCH_SIZE=4` from config and defaulting to 20 concurrent threads. 39-scene renders OOM-crashed the Railway container. Fixed by passing `batch_size=s.ACQUISITION_BATCH_SIZE` in `legacy_video.py` (commit `60af444`).
 
 ---
 
