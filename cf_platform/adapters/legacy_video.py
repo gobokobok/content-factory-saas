@@ -21,7 +21,12 @@ from cf_platform.core.trace_repo import TraceEventRepository
 
 # ── src/ imports — ONLY this module may import from src/ (D047) ───────────────
 from src.acquisition import MIN_ACQUIRED_FOR_COMPLETE, run_acquisition
-from src.ffmpeg_builder import assign_words_to_scenes, build_ffmpeg_script
+from src.ffmpeg_builder import (
+    assign_words_to_scenes,
+    build_ffmpeg_script,
+    compute_scene_durations_from_alignment,
+    redistribute_scene_durations,
+)
 from src.manifest import build_manifest
 from src.models import AssetManifest, Storyboard, VideoSettings, WordTimestamp as SrcWordTimestamp
 from src.pexels import PexelsClient
@@ -260,8 +265,20 @@ class InProcessLegacyVideoAdapter:
         try:
             storyboard_obj = Storyboard.model_validate(storyboard_data)
             scene_words = assign_words_to_scenes(storyboard_obj.scenes, src_timestamps) if src_timestamps else None
+
+            # Correct scene durations to match actual VO length so visuals don't
+            # freeze before audio ends.  Mirrors the logic in routes/ffmpeg_script.py.
+            if src_timestamps and voice_alignment and voice_alignment.alignment_method == "deepgram_nova2":
+                # Derive per-scene duration from real word timestamps.
+                adjusted = compute_scene_durations_from_alignment(storyboard_obj.scenes, scene_words)
+                storyboard_obj = storyboard_obj.model_copy(update={"scenes": adjusted})
+            elif voice_alignment and voice_alignment.total_duration_s > 0:
+                # Proportional fallback: stretch all scenes to cover the full VO.
+                adjusted = redistribute_scene_durations(storyboard_obj.scenes, voice_alignment.total_duration_s)
+                storyboard_obj = storyboard_obj.model_copy(update={"scenes": adjusted})
+
             ffmpeg_script = build_ffmpeg_script(
-                run_id, storyboard_obj, manifest, scene_words, video_settings=VideoSettings()
+                run_id, storyboard_obj, manifest, scene_words, video_settings=VideoSettings(aspect_ratio="16:9")
             )
             storage.upload_text(
                 f"runs/{run_id}/ffmpeg_script.sh",
