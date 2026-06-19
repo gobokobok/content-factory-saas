@@ -237,6 +237,7 @@ class InProcessLegacyVideoAdapter:
                 replicate,
                 storage,
                 pexels_only=s.ACQUISITION_PEXELS_ONLY,
+                batch_size=s.ACQUISITION_BATCH_SIZE,
             )
             if summary["acquired"] < MIN_ACQUIRED_FOR_COMPLETE:
                 raise RuntimeError(
