@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 # ── Gemini TTS constants ──────────────────────────────────────────────────────
 
-_GEMINI_TTS_MODEL = "gemini-2.5-flash-preview-tts"
+_GEMINI_TTS_MODEL = "gemini-2.5-pro-preview-tts"
 _GEMINI_PCM_SAMPLE_RATE = 24000
 _GEMINI_PCM_CHANNELS = 1
 _GEMINI_PCM_SAMPLE_FMT = "s16le"
@@ -90,7 +90,7 @@ VOICE_PRODUCTION_REGISTRATION = WorkerRegistration(
     worker_version="2.0.0",
     prompt_version="v1",
     prompt="",
-    model="gemini_deepgram",
+    model="gemini_pro_deepgram",
     sampling_params={},
 )
 
