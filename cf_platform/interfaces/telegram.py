@@ -57,43 +57,29 @@ def format_signals_summary(niche: str, run_id: str, artifact_key: str, signals: 
     return "\n".join(lines)
 
 
-_TOP_ALTERNATIVES_COUNT = 3
+_IDEAS_TOP_N = 5
 
 
 def format_ranked_ideas(niche: str, run_id: str, artifact_key: str, ranked_ideas: "RankedIdeasArtifact") -> str:
-    """Format a ranked ideas reply for `/ideas <niche>` after the full block runs (D049, P4-S5).
+    """Format a ranked ideas reply for `/ideas <niche>` after the full block runs (D049, P7-S1).
 
-    Shows the selected idea with its 7-axis scores and final composite score, then
-    the top `_TOP_ALTERNATIVES_COUNT` alternatives by final_score. Plain string only —
-    never serializes the artifact itself to chat. run_id and artifact_key are accepted
-    for call-site consistency but intentionally omitted from the reply text.
+    Shows up to `_IDEAS_TOP_N` ideas numbered 1–N (selected first, then alternatives)
+    with title, angle, and composite score. Includes the run_id and a `/pick` call-to-action
+    so the operator can select an idea for production. Plain string only — never serializes
+    the artifact itself to chat.
     """
-    sel = ranked_ideas.selected
-    score_row1 = (
-        f"novelty {sel.novelty:.1f} · relevance {sel.audience_relevance:.1f} · "
-        f"emotion {sel.emotional_trigger:.1f} · demand {sel.search_demand:.1f}"
-    )
-    score_row2 = (
-        f"competition {sel.competition:.1f} · evergreen {sel.evergreen_potential:.1f} · "
-        f"monetize {sel.monetization_relevance:.1f}"
-    )
-    lines = [
-        f'Ideas — "{niche}"',
-        "",
-        f"★ {sel.title}",
-        f"",
-        f"  {sel.angle}",
-        f"",
-        f"  Score: {sel.final_score:.2f} / 10",
-        f"  {score_row1}",
-        f"  {score_row2}",
-    ]
-    top_alts = ranked_ideas.alternatives[:_TOP_ALTERNATIVES_COUNT]
-    if top_alts:
-        lines.append("")
-        lines.append("Runner-ups:")
-        for alt in top_alts:
-            lines.append(f"  • {alt.title} ({alt.final_score:.2f})")
+    all_ideas = [ranked_ideas.selected] + list(ranked_ideas.alternatives)
+    top_ideas = all_ideas[:_IDEAS_TOP_N]
+
+    lines = [f'Ideas — "{niche}" (run {run_id})', ""]
+    for i, idea in enumerate(top_ideas, start=1):
+        lines.append(f"{i}. {idea.title}")
+        lines.append(f"   {idea.angle}")
+        lines.append(f"   Score: {idea.final_score:.2f} / 10")
+        if i < len(top_ideas):
+            lines.append("")
+    lines.append("")
+    lines.append(f"Pick one: /pick {run_id} <n>")
     return "\n".join(lines)
 
 
@@ -179,59 +165,71 @@ def format_script_reply(script_artifact: "ScriptArtifact") -> str:
     return text
 
 
-def parse_produce_command(text: str) -> Optional[str]:
-    """Parse a `/produce <niche>` command.
-
-    Returns the args text (possibly empty if no niche was given), or None if
-    `text` is not a `/produce` command at all.
-    """
-    stripped = text.strip()
-    if not (stripped == "/produce" or stripped.startswith("/produce ")):
-        return None
-    return stripped[len("/produce"):].strip()
+_DURATION_FLAG_RE = re.compile(r"\s*--duration\s+(\d+)\s*$")
 
 
-_PRODUCE_DURATION_FLAG_RE = re.compile(r"\s*--duration\s+(\d+)\s*$")
+def _parse_duration_flag(args: str) -> tuple[str, int]:
+    """Extract a trailing `--duration <seconds>` flag from `args`, returning (text, duration).
 
-
-def parse_produce_args(args: str) -> tuple[str, int]:
-    """Split `args` (text after `/produce`) into (niche, target_duration_seconds).
-
-    Extracts a trailing `--duration <seconds>` flag. Defaults to 60 s when the
+    Returns the flag-stripped text and the parsed duration. Defaults to 60 s when the
     flag is absent or the value is not a positive integer.
-
-    Examples:
-        "american housing economics"                   → ("american housing economics", 60)
-        "american housing economics --duration 45"     → ("american housing economics", 45)
-        "coffee culture --duration 0"                  → ("coffee culture", 60)
     """
-    match = _PRODUCE_DURATION_FLAG_RE.search(args)
+    match = _DURATION_FLAG_RE.search(args)
     if match:
-        niche = args[: match.start()].strip()
+        text = args[: match.start()].strip()
         try:
             seconds = int(match.group(1))
         except ValueError:
             seconds = _DEFAULT_DURATION_SECONDS
         duration = seconds if seconds > 0 else _DEFAULT_DURATION_SECONDS
-        return (niche, duration)
+        return (text, duration)
     return (args.strip(), _DEFAULT_DURATION_SECONDS)
 
 
-def format_produce_running(niche: str) -> str:
-    """Format the immediate ack sent before the full pipeline run starts (D049)."""
-    return f'Producing video for "{niche}"... this takes ~5–10 minutes.'
+# ── /run <niche> — full niche-to-video pipeline ───────────────────────────────
 
 
-def format_produce_usage() -> str:
-    """Format the reply when `/produce` is sent without a niche (D049)."""
-    return "Usage: /produce <niche> [--duration <seconds>] — e.g. /produce american housing economics --duration 45"
+def parse_run_command(text: str) -> Optional[str]:
+    """Parse a `/run <niche>` command (was /produce in P6-S4; renamed in P7-S1).
+
+    Returns the args text (possibly empty if no niche was given), or None if
+    `text` is not a `/run` command at all.
+    """
+    stripped = text.strip()
+    if not (stripped == "/run" or stripped.startswith("/run ")):
+        return None
+    return stripped[len("/run"):].strip()
 
 
-_PRODUCE_URL_EXPIRY_LABEL = "24 h"
+def parse_run_args(args: str) -> tuple[str, int]:
+    """Split `args` (text after `/run`) into (niche, target_duration_seconds).
+
+    Extracts a trailing `--duration <seconds>` flag. Defaults to 60 s when the
+    flag is absent or the value is not a positive integer.
+
+    Examples:
+        "american housing economics"               → ("american housing economics", 60)
+        "american housing economics --duration 45" → ("american housing economics", 45)
+        "coffee culture --duration 0"              → ("coffee culture", 60)
+    """
+    return _parse_duration_flag(args)
 
 
-def format_produce_reply(niche: str, run_id: str, video_url: str) -> str:
-    """Format the finished video reply after the full pipeline completes (D049, P6-S4).
+_VIDEO_URL_EXPIRY_LABEL = "24 h"
+
+
+def format_run_running(niche: str) -> str:
+    """Format the immediate ack sent before the full /run pipeline starts (D049)."""
+    return f'Running full pipeline for "{niche}"... this takes ~5–10 minutes.'
+
+
+def format_run_usage() -> str:
+    """Format the reply when `/run` is sent without a niche (D049)."""
+    return "Usage: /run <niche> [--duration <seconds>] — e.g. /run american housing economics --duration 45"
+
+
+def format_run_reply(niche: str, run_id: str, video_url: str) -> str:
+    """Format the finished video reply after a /run pipeline completes (D049).
 
     Shows the niche, run_id, a presigned download URL, and the URL expiry label.
     Plain string only — never serializes any internal schema to chat.
@@ -239,7 +237,59 @@ def format_produce_reply(niche: str, run_id: str, video_url: str) -> str:
     return (
         f'Video ready — "{niche}"\n'
         f"Run: {run_id}\n\n"
-        f"Download (expires {_PRODUCE_URL_EXPIRY_LABEL}):\n{video_url}"
+        f"Download (expires {_VIDEO_URL_EXPIRY_LABEL}):\n{video_url}"
+    )
+
+
+# ── /produce <idea title> — named-idea pipeline (skips discovery) ─────────────
+
+
+def parse_produce_command(text: str) -> Optional[str]:
+    """Parse a `/produce <idea title>` command (P7-S1).
+
+    Starts production from a named idea title, skipping the niche→ideas discovery
+    block. Returns the args text (possibly empty), or None if `text` is not a
+    `/produce` command at all.
+    """
+    stripped = text.strip()
+    if not (stripped == "/produce" or stripped.startswith("/produce ")):
+        return None
+    return stripped[len("/produce"):].strip()
+
+
+def parse_produce_args(args: str) -> tuple[str, int]:
+    """Split `args` (text after `/produce`) into (idea_title, target_duration_seconds).
+
+    Extracts a trailing `--duration <seconds>` flag. Defaults to 60 s when the
+    flag is absent or the value is not a positive integer.
+
+    Examples:
+        "Why starter homes vanished"               → ("Why starter homes vanished", 60)
+        "Why starter homes vanished --duration 45" → ("Why starter homes vanished", 45)
+    """
+    return _parse_duration_flag(args)
+
+
+def format_produce_running(idea_title: str) -> str:
+    """Format the immediate ack sent before a /produce named-idea pipeline starts (D049, P7-S1)."""
+    return f'Producing "{idea_title}"... this takes ~5–10 minutes.'
+
+
+def format_produce_usage() -> str:
+    """Format the reply when `/produce` is sent without an idea title (D049, P7-S1)."""
+    return "Usage: /produce <idea title> [--duration <seconds>] — e.g. /produce Why starter homes vanished --duration 45"
+
+
+def format_produce_reply(idea_title: str, run_id: str, video_url: str) -> str:
+    """Format the finished video reply after a /produce pipeline completes (D049, P7-S1).
+
+    Shows the idea title, run_id, a presigned download URL, and the URL expiry label.
+    Plain string only — never serializes any internal schema to chat.
+    """
+    return (
+        f'Video ready — "{idea_title}"\n'
+        f"Run: {run_id}\n\n"
+        f"Download (expires {_VIDEO_URL_EXPIRY_LABEL}):\n{video_url}"
     )
 
 
@@ -321,9 +371,63 @@ def format_testvoice_reply(run_id: str, mp3_url: str) -> str:
     )
 
 
+def parse_pick_command(text: str) -> Optional[tuple[str, int, int]]:
+    """Parse a `/pick <run_id> <n> [--duration <seconds>]` command (P7-S1).
+
+    Returns (run_id, n, target_duration_seconds) where n is the 1-based idea index
+    and target_duration_seconds defaults to 60 when the flag is absent. Returns None
+    for malformed input (missing args, non-integer n, n < 1, or n > _IDEAS_TOP_N).
+    """
+    stripped = text.strip()
+    if not stripped.startswith("/pick "):
+        return None
+    args = stripped[len("/pick "):].strip()
+
+    # Extract optional --duration flag from the tail.
+    duration = _DEFAULT_DURATION_SECONDS
+    dur_match = _DURATION_FLAG_RE.search(args)
+    if dur_match:
+        try:
+            d = int(dur_match.group(1))
+            duration = d if d > 0 else _DEFAULT_DURATION_SECONDS
+        except ValueError:
+            pass
+        args = args[: dur_match.start()].strip()
+
+    parts = args.split()
+    if len(parts) != 2:
+        return None
+    run_id_part, n_part = parts
+    try:
+        n = int(n_part)
+    except ValueError:
+        return None
+    if n < 1 or n > _IDEAS_TOP_N:
+        return None
+    return (run_id_part, n, duration)
+
+
+def format_pick_usage() -> str:
+    """Format the reply when `/pick` is sent with missing or invalid arguments (D049, P7-S1)."""
+    return f"Usage: /pick <run_id> <n> — pick idea 1–{_IDEAS_TOP_N} from a prior /ideas run, e.g. /pick abc-123 2"
+
+
+def format_pick_running(run_id: str, idea_title: str) -> str:
+    """Format the immediate ack sent before the background /pick pipeline run starts (D049, P7-S1)."""
+    return f'Producing idea #{run_id[-4:]} — "{idea_title}"... this takes ~5–10 minutes.'
+
+
 def format_unrecognized_command(text: str) -> str:
     """Format the reply for any unrecognized command or message (D049)."""
-    return "Sorry, I didn't understand that. Try: /ideas <niche>, /script <idea title>, /produce <niche>, or /testvoice <run_id>"
+    return (
+        "Sorry, I didn't understand that. Commands:\n"
+        "  /ideas <niche> — generate ranked ideas\n"
+        "  /pick <run_id> <n> [--duration <s>] — produce idea N from a prior /ideas run\n"
+        "  /produce <idea title> [--duration <s>] — produce a named idea directly\n"
+        "  /run <niche> [--duration <s>] — full niche-to-video pipeline\n"
+        "  /script <idea title> [--duration <s>] — generate script only\n"
+        "  /testvoice <run_id> — test voiceover for an existing run"
+    )
 
 
 def is_chat_allowed(chat_id: int, allowed_chat_ids: str) -> bool:

@@ -1,4 +1,4 @@
-"""Tests for P6-S4: /produce Telegram command + REST endpoint + presigned URL (P6-S4)."""
+"""Tests for P6-S4 / P7-S1: /run and /produce Telegram commands + REST endpoint + presigned URL."""
 
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -26,9 +26,14 @@ from cf_platform.interfaces.telegram import (
     format_produce_reply,
     format_produce_running,
     format_produce_usage,
+    format_run_reply,
+    format_run_running,
+    format_run_usage,
     format_unrecognized_command,
     parse_produce_args,
     parse_produce_command,
+    parse_run_args,
+    parse_run_command,
 )
 from cf_platform.workers.opportunity_scorer import TopicScore
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
@@ -68,48 +73,122 @@ _STUB_TOPIC = TopicScore(
 _STUB_VIDEO_R2_KEY = "runs/run-test-produce/output/final.mp4"
 _STUB_VIDEO_URL = "https://fake-r2.example.com/runs/run-test-produce/output/final.mp4?expires=86400"
 _STUB_NICHE = "american housing economics"
+_STUB_IDEA_TITLE = "Why starter homes vanished"
 
 
-# ── Telegram formatter tests ───────────────────────────────────────────────────
+# ── /run <niche> parser tests ──────────────────────────────────────────────────
 
-class TestParseProduceCommand:
-    """parse_produce_command returns args string or None."""
+class TestParseRunCommand:
+    """parse_run_command returns args string or None."""
 
     def test_niche_extracted(self):
-        assert parse_produce_command("/produce american housing") == "american housing"
+        assert parse_run_command("/run american housing") == "american housing"
+
+    def test_bare_run_returns_empty_string(self):
+        assert parse_run_command("/run") == ""
+
+    def test_run_with_whitespace_stripped(self):
+        assert parse_run_command("/run  coffee culture  ") == "coffee culture"
+
+    def test_unrelated_command_returns_none(self):
+        assert parse_run_command("/ideas starter homes") is None
+
+    def test_plain_text_returns_none(self):
+        assert parse_run_command("just some text") is None
+
+    def test_run_prefix_match_only(self):
+        # "/running" must not match
+        assert parse_run_command("/running niche") is None
+
+    def test_produce_command_returns_none(self):
+        assert parse_run_command("/produce some niche") is None
+
+
+class TestParseRunArgs:
+    """parse_run_args splits niche from optional --duration flag."""
+
+    def test_niche_only(self):
+        assert parse_run_args("american housing economics") == ("american housing economics", 60)
+
+    def test_niche_with_duration(self):
+        assert parse_run_args("american housing economics --duration 45") == ("american housing economics", 45)
+
+    def test_zero_duration_defaults_to_60(self):
+        assert parse_run_args("coffee --duration 0") == ("coffee", 60)
+
+    def test_negative_duration_treated_as_no_flag(self):
+        _, dur = parse_run_args("coffee --duration -5")
+        assert dur == 60
+
+    def test_empty_args(self):
+        assert parse_run_args("") == ("", 60)
+
+
+class TestFormatRunFormatters:
+    """format_run_* helpers produce correct plain-string output (D049)."""
+
+    def test_format_run_running_contains_niche(self):
+        msg = format_run_running("american housing economics")
+        assert "american housing economics" in msg
+
+    def test_format_run_usage_mentions_flag(self):
+        msg = format_run_usage()
+        assert "--duration" in msg
+        assert "/run" in msg
+
+    def test_format_run_reply_contains_niche_run_id_url(self):
+        msg = format_run_reply("american housing", "run-abc", "https://example.com/video.mp4")
+        assert "american housing" in msg
+        assert "run-abc" in msg
+        assert "https://example.com/video.mp4" in msg
+
+    def test_format_run_reply_mentions_expiry(self):
+        msg = format_run_reply("niche", "run-id", "https://example.com/video.mp4")
+        assert "24 h" in msg
+
+    def test_format_unrecognized_command_mentions_run(self):
+        msg = format_unrecognized_command("hello")
+        assert "/run" in msg
+
+
+# ── /produce <idea title> parser tests ────────────────────────────────────────
+
+class TestParseProduceCommand:
+    """parse_produce_command returns args string or None (named-idea flavor, P7-S1)."""
+
+    def test_idea_title_extracted(self):
+        assert parse_produce_command("/produce Why starter homes vanished") == "Why starter homes vanished"
 
     def test_bare_produce_returns_empty_string(self):
         assert parse_produce_command("/produce") == ""
 
     def test_produce_with_whitespace_stripped(self):
-        assert parse_produce_command("/produce  coffee culture  ") == "coffee culture"
+        assert parse_produce_command("/produce  Why rents rose  ") == "Why rents rose"
 
     def test_unrelated_command_returns_none(self):
-        assert parse_produce_command("/ideas starter homes") is None
+        assert parse_produce_command("/run american housing") is None
 
     def test_plain_text_returns_none(self):
         assert parse_produce_command("just some text") is None
 
-    def test_produce_prefix_match_only(self):
-        # "/producer" must not match
-        assert parse_produce_command("/producer niche") is None
+    def test_run_command_returns_none(self):
+        assert parse_produce_command("/run some niche") is None
 
 
 class TestParseProduceArgs:
-    """parse_produce_args splits niche from optional --duration flag."""
+    """parse_produce_args splits idea title from optional --duration flag (P7-S1)."""
 
-    def test_niche_only(self):
-        assert parse_produce_args("american housing economics") == ("american housing economics", 60)
+    def test_title_only(self):
+        assert parse_produce_args("Why starter homes vanished") == ("Why starter homes vanished", 60)
 
-    def test_niche_with_duration(self):
-        assert parse_produce_args("american housing economics --duration 45") == ("american housing economics", 45)
+    def test_title_with_duration(self):
+        assert parse_produce_args("Why starter homes vanished --duration 45") == ("Why starter homes vanished", 45)
 
     def test_zero_duration_defaults_to_60(self):
-        assert parse_produce_args("coffee --duration 0") == ("coffee", 60)
+        assert parse_produce_args("Some title --duration 0") == ("Some title", 60)
 
     def test_negative_duration_treated_as_no_flag(self):
-        # negative numbers don't match the regex \d+ — parsed as part of niche or no match
-        niche, dur = parse_produce_args("coffee --duration -5")
+        _, dur = parse_produce_args("Some title --duration -5")
         assert dur == 60
 
     def test_empty_args(self):
@@ -117,25 +196,25 @@ class TestParseProduceArgs:
 
 
 class TestFormatProduceFormatters:
-    """format_produce_* helpers produce correct plain-string output (D049)."""
+    """format_produce_* helpers for named-idea production (D049, P7-S1)."""
 
-    def test_format_produce_running_contains_niche(self):
-        msg = format_produce_running("american housing economics")
-        assert "american housing economics" in msg
+    def test_format_produce_running_contains_idea_title(self):
+        msg = format_produce_running("Why starter homes vanished")
+        assert "Why starter homes vanished" in msg
 
     def test_format_produce_usage_mentions_flag(self):
         msg = format_produce_usage()
         assert "--duration" in msg
         assert "/produce" in msg
 
-    def test_format_produce_reply_contains_niche_run_id_url(self):
-        msg = format_produce_reply("american housing", "run-abc", "https://example.com/video.mp4")
-        assert "american housing" in msg
+    def test_format_produce_reply_contains_title_run_id_url(self):
+        msg = format_produce_reply("Why starter homes vanished", "run-abc", "https://example.com/video.mp4")
+        assert "Why starter homes vanished" in msg
         assert "run-abc" in msg
         assert "https://example.com/video.mp4" in msg
 
     def test_format_produce_reply_mentions_expiry(self):
-        msg = format_produce_reply("niche", "run-id", "https://example.com/video.mp4")
+        msg = format_produce_reply("Some title", "run-id", "https://example.com/video.mp4")
         assert "24 h" in msg
 
     def test_format_unrecognized_command_mentions_produce(self):
@@ -269,31 +348,92 @@ class TestProduceRoute:
         assert captured_state[0].inputs.get("niche") == _STUB_NICHE
 
 
-# ── Telegram webhook /produce tests ───────────────────────────────────────────
+# ── Telegram webhook /run tests ────────────────────────────────────────────────
 
 _WEBHOOK_HEADERS = {"X-Telegram-Bot-Api-Secret-Token": "test-secret"}
 
 
-def _telegram_produce_payload(text: str, chat_id: int = 12345) -> dict:
+def _telegram_payload(text: str, chat_id: int = 12345) -> dict:
+    """Build a minimal Telegram webhook update payload."""
     return {"message": {"chat": {"id": chat_id}, "text": text}}
 
 
-class TestTelegramWebhookProduce:
-    """/produce command wires _run_produce_and_reply as a BackgroundTask."""
+class TestTelegramWebhookRun:
+    """/run command wires _run_pipeline_and_reply as a BackgroundTask."""
 
-    def test_produce_command_sends_ack_and_schedules_background(self):
+    def test_run_command_sends_ack_and_schedules_background(self):
         client = _make_test_client()
-        with patch("cf_platform.interfaces.api._run_produce_and_reply", new_callable=AsyncMock) as mock_run, \
+        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock):
             response = client.post(
                 "/platform/telegram/webhook",
-                json=_telegram_produce_payload(f"/produce {_STUB_NICHE}"),
+                json=_telegram_payload(f"/run {_STUB_NICHE}"),
                 headers=_WEBHOOK_HEADERS,
             )
         assert response.status_code == 200
         assert response.json() == {"ok": True}
-        # BackgroundTasks are not awaited synchronously inside TestClient, so we confirm
-        # the route reached the branch by checking no error was raised.
+
+    def test_bare_run_sends_usage_reply(self):
+        client = _make_test_client()
+        sent_messages: list[str] = []
+
+        async def _fake_send(chat_id, text):
+            sent_messages.append(text)
+
+        with patch("cf_platform.interfaces.api.TelegramClient.send_message", side_effect=_fake_send):
+            response = client.post(
+                "/platform/telegram/webhook",
+                json=_telegram_payload("/run"),
+                headers=_WEBHOOK_HEADERS,
+            )
+        assert response.status_code == 200
+        assert any("/run" in m for m in sent_messages)
+
+    def test_run_ack_message_contains_niche(self):
+        client = _make_test_client()
+        sent_messages: list[str] = []
+
+        async def _fake_send(chat_id, text):
+            sent_messages.append(text)
+
+        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+             patch("cf_platform.interfaces.api.TelegramClient.send_message", side_effect=_fake_send):
+            client.post(
+                "/platform/telegram/webhook",
+                json=_telegram_payload(f"/run {_STUB_NICHE}"),
+                headers=_WEBHOOK_HEADERS,
+            )
+        ack = next((m for m in sent_messages if _STUB_NICHE in m), None)
+        assert ack is not None, f"Expected ack containing niche; got: {sent_messages}"
+
+    def test_run_with_duration_flag_schedules_background(self):
+        client = _make_test_client()
+        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+             patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock):
+            response = client.post(
+                "/platform/telegram/webhook",
+                json=_telegram_payload(f"/run {_STUB_NICHE} --duration 45"),
+                headers=_WEBHOOK_HEADERS,
+            )
+        assert response.status_code == 200
+
+
+# ── Telegram webhook /produce <idea title> tests ───────────────────────────────
+
+class TestTelegramWebhookProduce:
+    """/produce <idea title> command wires _run_pipeline_and_reply with idea_title set (P7-S1)."""
+
+    def test_produce_command_sends_ack_and_schedules_background(self):
+        client = _make_test_client()
+        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+             patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock):
+            response = client.post(
+                "/platform/telegram/webhook",
+                json=_telegram_payload(f"/produce {_STUB_IDEA_TITLE}"),
+                headers=_WEBHOOK_HEADERS,
+            )
+        assert response.status_code == 200
+        assert response.json() == {"ok": True}
 
     def test_bare_produce_sends_usage_reply(self):
         client = _make_test_client()
@@ -305,44 +445,43 @@ class TestTelegramWebhookProduce:
         with patch("cf_platform.interfaces.api.TelegramClient.send_message", side_effect=_fake_send):
             response = client.post(
                 "/platform/telegram/webhook",
-                json=_telegram_produce_payload("/produce"),
+                json=_telegram_payload("/produce"),
                 headers=_WEBHOOK_HEADERS,
             )
         assert response.status_code == 200
         assert any("/produce" in m for m in sent_messages)
 
-    def test_produce_ack_message_contains_niche(self):
+    def test_produce_ack_message_contains_idea_title(self):
         client = _make_test_client()
         sent_messages: list[str] = []
 
         async def _fake_send(chat_id, text):
             sent_messages.append(text)
 
-        with patch("cf_platform.interfaces.api._run_produce_and_reply", new_callable=AsyncMock), \
+        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", side_effect=_fake_send):
             client.post(
                 "/platform/telegram/webhook",
-                json=_telegram_produce_payload(f"/produce {_STUB_NICHE}"),
+                json=_telegram_payload(f"/produce {_STUB_IDEA_TITLE}"),
                 headers=_WEBHOOK_HEADERS,
             )
-        ack = next((m for m in sent_messages if _STUB_NICHE in m), None)
-        assert ack is not None, f"Expected ack containing niche; got: {sent_messages}"
+        ack = next((m for m in sent_messages if _STUB_IDEA_TITLE in m), None)
+        assert ack is not None, f"Expected ack containing idea title; got: {sent_messages}"
 
-    def test_produce_with_duration_flag_parses_correctly(self):
+    def test_produce_with_duration_flag_schedules_background(self):
         client = _make_test_client()
-        captured_kwargs: list[dict] = []
-
-        async def _capture(*args, **kwargs):
-            captured_kwargs.append(kwargs)
-
-        with patch("cf_platform.interfaces.api._run_produce_and_reply", side_effect=_capture), \
+        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock):
-            client.post(
+            response = client.post(
                 "/platform/telegram/webhook",
-                json=_telegram_produce_payload(f"/produce {_STUB_NICHE} --duration 45"),
+                json=_telegram_payload(f"/produce {_STUB_IDEA_TITLE} --duration 45"),
                 headers=_WEBHOOK_HEADERS,
             )
-        # BackgroundTasks calls are not awaited in TestClient; verify no exception raised
+        assert response.status_code == 200
+
+
+class TestTelegramWebhookUnrecognized:
+    """Unrecognized commands fall through to format_unrecognized_command."""
 
     def test_unrecognized_command_mentions_produce(self):
         client = _make_test_client()
@@ -354,7 +493,22 @@ class TestTelegramWebhookProduce:
         with patch("cf_platform.interfaces.api.TelegramClient.send_message", side_effect=_fake_send):
             client.post(
                 "/platform/telegram/webhook",
-                json=_telegram_produce_payload("hello"),
+                json=_telegram_payload("hello"),
                 headers=_WEBHOOK_HEADERS,
             )
         assert any("/produce" in m for m in sent_messages)
+
+    def test_unrecognized_command_mentions_run(self):
+        client = _make_test_client()
+        sent_messages: list[str] = []
+
+        async def _fake_send(chat_id, text):
+            sent_messages.append(text)
+
+        with patch("cf_platform.interfaces.api.TelegramClient.send_message", side_effect=_fake_send):
+            client.post(
+                "/platform/telegram/webhook",
+                json=_telegram_payload("hello"),
+                headers=_WEBHOOK_HEADERS,
+            )
+        assert any("/run" in m for m in sent_messages)

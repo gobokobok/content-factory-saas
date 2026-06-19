@@ -48,10 +48,15 @@ from cf_platform.interfaces.telegram import (
     TelegramClient,
     format_ideas_running,
     format_ideas_usage,
+    format_pick_running,
+    format_pick_usage,
     format_produce_reply,
     format_produce_running,
     format_produce_usage,
     format_ranked_ideas,
+    format_run_reply,
+    format_run_running,
+    format_run_usage,
     format_script_reply,
     format_script_running,
     format_script_usage,
@@ -60,8 +65,11 @@ from cf_platform.interfaces.telegram import (
     format_unrecognized_command,
     is_chat_allowed,
     parse_ideas_command,
+    parse_pick_command,
     parse_produce_args,
     parse_produce_command,
+    parse_run_args,
+    parse_run_command,
     parse_script_command,
     parse_script_duration_args,
     parse_testvoice_command,
@@ -701,12 +709,12 @@ async def _run_script_and_reply(
         _logger.exception("TelegramClient.send_message failed for chat_id=%s: %s", chat_id, exc)
 
 
-_PRODUCE_VIDEO_URL_EXPIRY = 86400  # 24 hours
+_VIDEO_URL_EXPIRY = 86400  # 24 hours
 
 
-async def _run_produce_and_reply(
+async def _run_pipeline_and_reply(
     chat_id: int,
-    niche: str,
+    display_label: str,
     settings: PlatformSettings,
     adapters: list,
     storage: ArtifactStorage,
@@ -716,17 +724,29 @@ async def _run_produce_and_reply(
     artifacts: ArtifactRepository,
     trace_events: TraceEventRepository,
     checkpointer: BaseCheckpointSaver,
+    niche: str = "",
+    idea_title: Optional[str] = None,
     target_duration_seconds: int = 60,
+    command_name: str = "pipeline",
 ) -> None:
-    """Run the full niche→ideas→script→render pipeline in the background and reply with the video URL.
+    """Run the full pipeline in the background and push a video URL reply to Telegram.
 
-    Separated from the webhook handler so the handler can return {"ok": True} immediately —
-    the full pipeline run takes 5–10 minutes (LLM calls + ffmpeg render).
-    `target_duration_seconds` is parsed from the `/produce ... --duration <n>` flag (P6-S5).
+    Separated from webhook handlers so they can return {"ok": True} immediately —
+    full pipeline runs take 5–10 minutes (LLM calls + ffmpeg render).
+
+    `display_label` is shown in the Telegram reply (niche for /run, idea title for /produce
+    and /pick). `niche` and `idea_title` are passed to PipelineState; when `idea_title` is
+    set the orchestrator skips niche_to_ideas (P7-S1). `command_name` is used only in error
+    messages for operator clarity.
     """
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
     try:
-        run_inputs: dict[str, Any] = {"niche": niche}
+        run_inputs: dict[str, Any] = {}
+        if niche:
+            run_inputs["niche"] = niche
+        if idea_title:
+            run_inputs["idea_title"] = idea_title
+
         run = await create_run(_PLATFORM_USER_ID, "full_pipeline", run_inputs, runs)
         run = await transition_run(run.run_id, "running", runs)
 
@@ -748,24 +768,98 @@ async def _run_produce_and_reply(
             user_id=_PLATFORM_USER_ID,
             inputs=run_inputs,
             target_duration_seconds=target_duration_seconds,
+            idea_title=idea_title,
         )
         result = await run_graph(graph, state, thread_id=run.run_id)
         await transition_run(run.run_id, "complete", runs)
 
         video_r2_key: str = result.artifacts["video"]
-        video_url = await storage.generate_presigned_url(video_r2_key, expires_in=_PRODUCE_VIDEO_URL_EXPIRY)
-        reply = format_produce_reply(niche, run.run_id, video_url)
+        video_url = await storage.generate_presigned_url(video_r2_key, expires_in=_VIDEO_URL_EXPIRY)
+        reply = (
+            f'Video ready — "{display_label}"\n'
+            f"Run: {run.run_id}\n\n"
+            f"Download (expires 24 h):\n{video_url}"
+        )
     except Exception as exc:  # noqa: BLE001
         _logger.exception(
-            "_run_produce_and_reply failed for niche=%r chat_id=%s: %s", niche, chat_id, exc
+            "_run_pipeline_and_reply failed for label=%r chat_id=%s: %s", display_label, chat_id, exc
         )
         short = str(exc)[:200]
-        reply = f"Error running /produce: {type(exc).__name__}: {short}"
+        reply = f"Error running /{command_name}: {type(exc).__name__}: {short}"
 
     try:
         await client.send_message(chat_id, reply)
     except Exception as exc:  # noqa: BLE001
         _logger.exception("TelegramClient.send_message failed for chat_id=%s: %s", chat_id, exc)
+
+
+async def _run_pick_and_reply(
+    chat_id: int,
+    original_run_id: str,
+    idea_number: int,
+    settings: PlatformSettings,
+    adapters: list,
+    storage: ArtifactStorage,
+    registry: WorkerRegistry,
+    runs: RunRepository,
+    executions: ExecutionRepository,
+    artifacts: ArtifactRepository,
+    trace_events: TraceEventRepository,
+    checkpointer: BaseCheckpointSaver,
+    target_duration_seconds: int = 60,
+) -> None:
+    """Read the ranked_ideas artifact from original_run_id, extract idea N, and produce a video.
+
+    Validates that idea_number is in range for the artifact, sends an ack, then calls
+    _run_pipeline_and_reply with idea_title set so niche_to_ideas is skipped (P7-S1).
+    Niche is read from the ranked_ideas artifact for prompt context downstream.
+    """
+    client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
+    try:
+        artifact_records = await artifacts.list_for_run(original_run_id)
+        ranked_records = [a for a in artifact_records if a.name == "ranked_ideas"]
+        if not ranked_records:
+            await client.send_message(chat_id, f"No ideas found for run {original_run_id}. Run /ideas first.")
+            return
+        ranked_r2_key = max(ranked_records, key=lambda a: a.version).r2_key
+        _, ranked_body = await read_artifact(storage, ranked_r2_key)
+        ranked_artifact = RankedIdeasArtifact.model_validate(ranked_body)
+
+        all_ideas = [ranked_artifact.selected] + list(ranked_artifact.alternatives)
+        if idea_number > len(all_ideas):
+            await client.send_message(chat_id, f"Idea {idea_number} not found — run {original_run_id} only has {len(all_ideas)} ideas.")
+            return
+
+        chosen = all_ideas[idea_number - 1]
+        niche: str = ranked_artifact.niche
+
+        await client.send_message(chat_id, format_pick_running(original_run_id, chosen.title))
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception("_run_pick_and_reply failed for run_id=%r idea_number=%s chat_id=%s: %s", original_run_id, idea_number, chat_id, exc)
+        short = str(exc)[:200]
+        try:
+            await client.send_message(chat_id, f"Error running /pick: {type(exc).__name__}: {short}")
+        except Exception:  # noqa: BLE001
+            pass
+        return
+
+    await _run_pipeline_and_reply(
+        chat_id=chat_id,
+        display_label=chosen.title,
+        settings=settings,
+        adapters=adapters,
+        storage=storage,
+        registry=registry,
+        runs=runs,
+        executions=executions,
+        artifacts=artifacts,
+        trace_events=trace_events,
+        checkpointer=checkpointer,
+        niche=niche,
+        idea_title=chosen.title,
+        target_duration_seconds=target_duration_seconds,
+        command_name="pick",
+    )
 
 
 _TESTVOICE_MP3_URL_EXPIRY = 3600  # 1 hour
@@ -835,6 +929,7 @@ class ProduceRequest(BaseModel):
 
     niche: str
     target_duration_seconds: int = 60
+    idea_title: Optional[str] = None
 
 
 class ProduceResponse(BaseModel):
@@ -888,12 +983,13 @@ async def produce(
         user_id=_PLATFORM_USER_ID,
         inputs=run_inputs,
         target_duration_seconds=body.target_duration_seconds,
+        idea_title=body.idea_title,
     )
     result = await run_graph(graph, state, thread_id=run.run_id)
     await transition_run(run.run_id, "complete", runs)
 
     video_r2_key: str = result.artifacts["video"]
-    video_url = await storage.generate_presigned_url(video_r2_key, expires_in=_PRODUCE_VIDEO_URL_EXPIRY)
+    video_url = await storage.generate_presigned_url(video_r2_key, expires_in=_VIDEO_URL_EXPIRY)
 
     return ProduceResponse(run_id=run.run_id, video_r2_key=video_r2_key, video_url=video_url)
 
@@ -935,24 +1031,26 @@ async def telegram_webhook(
     chat_id = update.message.chat.id
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
 
+    run_args = parse_run_command(update.message.text)
     produce_args = parse_produce_command(update.message.text)
+    pick_result = parse_pick_command(update.message.text)
     niche = parse_ideas_command(update.message.text)
     idea_title = parse_script_command(update.message.text)
     testvoice_run_id = parse_testvoice_command(update.message.text)
 
-    if produce_args is not None:
-        if not produce_args:
-            await client.send_message(chat_id, format_produce_usage())
+    if run_args is not None:
+        if not run_args:
+            await client.send_message(chat_id, format_run_usage())
         else:
-            parsed_niche, duration = parse_produce_args(produce_args)
+            parsed_niche, duration = parse_run_args(run_args)
             if not parsed_niche:
-                await client.send_message(chat_id, format_produce_usage())
+                await client.send_message(chat_id, format_run_usage())
             else:
-                await client.send_message(chat_id, format_produce_running(parsed_niche))
+                await client.send_message(chat_id, format_run_running(parsed_niche))
                 background_tasks.add_task(
-                    _run_produce_and_reply,
+                    _run_pipeline_and_reply,
                     chat_id=chat_id,
-                    niche=parsed_niche,
+                    display_label=parsed_niche,
                     settings=settings,
                     adapters=adapters,
                     storage=storage,
@@ -962,8 +1060,54 @@ async def telegram_webhook(
                     artifacts=artifacts,
                     trace_events=trace_events,
                     checkpointer=checkpointer,
+                    niche=parsed_niche,
                     target_duration_seconds=duration,
+                    command_name="run",
                 )
+    elif produce_args is not None:
+        if not produce_args:
+            await client.send_message(chat_id, format_produce_usage())
+        else:
+            parsed_title, duration = parse_produce_args(produce_args)
+            if not parsed_title:
+                await client.send_message(chat_id, format_produce_usage())
+            else:
+                await client.send_message(chat_id, format_produce_running(parsed_title))
+                background_tasks.add_task(
+                    _run_pipeline_and_reply,
+                    chat_id=chat_id,
+                    display_label=parsed_title,
+                    settings=settings,
+                    adapters=adapters,
+                    storage=storage,
+                    registry=registry,
+                    runs=runs,
+                    executions=executions,
+                    artifacts=artifacts,
+                    trace_events=trace_events,
+                    checkpointer=checkpointer,
+                    idea_title=parsed_title,
+                    target_duration_seconds=duration,
+                    command_name="produce",
+                )
+    elif pick_result is not None:
+        original_run_id, idea_number, pick_duration = pick_result
+        background_tasks.add_task(
+            _run_pick_and_reply,
+            chat_id=chat_id,
+            original_run_id=original_run_id,
+            idea_number=idea_number,
+            settings=settings,
+            adapters=adapters,
+            storage=storage,
+            registry=registry,
+            runs=runs,
+            executions=executions,
+            artifacts=artifacts,
+            trace_events=trace_events,
+            checkpointer=checkpointer,
+            target_duration_seconds=pick_duration,
+        )
     elif niche is not None:
         if not niche:
             await client.send_message(chat_id, format_ideas_usage())

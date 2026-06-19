@@ -4,6 +4,29 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P7-S1] Idea selection flow
+**Completed:** 2026-06-19
+**Handover:**
+- `cf_platform/interfaces/telegram.py`:
+  - `format_ranked_ideas` rewritten — numbered 1–5 list (selected + alternatives), includes `run_id`, `/pick <run_id> <n>` CTA.
+  - `/run <niche> [--duration <s>]` replaces old `/produce` for niche-to-video: `parse_run_command`, `parse_run_args`, `format_run_running`, `format_run_usage`, `format_run_reply`.
+  - `/produce <idea title> [--duration <s>]` is new named-idea command (bypasses discovery): `parse_produce_command`, `parse_produce_args`, `format_produce_running`, `format_produce_usage`, `format_produce_reply`.
+  - `/pick <run_id> <n> [--duration <s>]`: `parse_pick_command → Optional[tuple[str, int, int]]` (run_id, n, duration); `format_pick_usage`, `format_pick_running`.
+  - `_DURATION_FLAG_RE` + `_parse_duration_flag` shared by all three arg parsers.
+  - `format_unrecognized_command` lists all five commands.
+- `cf_platform/core/schemas.py`: `PipelineState.idea_title: Optional[str] = None` — when set, orchestrator skips `niche_to_ideas`.
+- `cf_platform/orchestrator/full_pipeline.py`: `_route_start` conditional edge routes to `idea_to_script` directly when `idea_title` set.
+- `cf_platform/interfaces/api.py`:
+  - `_run_pipeline_and_reply(chat_id, display_label, ..., niche="", idea_title=None, target_duration_seconds=60, command_name="pipeline")` — shared background helper (replaces `_run_produce_and_reply`).
+  - `_run_pick_and_reply` accepts `target_duration_seconds`; delegates to `_run_pipeline_and_reply`.
+  - Webhook branches: `/run`, `/produce`, `/pick` each correctly wire to `_run_pipeline_and_reply` with appropriate `display_label`, `niche`, `idea_title`.
+  - REST `POST /platform/pipeline/produce` and `_VIDEO_URL_EXPIRY` (was `_PRODUCE_VIDEO_URL_EXPIRY`) unchanged for API consumers.
+- Tests: 26 new in `test_p7_s1_pick.py` (updated for 3-tuple pick + `_run_pipeline_and_reply`); `test_p6_s4_produce.py` fully rewritten for `/run`+`/produce` dual-command coverage; 4 other existing tests updated. 1581 total passing (CI green).
+**Smoke test:** DEFERRED — operator sends `/ideas <niche>` → 5 numbered ideas → `/pick <run_id> 2` → presigned video URL. Also: `/produce <idea title>` → same video flow without discovery step.
+**Promoted to backlog:** none.
+
+---
+
 ## [P6-S7] Gemini TTS + /testvoice harness
 **Completed:** 2026-06-19
 **Handover:**

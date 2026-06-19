@@ -422,7 +422,8 @@ Complete the operator loop: pick an idea, get a finished video with ready-to-pas
 ## [P7-S1] Idea selection flow
 **Epic:** E34 — Idea Selection + YouTube Metadata
 **Sprint:** P7
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-19
 **Priority:** high
 **Points:** 3
 **Depends on:** P6-S4
@@ -440,17 +441,26 @@ Complete the operator loop: pick an idea, get a finished video with ready-to-pas
 **Tech:** Telegram, FastAPI, LangGraph (partial pipeline run).
 
 ### Acceptance Criteria
-- [ ] `/ideas <niche>` reply lists ideas numbered 1–5
-- [ ] `/pick <run_id> <n>` triggers the pipeline using the chosen idea; sends running ack
-- [ ] `PipelineState` / orchestrator accepts `idea_title` override to skip niche→ideas
-- [ ] Telegram reply from `/pick` includes presigned video URL (metadata added in P7-S3)
-- [ ] Tests: parse_pick_command (valid, malformed, out-of-range); pick webhook path; PipelineState idea_title override; format_pick_* helpers
+- [x] `/ideas <niche>` reply lists ideas numbered 1–5
+- [x] `/pick <run_id> <n>` triggers the pipeline using the chosen idea; sends running ack
+- [x] `PipelineState` / orchestrator accepts `idea_title` override to skip niche→ideas
+- [x] Telegram reply from `/pick` includes presigned video URL (metadata added in P7-S3)
+- [x] Tests: parse_pick_command (valid, malformed, out-of-range); pick webhook path; PipelineState idea_title override; format_pick_* helpers
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ### Handover
-_filled on completion_
+- `cf_platform/interfaces/telegram.py`:
+  - `format_ranked_ideas` rewritten — numbered 1–5 list, `run_id` shown, `/pick <run_id> <n>` CTA.
+  - `/run <niche> [--duration <s>]` replaces old `/produce` for niche-to-video: `parse_run_command`, `parse_run_args`, `format_run_running`, `format_run_usage`, `format_run_reply`.
+  - `/produce <idea title> [--duration <s>]` is a new named-idea command (bypasses discovery): `parse_produce_command`, `parse_produce_args`, `format_produce_running`, `format_produce_usage`, `format_produce_reply`.
+  - `/pick <run_id> <n> [--duration <s>]`: `parse_pick_command → Optional[tuple[str, int, int]]`; `format_pick_usage`, `format_pick_running`.
+  - `_DURATION_FLAG_RE` + `_parse_duration_flag` shared by all three arg parsers.
+- `cf_platform/core/schemas.py`: `PipelineState.idea_title: Optional[str] = None`.
+- `cf_platform/orchestrator/full_pipeline.py`: `_route_start` conditional edge skips `niche_to_ideas` when `idea_title` set.
+- `cf_platform/interfaces/api.py`: `_run_pipeline_and_reply` shared helper (replaces `_run_produce_and_reply`); `/run`, `/produce`, `/pick` webhook branches; `_VIDEO_URL_EXPIRY` constant. REST `POST /platform/pipeline/produce` unchanged.
+- Tests: `test_p7_s1_pick.py` updated (3-tuple, `_run_pipeline_and_reply`); `test_p6_s4_produce.py` rewritten for dual `/run`+`/produce` coverage; 4 other tests updated. 1581 total passing (CI green).
 
 ---
 
