@@ -1460,9 +1460,9 @@
             scriptInput.value = data.script || '';
             autoResizeScript(scriptInput);
             if (data.vo_filename) {
-              if (data.vo_filename === 'generated.mp3') {
+              if (data.vo_filename === 'generated.wav') {
                 _applyVoMode('generate');
-                document.getElementById('vo-generate-status').textContent = '✓ generated.mp3';
+                document.getElementById('vo-generate-status').textContent = '✓ generated.wav';
                 document.getElementById('vo-generate-status').style.color  = '#16a34a';
                 voUploaded = true;
               } else {
