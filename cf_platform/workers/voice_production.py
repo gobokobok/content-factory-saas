@@ -160,11 +160,15 @@ def _normalize_word(raw: dict) -> VoiceWordTimestamp:
 async def _align_audio(audio_url: str, api_key: str) -> list[VoiceWordTimestamp]:
     """Call Deepgram Nova-2 with a presigned URL; return word-level timestamps.
 
-    smart_format=false keeps numbers as spoken words so word matching in the
-    legacy ffmpeg_builder works correctly (D045).
+    smart_format=true (D045 rev): the v2 pipeline storyboard copies verbatim
+    script text into voiceover_line, so numeric tokens like "15000" (from
+    "£15,000") must match Deepgram's output. With smart_format=true Deepgram
+    returns "15,000" (normalises to "15000") instead of "fifteen thousand"
+    (never matches "15000"), eliminating the orphaned-word/missing-caption bug
+    for all figure-heavy scripts.
     """
     headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
-    params = {"model": "nova-2", "smart_format": "false"}
+    params = {"model": "nova-2", "smart_format": "true"}
     async with httpx.AsyncClient(timeout=_DEEPGRAM_TIMEOUT_SECONDS) as client:
         resp = await client.post(_DEEPGRAM_URL, headers=headers, params=params, json={"url": audio_url})
     if resp.status_code != 200:

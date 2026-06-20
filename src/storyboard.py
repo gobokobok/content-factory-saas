@@ -77,8 +77,9 @@ When the voiceover names a specific real individual and the scene should depict 
 When NOT to set person_name:
 - Generic references ("a homeowner", "economists", "the Fed")
 - Unnamed or composite individuals
-- Historic figures with no likely Wikipedia portrait
-- Scenes where the person is context, not the visual subject
+- Scenes where the person is context, not the visual subject (e.g. the VO names them but the visual is a building or location, not their face)
+
+IMPORTANT: Set person_name for any named individual the scene should visually depict — including Victorian, Edwardian, and 20th-century figures. Wikipedia has portraits for most named individuals born after roughly 1820 (early photography era). Do NOT withhold person_name because the figure is historical. Octavia Hill, Ebenezer Howard, Harold Macmillan, Robert Moses — all have Wikipedia portraits and all should get person_name set.
 
 ═══════════════════════════════════════
 DURATION RULES
@@ -186,8 +187,26 @@ PRIMARY query rules:
 - Ask yourself: what physical object would a cameraman point a lens at?
 - Pexels is keyword-matched, not semantic. Adjectives reduce recall without improving precision.
 
+EXCEPTION — PERSON SCENES: when person_name is set, the PRIMARY query MUST begin with
+the person's full name. Wikipedia is tried first, but if it misses, the stock query is the
+fallback — it must contain the name or it will return random faces.
+  ✓ PRIMARY: `Octavia Hill Victorian reformer portrait`
+  ✗ PRIMARY: `woman conviction portrait close-up`  ← useless if Wikipedia fails
+
+EXCEPTION — HISTORICAL SCENES: when the voiceover references a specific historical event
+or era (any period before roughly 1990), include the decade or event name in PRIMARY.
+Wikimedia Commons is date-indexed; without a year or decade the search returns modern stock.
+  ✓ PRIMARY: `London Blitz 1940 bomb damage ruins`
+  ✗ PRIMARY: `bomb damage ruins`  ← returns modern demolition stock
+  ✓ PRIMARY: `postwar council estate Britain 1950s`
+  ✗ PRIMARY: `council housing`  ← returns contemporary social housing
+  ✓ PRIMARY: `Letchworth Garden City 1910 street`
+  ✗ PRIMARY: `garden city street`  ← returns modern planned developments
+
 FALLBACK query rules:
 - 1–2 words. Core subject only. Broadest noun that still covers the scene.
+- For person scenes: person's surname + era (e.g. `Hill Victorian`, `Howard 1900s`)
+- For historical scenes: event or place name only (e.g. `London Blitz`, `Letchworth`)
 
 AI_GENERATE rules:
 - Describe the subject, composition, and lighting as a camera direction.
@@ -215,6 +234,30 @@ Few-shot examples:
   PRIMARY: STK `young couple house keys`
   FALLBACK: STK `house keys`
   AI_GENERATE: `Young couple standing in front of a suburban house holding keys, shallow depth of field, soft golden hour lighting, cinematic 9:16 vertical, photorealistic`
+
+  [PERSON SCENE — person_name: Octavia Hill]
+  VO: "She had already spent twenty years buying slum properties in London"
+  PRIMARY: STK `Octavia Hill Victorian reformer portrait`
+  FALLBACK: STK `Hill Victorian`
+  AI_GENERATE: `Portrait of a determined Victorian-era woman in dark formal dress, shallow depth of field, soft diffused window light, cinematic 9:16 vertical, photorealistic`
+
+  [PERSON SCENE — person_name: Ebenezer Howard]
+  VO: "Forty years later, a man named Ebenezer Howard had a different answer"
+  PRIMARY: STK `Ebenezer Howard garden city founder portrait`
+  FALLBACK: STK `Howard 1900s`
+  AI_GENERATE: `Portrait of a bearded Victorian gentleman at a desk with blueprints, shallow depth of field, warm candlelight, cinematic 9:16 vertical, photorealistic`
+
+  [HISTORICAL SCENE — London Blitz]
+  VO: "German bombing had destroyed or damaged over four million British homes"
+  PRIMARY: STK `London Blitz 1940 bomb damage ruins`
+  FALLBACK: STK `London Blitz`
+  AI_GENERATE: `Bombed-out London street 1940s rubble and smoke, dramatic wartime atmosphere, cinematic 9:16 vertical, photorealistic archival style`
+
+  [HISTORICAL SCENE — postwar housing]
+  VO: "The post-war government built 900,000 council homes in just six years"
+  PRIMARY: STK `postwar council estate Britain 1950s construction`
+  FALLBACK: STK `council housing 1950s`
+  AI_GENERATE: `Row of newly built postwar council houses Britain 1950s, workers laying bricks, documentary style, cinematic 9:16 vertical, photorealistic`
 
 ═══════════════════════════════════════
 RHYTHM RULE

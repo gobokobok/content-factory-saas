@@ -182,12 +182,11 @@ Bounding the lookahead means a single mismatched/missing token only costs that o
 
 ---
 
-## D045 — Disable Deepgram smart_format for word-level alignment
-**Date:** 2026-06-10
-**Decision:** Set `smart_format: "false"` on the Deepgram Nova-2 `align_audio()` call (src/alignment.py).
-**Rationale:** Storyboard `voiceover_line` text always spells out numbers, percentages, and large quantities for TTS pronunciation (e.g. "ninety percent", "ten thousand", "zero point zero three percent", "twenty-year"). With `smart_format: "true"`, Deepgram collapses these to digit/symbol form ("90", "10000", "0.03%"), which never matches the spelled-out tokens produced by `_vo_tokens()` in `assign_words_to_scenes` (ffmpeg_builder.py).
-A single such mismatch is catastrophic, not just cosmetic: `assign_words_to_scenes` does a greedy forward scan, so when a token like "ninety" fails to match "90", the next token ("percent") can match a *different, much later* occurrence of "percent" elsewhere in the transcript. This drags `pos` forward by tens of seconds, corrupting alignment for every subsequent scene — observed in run `2026-06-10_the-3-fund-portfolio` as one scene's clip stretching to 98s (nearly the entire video) while ~25 following scenes were compressed to the 0.08s minimum.
-With `smart_format: "false"`, Deepgram transcribes numbers as the words actually spoken, matching the storyboard convention and eliminating both the drift bug and missing captions for numeric/percentage phrases.
+## D045 — Deepgram smart_format for word-level alignment (revised 2026-06-20)
+**Date:** 2026-06-10 · **Revised:** 2026-06-20
+**Decision:** Set `smart_format: "true"` on the Deepgram Nova-2 `_align_audio()` call (cf_platform/workers/voice_production.py).
+**Rationale (original, 2026-06-10):** The legacy pipeline spelled out numbers in `voiceover_line` (e.g. "ninety percent"), so `smart_format: "false"` was needed to keep Deepgram from collapsing them to "90%" which would never match. With `smart_format: "false"`, Deepgram returned spoken words, matching the storyboard convention.
+**Why reversed (2026-06-20):** The v2 platform pipeline (P5-S6 Blueprint IR) generates scripts with numerals and currency symbols verbatim (e.g. "£15,000", "375%", "8 to 12%"), and the storyboard prompt copies them verbatim into `voiceover_line` ("exact verbatim words"). With `smart_format: "false"`, Deepgram transcribes "fifteen", "thousand", "pounds" which never matches `_vo_tokens("£15,000")` = ["15000"]. These words become orphans — never assigned to any scene — and are entirely missing from captions. With `smart_format: "true"`, Deepgram returns "15,000" which normalises to "15000" and matches. The original drift bug (greedy scan dragging pos forward) is handled by the _MATCH_WINDOW=15 bounded lookahead added in D046 — it limits damage from any single mismatch to at most 15 words.
 **No new dependencies.**
 
 ---

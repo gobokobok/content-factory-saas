@@ -1,15 +1,16 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
-> As of 2026-06-20 the active work is the **Platform v2 track (Sprints P0–P12)**, defined in **docs/v2_platform_plan.md** (decisions D047–D063).
-> - **Sprints P1–P8 complete.** P8-S1 through P8-S6 all done.
+> As of 2026-06-20 the active work is the **Platform v2 track (Sprints P0–P15)**, defined in **docs/v2_platform_plan.md** (decisions D047–D063).
+> - **Sprints P0–P8 complete.** P8-S1 through P8-S6 all done.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
+> - **Next sprint:** P9 — Storyboard v2 + native engine rebuild.
 
 ---
 
-# CONTENT FACTORY v2 — PLATFORM TRACK (Sprints P0–P12)
+# CONTENT FACTORY v2 — PLATFORM TRACK (Sprints P0–P15)
 
-**Canonical spec:** docs/v2_platform_plan.md · **Decisions:** D047–D062 · **Stories:** BACKLOG_ACTIVE.md (current + next two sprints), BACKLOG.md (full archive).
+**Canonical spec:** docs/v2_platform_plan.md · **Decisions:** D047–D063 · **Stories:** BACKLOG_ACTIVE.md (current + next two sprints), BACKLOG.md (full archive).
 Legacy Script→Video stays untouched and operable (D047).
 
 | Sprint | Theme | Pts | Status | Human touchpoint |
@@ -22,13 +23,16 @@ Legacy Script→Video stays untouched and operable (D047).
 | P5 | Idea→Script block | 24 | done | Telegram idea → fact-checked script |
 | P6 | Orchestrator + legacy bridge | 24 | done | `/produce <niche>` → presigned video URL + confirmed VO sync |
 | P7 | Idea selection + YouTube metadata | 8 | done | `/ideas` → 5 numbered ideas → `/pick <run_id> <n>` → 16:9 video + metadata |
-| **P8** | **Footage quality** | **~10** | **active** | Operator sees visibly higher-quality clips + footage breakdown in DEV run |
-| P9 | Legacy engine rebuild | ~13 | planned | All workers native LangGraph; src/ adapter retired |
-| P10 | Analytics & attribution | ~11 | planned | Retention-by-prompt-version report |
-| P11 | n8n automation | ~10 | planned | Niche → scheduled YouTube upload with no operator action |
-| P12 | Multi-tenant SaaS frontend | ~20 | planned | Multi-channel, multi-run operator UI |
+| P8 | Footage quality | 14 | done | Footage breakdown in Telegram reply; colour grade applied |
+| **P9** | **Storyboard v2 + native engine rebuild** | **~18** | **planned** | `/run` → fully native pipeline; person lower thirds; film look for historic scenes |
+| P10 | Render quality | ~14 | planned | Dip-to-black, quote cards, xfade dissolves, slow motion, chart overlays |
+| P11 | AI asset library | ~14 | planned | Portrait colorization, map generation, parallax, number callout overlays |
+| P12 | Format tracks | ~10 | planned | `documentary`/`educational`/`animated` via `--format` flag |
+| P13 | Analytics & attribution | ~11 | planned | Retention-by-prompt-version report |
+| P14 | n8n automation | ~10 | planned | Niche → scheduled YouTube upload with no operator action |
+| P15 | Multi-tenant SaaS frontend | ~20 | planned | Multi-channel, multi-run operator UI |
 
-**Core platform (P0–P6) = 116 pts done.**
+**Core platform (P0–P6) = 116 pts done. P7–P8 = 22 pts done. Total: 138 pts.**
 
 ---
 
@@ -58,7 +62,7 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P6 — Orchestrator + Legacy Bridge
 
 **Goal:** Parent graph chains niche→ideas → idea→script → voice → legacy render via the adapter; optional HITL gates; one command → video.
-**Status:** active
+**Status:** done
 **Points:** 24
 
 | ID | Title | Points | Status |
@@ -105,8 +109,9 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P8 — Footage Quality
 
 **Goal:** Replace the serial Pexels→Replicate fallback with a multi-source merge+rank pipeline (Pexels + Pixabay searched concurrently; Wikimedia Commons added in S2; winner selected by resolution/QA score). Replicate retired. Add real-person photo routing via Wikipedia, gate every clip through a quality check, surface per-source coverage in the Telegram reply, and apply a colour grade to the final render. All `src/` code is written as clean isolated modules for direct import by P9's native AcquisitionWorker.
-**Status:** active
-**Points:** 16
+**Status:** done
+**Completed:** 2026-06-20
+**Points:** 14
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
@@ -120,13 +125,42 @@ Legacy Script→Video stays untouched and operable (D047).
 **Execution order:** (P8-S1 ∥ P8-S6) → P8-S2 → P8-S3 → P8-S4 → P8-S5
 
 ## Sprint P8 Definition of Done
-- [x] Pexels + Pixabay searched concurrently, winner by resolution; `PIXABAY_API_KEY` in ENV; D063 logged; Replicate retired (P8-S1 done)
-- [x] Wikimedia Commons added to merge pool; historic-first routing; attribution stored per asset; D064 logged (P8-S2 done)
-- [ ] Wikimedia Commons covers historic footage (no API key) and general stock photos; D064 logged
-- [x] Storyboard prompt v0.10: `person_name` + `person_title` fields emitted when scene depicts a named individual; Wikimedia person photo fetched first for those scenes; fallback to generic stock (no AI) on miss (P8-S3 done)
-- [ ] Every acquired clip passes resolution + duration + optional CLIP quality gate; retry on `fallback_query` before advancing source; `CLIP_RERANK_ENABLED` in ENV
-- [ ] `asset_manifest.json` records `source`, `qa_passed`, `qa_clip_score`, `fallback_used` per scene
-- [ ] `footage_summary` in `run_log.json`; surfaced in Telegram reply with QA warning when needed
-- [x] `COLOR_GRADE_PRESET` in ENV; `vivid`/`warm`/`cinematic`/`muted`/`neutral` presets apply correct FFmpeg filter chain; `BLUR_FILL_ENABLED` for landscape stills (P8-S6 done)
-- [ ] All `src/` modules (`pixabay_client.py`, `wikimedia_client.py`, `footage_qa.py`) are standalone and importable by P9
-- [ ] **Human touchpoint:** operator runs `/run <niche>` on DEV, receives video + `Footage: N Pexels · N Pixabay · N Wikimedia · N Person · N AI` in the Telegram reply; colour grade visibly applied
+- [x] Pexels + Pixabay searched concurrently, winner by resolution; `PIXABAY_API_KEY` in ENV; D063 logged; Replicate retired (P8-S1)
+- [x] Wikimedia Commons added to merge pool; historic-first routing; attribution stored per asset (P8-S2)
+- [x] Storyboard prompt v0.10: `person_name` + `person_title` fields; PERSON SCENE exceptions; HISTORICAL SCENE exceptions; Wikimedia person photo first; fallback to generic stock on miss (P8-S3)
+- [x] Every acquired clip passes resolution + duration + optional CLIP quality gate; retry on `fallback_query`; `CLIP_RERANK_ENABLED` in ENV (P8-S4)
+- [x] `asset_manifest.json` records `source`, `qa_passed`, `qa_clip_score`, `fallback_used` per scene (P8-S4)
+- [x] `footage_summary.json` written to R2 after acquisition; surfaced in Telegram reply with QA warning (P8-S5)
+- [x] Early acquisition check: RuntimeError raised before ffmpeg if any scene has `file_key=None` (P8 hotfix)
+- [x] `smart_format=true` for Deepgram — numerals in captions match verbatim script text (D045 revision)
+- [x] Script generator prompt enforces word-count RANGE (min + max), not ceiling only
+- [x] `COLOR_GRADE_PRESET` in ENV; 5 presets apply correct FFmpeg filter chain; `BLUR_FILL_ENABLED` for landscape stills (P8-S6)
+- [x] All `src/` modules (`pixabay_client.py`, `wikimedia_client.py`, `footage_qa.py`) are standalone and importable by P9
+- [x] **Human touchpoint:** `/run <niche>` → video + footage coverage line in Telegram reply; colour grade applied; 2:47 video at --duration 167 confirmed 2026-06-20
+
+---
+
+# Sprint P9 — Storyboard v2 + Native Engine Rebuild
+
+**Goal:** Replace `InProcessLegacyVideoAdapter` + `src/pipeline.py` call chain with two native LangGraph workers (AcquisitionWorker + RenderWorker). Introduce `segment_type` classification and three-tier query schema to the storyboard — the enabler for all downstream render quality and format track work. Retire `src/` as the active render path; it stays as a standalone legacy tool.
+**Status:** planned
+**Points:** ~18
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P9-S1 | segment_type + preferred_source schema | 3 | todo |
+| P9-S2 | Three-tier query schema (primary_stk / context_stk / concept_stk) | 2 | todo |
+| P9-S3 | Native AcquisitionWorker | 5 | todo |
+| P9-S4 | Native RenderWorker (+ film look + person lower thirds) | 5 | todo |
+| P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 3 | todo |
+
+**Execution order:** (P9-S1 ∥ P9-S2) → P9-S3 → P9-S4 → P9-S5.
+
+## Sprint P9 Definition of Done
+- [ ] `StoryboardScene.segment_type` field with 9 values; storyboard prompt v0.11 emits it; `preferred_source` field for Wikimedia-first on historic scenes
+- [ ] Three-tier query schema (`primary_stk`, `context_stk`, `concept_stk`) emitted by storyboard prompt; manifest builder passes all three tiers
+- [ ] `AcquisitionWorker` type-aware routing: Character → person photo; Event+historic → Wikimedia-first; Data → chart stub; default → Pexels+Pixabay concurrent
+- [ ] `RenderWorker`: film look for Event scenes; person name lower-third drawtext for Character scenes; standard render for others; builds + executes ffmpeg_script.sh; uploads to R2
+- [ ] `full_pipeline.py` uses AcquisitionWorker + RenderWorker; `InProcessLegacyVideoAdapter` no longer in active call path
+- [ ] All P8 `src/` source modules imported directly by AcquisitionWorker (P8 portability contract honoured)
+- [ ] **Human touchpoint:** `/run <niche>` → fully native render (no adapter); person scenes show name lower third; historic footage gets film look

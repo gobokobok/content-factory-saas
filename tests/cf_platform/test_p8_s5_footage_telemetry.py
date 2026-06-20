@@ -29,6 +29,7 @@ def _make_entry(
         status=status,
         source=source if status == "acquired" else None,
         qa_passed=qa_passed,
+        file_key=f"runs/test-run/images/{scene_id}.jpg" if status == "acquired" else None,
     )
 
 

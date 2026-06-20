@@ -37,10 +37,12 @@ Write the final narration script following the blueprint exactly:
   substitute different values
 
 CRITICAL — WORD COUNT:
-The target word count is specified in the user message. This is a hard cap. \
-YouTube Shorts that exceed the target run long and lose viewers. \
-If covering all blueprint sections would exceed the word cap, cut or compress the \
-least essential body points — never exceed the maximum word count. \
+The target word count is a RANGE specified in the user message. You must hit the minimum. \
+- If your draft is UNDER the minimum: expand with more depth, concrete examples, \
+  additional context, or elaboration on existing points until you reach the minimum. \
+  Do not add filler — add substance. \
+- If your draft is OVER the maximum: cut or compress the least essential body points. \
+Never submit a script below the minimum word count. \
 Prioritise: hook → core claim → evidence → CTA.
 
 Return ONLY the narration script text. No JSON, no labels, no preamble.\
@@ -161,9 +163,10 @@ def _build_user_message(
         parts.append("Channel niche: not specified — write for a general data-driven audience")
     parts.append(f"Video idea: {idea_title}")
     parts.append(
-        f"⚠️ HARD WORD LIMIT: {min_words}–{max_words} words "
+        f"⚠️ WORD COUNT — YOU MUST HIT THIS RANGE: {min_words}–{max_words} words "
         f"(target {target_words} words = {target_duration}s at 160 wpm). "
-        f"Do NOT exceed {max_words} words. If all sections cannot fit, compress body points."
+        f"Minimum: {min_words} words — expand with depth/examples if under. "
+        f"Maximum: {max_words} words — cut if over. Never submit below {min_words} words."
     )
     parts.append("")
     parts.append(f"=== SELECTED HOOK (use verbatim as the opening) ===\n{hook}")

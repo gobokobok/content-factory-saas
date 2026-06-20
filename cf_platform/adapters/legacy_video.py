@@ -274,6 +274,12 @@ class InProcessLegacyVideoAdapter:
                 f"runs/{run_id}/asset_manifest.json",
                 manifest.model_dump(mode="json"),
             )
+            # All scenes must have a file_key — ffmpeg can't render without one.
+            missing = [e.scene_id for e in manifest.entries if e.file_key is None]
+            if missing:
+                raise RuntimeError(
+                    f"{len(missing)} scene(s) failed to acquire assets: {missing}"
+                )
             footage_summary = _compute_footage_summary(manifest)
             try:
                 storage.upload_json(

@@ -362,6 +362,43 @@ class TestStepFailures:
         assert result.error.startswith("acquisition:")
 
     @pytest.mark.asyncio
+    async def test_acquisition_partial_failure_fails_before_ffmpeg(self):
+        """Acquisition with some file_key=None entries → fails at acquisition step, not ffmpeg."""
+        adapter = _make_adapter()
+        trace_repo = InMemoryTraceEventRepository()
+        run_id = "acq-partial-fail"
+
+        # One entry acquired, one with file_key=None (failed scene)
+        entry_ok = MagicMock()
+        entry_ok.file_key = "runs/acq-partial-fail/images/01.jpg"
+        entry_ok.status = "acquired"
+        entry_ok.source = "pexels"
+        entry_ok.qa_passed = True
+        entry_fail = MagicMock()
+        entry_fail.file_key = None
+        entry_fail.status = "failed"
+        entry_fail.source = None
+        entry_fail.qa_passed = None
+        entry_fail.scene_id = "14"
+        mock_manifest = MagicMock()
+        mock_manifest.entries = [entry_ok, entry_fail]
+        mock_manifest.model_dump.return_value = {"entries": []}
+
+        with (
+            patch(f"{_MODULE}.R2Client", return_value=MagicMock()),
+            patch(f"{_MODULE}.generate_storyboard", new=AsyncMock(return_value=(_make_storyboard_mock(), _make_validation_mock()))),
+            patch(f"{_MODULE}.build_manifest", return_value=mock_manifest),
+            patch(f"{_MODULE}.run_acquisition", new=AsyncMock(return_value={"acquired": 1, "failed": 1, "sources": {"pexels": 1}})),
+            patch(f"{_MODULE}.PexelsClient"),
+            patch(f"{_MODULE}.PixabayClient"),
+        ):
+            result = await adapter.render(run_id, "Script.", trace_repo)
+
+        assert result.status == "failed"
+        assert result.error.startswith("acquisition:")
+        assert "14" in result.error
+
+    @pytest.mark.asyncio
     async def test_ffmpeg_script_failure_returns_failed_result(self):
         """FFmpeg script build failing → VideoResult(status='failed')."""
         adapter = _make_adapter()

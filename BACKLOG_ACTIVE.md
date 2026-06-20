@@ -1,6 +1,6 @@
-# Backlog — Active Stories (Sprints P7–P9)
+# Backlog — Active Stories (Sprints P8–P10)
 
-_Contains current sprint (P8) + context sprints (P7 done, P9 next). Full history in BACKLOG.md._
+_Contains completed sprint (P8), active sprint (P9), and next sprint outline (P10). Full history in BACKLOG.md._
 _Updated at each sprint boundary: move completed sprint block to BACKLOG.md archive._
 
 ---
@@ -862,7 +862,7 @@ Apply a consistent colour grade to the final rendered video via an FFmpeg filter
 
 ## [P8-S7] LLM-vision media scorer — emotion, mood, relevance
 **Epic:** E35 — Footage Quality
-**Sprint:** P8
+**Sprint:** P8 → DEFERRED to P10
 **Status:** todo
 **Priority:** med
 **Points:** 3
@@ -908,14 +908,223 @@ Plug into `acquire_scene` after resolution gate (P8-S4 hook point): for each res
 
 ---
 
-## Post-P8 backlog (outline only — detailed in BACKLOG.md)
+---
+
+## EPIC 36 — Storyboard v2 + Native Engine Rebuild (Sprint P9)
+
+Replace the legacy adapter call chain with two native LangGraph workers. Introduce `segment_type` classification and three-tier asset queries so every downstream render decision is driven by content type, not heuristics.
+
+**Why this ordering:** `segment_type` is the structural dependency for all render quality work (P10) and format tracks (P12). Without it, FFmpeg decisions are blind to scene intent.
+
+---
+
+## [P9-S1] segment_type + preferred_source schema
+**Epic:** E36 — Storyboard v2 + Native Engine Rebuild
+**Sprint:** P9
+**Status:** todo
+**Priority:** high
+**Points:** 3
+**Depends on:** —
+
+### Goal
+Add `segment_type` and `preferred_source` to `StoryboardScene`. Update the storyboard generation prompt (v0.10 → v0.11) to emit both fields. These are the structural inputs that enable type-aware acquisition routing and render decisions in P9-S3/S4.
+
+### segment_type values
+| Value | Description |
+|-------|-------------|
+| `Hook` | Opening 5–8s — bold claim, rhetorical question, stat |
+| `Context` | Scene-setting B-roll (maps, establishing shots, skylines) |
+| `Character` | Named real person; triggers person-photo route |
+| `Event` | Specific historical happening; Wikimedia-first |
+| `Mechanism` | Explains a process/system (policy, economics) |
+| `Data` | Key stat or chart anchor; chart PNG route in P10 |
+| `Emotion` | Human impact moment; slow-motion candidate in P10 |
+| `Transition` | Beat/pause between sections |
+| `CTA` | Call-to-action close |
+
+### preferred_source values
+`"wikimedia"` | `"pexels_pixabay"` | `None` (let routing decide)
+
+Storyboard prompt sets `preferred_source: "wikimedia"` on Event + Mechanism scenes with `historic: true`. Character scenes leave `preferred_source: None` (handled by person-photo routing in P9-S3).
+
+### Acceptance Criteria
+- [ ] `StoryboardScene.segment_type: Literal[...]` field added to `src/models.py`; default `"Context"` (backward-compatible)
+- [ ] `StoryboardScene.preferred_source: Optional[Literal["wikimedia","pexels_pixabay"]] = None` added
+- [ ] Storyboard prompt v0.11: emits `segment_type` for every scene; SEGMENT TYPE RULE section with definitions and examples; preferred_source set for historic Event/Mechanism scenes
+- [ ] `STORYBOARD_PROMPT_VERSION = "v0.11"` constant updated
+- [ ] Tests: each segment_type value parses; historic Event scene → `preferred_source="wikimedia"`; Character scene → `preferred_source=None`; backward-compat (old storyboard JSON without field → default)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P9-S2] Three-tier query schema
+**Epic:** E36 — Storyboard v2 + Native Engine Rebuild
+**Sprint:** P9
+**Status:** todo
+**Priority:** high
+**Points:** 2
+**Depends on:** P9-S1
+
+### Goal
+Replace the two-field `(primary_query, fallback_query)` pair with a three-tier query schema. Each tier targets a different asset-search strategy, allowing acquisition to cascade from specific to abstract without burning through sources on the wrong query type.
+
+### Three tiers
+| Field | Strategy | Example (Octavia Hill scene) |
+|-------|----------|------------------------------|
+| `primary_stk` | Literal — exact subject, person name, event | `"Octavia Hill 1870s portrait"` |
+| `context_stk` | Contextual — era, concept, broader topic | `"Victorian housing reform England"` |
+| `concept_stk` | Conceptual — abstract B-roll for the mood/theme | `"affordable housing community people"` |
+
+The existing `primary_query` / `fallback_query` fields are kept as aliases during migration; new code uses the three-tier fields.
+
+### Acceptance Criteria
+- [ ] `StoryboardScene.primary_stk`, `.context_stk`, `.concept_stk: str` fields added to `src/models.py`
+- [ ] Storyboard prompt v0.11 updated (from P9-S1 version) to emit all three fields; QUERY TIERS section with examples for Character, Event, Data, Context scenes
+- [ ] `ManifestBuilder` passes all three tiers to acquisition; `ManifestEntry` carries `primary_stk`, `context_stk`, `concept_stk`
+- [ ] AcquisitionWorker (P9-S3) receives all three; tries `primary_stk` first, falls back through tiers before advancing to next source
+- [ ] Tests: Character scene → `primary_stk` contains person name; Event scene → `context_stk` contains decade/event; round-trip through manifest builder preserves all three
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P9-S3] Native AcquisitionWorker
+**Epic:** E36 — Storyboard v2 + Native Engine Rebuild
+**Sprint:** P9
+**Status:** todo
+**Priority:** high
+**Points:** 5
+**Depends on:** P9-S1, P9-S2
+
+### Goal
+Replace `InProcessLegacyVideoAdapter`'s acquisition call with a standalone LangGraph worker. Imports P8 `src/` source modules directly (the P8 portability contract). Routes each scene by `segment_type` and `preferred_source`.
+
+### Routing table
+| segment_type + conditions | Acquisition route |
+|---------------------------|-------------------|
+| `Character` (person_name set) | `wikimedia_client.fetch_person_photo` → fallback generic Pexels+Pixabay |
+| `Event` / `Mechanism` + `historic: true` OR `preferred_source="wikimedia"` | Wikimedia general search first → Pexels+Pixabay |
+| `Data` | Chart PNG stub (returns placeholder; P10-S6 provides real chart) |
+| All others | Pexels + Pixabay concurrent merge+rank (P8 default) |
+
+For each source attempt, three-tier query cascade: `primary_stk` → `context_stk` → `concept_stk` before advancing to next source. QA gate (P8 `footage_qa.qa_score`) applied at each candidate; `pick_best` last resort.
+
+### Module contract
+```python
+# cf_platform/workers/acquisition_worker.py
+async def build_acquisition_worker(storage, settings) -> WorkerNode
+# Reads: state.artifacts["storyboard"] → Storyboard
+# Writes: state.artifacts["asset_manifest"] → AssetManifest artifact in R2
+```
+
+### Acceptance Criteria
+- [ ] `cf_platform/workers/acquisition_worker.py` imports `src.pixabay_client`, `src.wikimedia_client`, `src.footage_qa` directly
+- [ ] Type-aware routing per table above; `preferred_source` field respected
+- [ ] Three-tier query cascade within each source before advancing
+- [ ] QA gate applied; `pick_best` fallback never leaves scene empty
+- [ ] `footage_summary` dict computed and included in worker output
+- [ ] `ACQUISITION_WORKER_REGISTRATION` defined; `build_acquisition_worker` factory
+- [ ] Tests: Character scene → person photo route; Event+historic → Wikimedia first; `preferred_source` override; QA gate fires on low-resolution candidate; three-tier cascade; empty manifest never produced
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P9-S4] Native RenderWorker (+ film look + person lower thirds)
+**Epic:** E36 — Storyboard v2 + Native Engine Rebuild
+**Sprint:** P9
+**Status:** todo
+**Priority:** high
+**Points:** 5
+**Depends on:** P9-S3
+
+### Goal
+New `cf_platform/workers/render_worker.py` — builds and executes the FFmpeg script natively. type-aware FFmpeg decisions: film look for historic Event scenes, person-name lower third for Character scenes. Produces `final.mp4` in R2.
+
+### Type-aware render decisions
+| segment_type | FFmpeg additions |
+|--------------|-----------------|
+| `Character` | `drawtext` lower third with `person_name` + `person_title` (white text, semi-transparent bar) |
+| `Event` + `historic: true` | Film look filter: `hqdn3d=3:2:6:4,noise=alls=8:allf=t,colorchannelmixer=rr=0.8:rg=0.2:rb=0.0:gr=0.1:gg=0.7:gb=0.1:br=0.1:bg=0.1:bb=0.5,eq=saturation=0.4` (desaturated sepia) |
+| All others | Colour grade preset from `COLOR_GRADE_PRESET` (P8-S6) |
+
+### Lower-third drawtext spec
+```
+drawtext=fontfile=/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf:
+  text='{person_name}':fontcolor=white:fontsize=32:
+  box=1:boxcolor=black@0.55:boxborderw=8:
+  x=60:y=h-th-60
+```
+`person_title` rendered on the line above (smaller, lighter) when present.
+
+### Module contract
+```python
+# cf_platform/workers/render_worker.py
+async def build_render_worker(storage, settings) -> WorkerNode
+# Reads: state.artifacts["asset_manifest"], state.artifacts["voice_alignment"]
+# Writes: state.artifacts["video"] → R2 key of final.mp4
+```
+
+### Acceptance Criteria
+- [ ] `cf_platform/workers/render_worker.py` — no `src/` imports for render logic (ffmpeg_builder re-implemented natively); only `src/` model types used at boundary
+- [ ] `RENDER_WORKER_REGISTRATION` defined; `build_render_worker` factory
+- [ ] Film look filter applied to Event scenes with `historic: true`; skipped for all others
+- [ ] `drawtext` lower third generated for Character scenes with `person_name` set; skipped otherwise
+- [ ] `person_title` rendered on second line when present
+- [ ] Existing `COLOR_GRADE_PRESET` and `BLUR_FILL_ENABLED` settings honoured for non-special scenes
+- [ ] FFmpeg script built, executed via subprocess, timeout from `FFMPEG_TIMEOUT_SECONDS`; output uploaded to `runs/{run_id}/output/final.mp4`
+- [ ] Tests: Character scene → drawtext present in script; historic Event scene → sepia filter in chain; non-historic → standard grade; voice alignment None → silent video; render subprocess timeout handled
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P9-S5] Retire InProcessLegacyVideoAdapter + wire native pipeline
+**Epic:** E36 — Storyboard v2 + Native Engine Rebuild
+**Sprint:** P9
+**Status:** todo
+**Priority:** high
+**Points:** 3
+**Depends on:** P9-S4
+
+### Goal
+Update `full_pipeline.py` to use `AcquisitionWorker` + `RenderWorker` as the render path. `InProcessLegacyVideoAdapter` is deprecated — kept importable for reference but removed from the active call graph. `src/` remains the live standalone legacy pipeline (DEV/PROD direct UI); only the platform's `cf_platform/` path is changed.
+
+### Changes
+- `full_pipeline.py`: remove `legacy_render_node`; add `acquisition_node` + `render_node`
+- `LegacyVideoAdapter` Protocol and `InProcessLegacyVideoAdapter` marked deprecated with `# DEPRECATED — use AcquisitionWorker + RenderWorker`
+- `build_full_pipeline_graph` no longer accepts `legacy_adapter` kwarg (removed or made optional with deprecation warning)
+- `footage_summary` from `AcquisitionWorker` output → passed to `format_produce_reply` via `_run_pipeline_and_reply`
+- `VideoResult` type used internally by `RenderWorker` output (or replaced by a simpler `RenderResult`)
+
+### Acceptance Criteria
+- [ ] `full_pipeline.py` call graph: `niche_to_ideas → idea_to_script → youtube_metadata → voice_production → acquisition → render`
+- [ ] `InProcessLegacyVideoAdapter` not called anywhere in the active pipeline; file kept with deprecation notice
+- [ ] `footage_summary` from acquisition worker flows to Telegram reply
+- [ ] All existing tests pass; new integration test: full pipeline smoke with mocked workers produces expected artifact chain
+- [ ] P8 smoke-test endpoint (`/produce`) still works end-to-end
+- [ ] **Human touchpoint:** `/run <niche>` → native pipeline render; no adapter; person lower thirds visible; historic footage film look visible
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## Post-P9 backlog (outline only)
 
 | Sprint | Theme | Key stories |
 |--------|-------|-------------|
-| P9 | Storyboard v2 + native engine rebuild | Scene type schema (broll/person/text_overlay/blurred_slide/bullet_list); type-aware AcquisitionWorker (imports P8 source modules); type-aware RenderWorker; retire `src/` + `InProcessLegacyVideoAdapter` |
-| P10 | Analytics & attribution | Publish linkage capture, YouTube metrics ingestion, retention-by-prompt-version report |
-| P11 | n8n automation | Callback webhook for n8n, YouTube OAuth upload, scheduled publication with operator preview |
-| P12 | Multi-tenant SaaS frontend | Multi-channel per tenant, multi-run per channel, operator UI rebuild |
+| P10 | Render quality | Dip-to-black + chapter title cards between segment sections; xfade dissolves within same segment type; slow motion for Emotion scenes (`setpts=2.0*PTS`); per-clip `loudnorm` audio normalization; quote cards (full-frame `drawtext` for Data scenes); chart PNG generation (matplotlib → R2 → overlay) |
+| P11 | AI asset library | `/library/` R2 cache layer (portrait + map + chart); portrait colorization via Real-ESRGAN + DeOldify (Replicate); background removal for parallax (rembg); map generation via Mapbox Static API (D entry required); number callout overlays (`drawtext` large-type stat highlight) |
+| P12 | Format tracks | `format_track: Literal["documentary","educational","animated"]` at PipelineState level; `--format` flag in Telegram `/run`; per-track storyboard prompts (different segment_type mix); per-track render templates (different filter presets); animated track stub (returns error until P13–P14) |
+| P13 | Analytics & attribution | Publish linkage capture; YouTube metrics ingestion; retention-by-prompt-version report |
+| P14 | n8n automation | Callback webhook for n8n; YouTube OAuth upload; scheduled publication with operator preview |
+| P15 | Multi-tenant SaaS frontend | Multi-channel per tenant; multi-run per channel; operator UI rebuild |
 
 ---
 
