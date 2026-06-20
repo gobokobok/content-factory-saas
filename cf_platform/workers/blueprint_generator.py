@@ -36,7 +36,8 @@ Return ONLY a single JSON object (no markdown fences) matching this schema:
   "monetization_angle": "one sentence on why this topic keeps viewers watching",
   "required_evidence": ["data point or source the script must reference"],
   "signal_summary": "one paragraph summarising the key context signals",
-  "direction_alignment_notes": "how the script should align with the stated angle"
+  "direction_alignment_notes": "how the script should align with the stated angle",
+  "math_derivations": ["formula and result for each numerical claim"]
 }
 
 Rules:
@@ -44,6 +45,14 @@ Rules:
 - `claims` must be factually grounded — state only what is reasonably well known
 - `required_evidence` lists specific things the script writer must incorporate
 - Keep each field concise; the script writer reads this as a specification
+- `math_derivations`: for EVERY claim that contains a specific number derived from \
+calculation (compound interest, percentage change, multiplier, scaling), show the \
+formula and exact computed result. Example entry: \
+"$10k at 6% net for 30y: 10000*(1.06)^30 = $57,435". \
+If a claim has no calculation, omit it from this list. \
+CRITICAL: claims must cite the exact figures from math_derivations — never round or \
+adjust for dramatic effect. The hook number must appear in math_derivations if it is \
+a calculated figure.
 \
 """
 
@@ -110,6 +119,7 @@ def build_blueprint_generator_worker(
             required_evidence=raw_dict.get("required_evidence", []),
             signal_summary=raw_dict.get("signal_summary", ""),
             direction_alignment_notes=raw_dict.get("direction_alignment_notes", ""),
+            math_derivations=raw_dict.get("math_derivations", []),
         )
         return WorkerOutput(artifact=artifact)
 

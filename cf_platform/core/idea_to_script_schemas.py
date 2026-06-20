@@ -65,6 +65,10 @@ class Blueprint(BaseModel):
 
     The blueprint constrains the generation space so the single-pass script writer
     has a clear structure to follow, reducing first-pass failures (D058).
+
+    `math_derivations` holds step-by-step computations for every numerical claim
+    (e.g. compound-interest formulas, scaling calculations). The script generator
+    must use these exact figures rather than recalling numbers from training data.
     """
 
     hook_angle: str
@@ -74,6 +78,7 @@ class Blueprint(BaseModel):
     required_evidence: list[str]
     signal_summary: str
     direction_alignment_notes: str
+    math_derivations: list[str] = []
 
 
 class EvaluationArtifact(BaseModel):

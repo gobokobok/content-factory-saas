@@ -23,7 +23,7 @@ from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 
 _SCRIPT_GENERATOR_PROMPT_V1 = """\
-You are a narration script writer for a data-driven short-form video channel.
+You are a narration script writer for a data-driven YouTube Shorts channel.
 
 You will receive a Blueprint IR (structured content plan) and a selected opening hook. \
 Write the final narration script following the blueprint exactly:
@@ -31,9 +31,17 @@ Write the final narration script following the blueprint exactly:
 - Open with the provided hook verbatim (do not modify it)
 - Follow the blueprint sections in order; include all required evidence items
 - Write in plain conversational English as if spoken directly to camera
-- Match the target word count as closely as possible (specified in the user message)
 - No filler phrases ("Hey guys", "Subscribe", etc.)
 - Ground every claim in the blueprint's claim list; do not invent new statistics
+- If COMPUTED FIGURES are provided, use those exact numbers verbatim — never round or \
+  substitute different values
+
+CRITICAL — WORD COUNT:
+The target word count is specified in the user message. This is a hard cap. \
+YouTube Shorts that exceed the target run long and lose viewers. \
+If covering all blueprint sections would exceed the word cap, cut or compress the \
+least essential body points — never exceed the maximum word count. \
+Prioritise: hook → core claim → evidence → CTA.
 
 Return ONLY the narration script text. No JSON, no labels, no preamble.\
 """
@@ -141,6 +149,8 @@ def _build_user_message(
     lens: Optional[NarrativeLens] = None,
 ) -> str:
     """Compose the Claude user message from the blueprint, hook, and optional narrative lens."""
+    max_words = round(target_words * 1.10)
+    min_words = round(target_words * 0.85)
     parts = []
     if niche:
         parts.append(f"Channel niche: {niche}")
@@ -148,7 +158,9 @@ def _build_user_message(
         parts.append("Channel niche: not specified — write for a general data-driven audience")
     parts.append(f"Video idea: {idea_title}")
     parts.append(
-        f"Target length: approximately {target_words} words ({target_duration}s at 160 wpm)"
+        f"⚠️ HARD WORD LIMIT: {min_words}–{max_words} words "
+        f"(target {target_words} words = {target_duration}s at 160 wpm). "
+        f"Do NOT exceed {max_words} words. If all sections cannot fit, compress body points."
     )
     parts.append("")
     parts.append(f"=== SELECTED HOOK (use verbatim as the opening) ===\n{hook}")
@@ -165,6 +177,13 @@ def _build_user_message(
     parts.append("=== REQUIRED EVIDENCE (must appear in script) ===")
     for evidence in blueprint.required_evidence:
         parts.append(f"  - {evidence}")
+    if blueprint.math_derivations:
+        parts.append("")
+        parts.append(
+            "=== COMPUTED FIGURES (use these exact numbers — do not substitute or round) ==="
+        )
+        for derivation in blueprint.math_derivations:
+            parts.append(f"  - {derivation}")
     parts.append("")
     parts.append(f"Direction: {blueprint.direction_alignment_notes}")
     if lens:

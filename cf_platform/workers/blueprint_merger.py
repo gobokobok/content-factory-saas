@@ -85,4 +85,5 @@ def _merge(blueprint: Blueprint, evaluation: EvaluationArtifact) -> Blueprint:
         required_evidence=updated_evidence,
         signal_summary=blueprint.signal_summary,
         direction_alignment_notes=alignment_notes,
+        math_derivations=blueprint.math_derivations,
     )

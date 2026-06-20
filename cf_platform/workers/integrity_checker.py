@@ -34,6 +34,13 @@ Given a script and the blueprint it was written from, check for:
 2. Missing required evidence — items from required_evidence that are absent from the script
 3. Hook presence — the blueprint's hook angle must appear near the start of the script
 4. Structural completeness — the script must cover the blueprint's section topics
+5. Numerical consistency — if the script contains any specific numbers derived from \
+   calculation (compound interest, percentage change, multiplier, scaling), verify: \
+   (a) every number in the hook is also grounded by matching math in the body; \
+   (b) any scaling (e.g. "scale to $50k portfolio") uses the correct multiplier; \
+   (c) if math_derivations are provided in the blueprint, the script figures must match \
+   them exactly. Flag any hook figure that has no corresponding derivation in the body \
+   as HIGH severity.
 
 Return ONLY a JSON object (no markdown fences):
 {
@@ -134,6 +141,10 @@ def _build_user_message(script: str, blueprint: Blueprint) -> str:
         f"Hook angle: {blueprint.hook_angle}",
         f"Claims: {json.dumps(blueprint.claims)}",
         f"Required evidence: {json.dumps(blueprint.required_evidence)}",
+    ]
+    if blueprint.math_derivations:
+        parts.append(f"Computed figures (authoritative): {json.dumps(blueprint.math_derivations)}")
+    parts += [
         "",
         "=== GENERATED SCRIPT ===",
         script,
