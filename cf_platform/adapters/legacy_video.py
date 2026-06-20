@@ -30,7 +30,7 @@ from src.ffmpeg_builder import (
 from src.manifest import build_manifest
 from src.models import AssetManifest, Storyboard, VideoSettings, WordTimestamp as SrcWordTimestamp
 from src.pexels import PexelsClient
-from src.replicate_client import ReplicateClient
+from src.pixabay_client import PixabayClient
 from src.renderer import render_run
 from src.storyboard import generate_storyboard
 from src.storage import R2Client
@@ -224,19 +224,13 @@ class InProcessLegacyVideoAdapter:
         t0 = time.monotonic()
         try:
             pexels = PexelsClient(api_key=s.PEXELS_API_KEY, per_page=s.PEXELS_PER_PAGE)
-            replicate = ReplicateClient(
-                api_token=s.REPLICATE_API_TOKEN,
-                model=s.REPLICATE_FLUX_MODEL,
-                poll_interval_seconds=s.REPLICATE_POLL_INTERVAL_SECONDS,
-                max_poll_attempts=s.REPLICATE_MAX_POLL_ATTEMPTS,
-            )
+            pixabay = PixabayClient(api_key=s.PIXABAY_API_KEY) if s.PIXABAY_API_KEY else None
             summary = await run_acquisition(
                 run_id,
                 manifest,
                 pexels,
-                replicate,
+                pixabay,
                 storage,
-                pexels_only=s.ACQUISITION_PEXELS_ONLY,
                 batch_size=s.ACQUISITION_BATCH_SIZE,
             )
             if summary["acquired"] < MIN_ACQUIRED_FOR_COMPLETE:

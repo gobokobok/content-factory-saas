@@ -55,7 +55,8 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PEXELS_API_KEY` | Yes | Pexels API key for stock footage/image queries. |
-| `REPLICATE_API_TOKEN` | Yes | Replicate API token for Flux AI image generation. |
+| `PIXABAY_API_KEY` | No* | Pixabay API key for second stock source (D063). Free at pixabay.com/api/docs. When absent, Pixabay is skipped silently. |
+| `REPLICATE_API_TOKEN` | Yes | Replicate API token (legacy config — Replicate retired from acquisition in P8-S1 per D063). |
 | `FREESOUND_API_KEY` | Yes | Freesound API key for SFX acquisition. |
 
 ---

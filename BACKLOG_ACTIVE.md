@@ -1,6 +1,6 @@
-# Backlog — Active Stories (Sprints P5–P7)
+# Backlog — Active Stories (Sprints P7–P9)
 
-_Contains current sprint (P5) + next two sprints (P6, P7). Full history in BACKLOG.md._
+_Contains current sprint (P8) + context sprints (P7 done, P9 next). Full history in BACKLOG.md._
 _Updated at each sprint boundary: move completed sprint block to BACKLOG.md archive._
 
 ---
@@ -532,12 +532,360 @@ Update the Telegram reply from `/pick` (and `/produce`) to include the `youtube_
 
 ---
 
-## Post-P7 backlog (outline only — detailed in BACKLOG.md)
+---
+
+## EPIC 35 — Footage Quality (Sprint P8)
+
+Expand the stock footage source chain (Pixabay → Wikimedia Commons), add real-person photo routing, gate every acquired clip through a quality check, surface telemetry to the operator, and apply a colour grade to the final render. All acquisition logic is written as clean, isolated modules in `src/` so P9's native AcquisitionWorker can import them directly with no rework.
+
+**Full acquisition chain after P8:**
+
+| Scene mode | Chain |
+|------------|-------|
+| Stock video (default) | Pexels video → Pixabay video → Replicate AI |
+| Stock photo / image | Pexels photo → Pixabay photo → Wikimedia Commons → Replicate AI |
+| Person photo (`person_name` set) | Wikimedia person photo → generic Pexels/Pixabay → (no AI — wrong person > no person) |
+| Historic clip (`historic: true`) | Wikimedia Commons → Pexels/Pixabay generic → Replicate AI |
+
+Every clip passes a **QA gate** before being accepted. Each asset records its `source`. A `footage_summary` surfaces in the Telegram reply. A colour grade is applied in FFmpeg.
+
+**P9 portability contract:** every source client is a standalone module (`src/pixabay_client.py`, `src/wikimedia_client.py`). Every QA function is a pure function. P9's `AcquisitionWorker` imports these directly.
+
+---
+
+## [P8-S1] Pixabay source — videos + photos
+**Epic:** E35 — Footage Quality
+**Sprint:** P8
+**Status:** done
+**Completed:** 2026-06-20
+**Priority:** high
+**Points:** 3
+**Depends on:** —
+
+### Goal
+Add Pixabay (free API, no watermark, standard licence) as the second stock source in `src/`. New `src/pixabay_client.py` module. Acquisition chain for video scenes becomes **Pexels → Pixabay → Replicate**; for photo scenes **Pexels → Pixabay → Wikimedia (P8-S2) → Replicate**.
+
+Decisions required: **D063** (Pixabay dependency).
+
+### Source details
+- API: `https://pixabay.com/api/` (videos) + `https://pixabay.com/api/` (images)
+- Auth: `PIXABAY_API_KEY` query param
+- Licence: Pixabay Content Licence — free for commercial use, no attribution required
+- Rate limit: 100 req/min (free tier)
+- Response: `hits[]` with `videos.medium.url` / `largeImageURL`, resolution, duration
+
+### Module contract (`src/pixabay_client.py`)
+```python
+async def search_videos(query: str, per_page: int = 10) -> list[PixabayVideo]
+async def search_photos(query: str, per_page: int = 10) -> list[PixabayPhoto]
+
+# PixabayVideo: url, width, height, duration_seconds, page_url
+# PixabayPhoto: url, width, height, page_url
+```
+Clean module, no `src/` imports — importable by P9 worker.
+
+### Acceptance Criteria
+- [x] `PIXABAY_API_KEY` added to `src/config.py` (default `""`) and `ENV.md`
+- [x] D063 logged in `DECISIONS.md`
+- [x] `src/pixabay_client.py`: `search_videos` + `search_photos` via `httpx.AsyncClient`; returns empty list on API error (fault isolation)
+- [x] `src/acquisition.py`: parallel merge+rank strategy — Pexels + Pixabay searched concurrently; winner selected by resolution (pixel area); only winner downloaded; Replicate retired (D063)
+- [x] `PIXABAY_API_KEY` absent → Pixabay skipped silently (`pixabay=None`), Pexels-only path preserved (D048)
+- [x] Tests: client happy path (video + photo, 11 tests); acquisition merge+rank, fallback cascade, key-absent skip (48 tests); 1611 total CI green
+
+### Definition of Done
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P8-S2] Wikimedia Commons source — historic footage + general stock + person photos
+**Epic:** E35 — Footage Quality
+**Sprint:** P8
+**Status:** todo
+**Priority:** high
+**Points:** 3
+**Depends on:** P8-S1
+
+### Goal
+Add Wikimedia Commons (free, no API key, CC licences) as the third real source. Covers three distinct use cases: (1) general stock photos when Pexels/Pixabay miss, (2) historic footage (Depression-era housing, 2008 crisis imagery), (3) real-person headshots via the MediaWiki API.
+
+### Source details
+- API: `https://commons.wikimedia.org/w/api.php` (no key required)
+- Licence: public domain or CC (CC-BY, CC-BY-SA) — must attribute in run metadata
+- `action=query&generator=search&gsrnamespace=6&gsrsearch=<query>` for general search
+- `action=query&titles=<wikipedia_page>&prop=pageimages&piprop=original` for person photo
+
+### Module contract (`src/wikimedia_client.py`)
+```python
+async def search_media(query: str, media_type: Literal["photo","video"] = "photo", limit: int = 10) -> list[WikimediaAsset]
+async def fetch_person_photo(person_name: str) -> WikimediaAsset | None
+
+# WikimediaAsset: url, width, height, title, licence, attribution
+```
+
+### Acquisition chain positions
+- Photo/image scenes: Pexels → Pixabay → **Wikimedia general** → Replicate
+- Historic scenes (storyboard `historic: true`): **Wikimedia general** first → Pexels → Pixabay → Replicate
+- Person scenes (storyboard `person_name` set): handled by P8-S3, uses `fetch_person_photo`
+
+### Acceptance Criteria
+- [ ] `src/wikimedia_client.py`: `search_media` + `fetch_person_photo` via `httpx.AsyncClient`; returns `None`/empty on error
+- [ ] Wikimedia attribution stored per asset in `asset_manifest.json` (`attribution` field)
+- [ ] Photo acquisition chain: Pexels → Pixabay → Wikimedia → Replicate
+- [ ] Historic flag (`historic: true` in storyboard scene): Wikimedia tried first
+- [ ] No API key required; no new ENV vars
+- [ ] Tests: general search happy path; person photo happy path; no result → None; attribution field populated; historic scene routes to Wikimedia first
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P8-S3] Real person detection + Wikimedia person photo routing
+**Epic:** E35 — Footage Quality
+**Sprint:** P8
+**Status:** todo
+**Priority:** high
+**Points:** 3
+**Depends on:** P8-S2
+
+### Goal
+When the script mentions a named real person (Jerome Powell, Janet Yellen, Robert Shiller, etc.), the current pipeline searches Pexels with the scene query and returns a random person — a credibility failure. This story fixes it: the storyboard generation prompt is updated to emit a `person_name` field when a scene depicts a specific named individual, and the acquisition layer routes those scenes to `wikimedia_client.fetch_person_photo`.
+
+### Changes required
+
+**1. Storyboard prompt update (`src/` — prompt v0.4 → v0.5)**
+Add instruction: when a scene's content is primarily about a specific named real person (not a generic type like "a homeowner"), include:
+```json
+"person_name": "Jerome Powell",
+"person_title": "Chair, Federal Reserve"
+```
+Otherwise omit the field (backward-compatible — acquisition ignores absence).
+
+**2. Acquisition routing (`src/acquisition.py`)**
+When `scene.person_name` is set:
+1. Try `wikimedia_client.fetch_person_photo(scene.person_name)`
+2. If found → accept (skip QA gate — Wikipedia photos are the ground truth)
+3. If not found → fall back to generic Pexels/Pixabay search with `scene.primary_query`
+4. No Replicate fallback for person scenes — an AI-generated wrong face is worse than a generic B-roll
+
+**3. Asset manifest**
+Person-photo assets get `source: "wikimedia_person"` and `person_name` fields.
+
+### Acceptance Criteria
+- [ ] Storyboard prompt v0.5: outputs `person_name` + `person_title` when scene depicts a named individual
+- [ ] `STORYBOARD_PROMPT_VERSION` bumped to v0.5 in `src/config.py` or relevant constant
+- [ ] `src/acquisition.py` routes `person_name`-flagged scenes to `fetch_person_photo` first
+- [ ] Fallback to generic search (not Replicate) when Wikipedia has no photo
+- [ ] `asset_manifest.json`: person assets get `source: "wikimedia_person"`, `person_name`, `person_title`
+- [ ] Tests: person scene → Wikimedia called first; Wikimedia miss → generic fallback (not Replicate); non-person scene → Wikimedia person not called; manifest fields correct
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P8-S4] Footage QA — per-scene quality gate + retry
+**Epic:** E35 — Footage Quality
+**Sprint:** P8
+**Status:** todo
+**Priority:** high
+**Points:** 3
+**Depends on:** P8-S1, P8-S2
+
+### Goal
+Every acquired clip passes a quality gate before being accepted. A clip that fails triggers a retry with `fallback_query` on the same source before moving to the next source in the chain. QA results are logged per scene in `asset_manifest.json`.
+
+### QA criteria (all must pass to accept)
+
+| Check | Video | Photo |
+|-------|-------|-------|
+| Resolution | ≥ 1280 × 720 | ≥ 800 px wide |
+| Duration fit | clip duration ≥ scene duration (or loopable) | n/a |
+| CLIP semantic match | ≥ 0.20 vs scene `visual_description` | ≥ 0.20 |
+
+CLIP scoring uses the existing `sentence-transformers / clip-ViT-B-32` model (D039, already in `requirements.txt`). The `CLIP_RERANK_ENABLED` flag activates scoring; when flag is false, resolution + duration checks still run but CLIP is skipped.
+
+### Retry logic
+```
+for source in [pexels, pixabay, wikimedia, replicate]:
+    clip = source.fetch(primary_query)
+    if qa_pass(clip): accept; break
+    clip = source.fetch(fallback_query)
+    if qa_pass(clip): accept; break
+→ if all fail: accept best-scoring clip found (don't leave scene empty)
+```
+
+### Module contract (`src/footage_qa.py`)
+```python
+def qa_score(asset: Asset, scene: Scene) -> QAResult
+# QAResult: passed, resolution_ok, duration_ok, clip_score, clip_enabled
+
+def pick_best(candidates: list[tuple[Asset, QAResult]]) -> Asset
+```
+Pure functions, no I/O — importable by P9 AcquisitionWorker.
+
+### Per-scene manifest fields added
+```json
+{
+  "source": "pexels",
+  "qa_passed": true,
+  "qa_resolution_ok": true,
+  "qa_duration_ok": true,
+  "qa_clip_score": 0.34,
+  "fallback_used": false
+}
+```
+
+### Acceptance Criteria
+- [ ] `src/footage_qa.py`: `qa_score` + `pick_best` as pure functions
+- [ ] Retry with `fallback_query` before advancing to next source
+- [ ] CLIP scoring gated on `CLIP_RERANK_ENABLED` env var (default `False` for Railway CPU cost)
+- [ ] `CLIP_RERANK_ENABLED` added to `src/config.py` and `ENV.md`
+- [ ] All QA fields written to `asset_manifest.json` per scene
+- [ ] Never leaves a scene with no asset — always accepts best available
+- [ ] Tests: QA pass; resolution fail → retry fallback_query; clip score below threshold → retry; best-of-all fallback; CLIP disabled → score field null
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P8-S5] Source telemetry + Telegram footage report
+**Epic:** E35 — Footage Quality
+**Sprint:** P8
+**Status:** todo
+**Priority:** high
+**Points:** 2
+**Depends on:** P8-S3, P8-S4
+
+### Goal
+Aggregate per-scene `source` fields into a `footage_summary` in `run_log.json`, then surface it in the Telegram reply. Operator sees `Footage: 14 Pexels · 4 Pixabay · 3 Wikimedia · 2 Person · 3 AI` without opening Drive. The coverage number is also the quality signal: high AI% = run needs review.
+
+### Changes
+
+**`src/` side:** After acquisition step, compute summary from `asset_manifest.json` entries:
+```python
+footage_summary = {
+    "pexels": N, "pixabay": N, "wikimedia": N,
+    "wikimedia_person": N, "replicate": N, "failed": N,
+    "qa_failed_scenes": N  # scenes that accepted best-available after QA miss
+}
+```
+Written as a `footage_summary` key in `run_log.json`.
+
+**`cf_platform/` side:**
+- `VideoResult` gains `footage_summary: dict | None = None`
+- `InProcessLegacyVideoAdapter.render()` reads `footage_summary` from `run_log.json` after acquisition; passes it into `VideoResult`
+- `format_produce_reply` / `format_footage_summary(summary) → str` in `telegram.py`
+- `_run_pipeline_and_reply` passes summary to formatter
+
+Backward-compatible: `footage_summary` absent → reply unchanged.
+
+### Acceptance Criteria
+- [ ] `footage_summary` written to `run_log.json` after acquisition step with counts for all source types + `qa_failed_scenes`
+- [ ] `VideoResult.footage_summary: dict | None` field added
+- [ ] Adapter reads summary from `run_log.json`; graceful on missing key
+- [ ] Telegram reply includes formatted coverage line when summary present
+- [ ] `qa_failed_scenes > 0` → adds `⚠️ N scenes below QA threshold` warning to reply
+- [ ] Tests: formatter all-sources; formatter no summary (backward compat); adapter reads; adapter graceful; QA warning shown
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P8-S6] Colour grading presets (FFmpeg)
+**Epic:** E35 — Footage Quality
+**Sprint:** P8
+**Status:** todo
+**Priority:** med
+**Points:** 2
+**Depends on:** — (fully independent)
+
+### Goal
+Apply a consistent colour grade to the final rendered video via an FFmpeg filter chain. The preset is operator-configurable via `COLOR_GRADE_PRESET` ENV var. Default is `neutral` (no change to existing behaviour).
+
+### Presets
+
+| Preset | FFmpeg filter | Effect |
+|--------|---------------|--------|
+| `neutral` | _(none)_ | No change — preserves source colours |
+| `vivid` | `eq=saturation=1.3:contrast=1.08` | Punchy, high-energy — good for YouTube Shorts |
+| `warm` | `colorchannelmixer=rr=1.08:bb=0.88,eq=saturation=1.1` | Warmer tones, slightly golden |
+| `cinematic` | `curves=m='0/10 128/118 245/235':s='0/0 255/255',eq=saturation=0.9` | Lifted blacks, slightly desaturated |
+| `muted` | `eq=saturation=0.75:contrast=0.95:brightness=0.015` | Calm, editorial feel |
+
+### Changes
+- `COLOR_GRADE_PRESET` added to `src/config.py` (default `"neutral"`) and `ENV.md`
+- `src/ffmpeg_builder.py`: `_get_color_grade_filter(preset: str) -> str | None`; when non-None, appended to the video filter chain in `build_ffmpeg_script`
+- Unknown preset value → logs WARNING, falls back to `neutral`
+
+### Acceptance Criteria
+- [ ] `COLOR_GRADE_PRESET` in `src/config.py` + `ENV.md`
+- [ ] All 5 presets produce valid FFmpeg filter strings (validated by running `ffmpeg -h filter=<name>` check in tests)
+- [ ] `neutral` → no filter added (output identical to current behaviour)
+- [ ] Unknown value → warning logged + neutral fallback
+- [ ] Filter chain position: applied after trim/scale, before audio merge (correct order)
+- [ ] Tests: each preset returns expected filter string; neutral returns None; unknown → neutral; filter string is non-empty for non-neutral presets
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P8-S7] LLM-vision media scorer — emotion, mood, relevance
+**Epic:** E35 — Footage Quality
+**Sprint:** P8
+**Status:** todo
+**Priority:** med
+**Points:** 3
+**Depends on:** P8-S4
+
+### Goal
+Replace the metadata-only (resolution) ranking used in P8-S1 with a multimodal LLM evaluation that scores each candidate asset against the scene's `visual_description` on axes that can't be inferred from resolution alone: emotional tone, visual mood, subject relevance, and production quality. One Haiku vision call per candidate evaluated. Returns a numeric score (0.0–1.0); the acquisition loop picks the highest-scoring candidate that also passes the P8-S4 resolution + duration gate.
+
+### Scorer axes (prompt → structured JSON)
+| Axis | Weight | Description |
+|------|--------|-------------|
+| `relevance` | 0.4 | Does the image depict the described subject? |
+| `emotional_tone` | 0.3 | Does the mood/feel match the scene intent? |
+| `visual_quality` | 0.2 | Professional composition, lighting, not amateur/stock-cliché |
+| `diversity` | 0.1 | Penalise if visually similar to already-selected scenes in this run |
+
+### Module contract (`src/media_scorer.py`)
+```python
+async def score_candidate(
+    image_url: str,
+    scene_description: str,
+    selected_scene_descriptions: list[str],
+    anthropic_api_key: str,
+    model: str = "claude-haiku-4-5",
+) -> MediaScore
+
+# MediaScore: relevance, emotional_tone, visual_quality, diversity, total, passed (total >= 0.60)
+```
+
+### Integration point
+Plug into `acquire_scene` after resolution gate (P8-S4 hook point): for each resolution-passing candidate, call `score_candidate`; take the highest-scoring one. If none pass the `0.60` threshold, fall back to best-resolution candidate (never leave scene empty).
+
+### Acceptance Criteria
+- [ ] `src/media_scorer.py`: `score_candidate` — downloads image, sends to Claude vision, returns `MediaScore`
+- [ ] Integrated into acquisition loop after P8-S4 resolution gate; highest-scoring candidate wins
+- [ ] `MEDIA_SCORER_ENABLED: bool = False` in `src/config.py` + `ENV.md` (off by default — Haiku vision call adds ~$0.003/scene)
+- [ ] `asset_manifest.json`: `qa_vision_score` + `qa_vision_axes` fields per scene when scorer enabled
+- [ ] Scorer disabled → resolution-ranked winner selected (P8-S1 behaviour preserved)
+- [ ] Tests: happy path (mocked Claude vision); low score → skip to next candidate; scorer disabled → skipped; diversity penalty applied
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## Post-P8 backlog (outline only — detailed in BACKLOG.md)
 
 | Sprint | Theme | Key stories |
 |--------|-------|-------------|
-| P8 | Footage quality | Alternative clip sources (licensed stock beyond Pexels), color-grading presets, per-scene quality scoring |
-| P9 | Legacy engine rebuild | Re-author Script→Video as native LangGraph workers; retire src/ + InProcessLegacyVideoAdapter |
+| P9 | Storyboard v2 + native engine rebuild | Scene type schema (broll/person/text_overlay/blurred_slide/bullet_list); type-aware AcquisitionWorker (imports P8 source modules); type-aware RenderWorker; retire `src/` + `InProcessLegacyVideoAdapter` |
 | P10 | Analytics & attribution | Publish linkage capture, YouTube metrics ingestion, retention-by-prompt-version report |
 | P11 | n8n automation | Callback webhook for n8n, YouTube OAuth upload, scheduled publication with operator preview |
 | P12 | Multi-tenant SaaS frontend | Multi-channel per tenant, multi-run per channel, operator UI rebuild |

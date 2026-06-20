@@ -4,6 +4,38 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P8-S1] Pixabay as second stock video source
+**Completed:** 2026-06-20
+**Handover:**
+- `src/pixabay_client.py` (new): `PixabayClient` with `search_videos` and `search_photos`. Prefers `large` (1920×1080) video size, falls back to `medium`. Returns empty list on any error (fault isolation D048). No src/ imports — P9-portable.
+- `src/acquisition.py` (rewrite): parallel merge+rank strategy replaces Pexels→Replicate fallback chain. Both Pexels and Pixabay searched concurrently for primary + fallback queries. Candidates ranked by pixel area (resolution); only winner downloaded and uploaded to R2. Losers never fetched. `acquire_scene` and `run_acquisition` are now fully async. `ReplicateClient` removed from acquisition path (D063).
+- `src/routes/assets.py`: `ReplicateClient` replaced with `PixabayClient`. `pixabay = PixabayClient(...) if settings.PIXABAY_API_KEY else None` — silently skipped when key absent.
+- `cf_platform/adapters/legacy_video.py`: same Pixabay wiring added; Replicate removed.
+- `src/config.py`: `PIXABAY_API_KEY: str = ""` added (optional).
+- `ENV.md` + `DECISIONS.md` (D063): Pixabay addition, merge+rank strategy, Replicate retirement documented.
+- `tests/test_pixabay_client.py` (new): 11 tests covering search_videos + search_photos happy paths, error isolation, size preference, key passthrough.
+- `tests/test_acquisition.py` (rewrite): 48 tests covering merge+rank logic, resolution winner, Pixabay-absent fallback, download failure cascade, batching, route integration.
+- 1611 total tests passing (CI green).
+**Smoke test:** PENDING — set `PIXABAY_API_KEY` on Railway DEV and trigger a `/pick` run; verify variety in acquired assets improves vs Pexels-only.
+**Promoted to backlog:** P8-S7 — LLM-vision media scorer (emotion, mood, relevance, diversity axes; `MEDIA_SCORER_ENABLED: bool = False`).
+
+---
+
+## [P8-S0] DEV smoke test sweep — P6/P7 E2E verification
+**Completed:** 2026-06-20
+**Handover:**
+- All deferred P6/P7 smoke tests verified on Railway DEV with `GEMINI_API_KEY` + `GEMINI_TTS_VOICE` set:
+  - P6-S7 `/testvoice <run_id>` → presigned MP3 URL in ~30s ✓
+  - P7-S1 `/ideas <niche>` → 5 numbered ideas with `/pick` CTA ✓
+  - P7-S1 `/pick <run_id> <n>` → pipeline triggered, presigned video URL ✓
+  - P7-S2/S3 `/pick` reply → video URL + YouTube metadata block (title/description/tags) ✓
+  - P7 DoD human touchpoint: operator received 16:9 video + copy-paste YouTube metadata ✓
+- Platform fully operational on DEV. All P6/P7 deferred smoke tests closed.
+**Smoke test:** PASSED — E2E verified on Railway DEV.
+**Promoted to backlog:** none.
+
+---
+
 ## [P7-S3] Produce → metadata reply
 **Completed:** 2026-06-19
 **Handover:**

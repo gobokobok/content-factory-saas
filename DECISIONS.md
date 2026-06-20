@@ -5,6 +5,16 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D063 — Pixabay as second stock source; merge+rank acquisition; Replicate retired
+**Date:** 2026-06-20
+**Status:** ACTIVE
+**Decision:** Add Pixabay (free API, Pixabay Content Licence, no watermark, 100 req/min) as the second stock source in `src/pixabay_client.py`. Replace the serial Pexels→Replicate fallback chain in `src/acquisition.py` with a parallel merge+rank strategy: Pexels and Pixabay are queried concurrently for every scene; results are merged into a unified candidate list, sorted by resolution (area), and only the winner is downloaded and uploaded to R2. Replicate AI image generation is retired from the acquisition path entirely (it consistently returned no usable output and caused runs to stall). `ACQUISITION_PEXELS_ONLY` flag is retired in effect (field kept in config for backward compatibility but ignored by new logic). No new Python dependency — httpx already present (D062).
+**Rationale:** The single-source Pexels chain produced low variety (2–3 similar images per video) because Pexels always returned *some* result, preventing fallback to other sources. A merged pool of ~20 candidates (10 Pexels + 10 Pixabay) per scene provides materially more variety without increasing download cost — only the winner is fetched. Resolution ranking is the interim quality signal; LLM-vision scoring (P8-S7) will replace it once implemented.
+**Consequence:** `acquire_scene` is now `async`; `run_acquisition` awaits it directly (no `asyncio.to_thread` outer wrap). `ReplicateClient` is no longer instantiated in the acquisition path or the legacy adapter. `PIXABAY_API_KEY` absent → Pixabay skipped silently (D048 fault isolation). `src/pixabay_client.py` is a clean module with no `src/` imports, importable by P9's native AcquisitionWorker.
+**See:** `src/pixabay_client.py`, `src/acquisition.py`, `cf_platform/adapters/legacy_video.py`. **No new Python dependencies.**
+
+---
+
 ## D062 — voice_production as a platform worker (not a legacy bridge call)
 **Date:** 2026-06-19
 **Status:** ACTIVE

@@ -1,6 +1,7 @@
 """Asset acquisition route — POST /runs/{run_id}/assets (202 + background task)."""
 
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
@@ -15,7 +16,7 @@ from src.models import (
     VideoSettings,
 )
 from src.pexels import PexelsClient
-from src.replicate_client import ReplicateClient
+from src.pixabay_client import PixabayClient
 from src.storage import R2Client
 
 logger = logging.getLogger(__name__)
@@ -33,19 +34,16 @@ async def _background_acquire(
     manifest: AssetManifest,
     manifest_key: str,
     pexels: PexelsClient,
-    replicate: ReplicateClient,
+    pixabay: Optional[PixabayClient],
     storage: R2Client,
-    visual_style: str,
     batch_size: int,
     settings: Settings,
 ) -> None:
-    """Run acquisition in a thread pool and update run_log on completion or failure."""
+    """Run acquisition and update run_log on completion or failure."""
     try:
         summary = await run_acquisition(
-            run_id, manifest, pexels, replicate, storage,
-            visual_style=visual_style,
+            run_id, manifest, pexels, pixabay, storage,
             batch_size=batch_size,
-            pexels_only=settings.ACQUISITION_PEXELS_ONLY,
         )
     except BaseException as exc:
         err_msg = str(exc) or type(exc).__name__
@@ -139,12 +137,7 @@ async def acquire_assets(
         api_key=settings.PEXELS_API_KEY,
         per_page=settings.PEXELS_PER_PAGE,
     )
-    replicate = ReplicateClient(
-        api_token=settings.REPLICATE_API_TOKEN,
-        model=settings.REPLICATE_FLUX_MODEL,
-        poll_interval_seconds=settings.REPLICATE_POLL_INTERVAL_SECONDS,
-        max_poll_attempts=settings.REPLICATE_MAX_POLL_ATTEMPTS,
-    )
+    pixabay = PixabayClient(api_key=settings.PIXABAY_API_KEY) if settings.PIXABAY_API_KEY else None
 
     # Initialise state before the task starts so the status endpoint never 404s
     # in the brief window between the 202 response and background task execution.
@@ -169,9 +162,8 @@ async def acquire_assets(
         manifest=manifest,
         manifest_key=manifest_key,
         pexels=pexels,
-        replicate=replicate,
+        pixabay=pixabay,
         storage=storage,
-        visual_style=video_settings.visual_style,
         batch_size=settings.ACQUISITION_BATCH_SIZE,
         settings=settings,
     )

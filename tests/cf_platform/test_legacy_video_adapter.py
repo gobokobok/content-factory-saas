@@ -31,11 +31,7 @@ def _make_settings(
     s.ELEVENLABS_VOICE_ID = elevenlabs_voice_id
     s.PEXELS_API_KEY = "pexels"
     s.PEXELS_PER_PAGE = 10
-    s.REPLICATE_API_TOKEN = "rep"
-    s.REPLICATE_FLUX_MODEL = "flux"
-    s.REPLICATE_POLL_INTERVAL_SECONDS = 1
-    s.REPLICATE_MAX_POLL_ATTEMPTS = 3
-    s.ACQUISITION_PEXELS_ONLY = True
+    s.PIXABAY_API_KEY = ""
     s.FFMPEG_TIMEOUT_SECONDS = 300
     return s
 
@@ -138,7 +134,7 @@ class TestInProcessAdapterHappyPath:
             patch(f"{_MODULE}.build_ffmpeg_script", return_value="#!/bin/bash\necho done"),
             patch(f"{_MODULE}.render_run", return_value={"status": "complete", "output_key": expected_key, "exit_code": 0}),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             result = await adapter.render(run_id, "Test script.", trace_repo)
@@ -170,7 +166,7 @@ class TestInProcessAdapterHappyPath:
             patch(f"{_MODULE}.build_ffmpeg_script", return_value="#!/bin/bash"),
             patch(f"{_MODULE}.render_run", return_value={"status": "complete", "output_key": f"runs/{run_id}/output/final.mp4", "exit_code": 0}),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             await adapter.render(run_id, "Test.", trace_repo)
@@ -202,7 +198,7 @@ class TestInProcessAdapterHappyPath:
             patch(f"{_MODULE}.build_ffmpeg_script", return_value="#!/bin/bash"),
             patch(f"{_MODULE}.render_run", return_value={"status": "complete", "output_key": f"runs/{run_id}/output/final.mp4", "exit_code": 0}),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             await adapter.render(run_id, "Script text.", trace_repo)
@@ -231,7 +227,7 @@ class TestInProcessAdapterHappyPath:
             patch(f"{_MODULE}.build_ffmpeg_script", return_value="#!/bin/bash"),
             patch(f"{_MODULE}.render_run", return_value={"status": "complete", "output_key": f"runs/{run_id}/output/final.mp4", "exit_code": 0}),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             await adapter.render(run_id, script, trace_repo)
@@ -265,7 +261,7 @@ class TestTTSBehaviour:
             patch(f"{_MODULE}.build_ffmpeg_script", return_value="#!/bin/bash"),
             patch(f"{_MODULE}.render_run", return_value={"status": "complete", "output_key": f"runs/{run_id}/output/final.mp4", "exit_code": 0}),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             result = await adapter.render(run_id, "Script.", trace_repo, voice_alignment=None)
@@ -292,7 +288,7 @@ class TestTTSBehaviour:
             patch(f"{_MODULE}.build_ffmpeg_script", return_value="#!/bin/bash"),
             patch(f"{_MODULE}.render_run", return_value={"status": "complete", "output_key": f"runs/{run_id}/output/final.mp4", "exit_code": 0}),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             result = await adapter.render(run_id, "Script.", trace_repo)
@@ -358,7 +354,7 @@ class TestStepFailures:
             patch(f"{_MODULE}.build_manifest", return_value=mock_manifest),
             patch(f"{_MODULE}.run_acquisition", new=AsyncMock(return_value={"acquired": 0, "failed": 3, "sources": {}})),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             result = await adapter.render(run_id, "Script.", trace_repo)
 
@@ -381,7 +377,7 @@ class TestStepFailures:
             patch(f"{_MODULE}.run_acquisition", new=AsyncMock(return_value={"acquired": 1, "failed": 0, "sources": {}})),
             patch(f"{_MODULE}.build_ffmpeg_script", side_effect=RuntimeError("ffmpeg build failed")),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             result = await adapter.render(run_id, "Script.", trace_repo)
@@ -406,7 +402,7 @@ class TestStepFailures:
             patch(f"{_MODULE}.build_ffmpeg_script", return_value="#!/bin/bash"),
             patch(f"{_MODULE}.render_run", return_value={"status": "failed", "output_key": None, "exit_code": 1}),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             result = await adapter.render(run_id, "Script.", trace_repo)
@@ -457,7 +453,7 @@ class TestRenderCallConvention:
             patch(f"{_MODULE}.build_ffmpeg_script", return_value="#!/bin/bash"),
             patch(f"{_MODULE}.render_run", mock_render_run),
             patch(f"{_MODULE}.PexelsClient"),
-            patch(f"{_MODULE}.ReplicateClient"),
+            patch(f"{_MODULE}.PixabayClient"),
         ):
             mock_storyboard_cls.model_validate.return_value = MagicMock()
             await adapter.render(run_id, "Script.", trace_repo)

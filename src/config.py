@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     PEXELS_API_KEY: str
     REPLICATE_API_TOKEN: str
     FREESOUND_API_KEY: str
+    PIXABAY_API_KEY: str = ""  # optional — absent skips Pixabay silently (D063)
 
     # Pipeline config (optional with defaults)
     PEXELS_PER_PAGE: int = 5
