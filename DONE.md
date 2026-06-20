@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P8-S5] Source telemetry + Telegram footage report
+**Completed:** 2026-06-20
+**Handover:**
+- `cf_platform/adapters/legacy_video.py`: `VideoResult.footage_summary: Optional[dict] = None` added. `_compute_footage_summary(manifest: AssetManifest) → dict` tallies `pexels/pixabay/wikimedia/wikimedia_person/replicate/failed/qa_failed_scenes` from `ManifestEntry.status`, `.source`, and `.qa_passed`. Called after successful acquisition; writes `runs/{run_id}/footage_summary.json` to R2 as side-car (graceful on write error); sets `VideoResult.footage_summary`.
+- `cf_platform/interfaces/telegram.py`: `format_footage_summary(summary: dict) → str` — produces e.g. `Footage: 14 Pexels · 4 Pixabay · 2 Person`; appends `⚠️ N scenes below QA threshold` when `qa_failed_scenes > 0`. `format_produce_reply` gains `footage_summary: Optional[dict] = None` kwarg (backward-compatible); appends coverage line before the YouTube metadata block when provided.
+- `cf_platform/interfaces/api.py`: `_run_pipeline_and_reply` tries `await storage.get_json(f"runs/{run_id}/footage_summary.json")` after generating the video URL; graceful `except` → `footage_summary=None` (no coverage line in reply). Passes result to `format_produce_reply`.
+- Implementation note: written to `footage_summary.json` rather than `run_log.json` (adapter never creates `run_log.json`; standalone side-car is cleaner).
+- `tests/cf_platform/test_p8_s5_footage_telemetry.py` (new): 18 tests — `_compute_footage_summary` (6), `format_footage_summary` (5), `format_produce_reply` integration (3), `VideoResult` model (2), adapter sets footage_summary (2).
+- 1704 total tests passing (CI green, was 1686).
+**Smoke test:** DEFERRED — trigger a `/pick` run on Railway DEV; verify the Telegram reply includes `Footage: N Pexels · N Pixabay · ...` coverage line and that `runs/{run_id}/footage_summary.json` appears in R2.
+**Promoted to backlog:** none.
+
+---
+
 ## [P8-S4] Footage QA — per-scene quality gate + retry
 **Completed:** 2026-06-20
 **Handover:**

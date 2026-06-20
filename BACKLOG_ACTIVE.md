@@ -764,7 +764,8 @@ Pure functions, no I/O — importable by P9 AcquisitionWorker.
 ## [P8-S5] Source telemetry + Telegram footage report
 **Epic:** E35 — Footage Quality
 **Sprint:** P8
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-06-20
 **Priority:** high
 **Points:** 2
 **Depends on:** P8-S3, P8-S4
@@ -793,21 +794,20 @@ Written as a `footage_summary` key in `run_log.json`.
 Backward-compatible: `footage_summary` absent → reply unchanged.
 
 ### Acceptance Criteria
-- [ ] `footage_summary` written to `run_log.json` after acquisition step with counts for all source types + `qa_failed_scenes`
-- [ ] `VideoResult.footage_summary: dict | None` field added
-- [ ] Adapter reads summary from `run_log.json`; graceful on missing key
-- [ ] Telegram reply includes formatted coverage line when summary present
-- [ ] `qa_failed_scenes > 0` → adds `⚠️ N scenes below QA threshold` warning to reply
-- [ ] Tests: formatter all-sources; formatter no summary (backward compat); adapter reads; adapter graceful; QA warning shown
+- [x] `footage_summary` written to `runs/{run_id}/footage_summary.json` after acquisition step with counts for all source types + `qa_failed_scenes`
+- [x] `VideoResult.footage_summary: dict | None` field added
+- [x] Adapter computes summary from manifest; graceful on write failure
+- [x] Telegram reply includes formatted coverage line when summary present
+- [x] `qa_failed_scenes > 0` → adds `⚠️ N scenes below QA threshold` warning to reply
+- [x] Tests: formatter all-sources; formatter no summary (backward compat); adapter reads; adapter graceful; QA warning shown
 
 ### Handover
-- `src/models.py`: `StoryboardScene` gains `person_name: Optional[str] = None`, `person_title: Optional[str] = None`. `ManifestEntry` gains same two fields — propagated from scene via `build_manifest`.
-- `src/storyboard.py`: `STORYBOARD_PROMPT_VERSION = "v0.10"` constant; SYSTEM_PROMPT updated with PERSON SCENE RULE section and optional `person_name`/`person_title` output fields; `_parse_scene` extracts both fields.
-- `src/manifest.py`: `build_manifest` propagates `person_name` and `person_title` from scene → entry.
-- `src/acquisition.py`: `_try_person_photo(entry, run_id, wikimedia, storage) → bool` helper; `acquire_scene` detects `entry.person_name` and routes to Wikipedia portrait first; on miss falls back to Pexels+Pixabay only (no Wikimedia general, no AI for person scenes).
-- `tests/test_p8_s3_person_routing.py` (new): 10 tests — `_try_person_photo` (3), `acquire_scene` person routing (4), manifest field defaults/values (3).
-- `docs/PROMPTS.md`: v0.10 changelog entry added.
-- 1652 total tests passing (CI green, was 1642).
+- `cf_platform/adapters/legacy_video.py`: `VideoResult.footage_summary: Optional[dict] = None` added. `_compute_footage_summary(manifest: AssetManifest) → dict` computes `pexels/pixabay/wikimedia/wikimedia_person/replicate/failed/qa_failed_scenes` counts from `ManifestEntry.status`, `.source`, and `.qa_passed` fields. Called after successful acquisition; writes `runs/{run_id}/footage_summary.json` to R2 as a side-car (graceful on write failure) and sets `VideoResult.footage_summary`.
+- `cf_platform/interfaces/telegram.py`: `format_footage_summary(summary: dict) → str` — produces e.g. `Footage: 14 Pexels · 4 Pixabay · 2 Person`, appends `⚠️ N scenes below QA threshold` when `qa_failed_scenes > 0`. `format_produce_reply` gains `footage_summary: Optional[dict] = None` kwarg — backward-compatible; appends the coverage line before the YouTube metadata block when provided.
+- `cf_platform/interfaces/api.py`: `_run_pipeline_and_reply` tries `await storage.get_json(f"runs/{run_id}/footage_summary.json")` after generating the video URL; graceful `except` → `footage_summary=None` (no coverage line). Passes `footage_summary` to `format_produce_reply`.
+- Note: written to `footage_summary.json` (not `run_log.json` as originally spec'd — adapter never writes `run_log.json`, so a standalone side-car is cleaner).
+- `tests/cf_platform/test_p8_s5_footage_telemetry.py` (new): 18 tests.
+- 1704 total tests passing (CI green, was 1686).
 
 ### Definition of Done
 - [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
