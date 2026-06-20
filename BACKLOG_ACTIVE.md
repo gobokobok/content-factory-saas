@@ -600,7 +600,8 @@ Clean module, no `src/` imports — importable by P9 worker.
 ## [P8-S2] Wikimedia Commons source — historic footage + general stock + person photos
 **Epic:** E35 — Footage Quality
 **Sprint:** P8
-**Status:** todo
+**Status:** done
+**Completed:** 2026-06-20
 **Priority:** high
 **Points:** 3
 **Depends on:** P8-S1

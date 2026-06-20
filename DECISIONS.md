@@ -5,6 +5,16 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D064 — Wikimedia Commons as third stock source; historic-first routing; attribution stored per asset
+**Date:** 2026-06-20
+**Status:** ACTIVE
+**Decision:** Add Wikimedia Commons (free, no API key, public-domain/CC-licensed) as the third stock source in `src/wikimedia_client.py`. Photo acquisition chain: Pexels + Pixabay + Wikimedia searched concurrently for every photo scene; winner selected by resolution (same merge+rank strategy as D063). For historic scenes (`ManifestEntry.historic=True`), Wikimedia candidates receive `priority=1` so they are tried before Pexels/Pixabay regardless of resolution. Wikimedia attribution string stored in `ManifestEntry.attribution` alongside the asset. `StoryboardScene.historic: bool = False` added to the scene schema so the storyboard prompt can flag historic scenes; the manifest builder propagates it to `ManifestEntry.historic`. `WikimediaClient` is a clean module with no `src/` imports, directly importable by P9's native AcquisitionWorker. Person photo routing (`fetch_person_photo`) is implemented in this module; wired into the acquisition path in P8-S3.
+**Rationale:** Wikimedia Commons covers historic imagery (Depression-era housing, 2008 crisis) that commercial stock agencies don't carry. Public-domain/CC content with proper attribution satisfies the content licence requirements. No API key means zero friction and no rate-limit risk. Adding it to the concurrent search pool adds no latency overhead; only the winning asset is downloaded.
+**Consequence:** `ManifestEntry` gains `historic: bool = False` and `attribution: Optional[str] = None`. `acquire_scene` and `run_acquisition` gain `wikimedia: Optional[WikimediaClient] = None` (backward-compatible default). `_Candidate` gains `attribution: Optional[str]` and `priority: int = 0`. Sort key changes from `_resolution_score` to `(-priority, -resolution)`. Routes and the legacy adapter always instantiate `WikimediaClient()` (no key needed). **No new Python dependencies — httpx already present.**
+**See:** `src/wikimedia_client.py`, `src/acquisition.py`, `src/models.py`, `src/manifest.py`, `cf_platform/adapters/legacy_video.py`.
+
+---
+
 ## D063 — Pixabay as second stock source; merge+rank acquisition; Replicate retired
 **Date:** 2026-06-20
 **Status:** ACTIVE

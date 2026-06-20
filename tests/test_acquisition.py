@@ -13,6 +13,7 @@ from src.acquisition import (
     _gather_candidates,
     _pexels_photo_candidates,
     _pexels_video_candidates,
+    _wikimedia_photo_candidates,
     acquire_scene,
     run_acquisition,
 )
@@ -21,6 +22,7 @@ from src.exceptions import PexelsError, StorageError
 from src.main import app
 from src.models import AssetManifest, ManifestEntry
 from src.pixabay_client import PixabayClient, PixabayPhoto, PixabayVideo
+from src.wikimedia_client import WikimediaAsset, WikimediaClient
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -87,6 +89,30 @@ def _pixabay_video(url: str = "https://cdn.pixabay.com/v/01.mp4", w: int = 1280,
 
 def _pixabay_photo(url: str = "https://cdn.pixabay.com/p/01.jpg", w: int = 1920, h: int = 1080) -> PixabayPhoto:
     return PixabayPhoto(url=url, width=w, height=h, page_url="")
+
+
+def _wikimedia_asset(
+    url: str = "https://upload.wikimedia.org/w/01.jpg",
+    w: int = 1920,
+    h: int = 1080,
+    attribution: str = '"Housing.jpg" by Author (CC BY-SA 4.0)',
+) -> WikimediaAsset:
+    return WikimediaAsset(
+        url=url, width=w, height=h,
+        title="Housing.jpg", licence="CC BY-SA 4.0", attribution=attribution,
+    )
+
+
+def _historic_entry(scene_id: str = "01") -> ManifestEntry:
+    """Build a ManifestEntry with historic=True and still_with_motion clip type."""
+    return ManifestEntry(
+        scene_id=scene_id,
+        clip_type="still_with_motion",
+        primary_query="1929 housing crisis",
+        fallback_query="great depression housing",
+        ai_generate_prompt="ai prompt",
+        historic=True,
+    )
 
 
 # ── Unit: _pexels_video_candidates ────────────────────────────────────────────
@@ -679,3 +705,209 @@ class TestAcquisitionStatusRoute:
             resp = client.get(f"/runs/{RUN_ID}/assets/status")
         assert resp.status_code == 200
         assert resp.json()["status"] == "complete"
+
+
+# ── Unit: Wikimedia photo candidates ──────────────────────────────────────────
+
+
+class TestWikimediaPhotoCandidates:
+    @pytest.mark.asyncio
+    async def test_returns_candidates_with_attribution(self):
+        """_wikimedia_photo_candidates maps WikimediaAsset → _Candidate with attribution."""
+        wikimedia = MagicMock()
+        asset = _wikimedia_asset(url="https://upload.wikimedia.org/housing.jpg", w=1920, h=1080)
+        wikimedia.search_media = AsyncMock(return_value=[asset])
+
+        result = await _wikimedia_photo_candidates(wikimedia, "housing")
+
+        assert len(result) == 1
+        c = result[0]
+        assert c.source == "wikimedia"
+        assert c.url == "https://upload.wikimedia.org/housing.jpg"
+        assert c.attribution == asset.attribution
+        assert c.priority == 0  # default priority
+
+    @pytest.mark.asyncio
+    async def test_empty_result_when_no_assets(self):
+        wikimedia = MagicMock()
+        wikimedia.search_media = AsyncMock(return_value=[])
+
+        result = await _wikimedia_photo_candidates(wikimedia, "no results")
+
+        assert result == []
+
+
+# ── Unit: _gather_candidates with Wikimedia ───────────────────────────────────
+
+
+class TestGatherCandidatesWikimedia:
+    @pytest.mark.asyncio
+    async def test_wikimedia_included_in_photo_pool(self):
+        """Photo scene: Wikimedia candidates are added to the pool."""
+        entry = _entry(clip_type="still_with_motion")
+        pexels, wikimedia = MagicMock(), MagicMock()
+        pexels.search_photos.return_value = []
+        wikimedia.search_media = AsyncMock(return_value=[_wikimedia_asset()])
+
+        candidates = await _gather_candidates(entry, pexels, None, wikimedia, is_video=False)
+
+        assert any(c.source == "wikimedia" for c in candidates)
+
+    @pytest.mark.asyncio
+    async def test_wikimedia_not_searched_for_video_scenes(self):
+        """Video scene (hard_cut): Wikimedia is never searched."""
+        entry = _entry(clip_type="hard_cut")
+        pexels, wikimedia = MagicMock(), MagicMock()
+        pexels.search_videos.return_value = []
+        wikimedia.search_media = AsyncMock(return_value=[])
+
+        await _gather_candidates(entry, pexels, None, wikimedia, is_video=True)
+
+        wikimedia.search_media.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_historic_scene_wikimedia_candidates_get_priority_one(self):
+        """Historic scene: Wikimedia candidates receive priority=1."""
+        entry = _historic_entry()
+        pexels, wikimedia = MagicMock(), MagicMock()
+        pexels.search_photos.return_value = [_pexels_photo_result(1920, 1080)]
+        wikimedia.search_media = AsyncMock(return_value=[_wikimedia_asset()])
+
+        candidates = await _gather_candidates(entry, pexels, None, wikimedia, is_video=False)
+
+        wikimedia_candidates = [c for c in candidates if c.source == "wikimedia"]
+        pexels_candidates = [c for c in candidates if c.source == "pexels"]
+        assert all(c.priority == 1 for c in wikimedia_candidates)
+        assert all(c.priority == 0 for c in pexels_candidates)
+
+    @pytest.mark.asyncio
+    async def test_non_historic_photo_wikimedia_priority_zero(self):
+        """Non-historic photo scene: Wikimedia priority stays at 0."""
+        entry = _entry(clip_type="still_with_motion")
+        entry.historic = False
+        pexels, wikimedia = MagicMock(), MagicMock()
+        pexels.search_photos.return_value = []
+        wikimedia.search_media = AsyncMock(return_value=[_wikimedia_asset()])
+
+        candidates = await _gather_candidates(entry, pexels, None, wikimedia, is_video=False)
+
+        assert all(c.priority == 0 for c in candidates)
+
+    @pytest.mark.asyncio
+    async def test_wikimedia_none_skipped_silently(self):
+        """wikimedia=None → Wikimedia not searched; no error."""
+        entry = _entry(clip_type="still_with_motion")
+        pexels = MagicMock()
+        pexels.search_photos.return_value = [_pexels_photo_result(1920, 1080)]
+
+        candidates = await _gather_candidates(entry, pexels, None, None, is_video=False)
+
+        assert all(c.source == "pexels" for c in candidates)
+
+
+# ── Unit: acquire_scene with Wikimedia ───────────────────────────────────────
+
+
+class TestAcquireSceneWikimedia:
+    @pytest.mark.asyncio
+    async def test_wikimedia_wins_when_highest_priority_historic(self):
+        """Historic photo scene: Wikimedia candidate tried first despite lower resolution."""
+        entry = _historic_entry()
+        pexels, storage = MagicMock(), MagicMock()
+        # Pexels: higher resolution but lower priority
+        pexels.search_photos.return_value = [_pexels_photo_result(3840, 2160)]
+        wikimedia = MagicMock()
+        # Wikimedia: lower resolution but priority=1 via historic flag
+        wikimedia.search_media = AsyncMock(return_value=[_wikimedia_asset(w=1920, h=1080)])
+
+        with patch("src.acquisition._download_bytes", new_callable=AsyncMock) as mock_dl:
+            mock_dl.return_value = b"bytes"
+            result = await acquire_scene(entry, RUN_ID, pexels, None, storage, wikimedia=wikimedia)
+
+        assert result is True
+        assert entry.source == "wikimedia"
+
+    @pytest.mark.asyncio
+    async def test_attribution_stored_when_wikimedia_wins(self):
+        """Winning Wikimedia asset writes attribution to the manifest entry."""
+        entry = _historic_entry()
+        pexels, storage = MagicMock(), MagicMock()
+        pexels.search_photos.return_value = []
+        expected_attribution = '"Historic Housing.jpg" by US Govt (Public Domain)'
+        wikimedia = MagicMock()
+        wikimedia.search_media = AsyncMock(
+            return_value=[_wikimedia_asset(attribution=expected_attribution)]
+        )
+
+        with patch("src.acquisition._download_bytes", new_callable=AsyncMock) as mock_dl:
+            mock_dl.return_value = b"bytes"
+            await acquire_scene(entry, RUN_ID, pexels, None, storage, wikimedia=wikimedia)
+
+        assert entry.attribution == expected_attribution
+
+    @pytest.mark.asyncio
+    async def test_attribution_none_for_pexels_winner(self):
+        """Pexels-sourced entries have attribution=None (no CC requirement)."""
+        entry = _entry(clip_type="still_with_motion")
+        pexels, storage = MagicMock(), MagicMock()
+        pexels.search_photos.return_value = [_pexels_photo_result(1920, 1080)]
+
+        with patch("src.acquisition._download_bytes", new_callable=AsyncMock) as mock_dl:
+            mock_dl.return_value = b"bytes"
+            await acquire_scene(entry, RUN_ID, pexels, None, storage)
+
+        assert entry.attribution is None
+
+    @pytest.mark.asyncio
+    async def test_wikimedia_absent_default_behaviour_unchanged(self):
+        """wikimedia parameter defaults to None; existing Pexels+Pixabay behaviour preserved."""
+        entry = _entry()
+        pexels, storage = MagicMock(), MagicMock()
+        pexels.search_videos.return_value = [_pexels_video_result()]
+
+        with patch("src.acquisition._download_bytes", new_callable=AsyncMock) as mock_dl:
+            mock_dl.return_value = b"bytes"
+            # Call without wikimedia kwarg — backward-compatible
+            result = await acquire_scene(entry, RUN_ID, pexels, None, storage)
+
+        assert result is True
+        assert entry.source == "pexels"
+
+
+# ── Route: WikimediaClient always instantiated ────────────────────────────────
+
+
+class TestAssetsRouteWikimedia:
+    def test_wikimedia_client_always_instantiated(self, client):
+        """WikimediaClient is instantiated on every acquisition request (no API key needed)."""
+        with (
+            patch("src.routes.assets.R2Client") as mock_r2_cls,
+            patch("src.routes.assets.WikimediaClient") as mock_wiki_cls,
+            patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
+        ):
+            mock_storage = MagicMock()
+            mock_r2_cls.return_value = mock_storage
+            mock_storage.get_json.return_value = SAMPLE_MANIFEST_DATA
+            mock_acquire.return_value = {"acquired": 1, "failed": 0, "sources": {}}
+
+            client.post(f"/runs/{RUN_ID}/assets")
+
+        mock_wiki_cls.assert_called_once_with()
+
+    def test_wikimedia_passed_as_kwarg_to_run_acquisition(self, client):
+        """WikimediaClient instance is passed as wikimedia= kwarg to run_acquisition."""
+        wiki_instance = MagicMock()
+        with (
+            patch("src.routes.assets.R2Client") as mock_r2_cls,
+            patch("src.routes.assets.WikimediaClient", return_value=wiki_instance),
+            patch("src.routes.assets.run_acquisition", new_callable=AsyncMock) as mock_acquire,
+        ):
+            mock_storage = MagicMock()
+            mock_r2_cls.return_value = mock_storage
+            mock_storage.get_json.return_value = SAMPLE_MANIFEST_DATA
+            mock_acquire.return_value = {"acquired": 1, "failed": 0, "sources": {}}
+
+            client.post(f"/runs/{RUN_ID}/assets")
+
+        _, kwargs = mock_acquire.call_args
+        assert kwargs.get("wikimedia") is wiki_instance

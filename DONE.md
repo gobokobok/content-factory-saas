@@ -4,6 +4,23 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P8-S2] Wikimedia Commons source — historic + general + person photos
+**Completed:** 2026-06-20
+**Handover:**
+- `src/wikimedia_client.py` (new): `WikimediaClient` with `search_media` (Wikimedia Commons API, photo/video) and `fetch_person_photo` (Wikipedia pageimages API). Filters by MIME type and minimum width (800px). Builds `WikimediaAsset` with `url`, `width`, `height`, `title`, `licence`, `attribution` (HTML stripped from Commons extmetadata). Returns empty list/None on any error (D048). No src/ imports — P9-portable. `_strip_html` helper strips HTML from Commons artist fields.
+- `src/models.py`: `StoryboardScene` gains `historic: bool = False`. `ManifestEntry` gains `historic: bool = False` (routes acquisition to Wikimedia-first) and `attribution: Optional[str] = None` (stores CC/public-domain credit text).
+- `src/manifest.py`: `build_manifest` propagates `scene.historic` → `ManifestEntry.historic`.
+- `src/acquisition.py`: `_Candidate` gains `attribution: Optional[str] = None` and `priority: int = 0`. New `_wikimedia_photo_candidates` helper. `_gather_candidates` extended with `wikimedia` parameter — photo scenes include Wikimedia concurrently; historic scenes promote Wikimedia to `priority=1`. Sort key: `(-priority, -resolution)`. `acquire_scene` gains `wikimedia: Optional[WikimediaClient] = None`; stores `entry.attribution` on success. `run_acquisition` gains same kwarg.
+- `src/routes/assets.py`: `WikimediaClient()` instantiated on every request; passed as `wikimedia=` kwarg.
+- `cf_platform/adapters/legacy_video.py`: `WikimediaClient()` instantiated and passed as `wikimedia=` kwarg to `run_acquisition`.
+- `DECISIONS.md`: D064 logged (Wikimedia Commons as third stock source; no new Python dependencies).
+- `tests/test_wikimedia_client.py` (new): 18 tests — `_strip_html` (4), `search_media` (8), `fetch_person_photo` (5 + licence field check).
+- `tests/test_acquisition.py` (extended): 13 new tests — Wikimedia photo candidates (2), `_gather_candidates` Wikimedia (5), `acquire_scene` Wikimedia (4), route Wikimedia wiring (2).
+- 1642 total tests passing (CI green, was 1611).
+**Smoke test:** PENDING — trigger a `/pick` run on Railway DEV with a historic-themed niche; verify Wikimedia assets appear in the acquired footage source breakdown.
+
+---
+
 ## [P8-S1] Pixabay as second stock video source
 **Completed:** 2026-06-20
 **Handover:**

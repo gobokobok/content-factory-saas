@@ -32,6 +32,7 @@ from src.models import AssetManifest, Storyboard, VideoSettings, WordTimestamp a
 from src.pexels import PexelsClient
 from src.pixabay_client import PixabayClient
 from src.renderer import render_run
+from src.wikimedia_client import WikimediaClient
 from src.storyboard import generate_storyboard
 from src.storage import R2Client
 
@@ -225,12 +226,14 @@ class InProcessLegacyVideoAdapter:
         try:
             pexels = PexelsClient(api_key=s.PEXELS_API_KEY, per_page=s.PEXELS_PER_PAGE)
             pixabay = PixabayClient(api_key=s.PIXABAY_API_KEY) if s.PIXABAY_API_KEY else None
+            wikimedia = WikimediaClient()
             summary = await run_acquisition(
                 run_id,
                 manifest,
                 pexels,
                 pixabay,
                 storage,
+                wikimedia=wikimedia,
                 batch_size=s.ACQUISITION_BATCH_SIZE,
             )
             if summary["acquired"] < MIN_ACQUIRED_FOR_COMPLETE:

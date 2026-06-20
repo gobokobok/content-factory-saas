@@ -111,7 +111,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | P8-S1 | Pixabay source — videos + photos | 3 | done |
-| P8-S2 | Wikimedia Commons source — historic + general + person photos | 3 | todo |
+| P8-S2 | Wikimedia Commons source — historic + general + person photos | 3 | done |
 | P8-S3 | Real person detection + Wikimedia person photo routing | 3 | todo |
 | P8-S4 | Footage QA — per-scene quality gate + retry | 3 | todo |
 | P8-S5 | Source telemetry + Telegram footage report | 2 | todo |
@@ -121,7 +121,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 ## Sprint P8 Definition of Done
 - [x] Pexels + Pixabay searched concurrently, winner by resolution; `PIXABAY_API_KEY` in ENV; D063 logged; Replicate retired (P8-S1 done)
-- [ ] Wikimedia Commons added to merge pool (P8-S2)
+- [x] Wikimedia Commons added to merge pool; historic-first routing; attribution stored per asset; D064 logged (P8-S2 done)
 - [ ] Wikimedia Commons covers historic footage (no API key) and general stock photos; D064 logged
 - [ ] Storyboard prompt v0.5: `person_name` field emitted when scene depicts a named individual; Wikimedia person photo fetched first for those scenes
 - [ ] Every acquired clip passes resolution + duration + optional CLIP quality gate; retry on `fallback_query` before advancing source; `CLIP_RERANK_ENABLED` in ENV

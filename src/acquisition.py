@@ -26,6 +26,7 @@ from src.models import AssetManifest, ManifestEntry
 from src.pexels import PexelsClient, _pick_best_video_file
 from src.pixabay_client import PixabayClient
 from src.storage import R2Client
+from src.wikimedia_client import WikimediaClient
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +45,11 @@ class _Candidate:
     url: str
     width: int
     height: int
-    source: str          # "pexels" | "pixabay"
+    source: str          # "pexels" | "pixabay" | "wikimedia"
     content_type: str
     ext: str
+    attribution: Optional[str] = None   # CC/public-domain credit text (Wikimedia only)
+    priority: int = 0                   # Higher = tried first (1 for Wikimedia in historic scenes)
 
 
 def _resolution_score(c: _Candidate) -> int:
@@ -148,13 +151,36 @@ async def _pixabay_photo_candidates(pixabay: PixabayClient, query: str) -> list[
     ]
 
 
+async def _wikimedia_photo_candidates(wikimedia: WikimediaClient, query: str) -> list[_Candidate]:
+    """Search Wikimedia Commons for photos and return candidates with attribution."""
+    assets = await wikimedia.search_media(query, media_type="photo")
+    return [
+        _Candidate(
+            url=a.url,
+            width=a.width,
+            height=a.height,
+            source="wikimedia",
+            content_type="image/jpeg",
+            ext=_ext_from_url(a.url),
+            attribution=a.attribution,
+        )
+        for a in assets
+    ]
+
+
 async def _gather_candidates(
     entry: ManifestEntry,
     pexels: PexelsClient,
     pixabay: Optional[PixabayClient],
+    wikimedia: Optional[WikimediaClient],
     is_video: bool,
 ) -> list[_Candidate]:
-    """Search all sources concurrently and return a merged, deduplicated candidate list."""
+    """Search all sources concurrently and return a merged, deduplicated candidate list.
+
+    Photo scenes include Wikimedia Commons in the candidate pool.
+    For historic scenes (entry.historic=True), Wikimedia candidates are promoted
+    to priority=1 so they are tried before Pexels/Pixabay regardless of resolution.
+    """
     queries = [q for q in (entry.primary_query, entry.fallback_query) if q]
 
     tasks = []
@@ -167,6 +193,8 @@ async def _gather_candidates(
             tasks.append(asyncio.to_thread(_pexels_photo_candidates, pexels, query))
             if pixabay:
                 tasks.append(_pixabay_photo_candidates(pixabay, query))
+            if wikimedia:
+                tasks.append(_wikimedia_photo_candidates(wikimedia, query))
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -180,6 +208,12 @@ async def _gather_candidates(
             if c.url not in seen_urls:
                 seen_urls.add(c.url)
                 all_candidates.append(c)
+
+    # Historic scenes: promote Wikimedia candidates so they are tried first.
+    if entry.historic:
+        for c in all_candidates:
+            if c.source == "wikimedia":
+                c.priority = 1
 
     return all_candidates
 
@@ -201,20 +235,22 @@ async def acquire_scene(
     pexels: PexelsClient,
     pixabay: Optional[PixabayClient],
     storage: R2Client,
+    wikimedia: Optional[WikimediaClient] = None,
 ) -> bool:
-    """Acquire the best asset for one manifest entry from the merged Pexels+Pixabay pool.
+    """Acquire the best asset for one manifest entry from the merged source pool.
 
-    Searches both sources concurrently for primary and fallback queries; merges
-    results into a resolution-ranked candidate list; downloads only the winner.
-    If the winner download fails, retries the next-best candidate.  Marks the
-    entry 'failed' only when every candidate is exhausted.
+    Searches Pexels, Pixabay (when key present), and Wikimedia Commons (photo scenes
+    only) concurrently; merges into a candidate list sorted by priority then resolution;
+    downloads only the winner.  Historic scenes give Wikimedia candidates priority=1 so
+    they are tried before Pexels/Pixabay.  If the winner download fails, retries the
+    next-best candidate.  Marks the entry 'failed' only when every candidate is exhausted.
 
-    Mutates entry.source, entry.file_key, entry.status in-place on success.
-    Returns True on success, False on failure.
+    Mutates entry.source, entry.file_key, entry.status, entry.attribution in-place on
+    success. Returns True on success, False on failure.
     """
     is_video = entry.clip_type == "hard_cut"
-    candidates = await _gather_candidates(entry, pexels, pixabay, is_video)
-    candidates.sort(key=_resolution_score, reverse=True)
+    candidates = await _gather_candidates(entry, pexels, pixabay, wikimedia, is_video)
+    candidates.sort(key=lambda c: (-c.priority, -_resolution_score(c)))
 
     if not candidates:
         logger.warning("No candidates found for scene=%s", entry.scene_id)
@@ -230,6 +266,7 @@ async def acquire_scene(
             entry.source = candidate.source
             entry.file_key = key
             entry.status = "acquired"
+            entry.attribution = candidate.attribution
             logger.info(
                 "Acquired %s: scene=%s source=%s key=%s",
                 "video" if is_video else "photo",
@@ -257,6 +294,7 @@ async def run_acquisition(
     pexels: PexelsClient,
     pixabay: Optional[PixabayClient],
     storage: R2Client,
+    wikimedia: Optional[WikimediaClient] = None,
     batch_size: int = 20,
 ) -> dict:
     """Run the full acquisition loop over all pending manifest entries in parallel batches.
@@ -277,7 +315,7 @@ async def run_acquisition(
     for batch_start in range(0, len(pending), batch_size):
         batch = pending[batch_start : batch_start + batch_size]
         results = await asyncio.gather(
-            *[acquire_scene(entry, run_id, pexels, pixabay, storage) for entry in batch],
+            *[acquire_scene(entry, run_id, pexels, pixabay, storage, wikimedia) for entry in batch],
             return_exceptions=True,
         )
         for entry, result in zip(batch, results):

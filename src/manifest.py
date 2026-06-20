@@ -50,6 +50,7 @@ def build_manifest(run_id: str, storyboard_data: dict) -> AssetManifest:
             primary_query=scene.visual_prompts.primary_stk,
             fallback_query=scene.visual_prompts.fallback_stk,
             ai_generate_prompt=scene.visual_prompts.ai_generate,
+            historic=scene.historic,
             asset_mode=scene.asset_mode or _default_asset_mode(scene.clip_type),
         )
         for scene in storyboard.scenes

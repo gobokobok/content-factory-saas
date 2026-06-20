@@ -122,6 +122,9 @@ class StoryboardScene(BaseModel):
     # Operator-set acquisition strategy — persisted in storyboard so it survives
     # before the manifest exists.  None means "derive from clip_type at manifest build".
     asset_mode: Optional[Literal["stock", "ai_generated"]] = None
+    # Set to True by the storyboard prompt when scene depicts historic footage.
+    # Routes acquisition to Wikimedia Commons first (P8-S2).
+    historic: bool = False
 
 
 class StoryboardGlobal(BaseModel):
@@ -161,10 +164,14 @@ class ManifestEntry(BaseModel):
     primary_query: str
     fallback_query: str
     ai_generate_prompt: str
+    # Propagated from StoryboardScene.historic — routes acquisition to Wikimedia first.
+    historic: bool = False
     status: str = "pending"
     source: Optional[str] = None
     file_key: Optional[str] = None
     asset_mode: Optional[Literal["stock", "ai_generated"]] = None
+    # Wikimedia CC/public-domain attribution text to store alongside the asset.
+    attribution: Optional[str] = None
 
 
 class AssetManifest(BaseModel):

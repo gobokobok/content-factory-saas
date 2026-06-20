@@ -18,6 +18,7 @@ from src.models import (
 from src.pexels import PexelsClient
 from src.pixabay_client import PixabayClient
 from src.storage import R2Client
+from src.wikimedia_client import WikimediaClient
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,7 @@ async def _background_acquire(
     manifest_key: str,
     pexels: PexelsClient,
     pixabay: Optional[PixabayClient],
+    wikimedia: WikimediaClient,
     storage: R2Client,
     batch_size: int,
     settings: Settings,
@@ -43,6 +45,7 @@ async def _background_acquire(
     try:
         summary = await run_acquisition(
             run_id, manifest, pexels, pixabay, storage,
+            wikimedia=wikimedia,
             batch_size=batch_size,
         )
     except BaseException as exc:
@@ -138,6 +141,7 @@ async def acquire_assets(
         per_page=settings.PEXELS_PER_PAGE,
     )
     pixabay = PixabayClient(api_key=settings.PIXABAY_API_KEY) if settings.PIXABAY_API_KEY else None
+    wikimedia = WikimediaClient()
 
     # Initialise state before the task starts so the status endpoint never 404s
     # in the brief window between the 202 response and background task execution.
@@ -163,6 +167,7 @@ async def acquire_assets(
         manifest_key=manifest_key,
         pexels=pexels,
         pixabay=pixabay,
+        wikimedia=wikimedia,
         storage=storage,
         batch_size=settings.ACQUISITION_BATCH_SIZE,
         settings=settings,
