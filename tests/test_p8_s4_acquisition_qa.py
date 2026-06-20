@@ -32,7 +32,7 @@ def _entry(
     )
 
 
-def _video_result(w: int = 1920, h: int = 1080, url: str = "https://cdn.pexels.com/v/01.mp4") -> dict:
+def _video_result(w: int = 1280, h: int = 720, url: str = "https://cdn.pexels.com/v/01.mp4") -> dict:
     return {"video_files": [{"link": url, "width": w, "height": h, "file_type": "video/mp4", "duration": 10}], "duration": 10}
 
 
@@ -93,7 +93,7 @@ class TestQaFieldsWrittenToEntry:
             call_num["n"] += 1
             if call_num["n"] == 1:  # first call = primary query
                 return [{"video_files": [{"link": primary_url, "width": 64, "height": 64, "file_type": "video/mp4"}], "duration": 10}]
-            return [{"video_files": [{"link": fallback_url, "width": 1920, "height": 1080, "file_type": "video/mp4"}], "duration": 10}]
+            return [{"video_files": [{"link": fallback_url, "width": 1280, "height": 720, "file_type": "video/mp4"}], "duration": 10}]
 
         pexels.search_videos.side_effect = search_side_effect
         storage = MagicMock()
@@ -163,7 +163,7 @@ class TestDurationQa:
         entry = _entry(clip_type="hard_cut", duration_s=5.0)
         pexels = MagicMock()
         pexels.search_videos.return_value = [
-            {"video_files": [{"link": "https://v.mp4", "width": 1920, "height": 1080, "file_type": "video/mp4"}], "duration": 10}
+            {"video_files": [{"link": "https://v.mp4", "width": 1280, "height": 720, "file_type": "video/mp4"}], "duration": 10}
         ]
         storage = MagicMock()
 

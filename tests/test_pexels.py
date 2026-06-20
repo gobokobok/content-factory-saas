@@ -28,8 +28,8 @@ def _make_video_file(height: int, width: int, file_type: str = "video/mp4") -> d
     }
 
 
-def _make_video(files: list[dict]) -> dict:
-    return {"id": 1, "video_files": files}
+def _make_video(files: list[dict], duration: int = 10) -> dict:
+    return {"id": 1, "video_files": files, "duration": duration}
 
 
 def _make_photo(width: int, height: int, photo_id: int = 1) -> dict:
@@ -59,34 +59,47 @@ def _make_entry(
 
 # ── _pick_best_video_file ─────────────────────────────────────────────────────
 
-def test_pick_best_video_file_selects_highest_below_1080p() -> None:
-    """4K file excluded; 1080p file selected over 720p."""
+def test_pick_best_video_file_selects_highest_below_720p() -> None:
+    """4K and 1080p excluded; 720p selected as best within cap."""
     files = [
         _make_video_file(2160, 3840),  # 4K — excluded
-        _make_video_file(1080, 1920),  # HD — selected
-        _make_video_file(720, 1280),   # SD
+        _make_video_file(1080, 1920),  # 1080p — excluded (above 720p cap)
+        _make_video_file(720, 1280),   # 720p — selected
     ]
     result = _pick_best_video_file(_make_video(files))
     assert result is not None
-    assert result["height"] == 1080
-    assert result["width"] == 1920
+    assert result["height"] == 720
+    assert result["width"] == 1280
 
 
 def test_pick_best_video_file_prefers_wider_at_same_height() -> None:
-    """Among two 1080p files, wider is preferred."""
+    """Among two 720p files, wider is preferred."""
     files = [
-        _make_video_file(1080, 1280),
-        _make_video_file(1080, 1920),
+        _make_video_file(720, 1024),
+        _make_video_file(720, 1280),
     ]
     result = _pick_best_video_file(_make_video(files))
     assert result is not None
-    assert result["width"] == 1920
+    assert result["width"] == 1280
 
 
-def test_pick_best_video_file_returns_none_when_all_exceed_1080p() -> None:
-    """Returns None when every file is above 1080px height."""
-    files = [_make_video_file(2160, 3840), _make_video_file(1440, 2560)]
+def test_pick_best_video_file_returns_none_when_all_exceed_720p() -> None:
+    """Returns None when every file is above the 720p cap."""
+    files = [_make_video_file(2160, 3840), _make_video_file(1080, 1920)]
     assert _pick_best_video_file(_make_video(files)) is None
+
+
+def test_pick_best_video_file_returns_none_when_duration_exceeds_limit() -> None:
+    """Returns None when the clip is longer than MAX_CLIP_DURATION (30s)."""
+    files = [_make_video_file(720, 1280)]
+    assert _pick_best_video_file(_make_video(files, duration=31)) is None
+
+
+def test_pick_best_video_file_accepts_clip_at_duration_limit() -> None:
+    """A clip of exactly MAX_CLIP_DURATION seconds is accepted."""
+    files = [_make_video_file(720, 1280)]
+    result = _pick_best_video_file(_make_video(files, duration=30))
+    assert result is not None
 
 
 def test_pick_best_video_file_returns_none_on_empty_files() -> None:
@@ -245,7 +258,7 @@ def test_acquire_for_entry_hard_cut_primary_success(
 
     search_resp = MagicMock(status_code=200)
     search_resp.json.return_value = {
-        "videos": [_make_video([_make_video_file(1080, 1920)])]
+        "videos": [_make_video([_make_video_file(720, 1280)])]
     }
     download_resp = MagicMock(status_code=200, content=b"videodata")
     mock_session.get.side_effect = [search_resp, download_resp]
@@ -328,7 +341,7 @@ def test_acquire_for_entry_falls_back_to_fallback_query(
     empty_resp.json.return_value = {"videos": []}
     fallback_resp = MagicMock(status_code=200)
     fallback_resp.json.return_value = {
-        "videos": [_make_video([_make_video_file(1080, 1920)])]
+        "videos": [_make_video([_make_video_file(720, 1280)])]
     }
     download_resp = MagicMock(status_code=200, content=b"fallbackvideo")
     mock_session.get.side_effect = [empty_resp, fallback_resp, download_resp]

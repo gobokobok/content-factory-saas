@@ -75,14 +75,14 @@ class TestSearchVideos:
 
         assert len(result) == 1
         assert isinstance(result[0], PixabayVideo)
-        assert result[0].url == "https://cdn.pixabay.com/video/large.mp4"
-        assert result[0].width == 1920
-        assert result[0].height == 1080
+        assert result[0].url == "https://cdn.pixabay.com/video/medium.mp4"
+        assert result[0].width == 1280
+        assert result[0].height == 720
         assert result[0].duration_seconds == 30
 
     @pytest.mark.asyncio
-    async def test_prefers_large_over_medium(self):
-        """When both 'large' and 'medium' exist, large URL is returned."""
+    async def test_prefers_medium_over_large(self):
+        """When both 'medium' and 'large' exist, medium (720p) is returned to keep downloads lean."""
         client = PixabayClient(api_key="testkey")
         with patch("src.pixabay_client.httpx.AsyncClient") as mock_cls:
             mock_http = AsyncMock()
@@ -91,7 +91,7 @@ class TestSearchVideos:
 
             result = await client.search_videos("market")
 
-        assert result[0].url == "https://cdn.pixabay.com/video/large.mp4"
+        assert result[0].url == "https://cdn.pixabay.com/video/medium.mp4"
 
     @pytest.mark.asyncio
     async def test_falls_back_to_medium_when_large_absent(self):

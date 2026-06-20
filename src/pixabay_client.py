@@ -45,8 +45,12 @@ class PixabayClient:
     async def search_videos(self, query: str) -> list[PixabayVideo]:
         """Search Pixabay Videos API. Returns empty list on any error (fault isolation, D048).
 
-        Prefers the 'large' (1920×1080) size per hit; falls back to 'medium' (1280×720).
+        Prefers 'medium' (1280×720) over 'large' (1920×1080) — 720p is sufficient
+        for Shorts and reduces download size by ~4×. Also skips clips longer than
+        30s since we only use 4–8s per scene.
         """
+        _MAX_CLIP_DURATION = 30
+
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 resp = await client.get(
@@ -66,7 +70,9 @@ class PixabayClient:
 
         results: list[PixabayVideo] = []
         for hit in data.get("hits", []):
-            for size in ("large", "medium"):
+            if hit.get("duration", 0) > _MAX_CLIP_DURATION:
+                continue
+            for size in ("medium", "large"):
                 vfile = hit.get("videos", {}).get(size, {})
                 url = vfile.get("url", "")
                 if url:

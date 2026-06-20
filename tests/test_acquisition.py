@@ -66,10 +66,11 @@ def _manifest(entries: Optional[List[ManifestEntry]] = None) -> AssetManifest:
 
 
 def _pexels_video_result() -> dict:
-    """Minimal Pexels video API hit with a usable video file."""
+    """Minimal Pexels video API hit with a usable 720p file (max cap is now 720p)."""
     return {
+        "duration": 10,
         "video_files": [
-            {"link": "https://cdn.pexels.com/v/01.mp4", "width": 1920, "height": 1080, "file_type": "video/mp4"},
+            {"link": "https://cdn.pexels.com/v/01.mp4", "width": 1280, "height": 720, "file_type": "video/mp4"},
         ]
     }
 
@@ -127,7 +128,7 @@ class TestPexelsVideoCandidates:
 
         assert len(result) == 1
         assert result[0].source == "pexels"
-        assert result[0].width == 1920
+        assert result[0].width == 1280
         assert result[0].url == "https://cdn.pexels.com/v/01.mp4"
 
     def test_pexels_error_returns_empty(self):
@@ -221,13 +222,13 @@ class TestAcquireScene:
         """Pexels has higher resolution → it wins over Pixabay."""
         entry = _entry()
         pexels, storage = MagicMock(), MagicMock()
-        # Pexels: 1920×1080 (max usable — _pick_best_video_file filters height > 1080)
+        # Pexels: 1280×720 (cap is 720p)
         pexels.search_videos.return_value = [
-            {"video_files": [{"link": "https://pexels.com/hd.mp4", "width": 1920, "height": 1080, "file_type": "video/mp4"}]}
+            {"duration": 10, "video_files": [{"link": "https://pexels.com/hd.mp4", "width": 1280, "height": 720, "file_type": "video/mp4"}]}
         ]
-        # Pixabay: 1280×720 (lower area → loses)
+        # Pixabay: 854×480 (lower area → loses)
         pixabay = MagicMock()
-        pixabay.search_videos = AsyncMock(return_value=[_pixabay_video(w=1280, h=720)])
+        pixabay.search_videos = AsyncMock(return_value=[_pixabay_video(w=854, h=480)])
 
         with patch("src.acquisition._download_bytes", new_callable=AsyncMock) as mock_dl:
             mock_dl.return_value = b"bytes"
@@ -255,10 +256,11 @@ class TestAcquireScene:
         """First candidate download fails; second succeeds."""
         entry = _entry()
         pexels, storage = MagicMock(), MagicMock()
-        # Pexels: high-res candidate (wins sort order)
+        # Pexels: 1440×720 (higher area → tried first → download fails)
         pexels.search_videos.return_value = [
-            {"video_files": [{"link": "https://pexels.com/hi.mp4", "width": 1920, "height": 1080, "file_type": "video/mp4"}]}
+            {"duration": 10, "video_files": [{"link": "https://pexels.com/hi.mp4", "width": 1440, "height": 720, "file_type": "video/mp4"}]}
         ]
+        # Pixabay: 1280×720 (lower area → tried second → download succeeds)
         pixabay = MagicMock()
         pixabay.search_videos = AsyncMock(return_value=[_pixabay_video(w=1280, h=720)])
 
@@ -405,13 +407,13 @@ class TestRunAcquisition:
         entries = [_entry("01"), _entry("02", clip_type="still_with_motion")]
         manifest = _manifest(entries)
         pexels, storage = MagicMock(), MagicMock()
-        # Video scene: pexels wins (1920×1080 > pixabay 1280×720); photo scene: pixabay wins (3840×2160 > pexels 1920×1080)
+        # Video scene: pexels wins (1280×720 > pixabay 854×480); photo scene: pixabay wins (3840×2160 > pexels 1920×1080)
         pexels.search_videos.return_value = [
-            {"video_files": [{"link": "https://pexels.com/hd.mp4", "width": 1920, "height": 1080, "file_type": "video/mp4"}]}
+            {"duration": 10, "video_files": [{"link": "https://pexels.com/hd.mp4", "width": 1280, "height": 720, "file_type": "video/mp4"}]}
         ]
         pexels.search_photos.return_value = [_pexels_photo_result(1920, 1080)]
         pixabay = MagicMock()
-        pixabay.search_videos = AsyncMock(return_value=[_pixabay_video(w=1280, h=720)])
+        pixabay.search_videos = AsyncMock(return_value=[_pixabay_video(w=854, h=480)])
         pixabay.search_photos = AsyncMock(return_value=[_pixabay_photo(w=3840, h=2160)])
 
         with patch("src.acquisition._download_bytes", new_callable=AsyncMock) as mock_dl:

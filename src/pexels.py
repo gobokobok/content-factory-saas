@@ -39,6 +39,8 @@ _PHOTOS_BASE = "https://api.pexels.com/v1"
 _VIDEOS_BASE = "https://api.pexels.com/videos"
 _TARGET_WIDTH = 1920
 _TARGET_HEIGHT = 1080
+_MAX_VIDEO_HEIGHT = 720   # cap video downloads at 720p — 1080p files are 4–8× larger with no benefit for Shorts
+_MAX_CLIP_DURATION = 30   # skip clips longer than 30s — we use at most 4–8s per scene
 _MAX_RETRIES = 3
 _BACKOFF_BASE = 1.0  # seconds; doubles each retry: 1s, 2s, 4s
 
@@ -47,14 +49,18 @@ _BACKOFF_BASE = 1.0  # seconds; doubles each retry: 1s, 2s, 4s
 
 
 def _pick_best_video_file(video: dict) -> Optional[dict]:
-    """Pick the highest-resolution video file with height <= 1080px.
+    """Pick the best video file capped at 720p from a Pexels video object.
 
-    Ignores files missing width/height. Among equal-height files, prefers wider.
-    Returns None if every file exceeds 1080px height.
+    Skips the video entirely when its duration exceeds MAX_CLIP_DURATION — we
+    only use 4–8s per scene and downloading a 30-min clip wastes bandwidth.
+    Among files with height <= 720, picks the highest available (720p preferred
+    over 540p/480p). Returns None if no file meets the constraints.
     """
+    if video.get("duration", 0) > _MAX_CLIP_DURATION:
+        return None
     candidates = [
         f for f in video.get("video_files", [])
-        if f.get("height") and f.get("width") and f["height"] <= _TARGET_HEIGHT
+        if f.get("height") and f.get("width") and f["height"] <= _MAX_VIDEO_HEIGHT
     ]
     if not candidates:
         return None
