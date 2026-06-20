@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # CLIP reranking (E4-S4)
     CLIP_RERANK_ENABLED: bool = False
 
+    # Colour grading (P8-S6)
+    COLOR_GRADE_PRESET: str = "neutral"  # neutral | vivid | warm | cinematic | muted
+    BLUR_FILL_ENABLED: bool = True  # landscape stills get blur-fill compositing when True
+
     # Deepgram alignment (E5-S4)
     DEEPGRAM_API_KEY: str = ""
 

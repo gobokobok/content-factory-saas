@@ -12,13 +12,11 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Platform v2 — Sprint P8** — Footage Quality. Canonical spec: docs/v2_platform_plan.md; decisions D047–D064.
-_P8-S1 through P8-S5 done. Next: P8-S6 — Colour grading presets (FFmpeg)._
-_Legacy Sprints 1–13 running in DEV/PROD, untouched (D047). S14–S17 paused._
-_Backlog order: P8 Footage quality → P9 Legacy rebuild → P10 Analytics → P11 n8n automation → P12 Multi-tenant SaaS frontend._
+**Platform v2 — Sprint P8 complete.** All stories P8-S1 through P8-S6 done. Next sprint: P9 — Legacy engine rebuild.
+_Backlog order: P9 Legacy rebuild → P10 Analytics → P11 n8n automation → P12 Multi-tenant SaaS frontend._
 
 ## Active story
-**P8-S6** — Colour grading presets (FFmpeg).
+**None** — P8 is complete. Next: begin P9 sprint planning.
 
 ## Environments
 

@@ -4,6 +4,27 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P8-S6] Colour grading presets (FFmpeg)
+**Completed:** 2026-06-20
+**Handover:**
+- `src/config.py`: `COLOR_GRADE_PRESET: str = "neutral"` and `BLUR_FILL_ENABLED: bool = True` added.
+- `ENV.md`: both vars documented under Pipeline config.
+- `src/ffmpeg_builder.py`:
+  - `_COLOUR_GRADE_PRESETS` dict maps `vivid`, `warm`, `cinematic`, `muted` → FFmpeg filter strings.
+  - `_get_color_grade_filter(preset) → Optional[str]` — returns `None` for `neutral`, warning + `None` for unknown values.
+  - `_apply_color_grade(filter_str, video_source) → str` — bash snippet writing `$WORK/video_graded.mp4`.
+  - `build_ffmpeg_script` gains `color_grade_preset: str = "neutral"` and `blur_fill_enabled: bool = True` params. Non-neutral grade inserts a grade step after captions/before audio; `video_source` updated to `video_graded.mp4` for the audio section.
+  - `_render_image_scene` gains `blur_fill_enabled: bool = True`. When `True`, generates a bash if/else block: ffprobe probes image dimensions at render time; `(w * 10000 / h) > 5625` (landscape) → blur-fill compositing (`split` + blurred full-frame background + fitted foreground + `overlay`); else → normal scale+crop+zoompan.
+  - `_scene_section` and `_render_scene` propagate `blur_fill_enabled`.
+- `cf_platform/adapters/legacy_video.py`: `build_ffmpeg_script` gains `color_grade_preset=s.COLOR_GRADE_PRESET, blur_fill_enabled=s.BLUR_FILL_ENABLED`.
+- `src/routes/ffmpeg_script.py`: same two kwargs added using `settings.*`.
+- `tests/test_p8_s6_colour_grade.py` (new): 32 tests covering all presets, unknown fallback, filter position, blur-fill enabled/disabled, landscape threshold, video-scene exclusion.
+- 1736 total tests passing (CI green, was 1704).
+**Smoke test:** DEFERRED — trigger a `/pick` run on Railway DEV with `COLOR_GRADE_PRESET=vivid`; verify the final video has visibly punchier colours. With `BLUR_FILL_ENABLED=true`, landscape images should show blur-fill compositing.
+**Promoted to backlog:** none.
+
+---
+
 ## [P8-S5] Source telemetry + Telegram footage report
 **Completed:** 2026-06-20
 **Handover:**

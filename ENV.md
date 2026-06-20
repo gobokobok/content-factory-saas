@@ -71,6 +71,8 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | `REPLICATE_MAX_POLL_ATTEMPTS` | No | Max polling attempts before timeout. Default: `60`. |
 | `FFMPEG_TIMEOUT_SECONDS` | No | Max seconds to wait for FFmpeg subprocess to complete (covers the whole script: per-scene clips, concat, captioning). Default: `1800`. |
 | `CLIP_RERANK_ENABLED` | No | Enable CLIP semantic reranking of Pexels results (E4-S4). Loads a ~340MB model at startup. Default: `False`. |
+| `COLOR_GRADE_PRESET` | No | FFmpeg colour grade applied to the final render (P8-S6). Options: `neutral` (no change), `vivid`, `warm`, `cinematic`, `muted`. Default: `neutral`. |
+| `BLUR_FILL_ENABLED` | No | When `true` (default), landscape still images use blur-fill compositing (blurred full-frame behind, sharp subject scaled to fit) instead of cropping. Gated on aspect ratio > 9:16 detected at render time (P8-S6). Default: `true`. |
 | `DEEPGRAM_API_KEY` | No* | Deepgram API key for word-level timestamp extraction (E5-S4). If unset, alignment step falls back to proportional distribution. |
 | `ELEVENLABS_API_KEY` | No* | ElevenLabs API key for TTS voiceover generation (S10-S1). Required when operator uses "Generate Voiceover" mode. |
 | `ELEVENLABS_VOICE_ID` | No* | ElevenLabs voice ID to use for TTS generation (S10-S1). Find IDs at elevenlabs.io/voice-library. |

@@ -817,7 +817,8 @@ Backward-compatible: `footage_summary` absent → reply unchanged.
 ## [P8-S6] Colour grading presets (FFmpeg)
 **Epic:** E35 — Footage Quality
 **Sprint:** P8
-**Status:** todo
+**Status:** done
+**Completed:** 2026-06-20
 **Priority:** med
 **Points:** 2
 **Depends on:** — (fully independent)
@@ -845,17 +846,17 @@ Apply a consistent colour grade to the final rendered video via an FFmpeg filter
   - Only applies to still images (`still_with_motion` / `animated` with photo asset); video clips use crop-to-fill as before
 
 ### Acceptance Criteria
-- [ ] `COLOR_GRADE_PRESET` in `src/config.py` + `ENV.md`
-- [ ] All 5 presets produce valid FFmpeg filter strings (validated by running `ffmpeg -h filter=<name>` check in tests)
-- [ ] `neutral` → no filter added (output identical to current behaviour)
-- [ ] Unknown value → warning logged + neutral fallback
-- [ ] Filter chain position: applied after trim/scale, before audio merge (correct order)
-- [ ] Tests: each preset returns expected filter string; neutral returns None; unknown → neutral; filter string is non-empty for non-neutral presets
-- [ ] `BLUR_FILL_ENABLED` in `src/config.py` + `ENV.md`; landscape still images get blur-fill compositing when enabled; portrait/square stills use scale+crop as before
-- [ ] Tests: landscape asset → blur-fill filter applied; portrait asset → no blur-fill; `BLUR_FILL_ENABLED=False` → no blur-fill regardless
+- [x] `COLOR_GRADE_PRESET` in `src/config.py` + `ENV.md`
+- [x] All 5 presets produce valid FFmpeg filter strings
+- [x] `neutral` → no filter added (output identical to current behaviour)
+- [x] Unknown value → warning logged + neutral fallback
+- [x] Filter chain position: applied after trim/scale, before audio merge (correct order)
+- [x] Tests: each preset returns expected filter string; neutral returns None; unknown → neutral; filter string is non-empty for non-neutral presets
+- [x] `BLUR_FILL_ENABLED` in `src/config.py` + `ENV.md`; landscape still images get blur-fill compositing when enabled; portrait/square stills use scale+crop as before
+- [x] Tests: landscape asset → blur-fill filter applied; portrait asset → no blur-fill; `BLUR_FILL_ENABLED=False` → no blur-fill regardless
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ---
 

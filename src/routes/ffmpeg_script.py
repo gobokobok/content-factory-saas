@@ -144,7 +144,12 @@ def generate_ffmpeg_script(
         )
 
     try:
-        script = build_ffmpeg_script(run_id, storyboard, manifest, scene_words, video_settings=video_settings)
+        script = build_ffmpeg_script(
+            run_id, storyboard, manifest, scene_words,
+            video_settings=video_settings,
+            color_grade_preset=settings.COLOR_GRADE_PRESET,
+            blur_fill_enabled=settings.BLUR_FILL_ENABLED,
+        )
     except FFmpegBuildError as exc:
         logger.error("FFmpeg script build failed for run=%s: %s", run_id, exc)
         storage.update_run_log(run_id, "ffmpeg_script", "failed", error=str(exc))

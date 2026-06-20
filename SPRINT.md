@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-20 the active work is the **Platform v2 track (Sprints P0–P12)**, defined in **docs/v2_platform_plan.md** (decisions D047–D063).
-> - **Sprints P1–P7 complete. Sprint P8 active** — P8-S1 through P8-S5 done. Next: P8-S6 — Colour grading presets (FFmpeg).
+> - **Sprints P1–P8 complete.** P8-S1 through P8-S6 all done.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
@@ -115,7 +115,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P8-S3 | Real person detection + Wikimedia person photo routing | 3 | done |
 | P8-S4 | Footage QA — per-scene quality gate + retry | 3 | done |
 | P8-S5 | Source telemetry + Telegram footage report | 2 | done |
-| P8-S6 | Colour grading presets (FFmpeg) | 2 | todo |
+| P8-S6 | Colour grading presets (FFmpeg) | 2 | done |
 
 **Execution order:** (P8-S1 ∥ P8-S6) → P8-S2 → P8-S3 → P8-S4 → P8-S5
 
@@ -127,6 +127,6 @@ Legacy Script→Video stays untouched and operable (D047).
 - [ ] Every acquired clip passes resolution + duration + optional CLIP quality gate; retry on `fallback_query` before advancing source; `CLIP_RERANK_ENABLED` in ENV
 - [ ] `asset_manifest.json` records `source`, `qa_passed`, `qa_clip_score`, `fallback_used` per scene
 - [ ] `footage_summary` in `run_log.json`; surfaced in Telegram reply with QA warning when needed
-- [ ] `COLOR_GRADE_PRESET` in ENV; `vivid`/`warm`/`cinematic`/`muted`/`neutral` presets apply correct FFmpeg filter chain
+- [x] `COLOR_GRADE_PRESET` in ENV; `vivid`/`warm`/`cinematic`/`muted`/`neutral` presets apply correct FFmpeg filter chain; `BLUR_FILL_ENABLED` for landscape stills (P8-S6 done)
 - [ ] All `src/` modules (`pixabay_client.py`, `wikimedia_client.py`, `footage_qa.py`) are standalone and importable by P9
 - [ ] **Human touchpoint:** operator runs `/run <niche>` on DEV, receives video + `Footage: N Pexels · N Pixabay · N Wikimedia · N Person · N AI` in the Telegram reply; colour grade visibly applied

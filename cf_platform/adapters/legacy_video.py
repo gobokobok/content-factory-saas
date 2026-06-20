@@ -314,7 +314,10 @@ class InProcessLegacyVideoAdapter:
                 storyboard_obj = storyboard_obj.model_copy(update={"scenes": adjusted})
 
             ffmpeg_script = build_ffmpeg_script(
-                run_id, storyboard_obj, manifest, scene_words, video_settings=VideoSettings(aspect_ratio="16:9")
+                run_id, storyboard_obj, manifest, scene_words,
+                video_settings=VideoSettings(aspect_ratio="16:9"),
+                color_grade_preset=s.COLOR_GRADE_PRESET,
+                blur_fill_enabled=s.BLUR_FILL_ENABLED,
             )
             storage.upload_text(
                 f"runs/{run_id}/ffmpeg_script.sh",

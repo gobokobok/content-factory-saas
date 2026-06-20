@@ -1,6 +1,7 @@
 """FFmpeg shell script generator — assembles storyboard assets into a 9:16 YouTube Short."""
 
 import json
+import logging
 import re
 import subprocess
 from datetime import datetime, timezone
@@ -12,6 +13,8 @@ from src.captions import build_ass, build_captions_ass, build_word_synced_captio
 from src.exceptions import FFmpegBuildError
 from src.models import AudioSettings, AssetManifest, ManifestEntry, Storyboard, StoryboardScene, VideoSettings, WordTimestamp
 
+logger = logging.getLogger(__name__)
+
 _FPS = 25
 _OUT_W = 1080  # Default output width (9:16)
 _OUT_H = 1920  # Default output height (9:16)
@@ -22,6 +25,48 @@ _ASPECT_DIMENSIONS: dict[str, tuple[int, int]] = {
     "16:9": (1920, 1080),
     "1:1": (1080, 1080),
 }
+
+# ── Colour grade presets (P8-S6) ──────────────────────────────────────────────
+
+# Maps preset name → FFmpeg -vf filter string.  "neutral" is absent intentionally
+# (no filter → output unchanged from source colours).
+_COLOUR_GRADE_PRESETS: dict[str, str] = {
+    "vivid": "eq=saturation=1.3:contrast=1.08",
+    "warm": "colorchannelmixer=rr=1.08:bb=0.88,eq=saturation=1.1",
+    "cinematic": "curves=m='0/10 128/118 245/235':s='0/0 255/255',eq=saturation=0.9",
+    "muted": "eq=saturation=0.75:contrast=0.95:brightness=0.015",
+}
+
+# Threshold: width/height ratio above this value is "landscape" relative to 9:16.
+# 9/16 = 0.5625 → encoded as integer ratio (w * 10000 / h) > 5625 in bash.
+_LANDSCAPE_RATIO_INT = 5625
+
+
+def _get_color_grade_filter(preset: str) -> Optional[str]:
+    """Return the FFmpeg filter string for the given preset, or None for 'neutral'.
+
+    Unknown presets log a warning and fall back to neutral (no filter).
+    """
+    if preset == "neutral":
+        return None
+    if preset in _COLOUR_GRADE_PRESETS:
+        return _COLOUR_GRADE_PRESETS[preset]
+    logger.warning(
+        "Unknown COLOR_GRADE_PRESET %r — falling back to 'neutral' (no colour grade)", preset
+    )
+    return None
+
+
+def _apply_color_grade(filter_str: str, video_source: str) -> str:
+    """Generate the bash snippet that applies a colour-grade filter, writing video_graded.mp4."""
+    return (
+        "# ── Colour grade ─────────────────────────────────────────\n"
+        "ffmpeg -y \\\n"
+        f'  -i "{video_source}" \\\n'
+        f'  -vf "{filter_str}" \\\n'
+        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        '  "$WORK/video_graded.mp4"'
+    )
 
 
 def _dimensions_for_aspect_ratio(aspect_ratio: str) -> tuple[int, int]:
@@ -308,6 +353,8 @@ def build_ffmpeg_script(
     scene_words: Optional[list[list[WordTimestamp]]] = None,
     audio: Optional[AudioSettings] = None,
     video_settings: Optional[VideoSettings] = None,
+    color_grade_preset: str = "neutral",
+    blur_fill_enabled: bool = True,
 ) -> str:
     """
     Build a self-contained bash script that assembles the run's assets into a Short.
@@ -318,6 +365,9 @@ def build_ffmpeg_script(
       - audio: music volume, ducking, and loop/fit playback mode
     audio kwarg is still accepted for backwards compat; video_settings.audio takes precedence
     when video_settings is provided.
+
+    color_grade_preset: one of neutral|vivid|warm|cinematic|muted (COLOR_GRADE_PRESET env var).
+    blur_fill_enabled: when True, landscape still images use blur-fill compositing (BLUR_FILL_ENABLED).
 
     When scene_words is provided (Deepgram words grouped per scene), captions use
     word-level sync with the active word highlighted in yellow.  Falls back to
@@ -360,7 +410,7 @@ def build_ffmpeg_script(
         _voiceover_check(),
         _music_check(audio),
         _debug_section(),
-        _scene_section(storyboard, entries, run_id, out_w, out_h),
+        _scene_section(storyboard, entries, run_id, out_w, out_h, blur_fill_enabled=blur_fill_enabled),
         _filter_complex_concat(n_scenes),
     ]
 
@@ -370,6 +420,11 @@ def build_ffmpeg_script(
         video_source = "$WORK/video_captioned.mp4"
     else:
         video_source = "$WORK/video_only.mp4"
+
+    color_grade_filter = _get_color_grade_filter(color_grade_preset)
+    if color_grade_filter:
+        parts.append(_apply_color_grade(color_grade_filter, video_source))
+        video_source = "$WORK/video_graded.mp4"
 
     parts.append(_audio_section(storyboard, audio, video_source=video_source))
     parts.append(f'echo "Done: /tmp/{run_id}/output/final.mp4"')
@@ -490,12 +545,13 @@ def _scene_section(
     run_id: str,
     out_w: int = _OUT_W,
     out_h: int = _OUT_H,
+    blur_fill_enabled: bool = True,
 ) -> str:
     """Generate one ffmpeg command per scene."""
     parts = ["# ── Per-scene processing ─────────────────────────────────"]
     for i, scene in enumerate(storyboard.scenes, 1):
         entry = entries[scene.scene]
-        parts.append(_render_scene(scene, entry, run_id, i, out_w, out_h))
+        parts.append(_render_scene(scene, entry, run_id, i, out_w, out_h, blur_fill_enabled=blur_fill_enabled))
     return "\n\n".join(parts)
 
 
@@ -506,13 +562,14 @@ def _render_scene(
     num: int,
     out_w: int = _OUT_W,
     out_h: int = _OUT_H,
+    blur_fill_enabled: bool = True,
 ) -> str:
     """Generate the ffmpeg command for a single scene segment."""
     local = _local_path(run_id, entry.file_key)  # type: ignore[arg-type]
     out = f'"$WORK/scene_{num:02d}.mp4"'
     if scene.clip_type == "hard_cut":
         return _render_video_scene(scene, local, out, num, out_w, out_h)
-    return _render_image_scene(scene, local, out, num, out_w, out_h)
+    return _render_image_scene(scene, local, out, num, out_w, out_h, blur_fill_enabled=blur_fill_enabled)
 
 
 def _render_video_scene(
@@ -559,8 +616,14 @@ def _render_video_scene(
 def _render_image_scene(
     scene: StoryboardScene, local: str, out: str, num: int,
     out_w: int = _OUT_W, out_h: int = _OUT_H,
+    blur_fill_enabled: bool = True,
 ) -> str:
     """Animate a still image using zoompan and write it as a video segment.
+
+    When blur_fill_enabled=True, landscape images (width/height > 9/16) get a
+    blur-fill composite (blurred full-frame behind, sharp subject scaled to fit)
+    detected at render time via ffprobe.  Portrait/square images always use
+    scale+crop+zoompan.  When blur_fill_enabled=False, all images use scale+crop+zoompan.
 
     Uses round(duration_s * _FPS) to compute the frame count and derives -t from
     that integer so the clip is exactly `frames` frames long.  Using int() (truncation)
@@ -573,6 +636,7 @@ def _render_image_scene(
     clip_label = scene.clip_type
     if scene.motion_effect:
         clip_label += f" ({scene.motion_effect})"
+
     scale_vf = (
         f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
         f"crop={out_w}:{out_h}"
@@ -580,12 +644,9 @@ def _render_image_scene(
     zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames, out_w, out_h)
     # fps filter AFTER zoompan rewrites PTS to a 1/{_FPS} time base, fixing the
     # "MB rate > level limit" libx264 error caused by looped-image microsecond time bases.
-    vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
-    return (
-        f"# Scene {num:02d} — {scene.scene} — {clip_label} — {scene.duration_s}s\n"
-        f"ffmpeg -y -loop 1 -framerate {_FPS} -i \"{local}\" \\\n"
-        f"  -t {t_value} \\\n"
-        f'  -vf "{vf}" \\\n'
+    normal_vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
+
+    common_encode = (
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
         # Same timescale normalisation as _render_video_scene — see comment there.
         # Image clips using -loop 1 + zoompan inherit a 1/1_000_000 microsecond
@@ -593,6 +654,47 @@ def _render_image_scene(
         # container tbn matches all other per-scene clips.
         "  -video_track_timescale 25 \\\n"
         f"  {out}"
+    )
+    ffmpeg_prefix = (
+        f"ffmpeg -y -loop 1 -framerate {_FPS} -i \"{local}\" \\\n"
+        f"  -t {t_value} \\\n"
+    )
+
+    header = f"# Scene {num:02d} — {scene.scene} — {clip_label} — {scene.duration_s}s"
+
+    if not blur_fill_enabled:
+        return (
+            f"{header}\n"
+            f'{ffmpeg_prefix}'
+            f'  -vf "{normal_vf}" \\\n'
+            f"{common_encode}"
+        )
+
+    # Blur-fill: when enabled, probe image dimensions at render time and apply
+    # blur-fill compositing for landscape images (w/h > 9/16 = 0.5625).
+    # Integer arithmetic: (w * 10000 / h) > 5625 avoids floating-point in bash.
+    blur_vf = (
+        f"[in]split=2[bg][fg];"
+        f"[bg]scale={out_w}:{out_h},boxblur=20:5[blurred];"
+        f"[fg]scale=iw*min({out_w}/iw\\,{out_h}/ih):ih*min({out_w}/iw\\,{out_h}/ih)[fitted];"
+        f"[blurred][fitted]overlay=(W-w)/2:(H-h)/2,"
+        f"fps={_FPS},setsar=1:1"
+    )
+    return (
+        f"{header}\n"
+        f'_img_w=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width'
+        f' -of csv=p=0 "{local}" 2>/dev/null || echo 0)\n'
+        f'_img_h=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=height'
+        f' -of csv=p=0 "{local}" 2>/dev/null || echo 1)\n'
+        f'if [ "$(( _img_w * 10000 / _img_h ))" -gt {_LANDSCAPE_RATIO_INT} ]; then\n'
+        f'  {ffmpeg_prefix.rstrip()}\n'
+        f'  -vf "{blur_vf}" \\\n'
+        f"{common_encode}\n"
+        f"else\n"
+        f'  {ffmpeg_prefix.rstrip()}\n'
+        f'  -vf "{normal_vf}" \\\n'
+        f"{common_encode}\n"
+        f"fi"
     )
 
 
