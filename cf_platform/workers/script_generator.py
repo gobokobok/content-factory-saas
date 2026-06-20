@@ -115,10 +115,13 @@ def build_script_generator_worker(
             lens=lens,
         )
 
+        # Scale max_tokens: ~1.3 tokens/word plus 20% headroom, minimum 1024
+        script_max_tokens = max(1024, min(8192, round(target_words * 1.3 * 1.2)))
+
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=120.0)
         response = await client.messages.create(
             model=SCRIPT_GENERATOR_REGISTRATION.model,
-            max_tokens=2048,
+            max_tokens=script_max_tokens,
             system=_SCRIPT_GENERATOR_PROMPT_V1,
             messages=[{"role": "user", "content": user_message}],
         )

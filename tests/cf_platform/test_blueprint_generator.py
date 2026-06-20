@@ -129,7 +129,7 @@ async def test_sections_parsed():
 async def test_niche_in_user_message():
     """When niche is in inputs, user message includes the niche."""
     ctx = _make_context()
-    msg = _build_user_message("Title", "american housing", ctx)
+    msg = _build_user_message("Title", "american housing", ctx, 160)
     assert "american housing" in msg
 
 
@@ -137,7 +137,7 @@ async def test_niche_in_user_message():
 async def test_niche_absent_generic_framing():
     """When niche is absent, user message includes the generic framing note."""
     ctx = _make_context()
-    msg = _build_user_message("Title", None, ctx)
+    msg = _build_user_message("Title", None, ctx, 160)
     assert "not specified" in msg
 
 

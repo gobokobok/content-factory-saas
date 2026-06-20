@@ -19,12 +19,13 @@ from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 
 _BLUEPRINT_GENERATOR_PROMPT_V1 = """\
-You are a content strategist for a data-driven short-form video channel.
+You are a content strategist for a data-driven video channel covering topics from \
+short YouTube Shorts (60 s) to long-form essays (10+ min).
 
-Given a normalised context for a video idea, produce a Blueprint IR — a structured \
-content plan that a script writer can follow exactly. The blueprint defines what to \
-say (claims, evidence) and how to say it (hook angle, section structure), so the \
-writer never needs to invent facts or structure.
+Given a normalised context and a target video duration, produce a Blueprint IR — a \
+structured content plan that a script writer can follow exactly. The blueprint defines \
+what to say (claims, evidence) and how to say it (hook angle, section structure), so \
+the writer never needs to invent facts or structure.
 
 Return ONLY a single JSON object (no markdown fences) matching this schema:
 {
@@ -40,21 +41,38 @@ Return ONLY a single JSON object (no markdown fences) matching this schema:
   "math_derivations": ["formula and result for each numerical claim"]
 }
 
-Rules:
-- `structure` must have 3–5 sections (hook, 2–3 body sections, closer)
+SCALING RULES — base structure on the target word count supplied in the user message:
+
+| Target words  | Sections | Key points / section | Claims | Required evidence |
+|---------------|----------|----------------------|--------|-------------------|
+| ≤ 160         | 3        | 1–2                  | 2–3    | 1–2               |
+| 161 – 320     | 4–5      | 2–3                  | 3–5    | 2–3               |
+| 321 – 800     | 5–8      | 2–4                  | 4–8    | 3–6               |
+| 801 – 1600    | 8–12     | 3–5                  | 8–12   | 6–10              |
+| 1601+         | 12–16    | 4–6                  | 12–16  | 10–14             |
+
+The first section is always the hook; the last is always the CTA / closer. \
+Intermediate sections are the substantive body — fill them with distinct angles, \
+data points, and narrative beats proportional to the available word budget. \
+A longer video must earn its runtime: more sections, deeper evidence, multiple \
+supporting angles, not just repetition.
+
+Additional rules:
 - `claims` must be factually grounded — state only what is reasonably well known
 - `required_evidence` lists specific things the script writer must incorporate
 - Keep each field concise; the script writer reads this as a specification
 - `math_derivations`: for EVERY claim that contains a specific number derived from \
 calculation (compound interest, percentage change, multiplier, scaling), show the \
-formula and exact computed result. Example entry: \
+formula and exact computed result. Example: \
 "$10k at 6% net for 30y: 10000*(1.06)^30 = $57,435". \
-If a claim has no calculation, omit it from this list. \
+Omit entries for claims with no calculation. \
 CRITICAL: claims must cite the exact figures from math_derivations — never round or \
 adjust for dramatic effect. The hook number must appear in math_derivations if it is \
 a calculated figure.
 \
 """
+
+_WORDS_PER_SECOND = 160 / 60  # standard narration pace — mirrors script_generator
 
 BLUEPRINT_GENERATOR_REGISTRATION = WorkerRegistration(
     worker_version="1.0.0",
@@ -76,7 +94,7 @@ def build_blueprint_generator_worker(
     """
 
     async def blueprint_generator(state: StageState) -> WorkerOutput:
-        """Read normalized_context, call Claude Sonnet, return Blueprint artifact."""
+        """Read normalized_context + target_duration, call Claude Sonnet, return Blueprint."""
         ctx_key = state.artifacts.get("normalized_context")
         if not ctx_key:
             raise KeyError(
@@ -88,13 +106,18 @@ def build_blueprint_generator_worker(
 
         niche: Optional[str] = state.inputs.get("niche")
         idea_title: str = state.inputs.get("idea_title", "Unknown idea")
+        target_duration: int = int(getattr(state, "target_duration_seconds", 60))
+        target_words: int = round(target_duration * _WORDS_PER_SECOND)
 
-        user_message = _build_user_message(idea_title, niche, ctx)
+        user_message = _build_user_message(idea_title, niche, ctx, target_words)
+
+        # Scale max_tokens with blueprint size: ~200 tokens base + 100 per 100 target words
+        bp_max_tokens = max(2048, min(8192, 200 + target_words * 6))
 
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=90.0)
         response = await client.messages.create(
             model=BLUEPRINT_GENERATOR_REGISTRATION.model,
-            max_tokens=2048,
+            max_tokens=bp_max_tokens,
             system=_BLUEPRINT_GENERATOR_PROMPT_V1,
             messages=[{"role": "user", "content": user_message}],
         )
@@ -130,14 +153,16 @@ def _build_user_message(
     idea_title: str,
     niche: Optional[str],
     ctx: NormalizedContext,
+    target_words: int,
 ) -> str:
-    """Compose the Claude user message from the normalised context."""
+    """Compose the Claude user message from the normalised context and target word count."""
     parts = []
     if niche:
         parts.append(f"Channel niche: {niche}")
     else:
         parts.append("Channel niche: not specified — infer from idea title")
     parts.append(f"Idea title: {idea_title}")
+    parts.append(f"Target word count: {target_words} words (use the scaling table to size the blueprint)")
     parts.append(f"Primary angle: {ctx.primary_angle}")
     parts.append(f"Hook bias: {ctx.hook_bias}")
     if ctx.evidence_summary and ctx.evidence_summary != "No prior evidence provided.":
