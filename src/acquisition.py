@@ -283,9 +283,15 @@ async def _gather_candidates(
     return all_candidates
 
 
+_DOWNLOAD_HEADERS = {
+    # Wikimedia CDN (upload.wikimedia.org) returns 403 to requests with no User-Agent.
+    "User-Agent": "ContentFactory/1.0 (https://github.com/gobokobok/content-factory-saas)"
+}
+
+
 async def _download_bytes(url: str) -> bytes:
     """Download bytes from a direct CDN URL. Raises httpx.HTTPError on failure."""
-    async with httpx.AsyncClient(timeout=60) as client:
+    async with httpx.AsyncClient(timeout=60, headers=_DOWNLOAD_HEADERS) as client:
         resp = await client.get(url, follow_redirects=True)
         resp.raise_for_status()
         return resp.content
