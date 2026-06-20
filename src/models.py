@@ -125,6 +125,10 @@ class StoryboardScene(BaseModel):
     # Set to True by the storyboard prompt when scene depicts historic footage.
     # Routes acquisition to Wikimedia Commons first (P8-S2).
     historic: bool = False
+    # Set by the storyboard prompt (v0.10) when scene depicts a named real person.
+    # Routes acquisition to wikimedia_client.fetch_person_photo first (P8-S3).
+    person_name: Optional[str] = None
+    person_title: Optional[str] = None
 
 
 class StoryboardGlobal(BaseModel):
@@ -172,6 +176,10 @@ class ManifestEntry(BaseModel):
     asset_mode: Optional[Literal["stock", "ai_generated"]] = None
     # Wikimedia CC/public-domain attribution text to store alongside the asset.
     attribution: Optional[str] = None
+    # Propagated from StoryboardScene (v0.10) — set when scene depicts a named individual.
+    # Acquisition routes to wikimedia_client.fetch_person_photo first (P8-S3).
+    person_name: Optional[str] = None
+    person_title: Optional[str] = None
 
 
 class AssetManifest(BaseModel):

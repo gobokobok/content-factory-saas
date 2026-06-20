@@ -1,4 +1,4 @@
-"""Claude API storyboard generation — calls v0.8 prompt and parses response into storyboard.json."""
+"""Claude API storyboard generation — calls v0.10 prompt and parses response into storyboard.json."""
 
 import asyncio
 import logging
@@ -20,6 +20,8 @@ from src.models import (
 )
 from src.utils.model_router import GENERATE, ModelRouter
 from src.validators.storyboard_validator import validate_storyboard
+
+STORYBOARD_PROMPT_VERSION = "v0.10"
 
 # Fields that operators are permitted to edit via PATCH /runs/{run_id}/storyboard.
 _PATCHABLE_FIELDS: set[str] = {"ai_generate_prompt", "asset_mode"}
@@ -60,6 +62,23 @@ SCENE FIELDS (every scene)
 - on_screen_text: exact text string or null
 - sfx: specific sound description — never null; if no sound write "silence"
 - sfx_timing: on cut | Xs after cut | on spoken word "[word]"
+- person_name: [OPTIONAL] Full name of the specific named real individual the scene primarily depicts (e.g. Jerome Powell, Janet Yellen, Robert Shiller). Omit entirely when the scene is generic, conceptual, or depicts unnamed/composite people. Only set when the voiceover explicitly names a real person AND the scene should show their face.
+- person_title: [OPTIONAL] Their role or title (e.g. Chair, Federal Reserve). Only present when person_name is set.
+
+═══════════════════════════════════════
+PERSON SCENE RULE
+═══════════════════════════════════════
+
+When the voiceover names a specific real individual and the scene should depict that person:
+- Set person_name to their full name exactly as you would search Wikipedia (e.g. "Jerome Powell")
+- Set person_title to their most recognisable role (e.g. "Chair, Federal Reserve")
+- The acquisition pipeline will fetch their Wikipedia portrait first; visual_prompts are the fallback
+
+When NOT to set person_name:
+- Generic references ("a homeowner", "economists", "the Fed")
+- Unnamed or composite individuals
+- Historic figures with no likely Wikipedia portrait
+- Scenes where the person is context, not the visual subject
 
 ═══════════════════════════════════════
 DURATION RULES
@@ -233,6 +252,8 @@ motion_effect: [value]
 on_screen_text: [value]
 sfx: [value]
 sfx_timing: [value]
+person_name: [full name or omit]
+person_title: [role/title or omit]
 
 ---
 
@@ -399,7 +420,7 @@ async def generate_storyboard(
     word_timestamps: Optional[list[WordTimestamp]] = None,
 ) -> tuple[Storyboard, ValidationResult]:
     """
-    Call Claude API with v0.8 prompt, parse, then validate with Haiku.
+    Call Claude API with v0.10 prompt, parse, then validate with Haiku.
 
     For long scripts (paragraph count > STORYBOARD_CHUNK_SIZE), splits the script
     into chunks and runs each as a concurrent Claude call via asyncio.gather.
@@ -455,7 +476,7 @@ async def _call_claude_api(
     model: str,
     word_timestamps: Optional[list[WordTimestamp]] = None,
 ) -> tuple[str, int, int]:
-    """Call Claude API with the v0.8 system prompt.
+    """Call Claude API with the v0.10 system prompt.
 
     Returns (raw_text, input_tokens, output_tokens).
     """
@@ -728,6 +749,9 @@ def _parse_scene(block: str, index: int = 0) -> StoryboardScene:
     sfx_timing_raw = _get_field(block, "sfx_timing", required=False)
     sfx_timing = sfx_timing_raw if sfx_timing_raw else "scene_start"
 
+    person_name = _get_field(block, "person_name", required=False)
+    person_title = _get_field(block, "person_title", required=False)
+
     return StoryboardScene(
         scene=scene_id,
         clip_type=clip_type,
@@ -738,6 +762,8 @@ def _parse_scene(block: str, index: int = 0) -> StoryboardScene:
         on_screen_text=on_screen_text,
         sfx=sfx,
         sfx_timing=sfx_timing,
+        person_name=person_name,
+        person_title=person_title,
     )
 
 

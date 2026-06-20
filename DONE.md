@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P8-S3] Real person detection + Wikimedia person photo routing
+**Completed:** 2026-06-20
+**Handover:**
+- `src/models.py`: `StoryboardScene` gains `person_name: Optional[str] = None`, `person_title: Optional[str] = None`. `ManifestEntry` gains same two fields.
+- `src/storyboard.py`: `STORYBOARD_PROMPT_VERSION = "v0.10"` constant; SYSTEM_PROMPT bumped to v0.10 — adds PERSON SCENE RULE section (when to emit `person_name`/`person_title`) and optional scene output fields; `_parse_scene` extracts both via `_get_field`.
+- `src/manifest.py`: `build_manifest` propagates `person_name` and `person_title` from scene → entry.
+- `src/acquisition.py`: `_try_person_photo(entry, run_id, wikimedia, storage) → bool` — calls `wikimedia.fetch_person_photo`, downloads, sets `source="wikimedia_person"`. `acquire_scene` checks `entry.person_name` first; hit → done; miss → Pexels+Pixabay only (no Wikimedia general, no AI — wrong face worse than generic B-roll).
+- `tests/test_p8_s3_person_routing.py` (new): 10 tests covering _try_person_photo (success, no image, download fail), acquire_scene person routing (wikipedia first, miss fallback, no wikimedia client, non-person scene skips fetch), manifest field defaults and set values.
+- `docs/PROMPTS.md`: v0.10 changelog entry.
+- 1652 total tests passing (CI green, was 1642).
+**Smoke test:** DEFERRED — trigger a `/pick` run on Railway DEV with a script that names a real person (e.g. "Jerome Powell raised rates"); verify `source="wikimedia_person"` appears in the manifest for that scene.
+**Promoted to backlog:** blur-fill for landscape assets added to P8-S6 AC (landscape still images → blurred background fill; `BLUR_FILL_ENABLED` ENV var).
+
+---
+
 ## [P8-S2] Wikimedia Commons source — historic + general + person photos
 **Completed:** 2026-06-20
 **Handover:**

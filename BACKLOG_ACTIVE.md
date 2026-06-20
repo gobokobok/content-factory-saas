@@ -644,7 +644,8 @@ async def fetch_person_photo(person_name: str) -> WikimediaAsset | None
 ## [P8-S3] Real person detection + Wikimedia person photo routing
 **Epic:** E35 — Footage Quality
 **Sprint:** P8
-**Status:** todo
+**Status:** done
+**Completed:** 2026-06-20
 **Priority:** high
 **Points:** 3
 **Depends on:** P8-S2
@@ -673,12 +674,12 @@ When `scene.person_name` is set:
 Person-photo assets get `source: "wikimedia_person"` and `person_name` fields.
 
 ### Acceptance Criteria
-- [ ] Storyboard prompt v0.5: outputs `person_name` + `person_title` when scene depicts a named individual
-- [ ] `STORYBOARD_PROMPT_VERSION` bumped to v0.5 in `src/config.py` or relevant constant
-- [ ] `src/acquisition.py` routes `person_name`-flagged scenes to `fetch_person_photo` first
-- [ ] Fallback to generic search (not Replicate) when Wikipedia has no photo
-- [ ] `asset_manifest.json`: person assets get `source: "wikimedia_person"`, `person_name`, `person_title`
-- [ ] Tests: person scene → Wikimedia called first; Wikimedia miss → generic fallback (not Replicate); non-person scene → Wikimedia person not called; manifest fields correct
+- [x] Storyboard prompt v0.10: outputs `person_name` + `person_title` when scene depicts a named individual; PERSON SCENE RULE section added
+- [x] `STORYBOARD_PROMPT_VERSION = "v0.10"` constant added in `src/storyboard.py`
+- [x] `src/acquisition.py` routes `person_name`-flagged scenes to `fetch_person_photo` first via `_try_person_photo`
+- [x] Fallback to generic Pexels+Pixabay search (no Wikimedia general, no AI) when Wikipedia has no photo
+- [x] `asset_manifest.json`: person assets get `source: "wikimedia_person"`, `person_name`, `person_title` via `ManifestEntry` + `StoryboardScene` fields
+- [x] Tests: person scene → Wikimedia called first; Wikimedia miss → generic fallback (not Replicate); non-person scene → Wikimedia person not called; manifest fields correct
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
@@ -790,8 +791,17 @@ Backward-compatible: `footage_summary` absent → reply unchanged.
 - [ ] `qa_failed_scenes > 0` → adds `⚠️ N scenes below QA threshold` warning to reply
 - [ ] Tests: formatter all-sources; formatter no summary (backward compat); adapter reads; adapter graceful; QA warning shown
 
+### Handover
+- `src/models.py`: `StoryboardScene` gains `person_name: Optional[str] = None`, `person_title: Optional[str] = None`. `ManifestEntry` gains same two fields — propagated from scene via `build_manifest`.
+- `src/storyboard.py`: `STORYBOARD_PROMPT_VERSION = "v0.10"` constant; SYSTEM_PROMPT updated with PERSON SCENE RULE section and optional `person_name`/`person_title` output fields; `_parse_scene` extracts both fields.
+- `src/manifest.py`: `build_manifest` propagates `person_name` and `person_title` from scene → entry.
+- `src/acquisition.py`: `_try_person_photo(entry, run_id, wikimedia, storage) → bool` helper; `acquire_scene` detects `entry.person_name` and routes to Wikipedia portrait first; on miss falls back to Pexels+Pixabay only (no Wikimedia general, no AI for person scenes).
+- `tests/test_p8_s3_person_routing.py` (new): 10 tests — `_try_person_photo` (3), `acquire_scene` person routing (4), manifest field defaults/values (3).
+- `docs/PROMPTS.md`: v0.10 changelog entry added.
+- 1652 total tests passing (CI green, was 1642).
+
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ---
 
@@ -820,6 +830,10 @@ Apply a consistent colour grade to the final rendered video via an FFmpeg filter
 - `COLOR_GRADE_PRESET` added to `src/config.py` (default `"neutral"`) and `ENV.md`
 - `src/ffmpeg_builder.py`: `_get_color_grade_filter(preset: str) -> str | None`; when non-None, appended to the video filter chain in `build_ffmpeg_script`
 - Unknown preset value → logs WARNING, falls back to `neutral`
+- **Blur-fill for landscape assets** (added P8-S3): when a still photo is wider than the 9:16 frame (aspect ratio > 0.5625), apply blur-fill compositing — blurred + scaled full-frame behind, sharp subject scaled to fit in front. This is the standard YouTube Shorts look and handles Wikipedia portraits that happen to be landscape (e.g. podium shots).
+  - FFmpeg pattern: `[in]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20:5[blurred];[fg]scale=iw*min(1080/iw\,1920/ih):ih*min(1080/iw\,1920/ih)[fitted];[blurred][fitted]overlay=(W-w)/2:(H-h)/2`
+  - Gate on `BLUR_FILL_ENABLED` ENV var (default `True` — on by default since portrait stock photos are the common case)
+  - Only applies to still images (`still_with_motion` / `animated` with photo asset); video clips use crop-to-fill as before
 
 ### Acceptance Criteria
 - [ ] `COLOR_GRADE_PRESET` in `src/config.py` + `ENV.md`
@@ -828,6 +842,8 @@ Apply a consistent colour grade to the final rendered video via an FFmpeg filter
 - [ ] Unknown value → warning logged + neutral fallback
 - [ ] Filter chain position: applied after trim/scale, before audio merge (correct order)
 - [ ] Tests: each preset returns expected filter string; neutral returns None; unknown → neutral; filter string is non-empty for non-neutral presets
+- [ ] `BLUR_FILL_ENABLED` in `src/config.py` + `ENV.md`; landscape still images get blur-fill compositing when enabled; portrait/square stills use scale+crop as before
+- [ ] Tests: landscape asset → blur-fill filter applied; portrait asset → no blur-fill; `BLUR_FILL_ENABLED=False` → no blur-fill regardless
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`

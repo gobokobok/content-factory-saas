@@ -229,6 +229,50 @@ async def _download_bytes(url: str) -> bytes:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 
+async def _try_person_photo(
+    entry: ManifestEntry,
+    run_id: str,
+    wikimedia: WikimediaClient,
+    storage: R2Client,
+) -> bool:
+    """Attempt to acquire a Wikipedia portrait for a named person.
+
+    Calls fetch_person_photo; on success downloads and uploads the image, sets
+    entry.source="wikimedia_person", and returns True.  Returns False when the
+    Wikipedia API returns no image or download fails — caller then falls back to
+    generic stock search.
+    """
+    asset = await wikimedia.fetch_person_photo(entry.person_name)  # type: ignore[arg-type]
+    if asset is None:
+        logger.info("No Wikipedia portrait found for person='%s' scene=%s", entry.person_name, entry.scene_id)
+        return False
+
+    try:
+        data = await _download_bytes(asset.url)
+        ext = _ext_from_url(asset.url)
+        key = f"runs/{run_id}/images/{entry.scene_id}{ext}"
+        storage.upload_bytes(key, data, content_type="image/jpeg")
+        entry.source = "wikimedia_person"
+        entry.file_key = key
+        entry.status = "acquired"
+        entry.attribution = asset.attribution
+        logger.info(
+            "Acquired person photo: scene=%s person='%s' key=%s",
+            entry.scene_id,
+            entry.person_name,
+            key,
+        )
+        return True
+    except Exception as exc:
+        logger.warning(
+            "Person photo download failed scene=%s person='%s': %s",
+            entry.scene_id,
+            entry.person_name,
+            exc,
+        )
+        return False
+
+
 async def acquire_scene(
     entry: ManifestEntry,
     run_id: str,
@@ -239,18 +283,39 @@ async def acquire_scene(
 ) -> bool:
     """Acquire the best asset for one manifest entry from the merged source pool.
 
-    Searches Pexels, Pixabay (when key present), and Wikimedia Commons (photo scenes
-    only) concurrently; merges into a candidate list sorted by priority then resolution;
-    downloads only the winner.  Historic scenes give Wikimedia candidates priority=1 so
-    they are tried before Pexels/Pixabay.  If the winner download fails, retries the
-    next-best candidate.  Marks the entry 'failed' only when every candidate is exhausted.
+    Person scenes (entry.person_name set): tries wikimedia.fetch_person_photo first;
+    on miss falls back to generic Pexels+Pixabay search only (no Wikimedia general,
+    no AI — a wrong generated face is worse than generic B-roll).
+
+    All other scenes: searches Pexels, Pixabay (when key present), and Wikimedia
+    Commons (photo scenes only) concurrently; merges into a candidate list sorted by
+    priority then resolution; downloads only the winner.  Historic scenes give Wikimedia
+    candidates priority=1 so they are tried before Pexels/Pixabay.
+
+    If the winner download fails, retries the next-best candidate.  Marks the entry
+    'failed' only when every candidate is exhausted.
 
     Mutates entry.source, entry.file_key, entry.status, entry.attribution in-place on
     success. Returns True on success, False on failure.
     """
-    is_video = entry.clip_type == "hard_cut"
-    candidates = await _gather_candidates(entry, pexels, pixabay, wikimedia, is_video)
-    candidates.sort(key=lambda c: (-c.priority, -_resolution_score(c)))
+    # Person scene: Wikipedia portrait first, generic stock fallback (no AI).
+    if entry.person_name and wikimedia:
+        found = await _try_person_photo(entry, run_id, wikimedia, storage)
+        if found:
+            return True
+        logger.info(
+            "Person photo miss — falling back to generic stock for scene=%s person='%s'",
+            entry.scene_id,
+            entry.person_name,
+        )
+        # Generic Pexels+Pixabay only; no Wikimedia general, no AI for person scenes.
+        is_video = entry.clip_type == "hard_cut"
+        candidates = await _gather_candidates(entry, pexels, pixabay, None, is_video)
+        candidates.sort(key=lambda c: (-c.priority, -_resolution_score(c)))
+    else:
+        is_video = entry.clip_type == "hard_cut"
+        candidates = await _gather_candidates(entry, pexels, pixabay, wikimedia, is_video)
+        candidates.sort(key=lambda c: (-c.priority, -_resolution_score(c)))
 
     if not candidates:
         logger.warning("No candidates found for scene=%s", entry.scene_id)

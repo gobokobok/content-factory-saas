@@ -52,6 +52,8 @@ def build_manifest(run_id: str, storyboard_data: dict) -> AssetManifest:
             ai_generate_prompt=scene.visual_prompts.ai_generate,
             historic=scene.historic,
             asset_mode=scene.asset_mode or _default_asset_mode(scene.clip_type),
+            person_name=scene.person_name,
+            person_title=scene.person_title,
         )
         for scene in storyboard.scenes
     ]

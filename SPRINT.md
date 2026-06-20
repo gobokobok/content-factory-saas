@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-20 the active work is the **Platform v2 track (Sprints P0–P12)**, defined in **docs/v2_platform_plan.md** (decisions D047–D063).
-> - **Sprints P1–P7 complete. Sprint P8 active** — P8-S1 done. Next: P8-S2 Wikimedia Commons source.
+> - **Sprints P1–P7 complete. Sprint P8 active** — P8-S1, P8-S2, P8-S3 done. Next: P8-S4 — Footage QA per-scene quality gate + retry.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
@@ -112,7 +112,7 @@ Legacy Script→Video stays untouched and operable (D047).
 |----|-------|--------|--------|
 | P8-S1 | Pixabay source — videos + photos | 3 | done |
 | P8-S2 | Wikimedia Commons source — historic + general + person photos | 3 | done |
-| P8-S3 | Real person detection + Wikimedia person photo routing | 3 | todo |
+| P8-S3 | Real person detection + Wikimedia person photo routing | 3 | done |
 | P8-S4 | Footage QA — per-scene quality gate + retry | 3 | todo |
 | P8-S5 | Source telemetry + Telegram footage report | 2 | todo |
 | P8-S6 | Colour grading presets (FFmpeg) | 2 | todo |
@@ -123,7 +123,7 @@ Legacy Script→Video stays untouched and operable (D047).
 - [x] Pexels + Pixabay searched concurrently, winner by resolution; `PIXABAY_API_KEY` in ENV; D063 logged; Replicate retired (P8-S1 done)
 - [x] Wikimedia Commons added to merge pool; historic-first routing; attribution stored per asset; D064 logged (P8-S2 done)
 - [ ] Wikimedia Commons covers historic footage (no API key) and general stock photos; D064 logged
-- [ ] Storyboard prompt v0.5: `person_name` field emitted when scene depicts a named individual; Wikimedia person photo fetched first for those scenes
+- [x] Storyboard prompt v0.10: `person_name` + `person_title` fields emitted when scene depicts a named individual; Wikimedia person photo fetched first for those scenes; fallback to generic stock (no AI) on miss (P8-S3 done)
 - [ ] Every acquired clip passes resolution + duration + optional CLIP quality gate; retry on `fallback_query` before advancing source; `CLIP_RERANK_ENABLED` in ENV
 - [ ] `asset_manifest.json` records `source`, `qa_passed`, `qa_clip_score`, `fallback_used` per scene
 - [ ] `footage_summary` in `run_log.json`; surfaced in Telegram reply with QA warning when needed
