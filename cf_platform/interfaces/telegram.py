@@ -296,11 +296,39 @@ def format_youtube_metadata_block(metadata: "YoutubeMetadataArtifact") -> str:
     )
 
 
+_FOOTAGE_SOURCE_LABELS = [
+    ("pexels", "Pexels"),
+    ("pixabay", "Pixabay"),
+    ("wikimedia", "Wikimedia"),
+    ("wikimedia_person", "Person"),
+    ("replicate", "AI"),
+]
+
+
+def format_footage_summary(summary: dict) -> str:
+    """Format the per-source footage breakdown for the Telegram reply (D049, P8-S5).
+
+    Returns a single-line coverage string, e.g. "Footage: 14 Pexels · 4 Pixabay · 2 Person".
+    Appends a QA warning line when `qa_failed_scenes > 0`.
+    """
+    parts = [
+        f"{summary.get(key, 0)} {label}"
+        for key, label in _FOOTAGE_SOURCE_LABELS
+        if summary.get(key, 0) > 0
+    ]
+    line = "Footage: " + " · ".join(parts) if parts else "Footage: (none)"
+    qa_failed = summary.get("qa_failed_scenes", 0)
+    if qa_failed > 0:
+        line += f"\n⚠️ {qa_failed} scenes below QA threshold"
+    return line
+
+
 def format_produce_reply(
     idea_title: str,
     run_id: str,
     video_url: str,
     metadata: Optional["YoutubeMetadataArtifact"] = None,
+    footage_summary: Optional[dict] = None,
 ) -> str:
     """Format the finished video reply after a /produce pipeline completes (D049, P7-S1/S3).
 
@@ -313,6 +341,8 @@ def format_produce_reply(
         f"Run: {run_id}\n\n"
         f"Download (expires {_VIDEO_URL_EXPIRY_LABEL}):\n{video_url}"
     )
+    if footage_summary is not None:
+        text += "\n\n" + format_footage_summary(footage_summary)
     if metadata is not None:
         text += format_youtube_metadata_block(metadata)
     return text

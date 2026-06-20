@@ -54,6 +54,35 @@ class VideoResult(BaseModel):
     legacy_run_id: str
     status: Literal["complete", "failed"]
     error: Optional[str] = None
+    footage_summary: Optional[dict] = None
+
+
+def _compute_footage_summary(manifest: "AssetManifest") -> dict:
+    """Compute per-source asset counts and QA failures from manifest entries (P8-S5).
+
+    Returns a dict with keys: pexels, pixabay, wikimedia, wikimedia_person,
+    replicate, failed, qa_failed_scenes.
+    """
+    summary: dict = {
+        "pexels": 0,
+        "pixabay": 0,
+        "wikimedia": 0,
+        "wikimedia_person": 0,
+        "replicate": 0,
+        "failed": 0,
+        "qa_failed_scenes": 0,
+    }
+    for entry in manifest.entries:
+        if entry.status == "acquired" and entry.source:
+            src = entry.source
+            if src in summary:
+                summary[src] += 1
+        elif entry.status == "failed":
+            summary["failed"] += 1
+        # qa_passed=False means QA gate failed but best-available was accepted.
+        if entry.qa_passed is False:
+            summary["qa_failed_scenes"] += 1
+    return summary
 
 
 class LegacyVideoAdapter(Protocol):
@@ -222,6 +251,7 @@ class InProcessLegacyVideoAdapter:
             )
 
         # ── 4. Asset acquisition ──────────────────────────────────────────
+        footage_summary: Optional[dict] = None
         t0 = time.monotonic()
         try:
             pexels = PexelsClient(api_key=s.PEXELS_API_KEY, per_page=s.PEXELS_PER_PAGE)
@@ -244,6 +274,14 @@ class InProcessLegacyVideoAdapter:
                 f"runs/{run_id}/asset_manifest.json",
                 manifest.model_dump(mode="json"),
             )
+            footage_summary = _compute_footage_summary(manifest)
+            try:
+                storage.upload_json(
+                    f"runs/{run_id}/footage_summary.json",
+                    footage_summary,
+                )
+            except Exception as fs_exc:  # noqa: BLE001
+                logger.warning("Could not write footage_summary.json for run %s: %s", run_id, fs_exc)
             await self._trace(
                 trace_repo, run_id, "acquisition", "acquire_assets",
                 int((time.monotonic() - t0) * 1000), "ok", summary,
@@ -322,4 +360,4 @@ class InProcessLegacyVideoAdapter:
                 error=f"render: {exc}",
             )
 
-        return VideoResult(r2_key=r2_key, legacy_run_id=run_id, status="complete")
+        return VideoResult(r2_key=r2_key, legacy_run_id=run_id, status="complete", footage_summary=footage_summary)

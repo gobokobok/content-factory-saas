@@ -764,7 +764,7 @@ Pure functions, no I/O — importable by P9 AcquisitionWorker.
 ## [P8-S5] Source telemetry + Telegram footage report
 **Epic:** E35 — Footage Quality
 **Sprint:** P8
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 2
 **Depends on:** P8-S3, P8-S4

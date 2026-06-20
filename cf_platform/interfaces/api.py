@@ -46,6 +46,7 @@ from cf_platform.core.worker_registry import (
 )
 from cf_platform.interfaces.telegram import (
     TelegramClient,
+    format_footage_summary,
     format_ideas_running,
     format_ideas_usage,
     format_pick_running,
@@ -792,7 +793,16 @@ async def _run_pipeline_and_reply(
                     meta_exc,
                 )
 
-        reply = format_produce_reply(display_label, run.run_id, video_url, metadata)
+        # Read footage_summary side-car written by the legacy adapter (P8-S5).
+        # Written to R2 as runs/{run_id}/footage_summary.json; absent in tests and
+        # non-acquisition environments — graceful fallback to None (no coverage line).
+        footage_summary: Optional[dict] = None
+        try:
+            footage_summary = await storage.get_json(f"runs/{run.run_id}/footage_summary.json")
+        except Exception:  # noqa: BLE001
+            pass
+
+        reply = format_produce_reply(display_label, run.run_id, video_url, metadata, footage_summary)
     except Exception as exc:  # noqa: BLE001
         _logger.exception(
             "_run_pipeline_and_reply failed for label=%r chat_id=%s: %s", display_label, chat_id, exc
