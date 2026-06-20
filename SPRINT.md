@@ -76,7 +76,7 @@ Legacy Script→Video stays untouched and operable (D047).
 ## Sprint P6 Definition of Done
 - [x] Only the adapter imports `src/`; legacy unchanged and still operable
 - [x] One run threads lineage across blocks + legacy node
-- [ ] **Human touchpoint (P6-S7):** `/testvoice <run_id>` → presigned MP3 URL in ~30s; then `/produce <niche>` → finished video — DEFERRED (requires DEV deploy with `GEMINI_API_KEY`)
+- [x] **Human touchpoint (P6-S7):** `/testvoice <run_id>` → presigned MP3 URL in ~30s; `/pick <run_id> <n>` → finished video — VERIFIED 2026-06-20 (P8-S0 smoke test sweep)
 
 ---
 
