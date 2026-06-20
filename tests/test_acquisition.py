@@ -443,22 +443,20 @@ class TestRunAcquisitionBatching:
 
     @pytest.mark.asyncio
     async def test_partial_failure_in_batch_does_not_cancel_others(self):
+        """Scene 02 finds no candidates; scenes 01 and 03 succeed — batch resilience."""
         entries = [_entry("01"), _entry("02"), _entry("03")]
+        # Give scene 02 queries that return no results so it truly has no candidates.
+        entries[1].primary_query = "noresults_xyz"
+        entries[1].fallback_query = "alsono_xyz"
         manifest = _manifest(entries)
         pexels, storage = MagicMock(), MagicMock()
 
-        call_n = {"n": 0}
+        def search_videos_selective(query: str) -> list:
+            return [] if "xyz" in query else [_pexels_video_result()]
 
-        async def selective_download(url: str) -> bytes:
-            call_n["n"] += 1
-            # Second download attempt fails (scene 02)
-            if call_n["n"] == 2:
-                raise httpx.ConnectError("fail")
-            return b"bytes"
-
-        pexels.search_videos.return_value = [_pexels_video_result()]
+        pexels.search_videos.side_effect = search_videos_selective
         with patch("src.acquisition._download_bytes", new_callable=AsyncMock) as mock_dl:
-            mock_dl.side_effect = selective_download
+            mock_dl.return_value = b"bytes"
             summary = await run_acquisition(RUN_ID, manifest, pexels, None, storage, batch_size=3)
 
         assert summary["acquired"] == 2

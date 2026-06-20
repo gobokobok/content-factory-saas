@@ -4,6 +4,13 @@ Both sources are searched concurrently for every scene.  Candidates are ranked b
 resolution (pixel area); only the winner is downloaded and uploaded to R2.  Losers
 are never fetched — no cleanup needed.
 
+QA gate (P8-S4)
+---------------
+Every candidate is checked for minimum resolution, video duration fit, and
+optionally CLIP semantic similarity before being accepted.  On QA failure the
+next candidate in priority+resolution order is tried.  If no candidate passes QA,
+the best-scoring available candidate is accepted (never leave a scene empty).
+
 Step status rule
 ---------------
 Step asset_acquisition is marked 'complete' when at least MIN_ACQUIRED_FOR_COMPLETE
@@ -15,13 +22,14 @@ the total acquired count is zero — i.e. no scene in the run has an asset at al
 import asyncio
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
 
 from src.exceptions import PexelsError
+from src.footage_qa import QAResult, pick_best, qa_score
 from src.models import AssetManifest, ManifestEntry
 from src.pexels import PexelsClient, _pick_best_video_file
 from src.pixabay_client import PixabayClient
@@ -33,7 +41,7 @@ logger = logging.getLogger(__name__)
 # Step → 'complete' if at least this many entries are acquired; 'failed' only if 0.
 MIN_ACQUIRED_FOR_COMPLETE = 1
 
-# Minimum dimensions to accept a photo candidate.
+# Minimum dimensions to accept a photo candidate (legacy pre-filter).
 _MIN_PHOTO_WIDTH = 1920
 _MIN_PHOTO_HEIGHT = 1080
 
@@ -50,6 +58,8 @@ class _Candidate:
     ext: str
     attribution: Optional[str] = None   # CC/public-domain credit text (Wikimedia only)
     priority: int = 0                   # Higher = tried first (1 for Wikimedia in historic scenes)
+    duration_seconds: Optional[float] = None  # Video duration for duration QA (P8-S4)
+    from_fallback: bool = False          # True when sourced from entry.fallback_query (P8-S4)
 
 
 def _resolution_score(c: _Candidate) -> int:
@@ -67,7 +77,9 @@ def _ext_from_url(url: str) -> str:
 # ── Per-source search helpers (each returns list[_Candidate]) ─────────────────
 
 
-def _pexels_video_candidates(pexels: PexelsClient, query: str) -> list[_Candidate]:
+def _pexels_video_candidates(
+    pexels: PexelsClient, query: str, from_fallback: bool = False
+) -> list[_Candidate]:
     """Search Pexels Videos and return candidates. Sync — call via asyncio.to_thread."""
     try:
         videos = pexels.search_videos(query)
@@ -78,6 +90,7 @@ def _pexels_video_candidates(pexels: PexelsClient, query: str) -> list[_Candidat
     for video in videos:
         vfile = _pick_best_video_file(video)
         if vfile and vfile.get("link"):
+            raw_duration = video.get("duration")
             candidates.append(
                 _Candidate(
                     url=vfile["link"],
@@ -86,12 +99,16 @@ def _pexels_video_candidates(pexels: PexelsClient, query: str) -> list[_Candidat
                     source="pexels",
                     content_type=vfile.get("file_type", "video/mp4"),
                     ext=".mp4",
+                    duration_seconds=float(raw_duration) if raw_duration else None,
+                    from_fallback=from_fallback,
                 )
             )
     return candidates
 
 
-def _pexels_photo_candidates(pexels: PexelsClient, query: str) -> list[_Candidate]:
+def _pexels_photo_candidates(
+    pexels: PexelsClient, query: str, from_fallback: bool = False
+) -> list[_Candidate]:
     """Search Pexels Photos and return candidates. Sync — call via asyncio.to_thread."""
     try:
         photos = pexels.search_photos(query)
@@ -113,12 +130,15 @@ def _pexels_photo_candidates(pexels: PexelsClient, query: str) -> list[_Candidat
                     source="pexels",
                     content_type="image/jpeg",
                     ext=ext,
+                    from_fallback=from_fallback,
                 )
             )
     return candidates
 
 
-async def _pixabay_video_candidates(pixabay: PixabayClient, query: str) -> list[_Candidate]:
+async def _pixabay_video_candidates(
+    pixabay: PixabayClient, query: str, from_fallback: bool = False
+) -> list[_Candidate]:
     """Search Pixabay Videos and return candidates."""
     videos = await pixabay.search_videos(query)
     return [
@@ -129,12 +149,16 @@ async def _pixabay_video_candidates(pixabay: PixabayClient, query: str) -> list[
             source="pixabay",
             content_type="video/mp4",
             ext=".mp4",
+            duration_seconds=float(v.duration_seconds) if v.duration_seconds else None,
+            from_fallback=from_fallback,
         )
         for v in videos
     ]
 
 
-async def _pixabay_photo_candidates(pixabay: PixabayClient, query: str) -> list[_Candidate]:
+async def _pixabay_photo_candidates(
+    pixabay: PixabayClient, query: str, from_fallback: bool = False
+) -> list[_Candidate]:
     """Search Pixabay Images and return candidates meeting minimum dimensions."""
     photos = await pixabay.search_photos(query)
     return [
@@ -145,13 +169,16 @@ async def _pixabay_photo_candidates(pixabay: PixabayClient, query: str) -> list[
             source="pixabay",
             content_type="image/jpeg",
             ext=_ext_from_url(p.url),
+            from_fallback=from_fallback,
         )
         for p in photos
         if p.width >= _MIN_PHOTO_WIDTH and p.height >= _MIN_PHOTO_HEIGHT
     ]
 
 
-async def _wikimedia_photo_candidates(wikimedia: WikimediaClient, query: str) -> list[_Candidate]:
+async def _wikimedia_photo_candidates(
+    wikimedia: WikimediaClient, query: str, from_fallback: bool = False
+) -> list[_Candidate]:
     """Search Wikimedia Commons for photos and return candidates with attribution."""
     assets = await wikimedia.search_media(query, media_type="photo")
     return [
@@ -163,9 +190,41 @@ async def _wikimedia_photo_candidates(wikimedia: WikimediaClient, query: str) ->
             content_type="image/jpeg",
             ext=_ext_from_url(a.url),
             attribution=a.attribution,
+            from_fallback=from_fallback,
         )
         for a in assets
     ]
+
+
+def _build_search_tasks(
+    entry: ManifestEntry,
+    pexels: PexelsClient,
+    pixabay: Optional[PixabayClient],
+    wikimedia: Optional[WikimediaClient],
+    is_video: bool,
+    query: str,
+    from_fallback: bool,
+) -> list:
+    """Build a list of concurrent search tasks for one query string.
+
+    Returns awaitable coroutines / thread wrappers for each source.
+    """
+    tasks = []
+    if is_video:
+        tasks.append(
+            asyncio.to_thread(_pexels_video_candidates, pexels, query, from_fallback)
+        )
+        if pixabay:
+            tasks.append(_pixabay_video_candidates(pixabay, query, from_fallback))
+    else:
+        tasks.append(
+            asyncio.to_thread(_pexels_photo_candidates, pexels, query, from_fallback)
+        )
+        if pixabay:
+            tasks.append(_pixabay_photo_candidates(pixabay, query, from_fallback))
+        if wikimedia:
+            tasks.append(_wikimedia_photo_candidates(wikimedia, query, from_fallback))
+    return tasks
 
 
 async def _gather_candidates(
@@ -177,37 +236,43 @@ async def _gather_candidates(
 ) -> list[_Candidate]:
     """Search all sources concurrently and return a merged, deduplicated candidate list.
 
-    Photo scenes include Wikimedia Commons in the candidate pool.
-    For historic scenes (entry.historic=True), Wikimedia candidates are promoted
-    to priority=1 so they are tried before Pexels/Pixabay regardless of resolution.
+    Primary-query candidates are tagged from_fallback=False; fallback-query
+    candidates are tagged from_fallback=True.  Photo scenes include Wikimedia
+    Commons.  Historic scenes promote Wikimedia candidates to priority=1.
     """
-    queries = [q for q in (entry.primary_query, entry.fallback_query) if q]
+    primary_tasks = []
+    fallback_tasks = []
 
-    tasks = []
-    for query in queries:
-        if is_video:
-            tasks.append(asyncio.to_thread(_pexels_video_candidates, pexels, query))
-            if pixabay:
-                tasks.append(_pixabay_video_candidates(pixabay, query))
-        else:
-            tasks.append(asyncio.to_thread(_pexels_photo_candidates, pexels, query))
-            if pixabay:
-                tasks.append(_pixabay_photo_candidates(pixabay, query))
-            if wikimedia:
-                tasks.append(_wikimedia_photo_candidates(wikimedia, query))
+    if entry.primary_query:
+        primary_tasks = _build_search_tasks(
+            entry, pexels, pixabay, wikimedia, is_video, entry.primary_query, False
+        )
+    if entry.fallback_query:
+        fallback_tasks = _build_search_tasks(
+            entry, pexels, pixabay, wikimedia, is_video, entry.fallback_query, True
+        )
 
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    all_tasks = primary_tasks + fallback_tasks
+    if not all_tasks:
+        return []
+
+    results = await asyncio.gather(*all_tasks, return_exceptions=True)
+
+    primary_results = results[: len(primary_tasks)]
+    fallback_results = results[len(primary_tasks) :]
 
     all_candidates: list[_Candidate] = []
     seen_urls: set[str] = set()
-    for result in results:
-        if isinstance(result, Exception):
-            logger.warning("Candidate search task failed: %s", result)
-            continue
-        for c in result:
-            if c.url not in seen_urls:
-                seen_urls.add(c.url)
-                all_candidates.append(c)
+
+    for result_group in (primary_results, fallback_results):
+        for result in result_group:
+            if isinstance(result, Exception):
+                logger.warning("Candidate search task failed: %s", result)
+                continue
+            for c in result:
+                if c.url not in seen_urls:
+                    seen_urls.add(c.url)
+                    all_candidates.append(c)
 
     # Historic scenes: promote Wikimedia candidates so they are tried first.
     if entry.historic:
@@ -224,6 +289,24 @@ async def _download_bytes(url: str) -> bytes:
         resp = await client.get(url, follow_redirects=True)
         resp.raise_for_status()
         return resp.content
+
+
+def _apply_entry_fields(
+    entry: ManifestEntry,
+    candidate: _Candidate,
+    key: str,
+    qa_result: QAResult,
+) -> None:
+    """Write all acquisition + QA fields onto a manifest entry in-place."""
+    entry.source = candidate.source
+    entry.file_key = key
+    entry.status = "acquired"
+    entry.attribution = candidate.attribution
+    entry.fallback_used = candidate.from_fallback
+    entry.qa_passed = qa_result.passed
+    entry.qa_resolution_ok = qa_result.resolution_ok
+    entry.qa_duration_ok = qa_result.duration_ok
+    entry.qa_clip_score = qa_result.clip_score
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -256,6 +339,9 @@ async def _try_person_photo(
         entry.file_key = key
         entry.status = "acquired"
         entry.attribution = asset.attribution
+        entry.qa_passed = True   # Wikipedia portraits skip QA — ground truth
+        entry.qa_resolution_ok = True
+        entry.qa_duration_ok = True
         logger.info(
             "Acquired person photo: scene=%s person='%s' key=%s",
             entry.scene_id,
@@ -283,21 +369,28 @@ async def acquire_scene(
 ) -> bool:
     """Acquire the best asset for one manifest entry from the merged source pool.
 
-    Person scenes (entry.person_name set): tries wikimedia.fetch_person_photo first;
-    on miss falls back to generic Pexels+Pixabay search only (no Wikimedia general,
-    no AI — a wrong generated face is worse than generic B-roll).
+    QA gate (P8-S4): candidates are checked for resolution, video duration fit,
+    and optionally CLIP semantic similarity.  Primary-query candidates are tried
+    before fallback-query candidates.  Within each group, candidates are sorted
+    by priority (historic Wikimedia gets priority=1) then resolution.  The first
+    candidate to pass all QA checks is downloaded, uploaded, and accepted.
 
-    All other scenes: searches Pexels, Pixabay (when key present), and Wikimedia
-    Commons (photo scenes only) concurrently; merges into a candidate list sorted by
-    priority then resolution; downloads only the winner.  Historic scenes give Wikimedia
-    candidates priority=1 so they are tried before Pexels/Pixabay.
+    If no candidate passes QA, the best-scoring downloaded candidate is accepted
+    to avoid leaving the scene empty.  If all pre-checks fail (no candidate meets
+    even the resolution floor), the highest-resolution candidate is downloaded as
+    a last resort.
 
-    If the winner download fails, retries the next-best candidate.  Marks the entry
-    'failed' only when every candidate is exhausted.
+    Person scenes (entry.person_name set): tries wikimedia.fetch_person_photo
+    first; on miss falls back to generic Pexels+Pixabay only (no Wikimedia
+    general, no AI — wrong generated face is worse than generic B-roll).
 
-    Mutates entry.source, entry.file_key, entry.status, entry.attribution in-place on
-    success. Returns True on success, False on failure.
+    Mutates entry fields in-place on success. Returns True on success, False only
+    when every candidate is exhausted.
     """
+    from src.clip_reranker import get_reranker  # noqa: PLC0415
+
+    clip_reranker = get_reranker()  # None when CLIP_RERANK_ENABLED=False (default)
+
     # Person scene: Wikipedia portrait first, generic stock fallback (no AI).
     if entry.person_name and wikimedia:
         found = await _try_person_photo(entry, run_id, wikimedia, storage)
@@ -311,42 +404,117 @@ async def acquire_scene(
         # Generic Pexels+Pixabay only; no Wikimedia general, no AI for person scenes.
         is_video = entry.clip_type == "hard_cut"
         candidates = await _gather_candidates(entry, pexels, pixabay, None, is_video)
-        candidates.sort(key=lambda c: (-c.priority, -_resolution_score(c)))
     else:
         is_video = entry.clip_type == "hard_cut"
         candidates = await _gather_candidates(entry, pexels, pixabay, wikimedia, is_video)
-        candidates.sort(key=lambda c: (-c.priority, -_resolution_score(c)))
 
     if not candidates:
         logger.warning("No candidates found for scene=%s", entry.scene_id)
         entry.status = "failed"
         return False
 
+    # Sort: primary candidates first, then by priority (historic boost), then resolution.
+    candidates.sort(key=lambda c: (c.from_fallback, -c.priority, -_resolution_score(c)))
+
     folder = "video" if is_video else "images"
+
+    # QA loop: download each candidate, check, accept on first pass.
+    # Track (candidate, bytes, result) triples for pick_best fallback.
+    checked: list[tuple[_Candidate, bytes, QAResult]] = []
+
     for candidate in candidates:
-        try:
-            data = await _download_bytes(candidate.url)
-            key = f"runs/{run_id}/{folder}/{entry.scene_id}{candidate.ext}"
-            storage.upload_bytes(key, data, content_type=candidate.content_type)
-            entry.source = candidate.source
-            entry.file_key = key
-            entry.status = "acquired"
-            entry.attribution = candidate.attribution
-            logger.info(
-                "Acquired %s: scene=%s source=%s key=%s",
-                "video" if is_video else "photo",
+        # Pre-check metadata (resolution + duration) — skip download on obvious failure.
+        pre_result = qa_score(candidate, entry)
+        if not pre_result.resolution_ok or not pre_result.duration_ok:
+            logger.debug(
+                "QA pre-check failed scene=%s source=%s res_ok=%s dur_ok=%s",
                 entry.scene_id,
                 candidate.source,
-                key,
+                pre_result.resolution_ok,
+                pre_result.duration_ok,
             )
-            return True
+            continue
+
+        try:
+            data = await _download_bytes(candidate.url)
         except Exception as exc:
             logger.warning(
-                "Download failed for scene=%s source=%s: %s",
+                "Download failed scene=%s source=%s: %s",
                 entry.scene_id,
                 candidate.source,
                 exc,
             )
+            continue
+
+        # Full QA including CLIP when enabled.
+        result = qa_score(candidate, entry, image_data=data, clip_reranker=clip_reranker)
+
+        if result.passed:
+            key = f"runs/{run_id}/{folder}/{entry.scene_id}{candidate.ext}"
+            storage.upload_bytes(key, data, content_type=candidate.content_type)
+            _apply_entry_fields(entry, candidate, key, result)
+            logger.info(
+                "QA passed: scene=%s source=%s fallback=%s clip_score=%s",
+                entry.scene_id,
+                candidate.source,
+                candidate.from_fallback,
+                result.clip_score,
+            )
+            return True
+
+        # QA failed (CLIP below threshold) — track for pick_best.
+        checked.append((candidate, data, result))
+        logger.debug(
+            "QA failed scene=%s source=%s clip_score=%s",
+            entry.scene_id,
+            candidate.source,
+            result.clip_score,
+        )
+
+    # No QA pass — accept best available from downloaded candidates.
+    if checked:
+        best = pick_best([(c, r) for c, _, r in checked])
+        best_data, best_result = next(
+            (d, r) for c, d, r in checked if c is best
+        )
+        key = f"runs/{run_id}/{folder}/{entry.scene_id}{best.ext}"
+        storage.upload_bytes(key, best_data, content_type=best.content_type)
+        _apply_entry_fields(entry, best, key, best_result)
+        entry.qa_passed = False  # override — accepted best available, QA did not pass
+        logger.warning(
+            "QA miss — accepted best available: scene=%s source=%s clip_score=%s",
+            entry.scene_id,
+            best.source,
+            best_result.clip_score,
+        )
+        return True
+
+    # Last resort: all pre-checks failed (no candidate met the resolution floor).
+    # Download the highest-resolution candidate and accept regardless.
+    best_by_res = max(candidates, key=_resolution_score)
+    try:
+        data = await _download_bytes(best_by_res.url)
+        key = f"runs/{run_id}/{folder}/{entry.scene_id}{best_by_res.ext}"
+        storage.upload_bytes(key, data, content_type=best_by_res.content_type)
+        entry.source = best_by_res.source
+        entry.file_key = key
+        entry.status = "acquired"
+        entry.attribution = best_by_res.attribution
+        entry.fallback_used = best_by_res.from_fallback
+        entry.qa_passed = False
+        entry.qa_resolution_ok = False
+        entry.qa_duration_ok = True
+        entry.qa_clip_score = None
+        logger.warning(
+            "All pre-checks failed — accepted best-resolution candidate: scene=%s source=%s",
+            entry.scene_id,
+            best_by_res.source,
+        )
+        return True
+    except Exception as exc:
+        logger.warning(
+            "Last-resort download failed scene=%s: %s", entry.scene_id, exc
+        )
 
     logger.warning("All %d candidates failed for scene=%s", len(candidates), entry.scene_id)
     entry.status = "failed"

@@ -1,6 +1,6 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
 > As of 2026-06-20 the active work is the **Platform v2 track (Sprints P0–P12)**, defined in **docs/v2_platform_plan.md** (decisions D047–D063).
-> - **Sprints P1–P7 complete. Sprint P8 active** — P8-S1, P8-S2, P8-S3 done. Next: P8-S4 — Footage QA per-scene quality gate + retry.
+> - **Sprints P1–P7 complete. Sprint P8 active** — P8-S1, P8-S2, P8-S3, P8-S4 done. Next: P8-S5 — Source telemetry + Telegram footage report.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
@@ -113,7 +113,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P8-S1 | Pixabay source — videos + photos | 3 | done |
 | P8-S2 | Wikimedia Commons source — historic + general + person photos | 3 | done |
 | P8-S3 | Real person detection + Wikimedia person photo routing | 3 | done |
-| P8-S4 | Footage QA — per-scene quality gate + retry | 3 | todo |
+| P8-S4 | Footage QA — per-scene quality gate + retry | 3 | done |
 | P8-S5 | Source telemetry + Telegram footage report | 2 | todo |
 | P8-S6 | Colour grading presets (FFmpeg) | 2 | todo |
 

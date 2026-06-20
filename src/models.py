@@ -180,6 +180,14 @@ class ManifestEntry(BaseModel):
     # Acquisition routes to wikimedia_client.fetch_person_photo first (P8-S3).
     person_name: Optional[str] = None
     person_title: Optional[str] = None
+    # Scene duration propagated from StoryboardScene — used for video duration QA (P8-S4).
+    duration_s: float = 0.0
+    # QA gate results written by acquisition (P8-S4).
+    qa_passed: Optional[bool] = None
+    qa_resolution_ok: Optional[bool] = None
+    qa_duration_ok: Optional[bool] = None
+    qa_clip_score: Optional[float] = None
+    fallback_used: bool = False
 
 
 class AssetManifest(BaseModel):

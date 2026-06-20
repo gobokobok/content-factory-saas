@@ -81,6 +81,23 @@ class CLIPReranker:
             logger.debug("Thumbnail fetch error %s: %s", url, exc)
             return None
 
+    def score_image(self, image: "Image.Image", text: str) -> float:
+        """Return CLIP cosine similarity between one image and a text query.
+
+        Used by footage_qa.qa_score to check a single asset against the scene
+        visual description. Raises CLIPError on encoding failure.
+        """
+        try:
+            text_emb = self._model.encode([text])
+        except Exception as exc:
+            raise CLIPError(f"CLIP text encoding failed for query '{text}': {exc}") from exc
+        try:
+            img_emb = self._model.encode([image])
+        except Exception as exc:
+            raise CLIPError(f"CLIP image encoding failed: {exc}") from exc
+        scores = _cosine_similarity(text_emb[0], img_emb)
+        return float(scores[0])
+
     def rerank_videos(self, videos: list[dict], query: str) -> list[dict]:
         """Return videos sorted by CLIP similarity to query (descending).
 

@@ -689,7 +689,8 @@ Person-photo assets get `source: "wikimedia_person"` and `person_name` fields.
 ## [P8-S4] Footage QA — per-scene quality gate + retry
 **Epic:** E35 — Footage Quality
 **Sprint:** P8
-**Status:** todo
+**Status:** done
+**Completed:** 2026-06-20
 **Priority:** high
 **Points:** 3
 **Depends on:** P8-S1, P8-S2
@@ -739,16 +740,24 @@ Pure functions, no I/O — importable by P9 AcquisitionWorker.
 ```
 
 ### Acceptance Criteria
-- [ ] `src/footage_qa.py`: `qa_score` + `pick_best` as pure functions
-- [ ] Retry with `fallback_query` before advancing to next source
-- [ ] CLIP scoring gated on `CLIP_RERANK_ENABLED` env var (default `False` for Railway CPU cost)
-- [ ] `CLIP_RERANK_ENABLED` added to `src/config.py` and `ENV.md`
-- [ ] All QA fields written to `asset_manifest.json` per scene
-- [ ] Never leaves a scene with no asset — always accepts best available
-- [ ] Tests: QA pass; resolution fail → retry fallback_query; clip score below threshold → retry; best-of-all fallback; CLIP disabled → score field null
+- [x] `src/footage_qa.py`: `qa_score` + `pick_best` as pure functions
+- [x] Retry with `fallback_query` before advancing to next source
+- [x] CLIP scoring gated on `CLIP_RERANK_ENABLED` env var (default `False` for Railway CPU cost)
+- [x] `CLIP_RERANK_ENABLED` already in `src/config.py` and `ENV.md` (E4-S4)
+- [x] All QA fields written to `asset_manifest.json` per scene
+- [x] Never leaves a scene with no asset — always accepts best available
+- [x] Tests: QA pass; resolution fail → retry fallback_query; clip score below threshold → retry; best-of-all fallback; CLIP disabled → score field null
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `src/footage_qa.py` (new): `qa_score` + `pick_best` pure functions; `QAResult` dataclass. P9-importable, no I/O.
+- `src/clip_reranker.py`: `CLIPReranker.score_image(img, text) → float` added.
+- `src/models.py`: `ManifestEntry` gains `duration_s`, `qa_passed`, `qa_resolution_ok`, `qa_duration_ok`, `qa_clip_score`, `fallback_used`.
+- `src/manifest.py`: propagates `scene.duration_s → ManifestEntry.duration_s`.
+- `src/acquisition.py`: QA gate in `acquire_scene`; `_Candidate` gains `duration_seconds` + `from_fallback`; `_gather_candidates` tags primary/fallback candidates; `pick_best` last-resort; person photo sets `qa_passed=True`.
+- 34 new tests; 1686 total passing (CI green, was 1652).
 
 ---
 

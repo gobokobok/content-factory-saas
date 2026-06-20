@@ -54,6 +54,7 @@ def build_manifest(run_id: str, storyboard_data: dict) -> AssetManifest:
             asset_mode=scene.asset_mode or _default_asset_mode(scene.clip_type),
             person_name=scene.person_name,
             person_title=scene.person_title,
+            duration_s=scene.duration_s,
         )
         for scene in storyboard.scenes
     ]

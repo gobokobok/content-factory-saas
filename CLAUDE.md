@@ -13,12 +13,12 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 
 ## Current sprint
 **Platform v2 — Sprint P8** — Footage Quality. Canonical spec: docs/v2_platform_plan.md; decisions D047–D064.
-_P8-S1 (Pixabay), P8-S2 (Wikimedia Commons), and P8-S3 (person routing) done. Next: P8-S4 — Footage QA per-scene quality gate + retry._
+_P8-S1 through P8-S4 done. Next: P8-S5 — Source telemetry + Telegram footage report._
 _Legacy Sprints 1–13 running in DEV/PROD, untouched (D047). S14–S17 paused._
 _Backlog order: P8 Footage quality → P9 Legacy rebuild → P10 Analytics → P11 n8n automation → P12 Multi-tenant SaaS frontend._
 
 ## Active story
-**P8-S4** — Footage QA — per-scene quality gate + retry.
+**P8-S5** — Source telemetry + Telegram footage report.
 
 ## Environments
 

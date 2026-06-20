@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P8-S4] Footage QA — per-scene quality gate + retry
+**Completed:** 2026-06-20
+**Handover:**
+- `src/footage_qa.py` (new): `QAResult` dataclass; `qa_score(candidate, entry, image_data=None, clip_reranker=None) → QAResult` checks video resolution (≥ 1280×720), photo width (≥ 800px), video duration fit (`duration_seconds >= entry.duration_s`), and optional CLIP cosine similarity (threshold 0.20). CLIP encoding failures never reject a candidate. `pick_best(candidates_with_results) → candidate` — prefers QA-passed, then highest CLIP score, then highest resolution.
+- `src/clip_reranker.py`: `CLIPReranker.score_image(img: PIL.Image, text: str) → float` added — single-image CLIP scoring for use by `qa_score`.
+- `src/models.py`: `ManifestEntry` gains `duration_s: float = 0.0`, `qa_passed: Optional[bool] = None`, `qa_resolution_ok: Optional[bool] = None`, `qa_duration_ok: Optional[bool] = None`, `qa_clip_score: Optional[float] = None`, `fallback_used: bool = False`.
+- `src/manifest.py`: `build_manifest` propagates `scene.duration_s` → `ManifestEntry.duration_s`.
+- `src/acquisition.py`: `_Candidate` gains `duration_seconds: Optional[float]` and `from_fallback: bool`. `_gather_candidates` searches primary and fallback queries in separate concurrent batches; candidates tagged `from_fallback=True/False`. `acquire_scene` applies QA gate in download loop (primary candidates first, then fallback); CLIP-failed candidates tracked in `checked` list for `pick_best`; all-pre-check-fail path downloads the highest-resolution candidate as last resort. QA fields written to `ManifestEntry` on success. `_try_person_photo` sets `qa_passed=True` (Wikipedia portraits skip QA — ground truth).
+- `tests/test_footage_qa.py` (new): 24 tests — resolution video/photo (6), duration checks (6), CLIP disabled (3), CLIP enabled (3), pick_best (6).
+- `tests/test_p8_s4_acquisition_qa.py` (new): 10 tests — QA fields written to entry (3), resolution pre-check (2), duration QA (1), CLIP gate via mock (2), never-leave-empty + person photo QA fields (2).
+- Updated `test_acquisition.py`: `test_partial_failure_in_batch_does_not_cancel_others` rewritten to use no-candidates for the failing scene (call-order dependency removed).
+- No new ENV vars — `CLIP_RERANK_ENABLED` already in `src/config.py` (E4-S4) and `ENV.md`.
+- 1686 total tests passing (CI green, was 1652).
+**Smoke test:** DEFERRED — requires DEV run with footage acquisition; verify `asset_manifest.json` entries carry `qa_passed`, `qa_resolution_ok`, `fallback_used` fields after a `/pick` run.
+**Promoted to backlog:** User noted a future QA story needed where operator can choose from multiple scored candidates per scene (currently auto-selects best).
+
+---
+
 ## [P8-S3] Real person detection + Wikimedia person photo routing
 **Completed:** 2026-06-20
 **Handover:**
