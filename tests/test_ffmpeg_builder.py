@@ -323,6 +323,31 @@ class TestBuildFfmpegScript:
         assert "-t 2.12" in script
         assert "-t 2.135" not in script
 
+    def test_jpeg_asset_for_hard_cut_scene_uses_image_path(self):
+        """A hard_cut scene whose acquired file is a JPEG (e.g. Wikipedia portrait)
+        must use the still-image render path (-loop 1 + zoompan), not _render_video_scene.
+        Without this, FFmpeg reads a JPEG as a single frame and the scene shows for ~0.04s.
+        """
+        scenes = [_scene("04", "hard_cut", 0.8)]
+        sb = _storyboard(scenes)
+        # Entry file_key has a .jpeg extension — simulates a person portrait acquired
+        # for a scene that the storyboard marked as hard_cut.
+        person_entry = ManifestEntry(
+            scene_id="04",
+            clip_type="hard_cut",
+            primary_query="Octavia Hill",
+            fallback_query="Victorian reformer",
+            ai_generate_prompt="portrait",
+            status="acquired",
+            source="wikimedia_person",
+            file_key=f"runs/{RUN_ID}/images/04.jpeg",
+        )
+        mf = _manifest([person_entry])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        # Must use still-image path (looped input + zoompan), not raw video input
+        assert "-loop 1" in script
+        assert "zoompan" in script
+
     def test_still_with_motion_uses_loop_flag(self):
         scenes = [_scene("02", "still_with_motion", 3.0)]
         sb = _storyboard(scenes)
@@ -1108,17 +1133,17 @@ class TestComputeSceneDurationsFromAlignment:
         assert result[0] is not scenes[0]
         assert scenes[0].duration_s == 5.0
 
-    def test_pre_silence_compensated_for_first_scene(self):
+    def test_pre_silence_constant_lead_preserved(self):
         # Scene 0 first word at 240ms (TTS pre-silence); scene 1 first word at 5000ms.
-        # Old (uncompensated): scene 0 duration = (5000-240)/1000 = 4.76s — scene 1 fires
-        # at video t=4.76s while audio is at 4.76s, but the spoken word isn't until 5.0s.
-        # Fixed: scene 0 duration = 5000/1000 = 5.0s — scene 1 fires exactly at t=5.0s.
+        # Gap-based duration = (5000-240)/1000 = 4.76s — produces a constant ~240ms
+        # visual lead (images appear slightly before words), which is intentional
+        # documentary-style pacing.  The 240ms lead is constant and does NOT grow.
         scenes = [_scene_with_vo("01", "a", 4.0), _scene_with_vo("02", "b", 4.0)]
         scene_words = [[_wts("a", 240, 600)], [_wts("b", 5000, 5400)]]
         result = compute_scene_durations_from_alignment(scenes, scene_words)
-        # Scene 0 must be 5.0s (measured from video t=0 to scene 1's first word).
-        assert result[0].duration_s == pytest.approx(5.0, abs=0.001)
-        # Scene 1 last scene: uses speech span = (5400-5000)/1000 = 0.4s.
+        # Scene 0: gap-based = (5000-240)/1000 = 4.76s
+        assert result[0].duration_s == pytest.approx(4.76, abs=0.001)
+        # Scene 1 last scene: word span = (5400-5000)/1000 = 0.4s
         assert result[1].duration_s == pytest.approx(0.4, abs=0.001)
 
 

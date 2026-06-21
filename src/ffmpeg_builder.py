@@ -247,16 +247,6 @@ def compute_scene_durations_from_alignment(
             for k in range(i + 1, j):
                 covered.add(k)
 
-    # Index of the scene that provides the first alignment anchor.
-    # Its gap-based duration must be measured from video t=0 (not from its own
-    # first-word timestamp) to eliminate the constant visual lead caused by the
-    # TTS pre-silence.  Without this compensation, scene cuts fire ~200–400 ms
-    # early throughout the video, making the last word(s) of each scene audible
-    # while the next scene's image is already showing.
-    first_matched_i: Optional[int] = next(
-        (k for k in range(n) if first_start_ms[k] is not None), None
-    )
-
     updated: list[StoryboardScene] = []
     for i, scene in enumerate(scenes):
         words_i = scene_words[i] if i < len(scene_words) else []
@@ -282,12 +272,7 @@ def compute_scene_durations_from_alignment(
             # for any unmatched scenes between i and j so the total of scenes
             # i … j-1 telescopes exactly to (T_j - T_i) / 1000.
             n_covered = j - i - 1  # unmatched scenes between i and j
-            if i == first_matched_i:
-                # First anchor: measure from video t=0 so all subsequent cuts
-                # fire exactly when the next scene's word is spoken (zero lead).
-                raw_gap = first_start_ms[j] / 1000.0  # type: ignore[operator]
-            else:
-                raw_gap = (first_start_ms[j] - words_i[0].start_ms) / 1000.0  # type: ignore[operator]
+            raw_gap = (first_start_ms[j] - words_i[0].start_ms) / 1000.0  # type: ignore[operator]
             duration_s = raw_gap - n_covered * _MIN_ALIGNED_DURATION_S
         else:
             # No further matched scene — last segment; use speech span only.
@@ -566,6 +551,9 @@ def _scene_section(
     return "\n\n".join(parts)
 
 
+_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+
 def _render_scene(
     scene: StoryboardScene,
     entry: ManifestEntry,
@@ -575,13 +563,26 @@ def _render_scene(
     out_h: int = _OUT_H,
     blur_fill_enabled: bool = True,
 ) -> str:
-    """Generate the ffmpeg command for a single scene segment."""
+    """Generate the ffmpeg command for a single scene segment.
+
+    Routes by file extension rather than clip_type alone.  A person portrait photo
+    (JPEG) may be acquired for a scene whose storyboard clip_type is "hard_cut";
+    passing a JPEG to _render_video_scene would produce a ~1-frame clip.  The
+    extension check ensures images always go through _render_image_scene regardless
+    of the storyboard clip_type.
+    """
     local = _local_path(run_id, entry.file_key)  # type: ignore[arg-type]
     out = f'"$WORK/scene_{num:02d}.mp4"'
-    if scene.clip_type == "hard_cut":
+
+    # Route by file extension: JPEG/PNG assets must always use the still-image path
+    # even when clip_type="hard_cut" (e.g. Wikipedia portrait for a short scene).
+    file_ext = Path(local).suffix.lower()
+    is_image_file = file_ext in _IMAGE_EXTS
+
+    if scene.clip_type == "hard_cut" and not is_image_file:
         return _render_video_scene(scene, local, out, num, out_w, out_h)
-    # Blur-fill is only applied to person portrait photos (source=wikimedia_person).
-    # Regular B-roll images use scale+crop regardless of blur_fill_enabled setting.
+
+    # Blur-fill only for person portrait photos (source=wikimedia_person).
     is_person_photo = getattr(entry, "source", None) == "wikimedia_person"
     return _render_image_scene(
         scene, local, out, num, out_w, out_h,
