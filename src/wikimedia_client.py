@@ -16,6 +16,12 @@ logger = logging.getLogger(__name__)
 _COMMONS_API = "https://commons.wikimedia.org/w/api.php"
 _WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
 
+# Wikimedia / Wikipedia API guidelines require a descriptive User-Agent.
+# Without it, requests from shared IPs (e.g. Railway) may be rate-limited or blocked.
+_HEADERS = {
+    "User-Agent": "ContentFactory/1.0 (https://github.com/gobokobok/content-factory-saas)"
+}
+
 # Minimum width (px) to accept a photo from Commons.
 _MIN_PHOTO_WIDTH = 800
 
@@ -66,7 +72,7 @@ class WikimediaClient:
             "formatversion": "2",
         }
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(timeout=30, headers=_HEADERS) as client:
                 resp = await client.get(_COMMONS_API, params=params)
                 resp.raise_for_status()
                 data = resp.json()
@@ -124,20 +130,22 @@ class WikimediaClient:
     async def fetch_person_photo(self, person_name: str) -> Optional[WikimediaAsset]:
         """Fetch the lead portrait image for a named person from Wikipedia.
 
-        Uses the Wikipedia pageimages API to retrieve the main article image,
-        which is typically a headshot for public figures.
+        Requests both 'original' and 'thumbnail' (1000px) in one API call.
+        'original' is preferred; 'thumbnail' serves as fallback for articles
+        where the original-size metadata is absent (common for paintings/engravings).
         Returns None when no image exists or on any error.
         """
         params = {
             "action": "query",
             "titles": person_name,
             "prop": "pageimages",
-            "piprop": "original",
+            "piprop": "original|thumbnail",
+            "pithumbsize": "1000",
             "format": "json",
             "formatversion": "2",
         }
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
+            async with httpx.AsyncClient(timeout=30, headers=_HEADERS) as client:
                 resp = await client.get(_WIKIPEDIA_API, params=params)
                 resp.raise_for_status()
                 data = resp.json()
@@ -150,14 +158,19 @@ class WikimediaClient:
             pages = list(pages.values())
 
         for page in pages:
-            original = page.get("original")
-            if not original:
+            # Prefer original (full resolution); fall back to thumbnail (1000px).
+            image = page.get("original") or page.get("thumbnail")
+            if not image:
                 continue
-            url = original.get("source", "")
-            width = original.get("width", 0)
-            height = original.get("height", 0)
+            url = image.get("source", "")
+            width = image.get("width", 0)
+            height = image.get("height", 0)
             if not url:
                 continue
+            logger.info(
+                "Wikipedia portrait found person='%s' url=%s size=%dx%d",
+                person_name, url, width, height,
+            )
             attribution = f"Photo of {person_name} via Wikipedia"
             return WikimediaAsset(
                 url=url,
@@ -167,6 +180,7 @@ class WikimediaClient:
                 licence="Via Wikipedia",
                 attribution=attribution,
             )
+        logger.info("Wikipedia portrait not found person='%s'", person_name)
         return None
 
 
