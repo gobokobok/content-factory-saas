@@ -140,27 +140,29 @@ Legacy Script→Video stays untouched and operable (D047).
 
 ---
 
-# Sprint P9 — Storyboard v2 + Native Engine Rebuild
+# Sprint P9 — Native Documentary Production Graph
 
-**Goal:** Replace `InProcessLegacyVideoAdapter` + `src/pipeline.py` call chain with two native LangGraph workers (AcquisitionWorker + RenderWorker). Introduce `segment_type` classification and three-tier query schema to the storyboard — the enabler for all downstream render quality and format track work. Retire `src/` as the active render path; it stays as a standalone legacy tool.
+**Goal:** Extract the storyboard→acquisition→render chain from `InProcessLegacyVideoAdapter` into three native LangGraph workers. P9 is a **migration sprint, not an innovation sprint** — every change must either (a) replace existing monolith functionality, or (b) add visible production quality at <10% runtime cost. Defer everything else to P10.
 **Status:** planned
 **Points:** ~18
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P9-S1 | segment_type + preferred_source schema | 3 | todo |
-| P9-S2 | Three-tier query schema (primary_stk / context_stk / concept_stk) | 2 | todo |
-| P9-S3 | Native AcquisitionWorker | 5 | todo |
-| P9-S4 | Native RenderWorker (+ film look + person lower thirds) | 5 | todo |
-| P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 3 | todo |
+| P9-S1 | Storyboard schema v2 | 3 | todo |
+| P9-S2 | Native StoryboardWorker (generate → review → patch internal) | 5 | todo |
+| P9-S3 | Native AcquisitionWorker | 4 | todo |
+| P9-S4 | Native RenderWorker (dumb executor — reads render_options) | 4 | todo |
+| P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 2 | todo |
 
-**Execution order:** (P9-S1 ∥ P9-S2) → P9-S3 → P9-S4 → P9-S5.
+**Execution order:** P9-S1 → P9-S2 → P9-S3 → P9-S4 → P9-S5 (fully linear).
 
 ## Sprint P9 Definition of Done
-- [ ] `StoryboardScene.segment_type` field with 9 values; storyboard prompt v0.11 emits it; `preferred_source` field for Wikimedia-first on historic scenes
-- [ ] Three-tier query schema (`primary_stk`, `context_stk`, `concept_stk`) emitted by storyboard prompt; manifest builder passes all three tiers
-- [ ] `AcquisitionWorker` type-aware routing: Character → person photo; Event+historic → Wikimedia-first; Data → chart stub; default → Pexels+Pixabay concurrent
-- [ ] `RenderWorker`: film look for Event scenes; person name lower-third drawtext for Character scenes; standard render for others; builds + executes ffmpeg_script.sh; uploads to R2
-- [ ] `full_pipeline.py` uses AcquisitionWorker + RenderWorker; `InProcessLegacyVideoAdapter` no longer in active call path
-- [ ] All P8 `src/` source modules imported directly by AcquisitionWorker (P8 portability contract honoured)
-- [ ] **Human touchpoint:** `/run <niche>` → fully native render (no adapter); person scenes show name lower third; historic footage gets film look
+- [ ] `StoryboardScene` schema v2: `segment_type` (3 values), three-tier queries, `on_screen_text_type` (3 values), `render_options` per scene; `historic` and `visual_prompts.ai_generate` removed
+- [ ] `StoryboardWorker` emits single `verified_storyboard` artifact; internal generate→review→patch cycle; no intermediate artifacts
+- [ ] `AcquisitionWorker` routes by `segment_type`; three-tier query cascade; P8 src/ modules imported directly; `asset_manifest` + `footage_summary` artifacts written
+- [ ] `RenderWorker` reads `scene.render_options` only — no `segment_type` conditionals; persists `render_script.sh`; produces `final.mp4`
+- [ ] Caption position awareness: when `render_options.lower_third` active and `subtitles != "none"`, captions shift up via `caption_y_override`
+- [ ] Each worker has a standalone REST endpoint for future manual UI (alongside pipeline node wiring)
+- [ ] Artifact chain: `verified_storyboard → asset_manifest → render_script.sh → final.mp4`
+- [ ] `/run` / `/pick` / `/produce` commands trigger the native chain; `InProcessLegacyVideoAdapter` not in active call path
+- [ ] **Human touchpoint:** `/run <niche>` → native render; person lower thirds; film look for historic; on_screen_text overlays for dates and stats
