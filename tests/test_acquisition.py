@@ -424,6 +424,39 @@ class TestRunAcquisition:
         assert summary["sources"]["pexels"] == 1    # video scene
         assert summary["sources"]["pixabay"] == 1   # photo scene
 
+    @pytest.mark.asyncio
+    async def test_cross_scene_deduplication_skips_same_url(self):
+        """Two scenes that would receive the same URL: second must use a different candidate."""
+        entries = [_entry("01"), _entry("02")]
+        manifest = _manifest(entries)
+        pexels, storage = MagicMock(), MagicMock()
+        dup_url = "https://cdn.pexels.com/v/same.mp4"
+        alt_url = "https://cdn.pexels.com/v/different.mp4"
+
+        # Both scenes get the same first result; scene 02 gets a different second result.
+        dup_result = {
+            "duration": 10,
+            "video_files": [{"link": dup_url, "width": 1280, "height": 720, "file_type": "video/mp4"}],
+        }
+        alt_result = {
+            "duration": 10,
+            "video_files": [{"link": alt_url, "width": 1280, "height": 720, "file_type": "video/mp4"}],
+        }
+        pexels.search_videos.return_value = [dup_result, alt_result]
+        storage = MagicMock()
+
+        with patch("src.acquisition._download_bytes", new_callable=AsyncMock) as mock_dl:
+            mock_dl.return_value = b"bytes"
+            summary = await run_acquisition(RUN_ID, manifest, pexels, None, storage, batch_size=1)
+
+        assert summary["acquired"] == 2
+        # Each scene must upload to a different file key; verify two distinct uploads occurred.
+        upload_keys = [call.args[0] for call in storage.upload_bytes.call_args_list]
+        assert len(upload_keys) == 2
+        # The downloaded URLs must be different (dedup forced scene 02 to alt_url).
+        downloaded_urls = [call.args[0] for call in mock_dl.call_args_list]
+        assert len(set(downloaded_urls)) == 2
+
 
 # ── Unit: run_acquisition — batch behaviour ────────────────────────────────────
 

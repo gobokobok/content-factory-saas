@@ -372,6 +372,8 @@ async def acquire_scene(
     pixabay: Optional[PixabayClient],
     storage: R2Client,
     wikimedia: Optional[WikimediaClient] = None,
+    used_urls: Optional[set] = None,
+    used_urls_lock: Optional[asyncio.Lock] = None,
 ) -> bool:
     """Acquire the best asset for one manifest entry from the merged source pool.
 
@@ -389,6 +391,10 @@ async def acquire_scene(
     Person scenes (entry.person_name set): tries wikimedia.fetch_person_photo
     first; on miss falls back to generic Pexels+Pixabay only (no Wikimedia
     general, no AI — wrong generated face is worse than generic B-roll).
+
+    used_urls / used_urls_lock: optional cross-scene deduplication.  When
+    provided, any candidate URL already acquired by another scene is skipped so
+    the same video or image never appears twice in the same run.
 
     Mutates entry fields in-place on success. Returns True on success, False only
     when every candidate is exhausted.
@@ -429,6 +435,16 @@ async def acquire_scene(
     checked: list[tuple[_Candidate, bytes, QAResult]] = []
 
     for candidate in candidates:
+        # Cross-scene deduplication: skip URLs already used in this run.
+        if used_urls is not None and used_urls_lock is not None:
+            async with used_urls_lock:
+                if candidate.url in used_urls:
+                    logger.debug(
+                        "Skipping duplicate URL scene=%s source=%s url=%.60s",
+                        entry.scene_id, candidate.source, candidate.url,
+                    )
+                    continue
+
         # Pre-check metadata (resolution + duration) — skip download on obvious failure.
         pre_result = qa_score(candidate, entry)
         if not pre_result.resolution_ok or not pre_result.duration_ok:
@@ -459,6 +475,9 @@ async def acquire_scene(
             key = f"runs/{run_id}/{folder}/{entry.scene_id}{candidate.ext}"
             storage.upload_bytes(key, data, content_type=candidate.content_type)
             _apply_entry_fields(entry, candidate, key, result)
+            if used_urls is not None and used_urls_lock is not None:
+                async with used_urls_lock:
+                    used_urls.add(candidate.url)
             logger.info(
                 "QA passed: scene=%s source=%s fallback=%s clip_score=%s",
                 entry.scene_id,
@@ -487,6 +506,9 @@ async def acquire_scene(
         storage.upload_bytes(key, best_data, content_type=best.content_type)
         _apply_entry_fields(entry, best, key, best_result)
         entry.qa_passed = False  # override — accepted best available, QA did not pass
+        if used_urls is not None and used_urls_lock is not None:
+            async with used_urls_lock:
+                used_urls.add(best.url)
         logger.warning(
             "QA miss — accepted best available: scene=%s source=%s clip_score=%s",
             entry.scene_id,
@@ -504,6 +526,9 @@ async def acquire_scene(
         storage.upload_bytes(key, data, content_type=best_by_res.content_type)
         entry.source = best_by_res.source
         entry.file_key = key
+        if used_urls is not None and used_urls_lock is not None:
+            async with used_urls_lock:
+                used_urls.add(best_by_res.url)
         entry.status = "acquired"
         entry.attribution = best_by_res.attribution
         entry.fallback_used = best_by_res.from_fallback
@@ -550,11 +575,23 @@ async def run_acquisition(
     """
     pending = [e for e in manifest.entries if e.status != "acquired"]
 
+    # Shared deduplication state: prevents the same video/image URL from appearing
+    # in multiple scenes.  Pre-seed with any URL already acquired in a prior run
+    # (resume path) so previously acquired assets are also excluded.
+    used_urls: set[str] = set()
+    used_urls_lock = asyncio.Lock()
+
     newly_failed = 0
     for batch_start in range(0, len(pending), batch_size):
         batch = pending[batch_start : batch_start + batch_size]
         results = await asyncio.gather(
-            *[acquire_scene(entry, run_id, pexels, pixabay, storage, wikimedia) for entry in batch],
+            *[
+                acquire_scene(
+                    entry, run_id, pexels, pixabay, storage, wikimedia,
+                    used_urls=used_urls, used_urls_lock=used_urls_lock,
+                )
+                for entry in batch
+            ],
             return_exceptions=True,
         )
         for entry, result in zip(batch, results):
