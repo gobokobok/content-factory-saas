@@ -7,7 +7,6 @@ import pytest
 
 from src.ffmpeg_builder import (
     _COLOUR_GRADE_PRESETS,
-    _LANDSCAPE_RATIO_INT,
     _apply_color_grade,
     _get_color_grade_filter,
     _render_image_scene,
@@ -232,29 +231,28 @@ class TestRenderImageSceneBlurFill:
         result = _render_image_scene(scene, self._LOCAL, self._OUT, 1, blur_fill_enabled=False)
         assert "zoompan" in result
 
-    def test_blur_fill_enabled_contains_ffprobe_check(self):
-        """When blur_fill_enabled=True, the script probes image dimensions at render time."""
+    def test_blur_fill_enabled_no_ffprobe(self):
+        """When blur_fill_enabled=True, blur is applied directly — no runtime dimension probe needed."""
         scene = self._image_scene()
         result = _render_image_scene(scene, self._LOCAL, self._OUT, 1, blur_fill_enabled=True)
-        assert "ffprobe" in result
+        assert "ffprobe" not in result
 
     def test_blur_fill_enabled_contains_boxblur(self):
-        """When enabled, the blur-fill branch (boxblur) is present in the script."""
+        """When enabled, boxblur is present in the script."""
         scene = self._image_scene()
         result = _render_image_scene(scene, self._LOCAL, self._OUT, 1, blur_fill_enabled=True)
         assert "boxblur" in result
 
-    def test_blur_fill_enabled_contains_landscape_threshold(self):
-        """The landscape check uses the correct integer threshold (5625 for 9/16)."""
+    def test_blur_fill_enabled_contains_overlay(self):
+        """When enabled, the blur+portrait composite uses overlay."""
         scene = self._image_scene()
         result = _render_image_scene(scene, self._LOCAL, self._OUT, 1, blur_fill_enabled=True)
-        assert str(_LANDSCAPE_RATIO_INT) in result
+        assert "overlay" in result
 
-    def test_blur_fill_enabled_portrait_fallback_present(self):
-        """When enabled, the portrait fallback (zoompan) is also in the script (else branch)."""
+    def test_blur_fill_enabled_contains_zoompan(self):
+        """When enabled, zoompan is applied to the composite so the portrait is not static."""
         scene = self._image_scene()
         result = _render_image_scene(scene, self._LOCAL, self._OUT, 1, blur_fill_enabled=True)
-        # Both branches must be present: blur-fill and normal zoompan
         assert "boxblur" in result
         assert "zoompan" in result
 
@@ -270,11 +268,12 @@ class TestRenderImageSceneBlurFill:
         result = _render_image_scene(scene, self._LOCAL, self._OUT, 1, out_w=1920, out_h=1080, blur_fill_enabled=True)
         assert "scale=1920:1080" in result
 
-    def test_default_blur_fill_enabled_is_true(self):
-        """blur_fill_enabled defaults to True when not supplied."""
+    def test_default_blur_fill_enabled_is_false(self):
+        """blur_fill_enabled defaults to False — normal scale+crop+zoompan path used."""
         scene = self._image_scene()
         result = _render_image_scene(scene, self._LOCAL, self._OUT, 1)
-        assert "boxblur" in result
+        assert "boxblur" not in result
+        assert "zoompan" in result
 
 
 # ── build_ffmpeg_script — blur-fill propagation ───────────────────────────────
@@ -292,10 +291,31 @@ class TestBuildFfmpegScriptBlurFill:
             blur_fill_enabled=blur_fill_enabled,
         )
 
-    def test_image_scene_blur_fill_enabled(self):
-        """Still image scenes get blur-fill checks in the script when enabled."""
-        script = self._build("still_with_motion", blur_fill_enabled=True)
+    def test_image_scene_blur_fill_enabled_for_person_photo(self):
+        """Blur-fill is applied when blur_fill_enabled=True AND the entry is a wikimedia_person photo."""
+        scenes = [_scene("01", "still_with_motion")]
+        sb = _storyboard(scenes)
+        # Person photo entry — _render_scene gates blur on source="wikimedia_person"
+        person_entry = ManifestEntry(
+            scene_id="01",
+            clip_type="still_with_motion",
+            primary_query="query",
+            fallback_query="fallback",
+            ai_generate_prompt="prompt",
+            status="acquired",
+            source="wikimedia_person",
+            file_key=f"runs/{RUN_ID}/images/01.jpeg",
+        )
+        mf = _manifest([person_entry])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, color_grade_preset="neutral", blur_fill_enabled=True)
         assert "boxblur" in script
+
+    def test_image_scene_blur_fill_not_applied_for_pexels(self):
+        """Blur-fill is NOT applied for regular Pexels images even when blur_fill_enabled=True."""
+        script = self._build("still_with_motion", blur_fill_enabled=True)
+        # _entry() defaults to source="pexels" — blur gate should prevent blur
+        assert "boxblur" not in script
+        assert "zoompan" in script
 
     def test_image_scene_blur_fill_disabled(self):
         """No blur-fill when disabled."""

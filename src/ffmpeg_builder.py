@@ -37,10 +37,6 @@ _COLOUR_GRADE_PRESETS: dict[str, str] = {
     "muted": "eq=saturation=0.75:contrast=0.95:brightness=0.015",
 }
 
-# Threshold: width/height ratio above this value is "landscape" relative to 9:16.
-# 9/16 = 0.5625 → encoded as integer ratio (w * 10000 / h) > 5625 in bash.
-_LANDSCAPE_RATIO_INT = 5625
-
 
 def _get_color_grade_filter(preset: str) -> Optional[str]:
     """Return the FFmpeg filter string for the given preset, or None for 'neutral'.
@@ -569,7 +565,13 @@ def _render_scene(
     out = f'"$WORK/scene_{num:02d}.mp4"'
     if scene.clip_type == "hard_cut":
         return _render_video_scene(scene, local, out, num, out_w, out_h)
-    return _render_image_scene(scene, local, out, num, out_w, out_h, blur_fill_enabled=blur_fill_enabled)
+    # Blur-fill is only applied to person portrait photos (source=wikimedia_person).
+    # Regular B-roll images use scale+crop regardless of blur_fill_enabled setting.
+    is_person_photo = getattr(entry, "source", None) == "wikimedia_person"
+    return _render_image_scene(
+        scene, local, out, num, out_w, out_h,
+        blur_fill_enabled=blur_fill_enabled and is_person_photo,
+    )
 
 
 def _render_video_scene(
@@ -616,20 +618,17 @@ def _render_video_scene(
 def _render_image_scene(
     scene: StoryboardScene, local: str, out: str, num: int,
     out_w: int = _OUT_W, out_h: int = _OUT_H,
-    blur_fill_enabled: bool = True,
+    blur_fill_enabled: bool = False,
 ) -> str:
     """Animate a still image using zoompan and write it as a video segment.
 
-    When blur_fill_enabled=True, landscape images (width/height > 9/16) get a
-    blur-fill composite (blurred full-frame behind, sharp subject scaled to fit)
-    detected at render time via ffprobe.  Portrait/square images always use
-    scale+crop+zoompan.  When blur_fill_enabled=False, all images use scale+crop+zoompan.
+    When blur_fill_enabled=True (only set for wikimedia_person portrait photos),
+    a blur-fill composite is applied: blurred full-frame background behind the
+    sharp portrait scaled to fit.  Zoompan motion is applied to the composite
+    so portraits aren't static.  All other images use scale+crop+zoompan.
 
     Uses round(duration_s * _FPS) to compute the frame count and derives -t from
-    that integer so the clip is exactly `frames` frames long.  Using int() (truncation)
-    combined with a float -t caused an off-by-one: the frame at PTS = int_frames/_FPS
-    satisfies PTS < duration_s and was included by FFmpeg, giving `frames + 1` output
-    frames and adding up to 40 ms of visual lag per non-aligned scene.
+    that integer so the clip is exactly `frames` frames long.
     """
     frames = round(scene.duration_s * _FPS)
     t_value = frames / _FPS
@@ -670,31 +669,22 @@ def _render_image_scene(
             f"{common_encode}"
         )
 
-    # Blur-fill: when enabled, probe image dimensions at render time and apply
-    # blur-fill compositing for landscape images (w/h > 9/16 = 0.5625).
-    # Integer arithmetic: (w * 10000 / h) > 5625 avoids floating-point in bash.
+    # Blur-fill for portrait photos: blurred full-frame background + portrait
+    # scaled to fit, with zoompan applied to the composite so the portrait isn't
+    # static.  The [composite] pad feeds the same zoompan filter used by normal
+    # scenes — gentle 1.0→1.05 zoom for still_with_motion, motion_effect for animated.
     blur_vf = (
         f"[in]split=2[bg][fg];"
         f"[bg]scale={out_w}:{out_h},boxblur=20:5[blurred];"
         f"[fg]scale=iw*min({out_w}/iw\\,{out_h}/ih):ih*min({out_w}/iw\\,{out_h}/ih)[fitted];"
-        f"[blurred][fitted]overlay=(W-w)/2:(H-h)/2,"
-        f"fps={_FPS},setsar=1:1"
+        f"[blurred][fitted]overlay=(W-w)/2:(H-h)/2[composite];"
+        f"[composite]{zoompan_vf},fps={_FPS},setsar=1:1"
     )
     return (
         f"{header}\n"
-        f'_img_w=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width'
-        f' -of csv=p=0 "{local}" 2>/dev/null || echo 0)\n'
-        f'_img_h=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=height'
-        f' -of csv=p=0 "{local}" 2>/dev/null || echo 1)\n'
-        f'if [ "$(( _img_w * 10000 / _img_h ))" -gt {_LANDSCAPE_RATIO_INT} ]; then\n'
-        f'  {ffmpeg_prefix.rstrip()}\n'
+        f'{ffmpeg_prefix}'
         f'  -vf "{blur_vf}" \\\n'
-        f"{common_encode}\n"
-        f"else\n"
-        f'  {ffmpeg_prefix.rstrip()}\n'
-        f'  -vf "{normal_vf}" \\\n'
-        f"{common_encode}\n"
-        f"fi"
+        f"{common_encode}"
     )
 
 
