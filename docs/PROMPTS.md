@@ -1,6 +1,6 @@
 # AI Prompts — Content Factory
 
-## Storyboard Generator — v0.10
+## Storyboard Generator — v0.11
 **Used in:** E1-S3 (Step 2b — Script to Storyboard)
 **Input:** Plain-text voiceover script (optionally with Deepgram word timestamps)
 **Output:** `storyboard.json`
@@ -19,6 +19,7 @@
 | v0.8 | 2026-05-27 | TIMESTAMP ALIGNMENT section: when Deepgram word timestamps provided, use them for duration_s; word-count table is fallback only |
 | v0.9 | 2026-06-06 | COVERAGE RULE added: every script word must appear verbatim in exactly one voiceover_line. voiceover_line cap raised 4–6→4–8 words, paraphrase forbidden. COMMA-LIST RULE: bridge phrases before lists attach to first item's voiceover_line. |
 | v0.10 | 2026-06-20 | PERSON SCENE RULE added: optional `person_name` + `person_title` scene fields emitted when scene depicts a named real individual. Acquisition routes to Wikipedia portrait first for these scenes (P8-S3). |
+| v0.11 | 2026-06-21 | QUERY DOMAIN ANCHORING: PRIMARY must reflect video topic, not literal VO words. Banned era labels (Victorian, 1880s, etc.) from Pexels queries — Pexels has no genuine historical footage. Renamed HISTORICAL SCENES exception to NAMED EVENTS/PLACES — period labels only allowed in person portrait queries (Wikipedia) and proper-noun event searches. Added counter-example for the housing-repair/workshop failure pattern. |
 
 ### Key rules (v0.8)
 - **Duration (with timestamps):** when WORD TIMESTAMPS block is in input, derive `duration_s` from actual speech timing — `(end_ms − start_ms) / 1000`; word-count table is fallback only

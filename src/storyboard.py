@@ -184,8 +184,13 @@ The downstream pipeline tries PRIMARY first, then FALLBACK, then generates if ne
 
 PRIMARY query rules:
 - 3–4 concrete nouns only. No adjectives. No verbs.
-- Ask yourself: what physical object would a cameraman point a lens at?
+- Ask yourself: what B-roll would a documentary filmmaker cut to for THIS line, in this video's topic domain?
+  The video topic is your anchor. "Repairs" in a housing video = house renovation exterior, not tools workshop.
+  "Growth" in a finance video = construction site or rising graph, not plants.
 - Pexels is keyword-matched, not semantic. Adjectives reduce recall without improving precision.
+- NEVER include era/period labels (Victorian, 1880s, medieval, postwar, etc.) in a Pexels PRIMARY query.
+  Pexels has no genuine historical footage. Period labels return modern stock mis-tagged with era words
+  (antique props, themed shoots) — never what you intend. Describe the CONCEPT, not the era.
 
 EXCEPTION — PERSON SCENES: when person_name is set, the PRIMARY query MUST begin with
 the person's full name. Wikipedia is tried first, but if it misses, the stock query is the
@@ -193,20 +198,18 @@ fallback — it must contain the name or it will return random faces.
   ✓ PRIMARY: `Octavia Hill Victorian reformer portrait`
   ✗ PRIMARY: `woman conviction portrait close-up`  ← useless if Wikipedia fails
 
-EXCEPTION — HISTORICAL SCENES: when the voiceover references a specific historical event
-or era (any period before roughly 1990), include the decade or event name in PRIMARY.
-Wikimedia Commons is date-indexed; without a year or decade the search returns modern stock.
-  ✓ PRIMARY: `London Blitz 1940 bomb damage ruins`
-  ✗ PRIMARY: `bomb damage ruins`  ← returns modern demolition stock
-  ✓ PRIMARY: `postwar council estate Britain 1950s`
-  ✗ PRIMARY: `council housing`  ← returns contemporary social housing
-  ✓ PRIMARY: `Letchworth Garden City 1910 street`
-  ✗ PRIMARY: `garden city street`  ← returns modern planned developments
+EXCEPTION — NAMED HISTORICAL EVENTS/PLACES: when the voiceover names a specific event
+or location that stock databases index by that proper noun (e.g. London Blitz, Letchworth),
+include the proper noun. These are searchable proper nouns, not era adjectives.
+  ✓ PRIMARY: `London Blitz bomb damage ruins`  ← "London Blitz" is the proper-noun search key
+  ✗ PRIMARY: `bomb damage ruins`  ← too generic, returns modern demolition
+  ✓ PRIMARY: `Letchworth Garden City street`  ← named place, searchable by name
+  ✗ PRIMARY: `garden city street 1910`  ← year does nothing on Pexels
 
 FALLBACK query rules:
 - 1–2 words. Core subject only. Broadest noun that still covers the scene.
-- For person scenes: person's surname + era (e.g. `Hill Victorian`, `Howard 1900s`)
-- For historical scenes: event or place name only (e.g. `London Blitz`, `Letchworth`)
+- For person scenes: person's surname only (e.g. `Hill`, `Howard`)
+- For named-event scenes: event or place name only (e.g. `London Blitz`, `Letchworth`)
 
 AI_GENERATE rules:
 - Describe the subject, composition, and lighting as a camera direction.
@@ -255,9 +258,17 @@ Few-shot examples:
 
   [HISTORICAL SCENE — postwar housing]
   VO: "The post-war government built 900,000 council homes in just six years"
-  PRIMARY: STK `postwar council estate Britain 1950s construction`
-  FALLBACK: STK `council housing 1950s`
+  PRIMARY: STK `council estate housing construction workers`
+  FALLBACK: STK `council housing`
   AI_GENERATE: `Row of newly built postwar council houses Britain 1950s, workers laying bricks, documentary style, cinematic 9:16 vertical, photorealistic`
+
+  [HOUSING VIDEO — concept scene, do NOT add era labels]
+  VO: "She required basic repairs."  [context: 1880s housing reform, video topic = housing]
+  ✗ PRIMARY: `Victorian tools hammer brickwork repair`  ← "Victorian" returns antique props on Pexels;
+      "tools" drifts to workshops, not housing; wrong domain entirely
+  ✓ PRIMARY: `house exterior repair workers`  ← topic-anchored; shows what a filmmaker cuts to
+  ✓ FALLBACK: `house renovation`
+  AI_GENERATE: `Workers patching crumbling brick wall on terraced house exterior, shallow depth of field, overcast light, cinematic 9:16 vertical, photorealistic`
 
 ═══════════════════════════════════════
 RHYTHM RULE
