@@ -29,12 +29,13 @@ async def align_audio(audio_url: str, api_key: str) -> list[WordTimestamp]:
         "Authorization": f"Token {api_key}",
         "Content-Type": "application/json",
     }
-    # smart_format=false: keeps numbers/percentages as spoken words ("ninety
-    # percent" rather than "90%"). Storyboard voiceover_line text always
-    # spells out numbers for TTS, so word-level matching in
-    # assign_words_to_scenes (ffmpeg_builder.py) requires Deepgram's output
-    # to use the same spelled-out form. See DECISIONS.md D045.
-    params = {"model": "nova-2", "smart_format": "false"}
+    # smart_format=true: Deepgram returns numerals/symbols ("1884", "90%")
+    # matching voiceover_line text which copies verbatim from the script
+    # (e.g. "1884" not "eighteen eighty-four").  See DECISIONS.md D045 (revised
+    # 2026-06-20): smart_format=false caused digit tokens like "1884" to be
+    # transcribed as spoken words ("eighteen eighty four") which never matched
+    # the storyboard numeral, dropping them from captions entirely.
+    params = {"model": "nova-2", "smart_format": "true"}
     async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT_SECONDS) as client:
         try:
             response = await client.post(

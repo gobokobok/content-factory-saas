@@ -1108,6 +1108,19 @@ class TestComputeSceneDurationsFromAlignment:
         assert result[0] is not scenes[0]
         assert scenes[0].duration_s == 5.0
 
+    def test_pre_silence_compensated_for_first_scene(self):
+        # Scene 0 first word at 240ms (TTS pre-silence); scene 1 first word at 5000ms.
+        # Old (uncompensated): scene 0 duration = (5000-240)/1000 = 4.76s — scene 1 fires
+        # at video t=4.76s while audio is at 4.76s, but the spoken word isn't until 5.0s.
+        # Fixed: scene 0 duration = 5000/1000 = 5.0s — scene 1 fires exactly at t=5.0s.
+        scenes = [_scene_with_vo("01", "a", 4.0), _scene_with_vo("02", "b", 4.0)]
+        scene_words = [[_wts("a", 240, 600)], [_wts("b", 5000, 5400)]]
+        result = compute_scene_durations_from_alignment(scenes, scene_words)
+        # Scene 0 must be 5.0s (measured from video t=0 to scene 1's first word).
+        assert result[0].duration_s == pytest.approx(5.0, abs=0.001)
+        # Scene 1 last scene: uses speech span = (5400-5000)/1000 = 0.4s.
+        assert result[1].duration_s == pytest.approx(0.4, abs=0.001)
+
 
 class TestFillCaptionGaps:
     def test_covered_scene_text_appended_to_preceding_scene(self):

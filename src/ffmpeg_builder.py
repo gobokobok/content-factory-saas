@@ -247,6 +247,16 @@ def compute_scene_durations_from_alignment(
             for k in range(i + 1, j):
                 covered.add(k)
 
+    # Index of the scene that provides the first alignment anchor.
+    # Its gap-based duration must be measured from video t=0 (not from its own
+    # first-word timestamp) to eliminate the constant visual lead caused by the
+    # TTS pre-silence.  Without this compensation, scene cuts fire ~200–400 ms
+    # early throughout the video, making the last word(s) of each scene audible
+    # while the next scene's image is already showing.
+    first_matched_i: Optional[int] = next(
+        (k for k in range(n) if first_start_ms[k] is not None), None
+    )
+
     updated: list[StoryboardScene] = []
     for i, scene in enumerate(scenes):
         words_i = scene_words[i] if i < len(scene_words) else []
@@ -272,7 +282,12 @@ def compute_scene_durations_from_alignment(
             # for any unmatched scenes between i and j so the total of scenes
             # i … j-1 telescopes exactly to (T_j - T_i) / 1000.
             n_covered = j - i - 1  # unmatched scenes between i and j
-            raw_gap = (first_start_ms[j] - words_i[0].start_ms) / 1000.0  # type: ignore[operator]
+            if i == first_matched_i:
+                # First anchor: measure from video t=0 so all subsequent cuts
+                # fire exactly when the next scene's word is spoken (zero lead).
+                raw_gap = first_start_ms[j] / 1000.0  # type: ignore[operator]
+            else:
+                raw_gap = (first_start_ms[j] - words_i[0].start_ms) / 1000.0  # type: ignore[operator]
             duration_s = raw_gap - n_covered * _MIN_ALIGNED_DURATION_S
         else:
             # No further matched scene — last segment; use speech span only.
