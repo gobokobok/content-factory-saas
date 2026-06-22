@@ -925,7 +925,8 @@ Extract the storyboard→acquisition→render chain from `InProcessLegacyVideoAd
 ## [P9-S1] Storyboard schema v2
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P9
-**Status:** todo
+**Status:** done
+**Completed:** 2026-06-22
 **Priority:** high
 **Points:** 3
 **Depends on:** —
@@ -979,14 +980,25 @@ historic: bool = False  # deprecated alias; segment_type=Event is the signal
 ```
 
 ### Acceptance Criteria
-- [ ] `SceneRenderOptions`, `LowerThirdSpec`, `OnScreenTextOverlay` models added to `src/models.py`
-- [ ] `StoryboardScene`: `segment_type`, `primary_stk`, `context_stk`, `concept_stk`, `on_screen_text_type`, `render_options` fields added; `visual_prompts` kept Optional for backward compat
-- [ ] `ManifestEntry`: `segment_type`, `primary_stk`, `context_stk`, `concept_stk` added; old `primary_query` / `fallback_query` / `ai_generate_prompt` made Optional with None default
-- [ ] Backward-compat: existing R2 storyboard JSON (with `visual_prompts` struct) still parses; `primary_stk` populated from `visual_prompts.primary_stk` if flat field absent
-- [ ] Tests: new fields parse; `segment_type` defaults to `"B-roll"`; old storyboard JSON without new fields loads without error; `SceneRenderOptions` round-trips through JSON
+- [x] `SceneRenderOptions`, `LowerThirdSpec`, `OnScreenTextOverlay` models added to `src/models.py`
+- [x] `StoryboardScene`: `segment_type`, `primary_stk`, `context_stk`, `concept_stk`, `on_screen_text_type`, `render_options` fields added; `visual_prompts` kept Optional for backward compat
+- [x] `ManifestEntry`: `segment_type`, `primary_stk`, `context_stk`, `concept_stk` added; old `primary_query` / `fallback_query` / `ai_generate_prompt` made Optional with None default
+- [x] Backward-compat: existing R2 storyboard JSON (with `visual_prompts` struct) still parses; `primary_stk`/`context_stk` populated from `visual_prompts` via `model_validator` when flat fields absent
+- [x] Tests: new fields parse; `segment_type` defaults to `"B-roll"`; old storyboard JSON without new fields loads without error; `SceneRenderOptions` round-trips through JSON
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `src/models.py`:
+  - `LowerThirdSpec(name, title?, caption_y_override=1540)` — new model
+  - `OnScreenTextOverlay(text, type: Literal["stat","date","lower_third"], enable_expr)` — new model
+  - `SceneRenderOptions(film_look=False, lower_third?, on_screen_text_overlay?)` — new model
+  - `StoryboardScene` gains `segment_type` (Literal, default "B-roll"), `primary_stk`, `context_stk`, `concept_stk` (str, default ""), `on_screen_text_type` (Optional Literal), `render_options` (Optional SceneRenderOptions); `visual_prompts` made Optional (deprecated alias). `model_validator(mode="after")` backfills `primary_stk/context_stk` from `visual_prompts` when loading old JSON.
+  - `ManifestEntry` gains `segment_type`, `primary_stk`, `context_stk`, `concept_stk`; `primary_query/fallback_query/ai_generate_prompt` made `Optional[str] = None` for R2 backward compat. `historic` deprecated alias preserved.
+  - `build_manifest` in `manifest.py` unchanged — still accesses `scene.visual_prompts.primary_stk` for the legacy pipeline path. P9-S3 (AcquisitionWorker) will use the flat fields.
+- `tests/test_p9_s1_schema_v2.py` (new): 36 tests covering all models, new fields, backward-compat validator, JSON round-trip.
+- 1779 total tests passing (CI green, was 1736).
 
 ---
 

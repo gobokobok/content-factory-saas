@@ -4,7 +4,7 @@ import re
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 PIPELINE_STEPS = (
@@ -100,11 +100,37 @@ class ArtifactResponse(BaseModel):
 
 
 class VisualPrompts(BaseModel):
-    """Three-tier visual prompt hierarchy for a storyboard scene."""
+    """Three-tier visual prompt hierarchy for a storyboard scene (v1 — deprecated alias)."""
 
     primary_stk: str
     fallback_stk: str
     ai_generate: str
+
+
+class LowerThirdSpec(BaseModel):
+    """Specification for a lower-third name/title overlay on a Character scene."""
+
+    name: str
+    title: Optional[str] = None
+    # Shifts caption baseline up so subtitles don't overlap the lower-third band.
+    caption_y_override: int = 1540
+
+
+class OnScreenTextOverlay(BaseModel):
+    """A timed text overlay (stat, date, or lower-third label) rendered over the scene."""
+
+    text: str
+    type: Literal["stat", "date", "lower_third"]
+    # FFmpeg between(t,{offset},{offset+duration}) expression controlling display window.
+    enable_expr: str
+
+
+class SceneRenderOptions(BaseModel):
+    """Render decisions computed by the storyboard reviewer and consumed by RenderWorker."""
+
+    film_look: bool = False
+    lower_third: Optional[LowerThirdSpec] = None
+    on_screen_text_overlay: Optional[OnScreenTextOverlay] = None
 
 
 class StoryboardScene(BaseModel):
@@ -114,21 +140,42 @@ class StoryboardScene(BaseModel):
     clip_type: Literal["hard_cut", "still_with_motion", "animated"]
     duration_s: float
     voiceover_line: str
-    visual_prompts: VisualPrompts
+    # v2 flat query fields (P9-S1). Populated from visual_prompts by validator when loading v1 JSON.
+    primary_stk: str = ""
+    context_stk: str = ""
+    concept_stk: str = ""
+    # v1 nested struct — kept Optional for backward compat with existing R2 storyboards.
+    visual_prompts: Optional[VisualPrompts] = None
     motion_effect: Optional[str] = None
     on_screen_text: Optional[str] = None
+    # v2 text overlay type; paired with on_screen_text.
+    on_screen_text_type: Optional[Literal["stat", "date", "lower_third"]] = None
     sfx: str
     sfx_timing: str
+    # Segment classification (v2). "Character" = named real person; "Event" = named
+    # historical event; "B-roll" = everything else.
+    segment_type: Literal["Character", "Event", "B-roll"] = "B-roll"
+    # Render decisions written by the storyboard reviewer (P9-S2).
+    render_options: Optional[SceneRenderOptions] = None
     # Operator-set acquisition strategy — persisted in storyboard so it survives
     # before the manifest exists.  None means "derive from clip_type at manifest build".
     asset_mode: Optional[Literal["stock", "ai_generated"]] = None
-    # Set to True by the storyboard prompt when scene depicts historic footage.
-    # Routes acquisition to Wikimedia Commons first (P8-S2).
+    # Deprecated alias — segment_type=Event is the v2 signal. Kept for R2 backward compat.
     historic: bool = False
     # Set by the storyboard prompt (v0.10) when scene depicts a named real person.
     # Routes acquisition to wikimedia_client.fetch_person_photo first (P8-S3).
     person_name: Optional[str] = None
     person_title: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _backfill_flat_queries_from_visual_prompts(self) -> "StoryboardScene":
+        """Populate v2 flat query fields from v1 visual_prompts when loading old storyboards."""
+        if self.visual_prompts is not None:
+            if not self.primary_stk:
+                self.primary_stk = self.visual_prompts.primary_stk
+            if not self.context_stk:
+                self.context_stk = self.visual_prompts.fallback_stk
+        return self
 
 
 class StoryboardGlobal(BaseModel):
@@ -165,10 +212,16 @@ class ManifestEntry(BaseModel):
 
     scene_id: str
     clip_type: Literal["hard_cut", "still_with_motion", "animated"]
-    primary_query: str
-    fallback_query: str
-    ai_generate_prompt: str
-    # Propagated from StoryboardScene.historic — routes acquisition to Wikimedia first.
+    # v1 query fields — Optional for backward compat; populated by build_manifest (legacy path).
+    primary_query: Optional[str] = None
+    fallback_query: Optional[str] = None
+    ai_generate_prompt: Optional[str] = None
+    # v2 flat query fields (P9-S1) — used by native AcquisitionWorker (P9-S3).
+    segment_type: str = "B-roll"
+    primary_stk: str = ""
+    context_stk: str = ""
+    concept_stk: str = ""
+    # Deprecated alias — segment_type=Event is the v2 signal. Kept for R2 backward compat.
     historic: bool = False
     status: str = "pending"
     source: Optional[str] = None

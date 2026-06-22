@@ -4,6 +4,23 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P9-S1] Storyboard schema v2
+**Completed:** 2026-06-22
+**Handover:**
+- `src/models.py`:
+  - `LowerThirdSpec(name, title?, caption_y_override=1540)` — new model for lower-third overlays
+  - `OnScreenTextOverlay(text, type: Literal["stat","date","lower_third"], enable_expr)` — new model for timed text overlays
+  - `SceneRenderOptions(film_look=False, lower_third?, on_screen_text_overlay?)` — new model; written by storyboard reviewer (P9-S2), read by RenderWorker (P9-S4)
+  - `StoryboardScene` gains: `segment_type: Literal["Character","Event","B-roll"] = "B-roll"`, `primary_stk/context_stk/concept_stk: str = ""`, `on_screen_text_type: Optional[Literal["stat","date","lower_third"]] = None`, `render_options: Optional[SceneRenderOptions] = None`. `visual_prompts` made `Optional[VisualPrompts] = None` (deprecated alias). `model_validator(mode="after")` backfills `primary_stk/context_stk` from `visual_prompts` when loading old R2 storyboard JSON.
+  - `ManifestEntry` gains: `segment_type: str = "B-roll"`, `primary_stk/context_stk/concept_stk: str = ""`. `primary_query/fallback_query/ai_generate_prompt` made `Optional[str] = None` for backward compat with existing R2 manifests. `historic: bool = False` deprecated alias preserved.
+- `src/manifest.py` (unchanged): still accesses `scene.visual_prompts.primary_stk` for the legacy pipeline path; P9-S3 will switch to flat fields.
+- `tests/test_p9_s1_schema_v2.py` (new): 36 tests — LowerThirdSpec (3), OnScreenTextOverlay (4), SceneRenderOptions (5), StoryboardScene v2 fields (11), v1 backward-compat (7), ManifestEntry v2 fields (6).
+- 1779 total tests passing (CI green, was 1736).
+**Smoke test:** N/A — pure data model story; no runtime path changed.
+**Promoted to backlog:** none.
+
+---
+
 ## [P8-S6] Colour grading presets (FFmpeg)
 **Completed:** 2026-06-20
 **Handover:**
