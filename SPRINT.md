@@ -150,7 +150,7 @@ Legacy Script→Video stays untouched and operable (D047).
 |----|-------|--------|--------|
 | P9-S1 | Storyboard schema v2 | 3 | done |
 | P9-S2 | Native StoryboardWorker (generate → review → patch internal) | 5 | done |
-| P9-S3 | Native AcquisitionWorker | 4 | todo |
+| P9-S3 | Native AcquisitionWorker | 4 | done |
 | P9-S4 | Native RenderWorker (dumb executor — reads render_options) | 4 | todo |
 | P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 2 | todo |
 
@@ -159,7 +159,7 @@ Legacy Script→Video stays untouched and operable (D047).
 ## Sprint P9 Definition of Done
 - [x] `StoryboardScene` schema v2: `segment_type` (3 values), three-tier queries, `on_screen_text_type` (3 values), `render_options` per scene; `historic` and `visual_prompts.ai_generate` removed
 - [x] `StoryboardWorker` emits single `verified_storyboard` artifact; internal generate→review→patch cycle; no intermediate artifacts
-- [ ] `AcquisitionWorker` routes by `segment_type`; three-tier query cascade; P8 src/ modules imported directly; `asset_manifest` + `footage_summary` artifacts written
+- [x] `AcquisitionWorker` routes by `segment_type`; three-tier query cascade; P8 src/ modules imported directly; `asset_manifest` + `footage_summary` artifacts written
 - [ ] `RenderWorker` reads `scene.render_options` only — no `segment_type` conditionals; persists `render_script.sh`; produces `final.mp4`
 - [ ] Caption position awareness: when `render_options.lower_third` active and `subtitles != "none"`, captions shift up via `caption_y_override`
 - [ ] Each worker has a standalone REST endpoint for future manual UI (alongside pipeline node wiring)

@@ -84,6 +84,11 @@ from cf_platform.sources.reddit import RedditAdapter
 from cf_platform.sources.youtube import YouTubeAdapter
 from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
 from cf_platform.workers.opportunity_scorer import TopicScore
+from cf_platform.workers.acquisition_worker import (
+    ACQUISITION_WORKER_REGISTRATION,
+    AssetManifestArtifact,
+    build_acquisition_worker,
+)
 from cf_platform.workers.storyboard_worker import (
     STORYBOARD_WORKER_REGISTRATION,
     VerifiedStoryboardArtifact,
@@ -109,6 +114,7 @@ register_niche_to_ideas_workers(_worker_registry)
 register_idea_to_script_workers(_worker_registry)
 _worker_registry.register("voice_production", VOICE_PRODUCTION_REGISTRATION)
 _worker_registry.register("storyboard_worker", STORYBOARD_WORKER_REGISTRATION)
+_worker_registry.register("acquisition_worker", ACQUISITION_WORKER_REGISTRATION)
 
 
 @router.get("/health")
@@ -516,6 +522,95 @@ async def storyboard_worker_endpoint(
         artifact_key=storyboard_record.r2_key,
         scene_count=result_artifact.scene_count,
         prompt_version=result_artifact.prompt_version,
+    )
+
+
+class AcquisitionWorkerRequest(BaseModel):
+    """Request body for POST /platform/workers/acquisition."""
+
+    run_id: str
+
+
+class AcquisitionWorkerResponse(BaseModel):
+    """Response body for POST /platform/workers/acquisition."""
+
+    manifest_key: str
+    footage_summary: dict
+    acquired: int
+    failed: int
+
+
+@router.post("/workers/acquisition", response_model=AcquisitionWorkerResponse)
+async def acquisition_worker_endpoint(
+    body: AcquisitionWorkerRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> AcquisitionWorkerResponse:
+    """Acquire assets for all scenes in an existing verified storyboard.
+
+    Reads the latest verified_storyboard artifact for run_id, routes each scene
+    by segment_type (Character/Event/B-roll), runs the three-tier STK cascade with
+    a QA gate, and persists the asset_manifest artifact to R2. The run must have a
+    verified_storyboard artifact written by a prior /platform/workers/storyboard call.
+
+    Designed for future step-by-step manual UI and standalone testing; not wired into
+    Telegram in this story.
+    """
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+
+    # Locate the latest verified_storyboard artifact for this run
+    prefix = f"users/{_PLATFORM_USER_ID}/runs/{body.run_id}/storyboard/verified_storyboard@v"
+    storyboard_keys = await storage.list_keys(prefix)
+    if not storyboard_keys:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=404,
+            detail=f"No verified_storyboard artifact found for run_id={body.run_id!r}. "
+                   "Run /platform/workers/storyboard first.",
+        )
+    storyboard_key = sorted(storyboard_keys)[-1]  # latest version
+
+    worker = build_acquisition_worker(
+        storage,
+        pexels_api_key=settings.PEXELS_API_KEY,
+        pixabay_api_key=settings.PIXABAY_API_KEY,
+    )
+    state = StageState(
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        inputs={},
+        artifacts={"verified_storyboard": storyboard_key},
+    )
+    output = await worker(state)
+    result_artifact = output.artifact
+    if not isinstance(result_artifact, AssetManifestArtifact):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail="AcquisitionWorker returned unexpected artifact type")
+
+    manifest_lineage = LineageEnvelope(
+        run_id=body.run_id,
+        worker="acquisition_worker",
+        worker_version=ACQUISITION_WORKER_REGISTRATION.worker_version,
+        prompt_version=ACQUISITION_WORKER_REGISTRATION.prompt_version,
+        model=ACQUISITION_WORKER_REGISTRATION.model,
+        created_at=datetime.now(),
+    )
+    manifest_record = await write_artifact(
+        storage,
+        result_artifact,
+        name="asset_manifest",
+        stage="acquisition",
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        lineage=manifest_lineage,
+    )
+
+    return AcquisitionWorkerResponse(
+        manifest_key=manifest_record.r2_key,
+        footage_summary=result_artifact.footage_summary,
+        acquired=result_artifact.acquired,
+        failed=result_artifact.failed,
     )
 
 

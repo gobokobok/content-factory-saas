@@ -56,6 +56,9 @@ class PlatformSettings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_TTS_VOICE: str = ""
     DEEPGRAM_API_KEY: str = ""
+    # Same ENV var names as src/config.py — reused by the native AcquisitionWorker (P9-S3).
+    PEXELS_API_KEY: str = ""
+    PIXABAY_API_KEY: str = ""
 
 
 def get_platform_settings() -> PlatformSettings:

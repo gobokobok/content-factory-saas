@@ -4,6 +4,32 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P9-S3] Native AcquisitionWorker
+**Completed:** 2026-06-22
+**Handover:**
+- `cf_platform/workers/acquisition_worker.py` (new):
+  - `ACQUISITION_WORKER_REGISTRATION`: worker_version=`1.0.0`, model=`none`, prompt_version=`none`
+  - `AssetManifestArtifact(scene_count, acquired, failed, footage_summary, manifest, generated_at)` — terminal artifact; `manifest` is `AssetManifest.model_dump(mode="json")`; also writes `runs/{run_id}/footage_summary.json` side-car for legacy compat (P8-S5 path)
+  - `_Candidate` dataclass: url, width, height, source, content_type, ext, attribution, duration_seconds
+  - Source helpers: `_pexels_video_candidates` / `_pexels_photo_candidates` (sync, wrapped in `asyncio.to_thread`); `_pixabay_video_candidates` / `_pixabay_photo_candidates` (async, via `src.pixabay_client.PixabayClient`); `_wikimedia_photo_candidates` (async, via `src.wikimedia_client.WikimediaClient`)
+  - `_try_candidates`: resolution pre-check → download → full `qa_score` → accept on pass; appends downloaded failures to `collected` for `pick_best`
+  - `_accept_best`: `pick_best` from collected; last-resort download of highest-resolution candidate when all pre-checks failed
+  - `_acquire_character`: `wikimedia.fetch_person_photo(person_name)` → QA skipped; Pexels+Pixabay generic fallback (no Wikimedia general, no AI)
+  - `_acquire_event`: Wikimedia Commons three-tier cascade first; Pexels+Pixabay three-tier cascade fallback
+  - `_acquire_broll`: Pexels+Pixabay concurrent per query tier; three-tier cascade (primary_stk → context_stk → concept_stk)
+  - `build_acquisition_worker(storage, pexels_api_key, pixabay_api_key="") → WorkerNode`: reads `verified_storyboard` artifact, builds entries from v2 STK fields, runs acquisition in parallel batches of 20; returns `AssetManifestArtifact`
+- `cf_platform/core/config.py`: `PEXELS_API_KEY: str = ""` and `PIXABAY_API_KEY: str = ""` added to `PlatformSettings` (same ENV var names as `src/config.py`)
+- `cf_platform/interfaces/api.py`:
+  - `ACQUISITION_WORKER_REGISTRATION` registered as `"acquisition_worker"` in `_worker_registry`
+  - `AcquisitionWorkerRequest(run_id)`, `AcquisitionWorkerResponse(manifest_key, footage_summary, acquired, failed)` models added
+  - `POST /platform/workers/acquisition` endpoint: lists R2 keys to find latest `verified_storyboard` artifact for `run_id`; calls `build_acquisition_worker`; persists `AssetManifestArtifact` via `write_artifact`; returns manifest key + footage summary
+- `tests/cf_platform/test_p9_s3_acquisition_worker.py` (new): 20 tests — registration pins (3), `_compute_footage_summary` (3), `_try_candidates` (3), `_acquire_character` (2), `_acquire_event` (2), `_acquire_broll` (3), worker integration (3), API registration (1)
+- 1819 total tests passing (CI green, was 1799).
+**Smoke test:** DEFERRED — requires DEV deploy with `PEXELS_API_KEY` and a `verified_storyboard` artifact written by a prior `/platform/workers/storyboard` call. Call `POST /platform/workers/acquisition` with `{"run_id": "<existing_run_id>"}` and verify `manifest_key` returned and `footage_summary` shows per-source counts.
+**Promoted to backlog:** none.
+
+---
+
 ## [P9-S2] Native StoryboardWorker (generate → review → patch internal)
 **Completed:** 2026-06-22
 **Handover:**

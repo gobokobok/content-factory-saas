@@ -1068,7 +1068,8 @@ async def build_storyboard_worker(storage, settings) -> WorkerNode
 ## [P9-S3] Native AcquisitionWorker
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P9
-**Status:** todo
+**Status:** done
+**Completed:** 2026-06-22
 **Priority:** high
 **Points:** 4
 **Depends on:** P9-S2
@@ -1098,17 +1099,23 @@ async def build_acquisition_worker(storage, settings) -> WorkerNode
 `POST /platform/workers/acquisition` — accepts `{ run_id }`, returns `{ manifest_key, footage_summary, acquired, failed }`. For future manual UI; not wired into Telegram in this story.
 
 ### Acceptance Criteria
-- [ ] `cf_platform/workers/acquisition_worker.py` with `build_acquisition_worker` factory
-- [ ] Imports `src.pixabay_client`, `src.wikimedia_client`, `src.footage_qa` directly (no wrappers)
-- [ ] Routing table implemented; `segment_type` field read from `verified_storyboard` scenes
-- [ ] Three-tier cascade (`primary_stk → context_stk → concept_stk`) within each source before advancing
-- [ ] QA gate applied at each candidate; `pick_best` fallback; scene never left empty
-- [ ] `footage_summary` dict: per-scene source + score summary
-- [ ] `POST /platform/workers/acquisition` route wired
-- [ ] Tests: Character → person photo route; Event → Wikimedia first; B-roll → Pexels+Pixabay concurrent; three-tier cascade triggers on primary miss; QA gate rejects low-res; empty manifest never produced
+- [x] `cf_platform/workers/acquisition_worker.py` with `build_acquisition_worker` factory
+- [x] Imports `src.pixabay_client`, `src.wikimedia_client`, `src.footage_qa` directly (no wrappers); also imports `src.pexels` for Pexels support
+- [x] Routing table implemented; `segment_type` field read from `verified_storyboard` scenes
+- [x] Three-tier cascade (`primary_stk → context_stk → concept_stk`) within each source before advancing
+- [x] QA gate applied at each candidate; `pick_best` fallback; scene never left empty
+- [x] `footage_summary` dict: per-scene source + score summary; also written as `runs/{run_id}/footage_summary.json` side-car for legacy compat
+- [x] `POST /platform/workers/acquisition` route wired
+- [x] Tests: Character → person photo route; Event → Wikimedia first; B-roll → Pexels+Pixabay concurrent; three-tier cascade triggers on primary miss; QA gate rejects low-res; empty manifest never produced
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `cf_platform/workers/acquisition_worker.py` (new): `ACQUISITION_WORKER_REGISTRATION` (worker_version=`1.0.0`, model=`none`); `AssetManifestArtifact(scene_count, acquired, failed, footage_summary, manifest, generated_at)`; `build_acquisition_worker(storage, pexels_api_key, pixabay_api_key="") → WorkerNode`. Reads `state.artifacts["verified_storyboard"]`; routes by `segment_type`; three-tier STK cascade; QA gate; writes side-car at `runs/{run_id}/footage_summary.json`. Emits `state.artifacts["asset_manifest"]`.
+- `cf_platform/core/config.py`: `PEXELS_API_KEY: str = ""` and `PIXABAY_API_KEY: str = ""` added to `PlatformSettings`.
+- `cf_platform/interfaces/api.py`: `ACQUISITION_WORKER_REGISTRATION` registered; `POST /platform/workers/acquisition` endpoint added.
+- `tests/cf_platform/test_p9_s3_acquisition_worker.py` (new): 20 tests. 1819 total passing (CI green, was 1799).
 
 ---
 
