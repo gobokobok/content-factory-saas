@@ -1,5 +1,11 @@
 """Legacy video adapter — the ONLY cf_platform module that imports src/ (D047).
 
+DEPRECATED (P9-S5): InProcessLegacyVideoAdapter is no longer in the active call path.
+The full pipeline now uses StoryboardWorker + AcquisitionWorker + RenderWorker instead.
+This module remains importable so existing code that references VideoResult or
+LegacyVideoAdapter continues to compile. The standalone src/ pipeline (legacy web UI
+routes) is unaffected and still operational per D047.
+
 Bridges the platform orchestrator to the legacy Script→Video pipeline by chaining
 the per-step domain functions from src/ in-process.  Emits TraceEvents per step;
 never emits platform artifacts (D050, D057).

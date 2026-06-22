@@ -152,7 +152,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P9-S2 | Native StoryboardWorker (generate → review → patch internal) | 5 | done |
 | P9-S3 | Native AcquisitionWorker | 4 | done |
 | P9-S4 | Native RenderWorker (dumb executor — reads render_options) | 4 | done |
-| P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 2 | todo |
+| P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 2 | done |
 
 **Execution order:** P9-S1 → P9-S2 → P9-S3 → P9-S4 → P9-S5 (fully linear).
 

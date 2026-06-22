@@ -1072,6 +1072,11 @@ async def _run_pipeline_and_reply(
             gemini_api_key=settings.GEMINI_API_KEY,
             gemini_tts_voice=settings.GEMINI_TTS_VOICE,
             deepgram_api_key=settings.DEEPGRAM_API_KEY,
+            pexels_api_key=settings.PEXELS_API_KEY,
+            pixabay_api_key=settings.PIXABAY_API_KEY,
+            color_grade_preset=settings.COLOR_GRADE_PRESET,
+            blur_fill_enabled=settings.BLUR_FILL_ENABLED,
+            ffmpeg_timeout_seconds=settings.FFMPEG_TIMEOUT_SECONDS,
         )
         state = PipelineState(
             run_id=run.run_id,

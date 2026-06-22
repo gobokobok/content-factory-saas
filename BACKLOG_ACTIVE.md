@@ -1179,7 +1179,7 @@ async def build_render_worker(storage, settings) -> WorkerNode
 ## [P9-S5] Retire InProcessLegacyVideoAdapter + wire native pipeline
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P9
-**Status:** todo
+**Status:** done
 **Priority:** high
 **Points:** 2
 **Depends on:** P9-S4
@@ -1195,14 +1195,14 @@ Wire the three native workers into `full_pipeline.py` so `/run`, `/pick`, and `/
 - `src/` standalone pipeline (legacy web UI routes) unchanged — P9 touches only `cf_platform/` path
 
 ### Acceptance Criteria
-- [ ] `full_pipeline.py` call graph: `niche_to_ideas → idea_to_script → youtube_metadata → voice_production → storyboard_worker → acquisition_worker → render_worker`
-- [ ] `InProcessLegacyVideoAdapter` not in active call path; deprecation notice added; importable
-- [ ] `/run`, `/pick`, `/produce` all trigger native chain; `footage_summary` in reply
-- [ ] All existing tests pass; integration test: full pipeline smoke with mocked workers produces `verified_storyboard → asset_manifest → render_script.sh → final.mp4` chain
-- [ ] **Human touchpoint:** `/run <niche>` → native render; person lower thirds visible; film look on historic footage; on_screen_text stat/date overlays present
+- [x] `full_pipeline.py` call graph: `niche_to_ideas → idea_to_script → youtube_metadata → voice_production → storyboard_worker → acquisition_worker → render_worker`
+- [x] `InProcessLegacyVideoAdapter` not in active call path; deprecation notice added; importable
+- [x] `/run`, `/pick`, `/produce` all trigger native chain; `footage_summary` in reply
+- [x] All existing tests pass; integration test: full pipeline smoke with mocked workers produces `verified_storyboard → asset_manifest → render_script.sh → final.mp4` chain
+- [ ] **Human touchpoint:** `/run <niche>` → native render; person lower thirds visible; film look on historic footage; on_screen_text stat/date overlays present — DEFERRED: requires DEV deploy + real API keys
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ---
 

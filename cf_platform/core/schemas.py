@@ -201,17 +201,20 @@ class IdeaToScriptState(StageState):
 
 
 class PipelineState(StageState):
-    """Stage state for the full pipeline orchestrator (plan §5, P6-S2, P7-S1).
+    """Stage state for the full pipeline orchestrator (plan §5, P6-S2, P7-S1, P9-S5).
 
     Typed control channels only — no artifact bodies (D057).
-    Composes niche_to_ideas → idea_to_script → legacy_render.
+    Composes niche_to_ideas → idea_to_script → youtube_metadata → voice_production
+    → storyboard_worker → acquisition_worker → render_worker.
 
     Artifact refs populated across block nodes:
-      niche_to_ideas   → "ranked_ideas"      (terminal ref from niche_to_ideas block)
-      idea_to_script   → "script"            (terminal ref from idea_to_script block)
-      youtube_metadata → "youtube_metadata"  (title + description + tags, P7-S2)
-      voice_production → "voice_alignment"   (Gemini TTS + Deepgram timestamps)
-      legacy_render    → "video"             (R2 key for final.mp4)
+      niche_to_ideas      → "ranked_ideas"         (terminal ref from niche_to_ideas block)
+      idea_to_script      → "script"               (terminal ref from idea_to_script block)
+      youtube_metadata    → "youtube_metadata"     (title + description + tags, P7-S2)
+      voice_production    → "voice_alignment"      (Gemini TTS + Deepgram timestamps)
+      storyboard_worker   → "verified_storyboard"  (render_options-populated storyboard, P9-S2)
+      acquisition_worker  → "asset_manifest"       (per-scene assets + footage_summary, P9-S3)
+      render_worker       → "video"                (R2 key for final.mp4, P9-S4)
 
     `target_duration_seconds` flows from the run trigger (/produce, REST) into
     IdeaToScriptState when the orchestrator constructs the block's initial state.

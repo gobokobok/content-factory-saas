@@ -17,13 +17,13 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from cf_platform.adapters.legacy_video import VideoResult
 from cf_platform.core.schemas import (
     IdeaToScriptState,
     NicheToIdeasState,
     PipelineState,
     StageState,
 )
+from cf_platform.workers.render_worker import RenderArtifact
 from cf_platform.interfaces.api import (
     get_artifact_repository,
     get_artifact_storage,
@@ -114,33 +114,46 @@ def _make_voice_result(voice_r2: str = "r2://voice@v1.json") -> StageState:
     )
 
 
+def _make_stage_result(artifact_key: str, r2: str) -> StageState:
+    """Build a minimal StageState simulating a single-worker observed graph result."""
+    return StageState(run_id=_RUN_ID, user_id=_USER_ID, inputs={}, artifacts={artifact_key: r2})
+
+
+def _make_render_artifact_body(video_key: str = "runs/test/output/final.mp4") -> dict:
+    """Build a RenderArtifact body dict for read_artifact mocking in render_node."""
+    return RenderArtifact(
+        render_script_key="runs/test/render_script.sh",
+        video_key=video_key,
+        scene_count=3,
+        duration_s=30.0,
+        generated_at=datetime.now(timezone.utc),
+    ).model_dump(mode="json")
+
+
 # ── Gate routing: hitl=False bypasses the gate ───────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_hitl_false_skips_gate_and_calls_legacy_render() -> None:
-    """When hitl=False (default), the graph bypasses script_approval_gate directly."""
+async def test_hitl_false_skips_gate_and_runs_native_pipeline() -> None:
+    """When hitl=False (default), the graph bypasses script_approval_gate and runs native workers."""
     ranked_r2 = "r2://ranked@v1.json"
     script_r2 = "r2://script@v1.json"
-    video_r2 = "r2://video.mp4"
-
-    voice_r2 = "r2://voice@v1.json"
+    render_r2 = "r2://render_artifact@v1.json"
+    video_r2 = "runs/test/output/final.mp4"
 
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
         _make_metadata_result(),
-        _make_voice_result(voice_r2=voice_r2),
+        _make_voice_result(),
+        _make_stage_result("verified_storyboard", "r2://sb@v1"),
+        _make_stage_result("asset_manifest", "r2://mf@v1"),
+        _make_stage_result("render_artifact", render_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_META, _make_ranked_body()),
-        (_FAKE_META, _make_voice_body()),
-        (_FAKE_META, _make_script_body()),
+        (_FAKE_META, _make_render_artifact_body(video_key=video_r2)),
     ])
-    mock_adapter = MagicMock()
-    mock_adapter.render = AsyncMock(
-        return_value=VideoResult(r2_key=video_r2, legacy_run_id=_RUN_ID, status="complete")
-    )
 
     with (
         patch("cf_platform.orchestrator.full_pipeline.build_niche_to_ideas_graph", return_value=MagicMock()),
@@ -151,14 +164,15 @@ async def test_hitl_false_skips_gate_and_calls_legacy_render() -> None:
         graph = build_full_pipeline_graph(
             storage=MagicMock(), registry=MagicMock(), executions=MagicMock(),
             artifact_repo=MagicMock(), adapters=[], trace_repo=MagicMock(),
-            anthropic_api_key="key", legacy_adapter=mock_adapter,
+            anthropic_api_key="key",
         )
         initial = PipelineState(
             run_id=_RUN_ID, user_id=_USER_ID, inputs={"niche": "housing"}, hitl=False,
         )
         result = await graph.ainvoke(initial, config={"configurable": {"thread_id": "t-no-hitl"}})
 
-    mock_adapter.render.assert_awaited_once()
+    # Gate was bypassed; all 7 run_graph calls completed; video in result.
+    assert mock_run_graph.call_count == 7
     assert result["artifacts"]["video"] == video_r2
 
 
@@ -185,6 +199,7 @@ def _build_hitl_graph(
         patch("cf_platform.orchestrator.full_pipeline.run_graph", mock_run_graph),
         patch("cf_platform.orchestrator.full_pipeline.read_artifact", mock_read_artifact),
     ):
+        # legacy_adapter is deprecated (P9-S5) but accepted for backward compat.
         return build_full_pipeline_graph(
             storage=MagicMock(), registry=MagicMock(), executions=MagicMock(),
             artifact_repo=MagicMock(), adapters=[], trace_repo=MagicMock(),
@@ -207,21 +222,22 @@ async def test_hitl_interrupt_called_with_run_id_and_script_key() -> None:
 
     voice_r2 = "r2://voice@v1.json"
 
+    render_r2 = "r2://render_artifact@v1.json"
+
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
         _make_metadata_result(),
         _make_voice_result(voice_r2=voice_r2),
+        _make_stage_result("verified_storyboard", "r2://sb@v1"),
+        _make_stage_result("asset_manifest", "r2://mf@v1"),
+        _make_stage_result("render_artifact", render_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_META, _make_ranked_body()),
-        (_FAKE_META, _make_voice_body()),
-        (_FAKE_META, _make_script_body()),
+        (_FAKE_META, _make_render_artifact_body()),
     ])
     mock_adapter = MagicMock()
-    mock_adapter.render = AsyncMock(
-        return_value=VideoResult(r2_key=video_r2, legacy_run_id=_RUN_ID, status="complete")
-    )
 
     with (
         patch("cf_platform.orchestrator.full_pipeline.build_niche_to_ideas_graph", return_value=MagicMock()),
@@ -247,29 +263,27 @@ async def test_hitl_interrupt_called_with_run_id_and_script_key() -> None:
 
 
 @pytest.mark.asyncio
-async def test_hitl_approve_calls_legacy_render() -> None:
-    """When the mocked interrupt returns 'approve', legacy_render is called."""
+async def test_hitl_approve_runs_native_pipeline() -> None:
+    """When the mocked interrupt returns 'approve', native workers run and video is in result."""
     ranked_r2 = "r2://ranked@v1.json"
     script_r2 = "r2://script@v1.json"
-    video_r2 = "r2://video.mp4"
-
-    voice_r2 = "r2://voice@v1.json"
+    video_r2 = "runs/test/output/final.mp4"
+    render_r2 = "r2://render_artifact@v1.json"
 
     mock_run_graph = AsyncMock(side_effect=[
         _make_niche_result(ranked_r2=ranked_r2),
         _make_script_result(script_r2=script_r2),
         _make_metadata_result(),
-        _make_voice_result(voice_r2=voice_r2),
+        _make_voice_result(),
+        _make_stage_result("verified_storyboard", "r2://sb@v1"),
+        _make_stage_result("asset_manifest", "r2://mf@v1"),
+        _make_stage_result("render_artifact", render_r2),
     ])
     mock_read_artifact = AsyncMock(side_effect=[
         (_FAKE_META, _make_ranked_body()),
-        (_FAKE_META, _make_voice_body()),
-        (_FAKE_META, _make_script_body()),
+        (_FAKE_META, _make_render_artifact_body(video_key=video_r2)),
     ])
     mock_adapter = MagicMock()
-    mock_adapter.render = AsyncMock(
-        return_value=VideoResult(r2_key=video_r2, legacy_run_id=_RUN_ID, status="complete")
-    )
 
     with (
         patch("cf_platform.orchestrator.full_pipeline.build_niche_to_ideas_graph", return_value=MagicMock()),
@@ -288,7 +302,9 @@ async def test_hitl_approve_calls_legacy_render() -> None:
         )
         result = await graph.ainvoke(initial, config={"configurable": {"thread_id": "t-approve"}})
 
-    mock_adapter.render.assert_awaited_once()
+    # All 7 workers ran; legacy adapter not called; video key is raw MP4 path.
+    assert mock_run_graph.call_count == 7
+    mock_adapter.render.assert_not_called()
     assert result["artifacts"]["video"] == video_r2
 
 

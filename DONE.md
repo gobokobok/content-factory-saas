@@ -4,6 +4,27 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P9-S5] Retire InProcessLegacyVideoAdapter + wire native pipeline
+**Completed:** 2026-06-22
+**Handover:**
+- `cf_platform/orchestrator/full_pipeline.py` (rewrite):
+  - Replaced single `legacy_render_node` with three native worker nodes: `storyboard_worker`, `acquisition_worker`, `render_worker`
+  - Graph topology: 8 nodes; `voice_production → storyboard_worker → acquisition_worker → render_worker → END`
+  - Three `build_observed_node_graph` calls at compile time: node_names `"verified_storyboard"`, `"asset_manifest"`, `"render_artifact"`
+  - `render_node` closure extracts `video_key` from `RenderArtifact` envelope (stored at `"render_artifact"`) and writes it to `state.artifacts["video"]` — preserving the existing `_run_pipeline_and_reply` contract
+  - Added 5 new kwargs: `pexels_api_key`, `pixabay_api_key`, `color_grade_preset`, `blur_fill_enabled`, `ffmpeg_timeout_seconds`; `legacy_adapter` kwarg kept but ignored
+- `cf_platform/adapters/legacy_video.py`: marked DEPRECATED (P9-S5) in module docstring; `InProcessLegacyVideoAdapter` stays importable per D047
+- `cf_platform/interfaces/api.py`: `_run_pipeline_and_reply` passes 5 new settings kwargs to `build_full_pipeline_graph`
+- `cf_platform/core/schemas.py`: `PipelineState` docstring updated to reflect 7-artifact chain
+- `tests/cf_platform/test_full_pipeline.py` (rewrite): 7-entry `run_graph` side_effects; `_make_render_artifact_body` helper; legacy adapter mock removed; 3 replaced tests
+- `tests/cf_platform/test_p9_s5_native_pipeline.py` (new): 11 tests covering importability, kwarg forward, worker registration, artifact key shapes
+- `tests/cf_platform/test_p6_s3_hitl.py`: updated 3 pipeline-topology-dependent tests to 7-entry `run_graph` side_effects + native assertions; renamed `test_hitl_false_skips_gate_and_calls_legacy_render` → `test_hitl_false_skips_gate_and_runs_native_pipeline`; renamed `test_hitl_approve_calls_legacy_render` → `test_hitl_approve_runs_native_pipeline`
+- 1846 total tests passing (was 1837 before this story)
+**Smoke test:** `/run housing` on DEV will exercise the full native chain for the first time end-to-end
+**Promoted to backlog:** none
+
+---
+
 ## [P9-S4] Native RenderWorker
 **Completed:** 2026-06-22
 **Handover:**
