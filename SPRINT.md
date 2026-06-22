@@ -24,7 +24,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P6 | Orchestrator + legacy bridge | 24 | done | `/produce <niche>` → presigned video URL + confirmed VO sync |
 | P7 | Idea selection + YouTube metadata | 8 | done | `/ideas` → 5 numbered ideas → `/pick <run_id> <n>` → 16:9 video + metadata |
 | P8 | Footage quality | 14 | done | Footage breakdown in Telegram reply; colour grade applied |
-| **P9** | **Storyboard v2 + native engine rebuild** | **~18** | **planned** | `/run` → fully native pipeline; person lower thirds; film look for historic scenes |
+| **P9** | **Storyboard v2 + native engine rebuild** | **~18** | **in-progress** | `/run` → fully native pipeline; person lower thirds; film look for historic scenes |
 | P10 | Render quality | ~14 | planned | Dip-to-black, quote cards, xfade dissolves, slow motion, chart overlays |
 | P11 | AI asset library | ~14 | planned | Portrait colorization, map generation, parallax, number callout overlays |
 | P12 | Format tracks | ~10 | planned | `documentary`/`educational`/`animated` via `--format` flag |
@@ -143,13 +143,13 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P9 — Native Documentary Production Graph
 
 **Goal:** Extract the storyboard→acquisition→render chain from `InProcessLegacyVideoAdapter` into three native LangGraph workers. P9 is a **migration sprint, not an innovation sprint** — every change must either (a) replace existing monolith functionality, or (b) add visible production quality at <10% runtime cost. Defer everything else to P10.
-**Status:** planned
+**Status:** in-progress
 **Points:** ~18
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | P9-S1 | Storyboard schema v2 | 3 | done |
-| P9-S2 | Native StoryboardWorker (generate → review → patch internal) | 5 | todo |
+| P9-S2 | Native StoryboardWorker (generate → review → patch internal) | 5 | done |
 | P9-S3 | Native AcquisitionWorker | 4 | todo |
 | P9-S4 | Native RenderWorker (dumb executor — reads render_options) | 4 | todo |
 | P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 2 | todo |
@@ -157,8 +157,8 @@ Legacy Script→Video stays untouched and operable (D047).
 **Execution order:** P9-S1 → P9-S2 → P9-S3 → P9-S4 → P9-S5 (fully linear).
 
 ## Sprint P9 Definition of Done
-- [ ] `StoryboardScene` schema v2: `segment_type` (3 values), three-tier queries, `on_screen_text_type` (3 values), `render_options` per scene; `historic` and `visual_prompts.ai_generate` removed
-- [ ] `StoryboardWorker` emits single `verified_storyboard` artifact; internal generate→review→patch cycle; no intermediate artifacts
+- [x] `StoryboardScene` schema v2: `segment_type` (3 values), three-tier queries, `on_screen_text_type` (3 values), `render_options` per scene; `historic` and `visual_prompts.ai_generate` removed
+- [x] `StoryboardWorker` emits single `verified_storyboard` artifact; internal generate→review→patch cycle; no intermediate artifacts
 - [ ] `AcquisitionWorker` routes by `segment_type`; three-tier query cascade; P8 src/ modules imported directly; `asset_manifest` + `footage_summary` artifacts written
 - [ ] `RenderWorker` reads `scene.render_options` only — no `segment_type` conditionals; persists `render_script.sh`; produces `final.mp4`
 - [ ] Caption position awareness: when `render_options.lower_third` active and `subtitles != "none"`, captions shift up via `caption_y_override`

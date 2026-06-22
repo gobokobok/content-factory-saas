@@ -1005,7 +1005,8 @@ historic: bool = False  # deprecated alias; segment_type=Event is the signal
 ## [P9-S2] Native StoryboardWorker (generate → review → patch internal)
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P9
-**Status:** todo
+**Status:** done
+**Completed:** 2026-06-22
 **Priority:** high
 **Points:** 5
 **Depends on:** P9-S1
@@ -1050,17 +1051,17 @@ async def build_storyboard_worker(storage, settings) -> WorkerNode
 `POST /platform/workers/storyboard` — accepts `{ run_id, script }`, returns `{ artifact_key, scene_count, prompt_version }`. For future manual UI; not wired into Telegram in this story.
 
 ### Acceptance Criteria
-- [ ] `cf_platform/workers/storyboard_worker.py` with `build_storyboard_worker` factory
-- [ ] Prompt v0.12: SEGMENT TYPE section (Character|Event|B-roll + definitions + examples); THREE-TIER QUERY section; ON_SCREEN_TEXT TYPE section (stat|date|lower_third only); RENDER DECISION NOTE (model emits raw fields; reviewer computes render_options)
-- [ ] `STORYBOARD_PROMPT_VERSION = "v0.12"` constant
-- [ ] Review dimensions (a)–(e) implemented; review response is structured (Haiku returns JSON patch list)
-- [ ] Patch step computes `render_options` per scene before emitting artifact
-- [ ] Rule enforced: Character scene with lower_third → `on_screen_text` set to null
-- [ ] `POST /platform/workers/storyboard` route wired and documented
-- [ ] Tests: generate→review→patch round-trip (mocked Sonnet/Haiku); Character scene → lower_third in render_options, on_screen_text null; Event scene → film_look True; on_screen_text present → enable_expr present; coverage check catches missing VO word; verified_storyboard artifact written to R2
+- [x] `cf_platform/workers/storyboard_worker.py` with `build_storyboard_worker` factory
+- [x] Prompt v0.12: SEGMENT TYPE section (Character|Event|B-roll + definitions + examples); THREE-TIER QUERY section; ON_SCREEN_TEXT TYPE section (stat|date|lower_third only); RENDER DECISION NOTE (model emits raw fields; reviewer computes render_options)
+- [x] `STORYBOARD_PROMPT_VERSION = "v0.12"` constant
+- [x] Review dimensions (a)–(e) implemented; review response is structured (Haiku returns JSON patch list)
+- [x] Patch step computes `render_options` per scene before emitting artifact
+- [x] Rule enforced: Character scene with lower_third → `on_screen_text` set to null
+- [x] `POST /platform/workers/storyboard` route wired and documented
+- [x] Tests: generate→review→patch round-trip (mocked Sonnet/Haiku); Character scene → lower_third in render_options, on_screen_text null; Event scene → film_look True; on_screen_text present → enable_expr present; coverage check catches missing VO word; verified_storyboard artifact written to R2
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ---
 

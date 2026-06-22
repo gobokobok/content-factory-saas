@@ -4,6 +4,31 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P9-S2] Native StoryboardWorker (generate → review → patch internal)
+**Completed:** 2026-06-22
+**Handover:**
+- `cf_platform/workers/storyboard_worker.py` (new):
+  - `STORYBOARD_PROMPT_VERSION = "v0.12"` constant
+  - `STORYBOARD_WORKER_REGISTRATION`: model=`claude-sonnet-4-6`, worker_version=`1.0.0`, prompt_version=`v0.12`
+  - `VerifiedStoryboardArtifact(prompt_version, scene_count, storyboard: dict, generated_at)` — terminal artifact; `storyboard` is `Storyboard.model_dump(by_alias=True, mode="json")` with `render_options` populated per scene
+  - `_GENERATE_SYSTEM_PROMPT` (v0.12): JSON-output; four new sections: SEGMENT TYPE (Character|Event|B-roll + definitions + examples), THREE-TIER QUERIES (primary_stk/context_stk/concept_stk), ON_SCREEN_TEXT TYPE (stat|date|lower_third), RENDER DECISION NOTE
+  - `_REVIEW_SYSTEM_PROMPT` (Haiku): 5 dimensions (coverage, segment_type, on_screen_text gaps, query domain anchoring, SFX specificity); returns structured JSON `{coverage_ok, patches, issues}`
+  - `_parse_review_response(text) → (patches, coverage_ok, issues)`: graceful fallback on parse failure (returns safe defaults, never blocks pipeline)
+  - `_apply_patches_and_render_options(storyboard, patches) → Storyboard`: applies field-level patches (guard list: `_PATCHABLE_FIELDS`), then computes `render_options` per scene using cumulative scene start times for `enable_expr`
+  - `build_storyboard_worker(storage, anthropic_api_key) → WorkerNode`: reads `state.artifacts["script"]`; optionally reads `state.artifacts["voice_alignment"]` for timestamp-aware durations; runs generate→review→patch; emits `VerifiedStoryboardArtifact`
+  - Key rules enforced deterministically: Character + person_name → `lower_third` overlay + null out `on_screen_text`; Event → `film_look=True`; stat/date `on_screen_text` → `on_screen_text_overlay` with `enable_expr=between(t,{start:.3f},{end:.3f})`; `caption_y_override=1540` on all `LowerThirdSpec` instances
+- `cf_platform/interfaces/api.py` (modified):
+  - `from cf_platform.workers.storyboard_worker import STORYBOARD_WORKER_REGISTRATION, VerifiedStoryboardArtifact, build_storyboard_worker` added
+  - `_worker_registry.register("storyboard_worker", STORYBOARD_WORKER_REGISTRATION)` added
+  - `StoryboardWorkerRequest(run_id, script)`, `StoryboardWorkerResponse(artifact_key, scene_count, prompt_version)` models added
+  - `POST /platform/workers/storyboard` endpoint: writes temp script artifact, calls worker directly (testvoice pattern), persists `VerifiedStoryboardArtifact` to R2 via `write_artifact`
+- `tests/cf_platform/test_p9_s2_storyboard_worker.py` (new): 20 tests — registration pins (4), `_parse_review_response` (5: valid, with patches, coverage failure, invalid JSON, markdown fence), `_apply_patches_and_render_options` (8: Character lower_third + null on_screen_text, Event film_look, B-roll no render_options, stat enable_expr, cumulative offset, patches-before-render, unknown field ignored), integration round-trips (3: full, coverage warning, Character patch applied)
+- 1799 total tests passing (CI green, was 1779).
+**Smoke test:** N/A — not wired into Telegram in this story; REST endpoint available at `POST /platform/workers/storyboard`.
+**Promoted to backlog:** none.
+
+---
+
 ## [P9-S1] Storyboard schema v2
 **Completed:** 2026-06-22
 **Handover:**

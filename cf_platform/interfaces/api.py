@@ -84,6 +84,11 @@ from cf_platform.sources.reddit import RedditAdapter
 from cf_platform.sources.youtube import YouTubeAdapter
 from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
 from cf_platform.workers.opportunity_scorer import TopicScore
+from cf_platform.workers.storyboard_worker import (
+    STORYBOARD_WORKER_REGISTRATION,
+    VerifiedStoryboardArtifact,
+    build_storyboard_worker,
+)
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from cf_platform.workers.voice_production import VOICE_PRODUCTION_REGISTRATION, build_voice_production_worker
 from cf_platform.workers.youtube_metadata import YoutubeMetadataArtifact
@@ -103,6 +108,7 @@ _worker_registry.register("echo", ECHO_REGISTRATION)
 register_niche_to_ideas_workers(_worker_registry)
 register_idea_to_script_workers(_worker_registry)
 _worker_registry.register("voice_production", VOICE_PRODUCTION_REGISTRATION)
+_worker_registry.register("storyboard_worker", STORYBOARD_WORKER_REGISTRATION)
 
 
 @router.get("/health")
@@ -414,6 +420,102 @@ async def idea_to_script(
         script_artifact_key=script_key,
         script=script_artifact.script,
         iterations=result.iteration,
+    )
+
+
+class StoryboardWorkerRequest(BaseModel):
+    """Request body for POST /platform/workers/storyboard."""
+
+    run_id: str
+    script: str
+
+
+class StoryboardWorkerResponse(BaseModel):
+    """Response body for POST /platform/workers/storyboard."""
+
+    artifact_key: str
+    scene_count: int
+    prompt_version: str
+
+
+@router.post("/workers/storyboard", response_model=StoryboardWorkerResponse)
+async def storyboard_worker_endpoint(
+    body: StoryboardWorkerRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> StoryboardWorkerResponse:
+    """Generate a verified storyboard from a script text.
+
+    Runs the full generate→review→patch internal cycle (prompt v0.12).
+    Designed for future step-by-step manual UI and standalone testing.
+
+    The script body is written as a temporary artifact at a known key so the
+    worker can read it via the standard ArtifactStorage interface. The resulting
+    VerifiedStoryboardArtifact is persisted to R2 and its key returned.
+    """
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+
+    script_artifact = ScriptArtifact(
+        idea_title="",
+        niche=None,
+        script=body.script,
+        word_count=len(body.script.split()),
+        status="ok",
+        generated_at=datetime.now(),
+    )
+    script_lineage = LineageEnvelope(
+        run_id=body.run_id,
+        worker="storyboard_request",
+        worker_version="1.0.0",
+        prompt_version="v1",
+        model="none",
+        created_at=datetime.now(),
+    )
+    script_record = await write_artifact(
+        storage,
+        script_artifact,
+        name="script",
+        stage="script",
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        lineage=script_lineage,
+    )
+
+    worker = build_storyboard_worker(storage, settings.ANTHROPIC_API_KEY)
+    state = StageState(
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        inputs={},
+        artifacts={"script": script_record.r2_key},
+    )
+    output = await worker(state)
+    result_artifact = output.artifact
+    if not isinstance(result_artifact, VerifiedStoryboardArtifact):
+        raise HTTPException(status_code=500, detail="StoryboardWorker returned unexpected artifact type")
+
+    storyboard_lineage = LineageEnvelope(
+        run_id=body.run_id,
+        worker="storyboard_worker",
+        worker_version=STORYBOARD_WORKER_REGISTRATION.worker_version,
+        prompt_version=STORYBOARD_WORKER_REGISTRATION.prompt_version,
+        model=STORYBOARD_WORKER_REGISTRATION.model,
+        created_at=datetime.now(),
+    )
+    storyboard_record = await write_artifact(
+        storage,
+        result_artifact,
+        name="verified_storyboard",
+        stage="storyboard",
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        lineage=storyboard_lineage,
+    )
+
+    return StoryboardWorkerResponse(
+        artifact_key=storyboard_record.r2_key,
+        scene_count=result_artifact.scene_count,
+        prompt_version=result_artifact.prompt_version,
     )
 
 
