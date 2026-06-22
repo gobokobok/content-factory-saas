@@ -22,6 +22,8 @@ _Entries added here when a story reaches Definition of Done._
 - `cf_platform/interfaces/api.py`: added `POST /platform/workers/render` — reads latest `verified_storyboard` + `asset_manifest` (+ optional `voice_alignment`); returns `RenderWorkerResponse(render_script_key, video_key, scene_count, duration_s)`
 - `tests/cf_platform/test_p9_s4_render_worker.py`: 18 tests — film_look, overlay, caption y-override, script ordering, worker persistence, FFmpeg failure, module hygiene
 - 1837 total tests passing
+**Smoke test:** DEFERRED — requires real FFmpeg + acquired assets + voiceover in R2; unblocked when P9-S5 wires the native chain and `/run` triggers end-to-end render
+**Promoted to backlog:** none
 
 ---
 
