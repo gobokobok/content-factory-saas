@@ -44,6 +44,10 @@ class ArtifactStorage(Protocol):
         """Return the JSON object stored at key. Raises ArtifactStorageError if absent."""
         ...
 
+    async def get_bytes(self, key: str) -> bytes:
+        """Return the raw bytes stored at key. Raises ArtifactStorageError if absent."""
+        ...
+
     async def list_keys(self, prefix: str) -> list[str]:
         """Return all keys starting with prefix. Returns an empty list if none exist."""
         ...
@@ -107,6 +111,13 @@ class InMemoryArtifactStorage:
         """Store raw bytes at key (content_type is recorded for API parity; not inspected)."""
         self._bytes[key] = data
 
+    async def get_bytes(self, key: str) -> bytes:
+        """Return the raw bytes stored at key. Raises ArtifactStorageError if absent."""
+        try:
+            return self._bytes[key]
+        except KeyError:
+            raise ArtifactStorageError(f"Bytes not found: {key}") from None
+
     async def get_json(self, key: str) -> dict[str, Any]:
         """Return the JSON object stored at key. Raises ArtifactStorageError if absent."""
         try:
@@ -115,8 +126,10 @@ class InMemoryArtifactStorage:
             raise ArtifactStorageError(f"Artifact not found: {key}") from None
 
     async def list_keys(self, prefix: str) -> list[str]:
-        """Return all keys starting with prefix. Returns an empty list if none exist."""
-        return [key for key in self._objects if key.startswith(prefix)]
+        """Return all keys starting with prefix, searching both JSON objects and raw bytes."""
+        obj_keys = [k for k in self._objects if k.startswith(prefix)]
+        byte_keys = [k for k in self._bytes if k.startswith(prefix)]
+        return sorted(set(obj_keys + byte_keys))
 
     async def generate_presigned_url(self, key: str, expires_in: int = 86400) -> str:
         """Return a fake presigned URL for testing — not a real R2 URL."""
@@ -192,6 +205,17 @@ class R2ArtifactStorage:
             return json.loads(response["Body"].read())
         except (BotoCoreError, ClientError, Exception) as exc:
             raise ArtifactStorageError(f"R2 get failed for '{key}': {exc}") from exc
+
+    async def get_bytes(self, key: str) -> bytes:
+        """Download raw bytes from the given R2 key."""
+        return await asyncio.to_thread(self._get_bytes_sync, key)
+
+    def _get_bytes_sync(self, key: str) -> bytes:
+        try:
+            response = self._client.get_object(Bucket=self._bucket, Key=key)
+            return response["Body"].read()
+        except (BotoCoreError, ClientError, Exception) as exc:
+            raise ArtifactStorageError(f"R2 get_bytes failed for '{key}': {exc}") from exc
 
     async def list_keys(self, prefix: str) -> list[str]:
         """List all R2 keys with the given prefix. Returns an empty list if none exist."""

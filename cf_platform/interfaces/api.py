@@ -89,6 +89,11 @@ from cf_platform.workers.acquisition_worker import (
     AssetManifestArtifact,
     build_acquisition_worker,
 )
+from cf_platform.workers.render_worker import (
+    RENDER_WORKER_REGISTRATION,
+    RenderArtifact,
+    build_render_worker,
+)
 from cf_platform.workers.storyboard_worker import (
     STORYBOARD_WORKER_REGISTRATION,
     VerifiedStoryboardArtifact,
@@ -611,6 +616,111 @@ async def acquisition_worker_endpoint(
         footage_summary=result_artifact.footage_summary,
         acquired=result_artifact.acquired,
         failed=result_artifact.failed,
+    )
+
+
+class RenderWorkerRequest(BaseModel):
+    """Request body for POST /platform/workers/render."""
+
+    run_id: str
+
+
+class RenderWorkerResponse(BaseModel):
+    """Response body for POST /platform/workers/render."""
+
+    render_script_key: str
+    video_key: str
+    scene_count: int
+    duration_s: float
+
+
+@router.post("/workers/render", response_model=RenderWorkerResponse)
+async def render_worker_endpoint(
+    body: RenderWorkerRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> RenderWorkerResponse:
+    """Execute FFmpeg render for an acquired run.
+
+    Reads the latest verified_storyboard and asset_manifest artifacts for run_id,
+    plus voice_alignment when present. Applies render_options per scene (film_look,
+    lower_third, on_screen_text_overlay). Persists render_script.sh and final.mp4.
+
+    Designed for future step-by-step manual UI and standalone testing.
+    """
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+
+    def _latest_key(keys: list[str]) -> str:
+        return sorted(keys)[-1]
+
+    sb_prefix = f"users/{_PLATFORM_USER_ID}/runs/{body.run_id}/storyboard/verified_storyboard@v"
+    sb_keys = await storage.list_keys(sb_prefix)
+    if not sb_keys:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No verified_storyboard artifact for run_id={body.run_id!r}.",
+        )
+
+    mf_prefix = f"users/{_PLATFORM_USER_ID}/runs/{body.run_id}/acquisition/asset_manifest@v"
+    mf_keys = await storage.list_keys(mf_prefix)
+    if not mf_keys:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No asset_manifest artifact for run_id={body.run_id!r}. "
+                   "Run /platform/workers/acquisition first.",
+        )
+
+    artifacts: dict[str, str] = {
+        "verified_storyboard": _latest_key(sb_keys),
+        "asset_manifest": _latest_key(mf_keys),
+    }
+
+    va_prefix = f"users/{_PLATFORM_USER_ID}/runs/{body.run_id}/voice/voice_alignment@v"
+    va_keys = await storage.list_keys(va_prefix)
+    if va_keys:
+        artifacts["voice_alignment"] = _latest_key(va_keys)
+
+    worker = build_render_worker(
+        storage,
+        color_grade_preset=settings.COLOR_GRADE_PRESET,
+        blur_fill_enabled=settings.BLUR_FILL_ENABLED,
+        ffmpeg_timeout_seconds=settings.FFMPEG_TIMEOUT_SECONDS,
+    )
+    state = StageState(
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        inputs={},
+        artifacts=artifacts,
+    )
+    output = await worker(state)
+    result_artifact = output.artifact
+    if not isinstance(result_artifact, RenderArtifact):
+        raise HTTPException(status_code=500, detail="RenderWorker returned unexpected artifact type")
+
+    render_lineage = LineageEnvelope(
+        run_id=body.run_id,
+        worker="render_worker",
+        worker_version=RENDER_WORKER_REGISTRATION.worker_version,
+        prompt_version=RENDER_WORKER_REGISTRATION.prompt_version,
+        model=RENDER_WORKER_REGISTRATION.model,
+        created_at=datetime.now(),
+    )
+    await write_artifact(
+        storage,
+        result_artifact,
+        name="render_result",
+        stage="render",
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        lineage=render_lineage,
+    )
+
+    return RenderWorkerResponse(
+        render_script_key=result_artifact.render_script_key,
+        video_key=result_artifact.video_key,
+        scene_count=result_artifact.scene_count,
+        duration_s=result_artifact.duration_s,
     )
 
 

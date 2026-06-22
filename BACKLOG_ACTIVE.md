@@ -1122,7 +1122,7 @@ async def build_acquisition_worker(storage, settings) -> WorkerNode
 ## [P9-S4] Native RenderWorker (dumb executor — reads render_options)
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P9
-**Status:** todo
+**Status:** done
 **Priority:** high
 **Points:** 4
 **Depends on:** P9-S3

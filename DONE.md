@@ -4,6 +4,27 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P9-S4] Native RenderWorker
+**Completed:** 2026-06-22
+**Handover:**
+- `cf_platform/workers/render_worker.py` (new):
+  - `RENDER_WORKER_REGISTRATION`: worker_version=`1.0.0`, model=`none`, prompt_version=`none`
+  - `RenderArtifact(render_script_key, video_key, scene_count, duration_s, generated_at)` — terminal artifact
+  - `build_render_worker(storage, color_grade_preset, blur_fill_enabled, ffmpeg_timeout_seconds) → WorkerNode`
+  - Script generation: calls private helpers from `src.ffmpeg_builder` directly; inserts film_look sepia section BEFORE concat; overlays section AFTER captions/grade
+  - `_film_look_section(storyboard)`: in-place `scene_NN.mp4 → fl → mv` for `render_options.film_look=True` scenes; sepia filter chain: `hqdn3d=3:2:6:4,noise,colorchannelmixer (Rec.709 matrix),eq=saturation=0.4`
+  - `_overlay_section(storyboard, video_source)`: single ffmpeg pass with drawtext chain for lower_third (name bold 34px, title 26px above) + on_screen_text_overlay; uses `between(t,...)` enable expressions
+  - `_build_captions_with_y_override(scene_words, scenes, style)`: word-synced ASS with `MarginV = 1920 - caption_y_override` for lower_third scenes
+  - `_download_assets(run_id, manifest, storage)`: async download of scene assets + voiceover/music/sfx via `storage.get_bytes`
+  - Worker execution: `asyncio.to_thread(subprocess.run, ...)` with timeout; persists `render_script.sh` to R2 BEFORE execution; persists `ffmpeg_log.txt` regardless of exit code
+- `cf_platform/core/artifact_manager.py`: added `get_bytes(key) → bytes` to `ArtifactStorage` Protocol + both `InMemoryArtifactStorage` and `R2ArtifactStorage`; updated `InMemoryArtifactStorage.list_keys` to search both `_objects` and `_bytes`
+- `cf_platform/core/config.py`: added `FFMPEG_TIMEOUT_SECONDS: int = 1800`, `COLOR_GRADE_PRESET: str = "neutral"`, `BLUR_FILL_ENABLED: bool = True`
+- `cf_platform/interfaces/api.py`: added `POST /platform/workers/render` — reads latest `verified_storyboard` + `asset_manifest` (+ optional `voice_alignment`); returns `RenderWorkerResponse(render_script_key, video_key, scene_count, duration_s)`
+- `tests/cf_platform/test_p9_s4_render_worker.py`: 18 tests — film_look, overlay, caption y-override, script ordering, worker persistence, FFmpeg failure, module hygiene
+- 1837 total tests passing
+
+---
+
 ## [P9-S3] Native AcquisitionWorker
 **Completed:** 2026-06-22
 **Handover:**
