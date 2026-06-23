@@ -150,8 +150,17 @@ def _build_captions_with_y_override(
 
 
 def _escape_drawtext(text: str) -> str:
-    """Escape special characters for FFmpeg drawtext filter value."""
-    return text.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:")
+    """Escape special characters for FFmpeg drawtext filter value.
+
+    Order matters: backslash first, then bash $ (prevents shell interpolation),
+    then FFmpeg-specific chars.
+    """
+    return (
+        text.replace("\\", "\\\\")
+        .replace("$", "\\$")
+        .replace("'", "\\'")
+        .replace(":", "\\:")
+    )
 
 
 def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
