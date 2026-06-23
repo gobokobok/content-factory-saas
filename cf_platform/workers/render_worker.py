@@ -183,13 +183,15 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
                 lt = opts.lower_third
                 name = _escape_drawtext(lt.name)
                 filters.append(
-                    f"drawtext=text='{name}':fontsize=34:fontcolor=white:bold=1"
+                    f"drawtext=text='{name}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
+                    f":fontsize=34:fontcolor=white"
                     f":x=(w-text_w)/2:y=h-text_h-220:enable='{enable}'"
                 )
                 if lt.title:
                     title = _escape_drawtext(lt.title)
                     filters.append(
-                        f"drawtext=text='{title}':fontsize=26:fontcolor=white@0.85"
+                        f"drawtext=text='{title}':fontfile=/usr/local/share/fonts/Poppins-Regular.ttf"
+                        f":fontsize=26:fontcolor=white@0.85"
                         f":x=(w-text_w)/2:y=h-text_h-270:enable='{enable}'"
                     )
 
@@ -197,7 +199,8 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
                 ost = opts.on_screen_text_overlay
                 text = _escape_drawtext(ost.text.upper())
                 filters.append(
-                    f"drawtext=text='{text}':fontsize=48:fontcolor=white:bold=1"
+                    f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
+                    f":fontsize=48:fontcolor=white"
                     f":x=(w-text_w)/2:y=h-text_h-200:enable='{ost.enable_expr}'"
                 )
 
