@@ -833,7 +833,7 @@ def _audio_section(
     sfx_entries: list[tuple[str, int]] = []  # (sfx_name, delay_ms)
     offset_s = 0.0
     for scene in storyboard.scenes:
-        if scene.sfx.lower() != "silence":
+        if scene.sfx and scene.sfx.lower() != "silence":
             delay_ms = _parse_sfx_delay_ms(scene.sfx_timing, scene.duration_s, offset_s)
             sfx_entries.append((scene.sfx, delay_ms))
         offset_s += scene.duration_s

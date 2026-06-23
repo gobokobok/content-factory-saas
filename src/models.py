@@ -150,8 +150,8 @@ class StoryboardScene(BaseModel):
     on_screen_text: Optional[str] = None
     # v2 text overlay type; paired with on_screen_text.
     on_screen_text_type: Optional[Literal["stat", "date", "lower_third"]] = None
-    sfx: str
-    sfx_timing: str
+    sfx: str = ""
+    sfx_timing: str = ""
     # Segment classification (v2). "Character" = named real person; "Event" = named
     # historical event; "B-roll" = everything else.
     segment_type: Literal["Character", "Event", "B-roll"] = "B-roll"
