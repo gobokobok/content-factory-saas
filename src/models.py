@@ -152,6 +152,11 @@ class StoryboardScene(BaseModel):
     on_screen_text_type: Optional[Literal["stat", "date", "lower_third"]] = None
     sfx: str = ""
     sfx_timing: str = ""
+
+    @field_validator("sfx", "sfx_timing", mode="before")
+    @classmethod
+    def _coerce_sfx_none(cls, v: Any) -> str:
+        return v if v is not None else ""
     # Segment classification (v2). "Character" = named real person; "Event" = named
     # historical event; "B-roll" = everything else.
     segment_type: Literal["Character", "Event", "B-roll"] = "B-roll"
