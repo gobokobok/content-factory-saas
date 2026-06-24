@@ -51,7 +51,7 @@ STORYBOARD_WORKER_REGISTRATION = WorkerRegistration(
     prompt_version=STORYBOARD_PROMPT_VERSION,
     prompt="",
     model=_SONNET_MODEL,
-    sampling_params={"max_tokens": 8192},
+    sampling_params={"max_tokens": 16000},
 )
 
 _GENERATE_SYSTEM_PROMPT = """\
@@ -430,7 +430,7 @@ async def _generate(
     client = anthropic.AsyncAnthropic(api_key=api_key)
     message = await client.messages.create(
         model=_SONNET_MODEL,
-        max_tokens=8192,
+        max_tokens=16000,
         system=[{"type": "text", "text": _GENERATE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": user_content}],
     )
