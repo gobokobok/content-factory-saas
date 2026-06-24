@@ -133,7 +133,7 @@ def wrap(
     """
     registration = registry.resolve(worker)
 
-    async def _node_fn(state: StageState) -> dict[str, Any]:
+    async def _node_fn(state: Any) -> dict[str, Any]:
         started_at = datetime.now(timezone.utc)
         start_perf = time.perf_counter()
         output = await node(state)
