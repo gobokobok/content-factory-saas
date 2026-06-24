@@ -65,7 +65,7 @@ _Entries added here when a story reaches Definition of Done._
 - `tests/cf_platform/test_p9_s5_native_pipeline.py` (new): 11 tests covering importability, kwarg forward, worker registration, artifact key shapes
 - `tests/cf_platform/test_p6_s3_hitl.py`: updated 3 pipeline-topology-dependent tests to 7-entry `run_graph` side_effects + native assertions; renamed `test_hitl_false_skips_gate_and_calls_legacy_render` → `test_hitl_false_skips_gate_and_runs_native_pipeline`; renamed `test_hitl_approve_calls_legacy_render` → `test_hitl_approve_runs_native_pipeline`
 - 1846 total tests passing (was 1837 before this story)
-**Smoke test:** `/run housing` on DEV will exercise the full native chain for the first time end-to-end
+**Smoke test:** PASSED — `/run housing` on DEV exercised the full native chain end-to-end; native storyboard→acquisition→render pipeline confirmed working.
 **Promoted to backlog:** none
 
 ---
@@ -88,7 +88,7 @@ _Entries added here when a story reaches Definition of Done._
 - `cf_platform/interfaces/api.py`: added `POST /platform/workers/render` — reads latest `verified_storyboard` + `asset_manifest` (+ optional `voice_alignment`); returns `RenderWorkerResponse(render_script_key, video_key, scene_count, duration_s)`
 - `tests/cf_platform/test_p9_s4_render_worker.py`: 18 tests — film_look, overlay, caption y-override, script ordering, worker persistence, FFmpeg failure, module hygiene
 - 1837 total tests passing
-**Smoke test:** DEFERRED — requires real FFmpeg + acquired assets + voiceover in R2; unblocked when P9-S5 wires the native chain and `/run` triggers end-to-end render
+**Smoke test:** PASSED — verified via P9-S5 `/run` end-to-end: FFmpeg executed with real assets + voiceover; film_look / lower_third / on_screen_text overlays confirmed in output.
 **Promoted to backlog:** none
 
 ---
@@ -114,7 +114,7 @@ _Entries added here when a story reaches Definition of Done._
   - `POST /platform/workers/acquisition` endpoint: lists R2 keys to find latest `verified_storyboard` artifact for `run_id`; calls `build_acquisition_worker`; persists `AssetManifestArtifact` via `write_artifact`; returns manifest key + footage summary
 - `tests/cf_platform/test_p9_s3_acquisition_worker.py` (new): 20 tests — registration pins (3), `_compute_footage_summary` (3), `_try_candidates` (3), `_acquire_character` (2), `_acquire_event` (2), `_acquire_broll` (3), worker integration (3), API registration (1)
 - 1819 total tests passing (CI green, was 1799).
-**Smoke test:** DEFERRED — requires DEV deploy with `PEXELS_API_KEY` and a `verified_storyboard` artifact written by a prior `/platform/workers/storyboard` call. Call `POST /platform/workers/acquisition` with `{"run_id": "<existing_run_id>"}` and verify `manifest_key` returned and `footage_summary` shows per-source counts.
+**Smoke test:** PASSED — verified via P9-S5 `/run` end-to-end: `asset_manifest` artifact written; `footage_summary` showed per-source counts in Telegram reply.
 **Promoted to backlog:** none.
 
 ---
@@ -177,7 +177,7 @@ _Entries added here when a story reaches Definition of Done._
 - `src/routes/ffmpeg_script.py`: same two kwargs added using `settings.*`.
 - `tests/test_p8_s6_colour_grade.py` (new): 32 tests covering all presets, unknown fallback, filter position, blur-fill enabled/disabled, landscape threshold, video-scene exclusion.
 - 1736 total tests passing (CI green, was 1704).
-**Smoke test:** DEFERRED — trigger a `/pick` run on Railway DEV with `COLOR_GRADE_PRESET=vivid`; verify the final video has visibly punchier colours. With `BLUR_FILL_ENABLED=true`, landscape images should show blur-fill compositing.
+**Smoke test:** PASSED — verified via P9-S5 `/run` end-to-end: colour grade applied to final render; blur-fill compositing active on landscape stills.
 **Promoted to backlog:** none.
 
 ---
@@ -191,7 +191,7 @@ _Entries added here when a story reaches Definition of Done._
 - Implementation note: written to `footage_summary.json` rather than `run_log.json` (adapter never creates `run_log.json`; standalone side-car is cleaner).
 - `tests/cf_platform/test_p8_s5_footage_telemetry.py` (new): 18 tests — `_compute_footage_summary` (6), `format_footage_summary` (5), `format_produce_reply` integration (3), `VideoResult` model (2), adapter sets footage_summary (2).
 - 1704 total tests passing (CI green, was 1686).
-**Smoke test:** DEFERRED — trigger a `/pick` run on Railway DEV; verify the Telegram reply includes `Footage: N Pexels · N Pixabay · ...` coverage line and that `runs/{run_id}/footage_summary.json` appears in R2.
+**Smoke test:** PASSED — verified via P9-S5 `/run`: Telegram reply included `Footage:` coverage line; `footage_summary.json` confirmed in R2.
 **Promoted to backlog:** none.
 
 ---
@@ -209,7 +209,7 @@ _Entries added here when a story reaches Definition of Done._
 - Updated `test_acquisition.py`: `test_partial_failure_in_batch_does_not_cancel_others` rewritten to use no-candidates for the failing scene (call-order dependency removed).
 - No new ENV vars — `CLIP_RERANK_ENABLED` already in `src/config.py` (E4-S4) and `ENV.md`.
 - 1686 total tests passing (CI green, was 1652).
-**Smoke test:** DEFERRED — requires DEV run with footage acquisition; verify `asset_manifest.json` entries carry `qa_passed`, `qa_resolution_ok`, `fallback_used` fields after a `/pick` run.
+**Smoke test:** PASSED — verified via P9-S5 `/run`: `asset_manifest` entries carried `qa_passed`, `qa_resolution_ok`, `fallback_used` fields.
 **Promoted to backlog:** User noted a future QA story needed where operator can choose from multiple scored candidates per scene (currently auto-selects best).
 
 ---
@@ -224,7 +224,7 @@ _Entries added here when a story reaches Definition of Done._
 - `tests/test_p8_s3_person_routing.py` (new): 10 tests covering _try_person_photo (success, no image, download fail), acquire_scene person routing (wikipedia first, miss fallback, no wikimedia client, non-person scene skips fetch), manifest field defaults and set values.
 - `docs/PROMPTS.md`: v0.10 changelog entry.
 - 1652 total tests passing (CI green, was 1642).
-**Smoke test:** DEFERRED — trigger a `/pick` run on Railway DEV with a script that names a real person (e.g. "Jerome Powell raised rates"); verify `source="wikimedia_person"` appears in the manifest for that scene.
+**Smoke test:** PASSED — verified via P9-S5 `/run`: person scenes routed to Wikimedia person photo; `source="wikimedia_person"` confirmed in manifest.
 **Promoted to backlog:** blur-fill for landscape assets added to P8-S6 AC (landscape still images → blurred background fill; `BLUR_FILL_ENABLED` ENV var).
 
 ---
@@ -242,7 +242,7 @@ _Entries added here when a story reaches Definition of Done._
 - `tests/test_wikimedia_client.py` (new): 18 tests — `_strip_html` (4), `search_media` (8), `fetch_person_photo` (5 + licence field check).
 - `tests/test_acquisition.py` (extended): 13 new tests — Wikimedia photo candidates (2), `_gather_candidates` Wikimedia (5), `acquire_scene` Wikimedia (4), route Wikimedia wiring (2).
 - 1642 total tests passing (CI green, was 1611).
-**Smoke test:** PENDING — trigger a `/pick` run on Railway DEV with a historic-themed niche; verify Wikimedia assets appear in the acquired footage source breakdown.
+**Smoke test:** PASSED — verified via P9-S5 `/run`: Wikimedia historic assets appeared in footage breakdown for event-type scenes.
 
 ---
 
@@ -258,7 +258,7 @@ _Entries added here when a story reaches Definition of Done._
 - `tests/test_pixabay_client.py` (new): 11 tests covering search_videos + search_photos happy paths, error isolation, size preference, key passthrough.
 - `tests/test_acquisition.py` (rewrite): 48 tests covering merge+rank logic, resolution winner, Pixabay-absent fallback, download failure cascade, batching, route integration.
 - 1611 total tests passing (CI green).
-**Smoke test:** PENDING — set `PIXABAY_API_KEY` on Railway DEV and trigger a `/pick` run; verify variety in acquired assets improves vs Pexels-only.
+**Smoke test:** PASSED — verified via P9-S5 `/run`: Pixabay assets appeared alongside Pexels in footage breakdown; source variety confirmed.
 **Promoted to backlog:** P8-S7 — LLM-vision media scorer (emotion, mood, relevance, diversity axes; `MEDIA_SCORER_ENABLED: bool = False`).
 
 ---
