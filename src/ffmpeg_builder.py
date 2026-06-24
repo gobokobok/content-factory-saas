@@ -120,51 +120,46 @@ def redistribute_scene_durations(
 # (e.g. storyboard "zero point zero three" vs. Deepgram "point oh three") to
 # a handful of skipped words instead of letting `pos` drift to a much later
 # occurrence of a common word elsewhere in the transcript. See DECISIONS.md D045.
-_MATCH_WINDOW = 15
-
-
 def assign_words_to_scenes(
     scenes: list[StoryboardScene],
     words: list[WordTimestamp],
 ) -> list[list[WordTimestamp]]:
     """
-    Match Deepgram words to storyboard scenes via windowed sequential text matching.
+    Assign Deepgram words to storyboard scenes by timestamp.
 
-    For each scene, normalises voiceover_line words and scans forward through the
-    Deepgram word list for each match, looking no further than _MATCH_WINDOW words
-    ahead of the current position. A voiceover token with no match within the window
-    is skipped without advancing the position (handles smart_format normalisations,
-    minor disfluencies, and isolated TTS/transcription mismatches like "zero" vs "oh").
-    Returns one list of WordTimestamp per scene; empty list for unmatched scenes.
+    Builds cumulative scene time windows from scene.duration_s. Each word is placed in
+    the scene whose [start_s, end_s) window contains word.start_ms / 1000. Words whose
+    timestamp falls before the first window go to scene 0; words at or beyond the total
+    duration go to the last scene.
+
+    Caption text comes from word.word (the Deepgram transcript), not voiceover_line, so
+    TTS numerals ("three") align correctly with script digits ("3").
     """
-    def _norm(w: str) -> str:
-        return re.sub(r"[^\w]", "", w).lower()
+    if not scenes:
+        return []
+    if not words:
+        return [[] for _ in scenes]
 
-    def _vo_tokens(text: str) -> list[str]:
-        tokens = []
-        for word in text.split():
-            for part in re.split(r"-", word):
-                n = _norm(part)
-                if n:
-                    tokens.append(n)
-        return tokens
-
-    norm_dg = [_norm(w.word) for w in words]
-    result: list[list[WordTimestamp]] = []
-    pos = 0
-
+    n = len(scenes)
+    # Build cumulative end-time boundaries for each scene
+    scene_end: list[float] = []
+    cumulative = 0.0
     for scene in scenes:
-        vo_words = _vo_tokens(scene.voiceover_line)
-        matched: list[WordTimestamp] = []
-        for sw in vo_words:
-            limit = min(pos + _MATCH_WINDOW, len(norm_dg))
-            search_pos = pos
-            while search_pos < limit and norm_dg[search_pos] != sw:
-                search_pos += 1
-            if search_pos < limit:
-                matched.append(words[search_pos])
-                pos = search_pos + 1
-        result.append(matched)
+        cumulative += scene.duration_s
+        scene_end.append(cumulative)
+
+    result: list[list[WordTimestamp]] = [[] for _ in scenes]
+    last = n - 1
+
+    for word in words:
+        t = word.start_ms / 1000.0
+        # Find the first scene whose end boundary is strictly greater than t
+        idx = last
+        for i, end_t in enumerate(scene_end):
+            if t < end_t:
+                idx = i
+                break
+        result[idx].append(word)
 
     return result
 

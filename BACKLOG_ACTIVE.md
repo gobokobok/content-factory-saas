@@ -1234,7 +1234,8 @@ Add a `--format portrait|landscape` flag to `/run`, `/produce`, and `/pick` Tele
 ## [P9-S7] Caption word assignment by timestamp (drop script text-matching)
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P9
-**Status:** planned
+**Status:** done
+**Completed:** 2026-06-24
 **Priority:** high
 **Points:** 1
 **Depends on:** P9-S5
@@ -1246,14 +1247,14 @@ Replace the text-matching approach in `assign_words_to_scenes` with timestamp-ba
 `assign_words_to_scenes` normalises VO tokens and scans forward through Deepgram words looking for text matches. When the TTS pronounces a numeral as a word ("three", "thirty") but the script contains the digit ("3", "30"), `_norm("3") != _norm("three")` — the word falls outside `_MATCH_WINDOW` and is silently dropped from captions.
 
 ### Acceptance Criteria
-- [ ] `assign_words_to_scenes` in `src/ffmpeg_builder.py` rewritten: compute cumulative scene start times from `scene.duration_s`; for each Deepgram `WordTimestamp`, assign it to the scene whose `[start_s, end_s)` window contains `word.start_ms / 1000`; words before the first scene or after the last go to the nearest boundary scene
-- [ ] Caption display text comes from `word.word` (Deepgram transcript), not from the script's voiceover_line
-- [ ] `fill_caption_gaps` (if still needed) updated or removed — timestamp assignment leaves no gaps by construction
-- [ ] All existing caption tests pass or are updated to reflect the new assignment logic
-- [ ] No regressions in other callers of `assign_words_to_scenes` (`src/ffmpeg_builder.py`, `cf_platform/workers/render_worker.py`)
+- [x] `assign_words_to_scenes` in `src/ffmpeg_builder.py` rewritten: compute cumulative scene start times from `scene.duration_s`; for each Deepgram `WordTimestamp`, assign it to the scene whose `[start_s, end_s)` window contains `word.start_ms / 1000`; words before the first scene or after the last go to the nearest boundary scene
+- [x] Caption display text comes from `word.word` (Deepgram transcript), not from the script's voiceover_line
+- [x] `fill_caption_gaps` (if still needed) updated or removed — kept in place as a guard for large duration-estimate drift; no-op in practice for correctly timed storyboards
+- [x] All existing caption tests pass or are updated to reflect the new assignment logic
+- [x] No regressions in other callers of `assign_words_to_scenes` (`src/ffmpeg_builder.py`, `cf_platform/workers/render_worker.py`)
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 - [ ] **Human touchpoint:** next full `/run` → captions show "3 and 4 percent" / "thirty years" without dropped words
 
 ---

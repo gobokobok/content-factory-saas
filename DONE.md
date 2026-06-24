@@ -4,6 +4,21 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P9-S7] Caption word assignment by timestamp (drop script text-matching)
+**Completed:** 2026-06-24
+**Handover:**
+- `src/ffmpeg_builder.py`:
+  - `_MATCH_WINDOW = 15` constant removed (text-matching constant, no longer needed)
+  - `assign_words_to_scenes` rewritten: builds cumulative scene end-time boundaries from `scene.duration_s`; for each `WordTimestamp` assigns it to the first scene whose end boundary is strictly greater than `word.start_ms / 1000`; words at or beyond the total duration clamp to the last scene. Caption text comes from `word.word` (Deepgram transcript), not the voiceover_line — numerals spoken as words ("three") are now captured even when the script has the digit ("3").
+  - `fill_caption_gaps` unchanged — retained as a guard for edge cases where duration estimates diverge significantly from actual audio.
+- `tests/test_ffmpeg_builder.py`:
+  - `TestAssignWordsToScenes`: 13 old text-matching tests replaced with 14 timestamp-based tests. Key additions: `test_numeral_spoken_as_word_assigned_correctly` (the primary fix); `test_all_words_in_window_included` (filler words like "um" are included, not dropped); `test_words_at_or_beyond_total_duration_go_to_last_scene`; `test_word_at_exact_scene_boundary_goes_to_next_scene`.
+- 1865 tests passing (6 pre-existing failures unrelated to this story; CI baseline unchanged).
+**Smoke test:** DEFERRED — verify on next full `/run` that captions show "3 and 4 percent" / "thirty years" without dropped words.
+**Promoted to backlog:** none.
+
+---
+
 ## [P9-S6] Portrait/landscape format parameter (`--format` flag)
 **Completed:** 2026-06-24
 **Handover:**

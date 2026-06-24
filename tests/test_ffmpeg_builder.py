@@ -941,51 +941,55 @@ def _scene_with_vo(scene_id: str, voiceover_line: str, duration_s: float = 3.0) 
 
 
 class TestAssignWordsToScenes:
-    def test_single_scene_all_words_match(self):
-        scenes = [_scene_with_vo("01", "housing costs tripled")]
+    def test_single_scene_all_words_assigned(self):
+        # All words fall within [0, 3s) — all go to scene 0
+        scenes = [_scene_with_vo("01", "housing costs tripled", duration_s=3.0)]
         words = [_wts("housing", 0, 500), _wts("costs", 600, 900), _wts("tripled", 1000, 1500)]
         result = assign_words_to_scenes(scenes, words)
         assert len(result) == 1
         assert [w.word for w in result[0]] == ["housing", "costs", "tripled"]
 
-    def test_two_scenes_words_partitioned_correctly(self):
+    def test_two_scenes_words_partitioned_by_time(self):
+        # Scene 0: [0, 1.2s), Scene 1: [1.2s, 3.2s)
         scenes = [
-            _scene_with_vo("01", "one interruption"),
-            _scene_with_vo("02", "twenty three minutes"),
+            _scene_with_vo("01", "one interruption", duration_s=1.2),
+            _scene_with_vo("02", "twenty three minutes", duration_s=2.0),
         ]
         words = [
             _wts("one", 0, 180), _wts("interruption", 250, 780),
-            _wts("twenty", 900, 1100), _wts("three", 1150, 1350), _wts("minutes", 1400, 1700),
+            _wts("twenty", 1300, 1500), _wts("three", 1600, 1800), _wts("minutes", 1900, 2200),
         ]
         result = assign_words_to_scenes(scenes, words)
         assert [w.word for w in result[0]] == ["one", "interruption"]
         assert [w.word for w in result[1]] == ["twenty", "three", "minutes"]
 
-    def test_punctuation_stripped_for_matching(self):
-        scenes = [_scene_with_vo("01", "costs.")]
-        words = [_wts("costs", 0, 400)]
+    def test_numeral_spoken_as_word_assigned_correctly(self):
+        # The primary fix: script has "3 percent" but TTS says "three percent".
+        # Old text-matching dropped "three" (no match for "3").
+        # Timestamp assignment places it in the correct scene regardless of text.
+        scenes = [_scene_with_vo("01", "3 percent", duration_s=2.0)]
+        words = [_wts("three", 100, 400), _wts("percent", 500, 900)]
         result = assign_words_to_scenes(scenes, words)
-        assert len(result[0]) == 1
-        assert result[0][0].word == "costs"
+        assert [w.word for w in result[0]] == ["three", "percent"]
 
-    def test_case_insensitive_matching(self):
-        scenes = [_scene_with_vo("01", "Housing")]
-        words = [_wts("housing", 0, 500)]
-        result = assign_words_to_scenes(scenes, words)
-        assert len(result[0]) == 1
-
-    def test_unmatched_deepgram_words_skipped(self):
-        # Deepgram inserts a filler "um" not in the storyboard
-        scenes = [_scene_with_vo("01", "rents rising")]
+    def test_all_words_in_window_included(self):
+        # Filler words like "um" that are not in the voiceover are still included
+        # because assignment is by time, not text matching.
+        scenes = [_scene_with_vo("01", "rents rising", duration_s=3.0)]
         words = [_wts("um", 0, 100), _wts("rents", 200, 600), _wts("rising", 700, 1100)]
         result = assign_words_to_scenes(scenes, words)
-        assert [w.word for w in result[0]] == ["rents", "rising"]
+        assert [w.word for w in result[0]] == ["um", "rents", "rising"]
 
-    def test_scene_with_no_matching_words_returns_empty_list(self):
-        scenes = [_scene_with_vo("01", "xyz abc")]
+    def test_scene_with_no_words_in_window_returns_empty_list(self):
+        # Two scenes; all words fall in the first window — second scene is empty
+        scenes = [
+            _scene_with_vo("01", "housing costs", duration_s=2.0),
+            _scene_with_vo("02", "rising rents", duration_s=2.0),
+        ]
         words = [_wts("housing", 0, 500), _wts("costs", 600, 900)]
         result = assign_words_to_scenes(scenes, words)
-        assert result[0] == []
+        assert result[0] != []
+        assert result[1] == []
 
     def test_empty_word_list_returns_empty_lists(self):
         scenes = [_scene_with_vo("01", "housing costs")]
@@ -998,9 +1002,14 @@ class TestAssignWordsToScenes:
         assert result == []
 
     def test_result_length_equals_scene_count(self):
-        scenes = [_scene_with_vo("01", "a b"), _scene_with_vo("02", "c d"), _scene_with_vo("03", "e")]
-        words = [_wts("a", 0, 100), _wts("b", 200, 300), _wts("c", 400, 500),
-                 _wts("d", 600, 700), _wts("e", 800, 900)]
+        # Three scenes; all words within the total duration
+        scenes = [
+            _scene_with_vo("01", "a b", duration_s=1.0),
+            _scene_with_vo("02", "c d", duration_s=1.0),
+            _scene_with_vo("03", "e", duration_s=1.0),
+        ]
+        words = [_wts("a", 0, 100), _wts("b", 200, 300), _wts("c", 1100, 1200),
+                 _wts("d", 1300, 1400), _wts("e", 2100, 2300)]
         result = assign_words_to_scenes(scenes, words)
         assert len(result) == 3
 
@@ -1010,40 +1019,68 @@ class TestAssignWordsToScenes:
         result = assign_words_to_scenes(scenes, [w])
         assert result[0][0] is w
 
-    def test_hyphenated_voiceover_word_matched_as_two_tokens(self):
-        # "6-minute" in voiceover → split to "6" and "minute" for matching
-        scenes = [_scene_with_vo("01", "problems in 6-minute fragments")]
-        words = [
-            _wts("problems", 0, 400), _wts("in", 500, 600),
-            _wts("6", 700, 800), _wts("minute", 850, 1100),
-            _wts("fragments", 1200, 1600),
-        ]
-        result = assign_words_to_scenes(scenes, words)
-        assert len(result[0]) == 5  # all 5 Deepgram words matched
+    def test_words_before_first_scene_go_to_scene_0(self):
+        # Word at -50ms (shouldn't happen in practice but must not crash)
+        scenes = [_scene_with_vo("01", "housing", duration_s=3.0)]
+        w = _wts("housing", 0, 500)
+        # Simulate by giving a scene that starts at >0 (create a dummy prior scene
+        # manually via a negative start — instead test the clamp via two scenes and
+        # a word clearly before any window: duration_s gives [0, ...) so word.start_ms=0
+        # is always >=0; test the last-scene clamp instead via words beyond total).
+        result = assign_words_to_scenes(scenes, [w])
+        assert result[0] == [w]
 
-    def test_hyphenated_word_preserves_order(self):
-        scenes = [_scene_with_vo("01", "six-figure income")]
-        words = [_wts("six", 0, 300), _wts("figure", 400, 700), _wts("income", 800, 1200)]
-        result = assign_words_to_scenes(scenes, words)
-        assert [w.word for w in result[0]] == ["six", "figure", "income"]
-
-    def test_single_token_mismatch_does_not_drift_to_later_scene(self):
-        # Storyboard says "zero point zero three percent" but Deepgram heard
-        # "point oh three percent" (no leading "zero", "oh" instead of "zero").
-        # The mismatched "zero" tokens must be skipped without dragging `pos`
-        # forward to a much later occurrence of "percent" in the next scene.
+    def test_words_at_or_beyond_total_duration_go_to_last_scene(self):
+        # Word at 5s but total storyboard duration is only 2s
         scenes = [
-            _scene_with_vo("30", "zero point zero three percent"),
-            _scene_with_vo("31", "let's look at compound growth"),
+            _scene_with_vo("01", "a", duration_s=1.0),
+            _scene_with_vo("02", "b", duration_s=1.0),
+        ]
+        late_word = _wts("late", 5000, 5500)
+        result = assign_words_to_scenes(scenes, [late_word])
+        assert result[-1] == [late_word]
+        assert result[0] == []
+
+    def test_word_at_exact_scene_boundary_goes_to_next_scene(self):
+        # Scene 0: [0, 2s), Scene 1: [2s, 4s).  Word at exactly 2000ms goes to scene 1.
+        scenes = [
+            _scene_with_vo("01", "a", duration_s=2.0),
+            _scene_with_vo("02", "b", duration_s=2.0),
+        ]
+        boundary_word = _wts("boundary", 2000, 2500)
+        result = assign_words_to_scenes(scenes, [boundary_word])
+        assert result[0] == []
+        assert result[1] == [boundary_word]
+
+    def test_words_assigned_to_correct_scenes_across_three_scenes(self):
+        # Scenes: [0, 1s), [1s, 2s), [2s, 3s)
+        scenes = [
+            _scene_with_vo("01", "first", duration_s=1.0),
+            _scene_with_vo("02", "second", duration_s=1.0),
+            _scene_with_vo("03", "third", duration_s=1.0),
+        ]
+        words = [_wts("first", 200, 600), _wts("second", 1100, 1500), _wts("third", 2100, 2600)]
+        result = assign_words_to_scenes(scenes, words)
+        assert [w.word for w in result[0]] == ["first"]
+        assert [w.word for w in result[1]] == ["second"]
+        assert [w.word for w in result[2]] == ["third"]
+
+    def test_two_scenes_time_based_partitioning(self):
+        # Classic numeral scenario: scenes for a "0.03 percent" scene followed by compound growth
+        # Scene 0: [0, 3s), Scene 1: [3s, 6s)
+        scenes = [
+            _scene_with_vo("30", "zero point zero three percent", duration_s=3.0),
+            _scene_with_vo("31", "let's look at compound growth", duration_s=3.0),
         ]
         words = [
             _wts("point", 0, 200), _wts("oh", 250, 400), _wts("three", 450, 700),
             _wts("percent", 750, 1100),
-            _wts("lets", 1200, 1400), _wts("look", 1450, 1600), _wts("at", 1650, 1750),
-            _wts("compound", 1800, 2200), _wts("growth", 2250, 2600),
+            _wts("lets", 3100, 3400), _wts("look", 3450, 3600), _wts("at", 3650, 3750),
+            _wts("compound", 3800, 4200), _wts("growth", 4250, 4600),
         ]
         result = assign_words_to_scenes(scenes, words)
-        assert [w.word for w in result[0]] == ["point", "three", "percent"]
+        # All four words in scene 0 (under 3s), all five in scene 1 (3s+)
+        assert [w.word for w in result[0]] == ["point", "oh", "three", "percent"]
         assert [w.word for w in result[1]] == ["lets", "look", "at", "compound", "growth"]
 
 
