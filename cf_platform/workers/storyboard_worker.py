@@ -106,6 +106,11 @@ Every scene gets three search queries in priority cascade order.
    - 3–4 concrete nouns only. No adjectives. No verbs. No era labels.
    - Topic-anchored: what B-roll would a documentary filmmaker cut to for THIS line in
      this video's topic domain? ("Repairs" in a housing video = house renovation, not tools.)
+   - SEMANTIC RULE: query the CONCEPT being communicated, never the literal words spoken.
+     VO "point zero three percent annual growth" → concept is tiny growth rate →
+       primary_stk: "economy slow growth graph" NOT "pointing finger".
+     VO "inflation eating savings" → concept is purchasing power erosion →
+       primary_stk: "money value decline chart" NOT "eating food".
    - For Character: start with person's full name (e.g. "Jerome Powell Federal Reserve")
    - For Event: include the specific proper noun (e.g. "London Blitz 1940 ruins")
 
@@ -162,10 +167,14 @@ Duration is derived from the word count of voiceover_line, never from clip type 
 | 15+ words             | Split into two scenes |
 
 - Non-list scene minimum: 1.0s. List item minimum: 0.7s (except single-word items).
+- HARD MAXIMUM: still_with_motion scenes must not exceed 5.0s. Video (hard_cut/animated)
+  scenes must not exceed 10.0s. If the voiceover line would push a still past 5.0s, split
+  it into two scenes at the nearest clause boundary.
 
 If WORD TIMESTAMPS are provided, use them authoritatively:
   duration_s = (end_ms of last VO word − start_ms of first VO word) / 1000 + up to 0.3s tail
   Never use the word-count table when timestamps are present.
+  If a timestamp-derived duration would exceed the hard maximum above, split the scene.
 
 ═══════════════════════════════════════
 CLIP TYPE RULES

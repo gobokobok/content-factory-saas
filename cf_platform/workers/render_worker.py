@@ -201,7 +201,7 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
                 filters.append(
                     f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
                     f":fontsize=48:fontcolor=white"
-                    f":x=(w-text_w)/2:y=h-text_h-200:enable='{ost.enable_expr}'"
+                    f":x=(w-text_w)/2:y=(h-text_h)/2:enable='{ost.enable_expr}'"
                 )
 
         t_offset += scene.duration_s
