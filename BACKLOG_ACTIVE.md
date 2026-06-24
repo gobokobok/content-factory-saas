@@ -1206,6 +1206,58 @@ Wire the three native workers into `full_pipeline.py` so `/run`, `/pick`, and `/
 
 ---
 
+## [P9-S6] Portrait/landscape format parameter (`--format` flag)
+**Epic:** E36 — Native Documentary Production Graph
+**Sprint:** P9
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P9-S5
+
+### Goal
+Add a `--format portrait|landscape` flag to `/run`, `/produce`, and `/pick` Telegram commands so the operator can choose output orientation per video. Default stays `portrait` (1080×1920) for Shorts. `landscape` outputs 1920×1080 for standard YouTube uploads.
+
+### Acceptance Criteria
+- [ ] `parse_run_args`, `parse_produce_args`, `parse_pick_command` all parse `--format portrait|landscape`; unknown values fall back to `portrait` with a warning
+- [ ] `PipelineState` gains `format_track: Literal["portrait","landscape"] = "portrait"`
+- [ ] Storyboard prompt header line updated dynamically: `"30–60 second YouTube Short, 9:16 vertical"` when portrait; `"30–180 second YouTube video, 16:9 horizontal"` when landscape
+- [ ] RenderWorker selects output resolution from `format_track`: 1080×1920 (portrait) or 1920×1080 (landscape); all intermediate ffmpeg steps use the correct `scale`/`crop` targets
+- [ ] Telegram command usage strings updated to mention `--format`
+- [ ] Tests: `parse_run_args`/`parse_produce_args`/`parse_pick_command` flag parsing (portrait, landscape, missing, invalid); `PipelineState` default; RenderWorker resolution selection
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] **Human touchpoint:** `/run housing --format landscape` → 1920×1080 `final.mp4` delivered via Telegram
+
+---
+
+## [P9-S7] Caption word assignment by timestamp (drop script text-matching)
+**Epic:** E36 — Native Documentary Production Graph
+**Sprint:** P9
+**Status:** planned
+**Priority:** high
+**Points:** 1
+**Depends on:** P9-S5
+
+### Goal
+Replace the text-matching approach in `assign_words_to_scenes` with timestamp-based assignment. Each Deepgram word is placed in whichever scene's time window contains its `start_ms`. This mirrors how CapCut generates captions — it shows what was actually said, not what the script says — eliminating dropped numbers and mismatched tokens (e.g. TTS says "three" but script has "3").
+
+### Root cause
+`assign_words_to_scenes` normalises VO tokens and scans forward through Deepgram words looking for text matches. When the TTS pronounces a numeral as a word ("three", "thirty") but the script contains the digit ("3", "30"), `_norm("3") != _norm("three")` — the word falls outside `_MATCH_WINDOW` and is silently dropped from captions.
+
+### Acceptance Criteria
+- [ ] `assign_words_to_scenes` in `src/ffmpeg_builder.py` rewritten: compute cumulative scene start times from `scene.duration_s`; for each Deepgram `WordTimestamp`, assign it to the scene whose `[start_s, end_s)` window contains `word.start_ms / 1000`; words before the first scene or after the last go to the nearest boundary scene
+- [ ] Caption display text comes from `word.word` (Deepgram transcript), not from the script's voiceover_line
+- [ ] `fill_caption_gaps` (if still needed) updated or removed — timestamp assignment leaves no gaps by construction
+- [ ] All existing caption tests pass or are updated to reflect the new assignment logic
+- [ ] No regressions in other callers of `assign_words_to_scenes` (`src/ffmpeg_builder.py`, `cf_platform/workers/render_worker.py`)
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] **Human touchpoint:** next full `/run` → captions show "3 and 4 percent" / "thirty years" without dropped words
+
+---
+
 ## Post-P9 backlog (outline only)
 
 | Sprint | Theme | Key stories |
