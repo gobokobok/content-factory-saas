@@ -56,7 +56,7 @@ SCRIPT_GENERATOR_REGISTRATION = WorkerRegistration(
     sampling_params={},
 )
 
-_WORDS_PER_SECOND = 160 / 60  # ≈ 2.67 words/sec at standard narration pace
+_WORDS_PER_SECOND = 120 / 60  # 2.0 words/sec — Gemini TTS measured pace (505 words = 4:12)
 
 
 def build_script_generator_worker(

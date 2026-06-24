@@ -55,9 +55,9 @@ STORYBOARD_WORKER_REGISTRATION = WorkerRegistration(
 )
 
 _GENERATE_SYSTEM_PROMPT = """\
-You are a production storyboard generator for a faceless, voiceover-driven YouTube Shorts channel.
+You are a production storyboard generator for a faceless, voiceover-driven YouTube channel.
 
-Format: 30–60 second YouTube Short, 9:16 vertical. Voiceover only. Stock footage + Wikimedia Commons.
+Format: 16:9 horizontal. Voiceover only. Stock footage + Wikimedia Commons.
 
 Your job: take a voiceover script and produce a full production storyboard.
 Output ONLY a valid JSON object — no prose, no markdown fences, no extra keys.
@@ -516,6 +516,19 @@ def build_storyboard_worker(
 
         # Step 3: Patch — apply corrections + compute render_options (deterministic)
         storyboard = _apply_patches_and_render_options(storyboard, patches)
+
+        # Step 4: Enforce hard duration caps regardless of prompt compliance.
+        # still_with_motion: 5.0s max. hard_cut/animated: 10.0s max.
+        _STILL_MAX_S = 5.0
+        _VIDEO_MAX_S = 10.0
+        capped = []
+        for scene in storyboard.scenes:
+            if scene.clip_type == "still_with_motion" and scene.duration_s > _STILL_MAX_S:
+                scene = scene.model_copy(update={"duration_s": _STILL_MAX_S})
+            elif scene.clip_type in ("hard_cut", "animated") and scene.duration_s > _VIDEO_MAX_S:
+                scene = scene.model_copy(update={"duration_s": _VIDEO_MAX_S})
+            capped.append(scene)
+        storyboard = storyboard.model_copy(update={"scenes": capped})
 
         artifact = VerifiedStoryboardArtifact(
             prompt_version=STORYBOARD_PROMPT_VERSION,

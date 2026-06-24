@@ -90,6 +90,7 @@ def _build_captions_with_y_override(
     scene_words: list,
     storyboard_scenes: list,
     subtitle_style: str,
+    play_res_y: int = _PLAY_RES_Y,
 ) -> str:
     """Word-synced ASS captions with per-scene MarginV for lower_third scenes.
 
@@ -111,7 +112,7 @@ def _build_captions_with_y_override(
             and scene.render_options.lower_third.caption_y_override
         ):
             y = scene.render_options.lower_third.caption_y_override
-            margin_overrides.append(_PLAY_RES_Y - y)
+            margin_overrides.append(play_res_y - y)
         else:
             margin_overrides.append(None)
 
@@ -153,13 +154,52 @@ def _escape_drawtext(text: str) -> str:
     """Escape special characters for FFmpeg drawtext filter value.
 
     Order matters: backslash first, then bash $ (prevents shell interpolation),
-    then FFmpeg-specific chars.
+    then FFmpeg-specific chars. Unicode arrows/dashes are normalised to ASCII
+    because Poppins does not contain these glyphs and renders them as boxes.
     """
+    text = (
+        text.replace("→", "->")
+        .replace("←", "<-")
+        .replace("↑", "^")
+        .replace("↓", "v")
+        .replace("–", "-")
+        .replace("—", "-")
+        .replace("…", "...")
+        .replace("’", "'")
+        .replace("“", '"')
+        .replace("”", '"')
+    )
     return (
         text.replace("\\", "\\\\")
         .replace("$", "\\$")
         .replace("'", "\\'")
         .replace(":", "\\:")
+    )
+
+
+def _pad_video_to_audio_duration(video_source: str) -> str:
+    """Extend the last frame of the video to match voiceover duration.
+
+    When scene duration_s values sum to less than the actual TTS audio length
+    (they often do because TTS pace varies), the final frame freezes while
+    audio plays on. This step measures both durations at runtime and applies
+    tpad=stop_mode=clone to freeze-extend the video cleanly.
+    """
+    return (
+        "# ── Pad video to match voiceover duration ───────────────────\n"
+        f'_VID_DUR=$(ffprobe -v quiet -print_format json -show_format "{video_source}" \\\n'
+        "  | python3 -c \"import sys,json; print(json.load(sys.stdin)['format']['duration'])\" 2>/dev/null || echo 0)\n"
+        '_VO_DUR=$(ffprobe -v quiet -print_format json -show_format "$WORK/voiceover/generated.wav" \\\n'
+        "  | python3 -c \"import sys,json; print(json.load(sys.stdin)['format']['duration'])\" 2>/dev/null || echo 0)\n"
+        '_PAD=$(python3 -c "v=float(\'$_VID_DUR\'); a=float(\'$_VO_DUR\'); print(max(0.0, a - v))")\n'
+        'if python3 -c "import sys; sys.exit(0 if float(\'$_PAD\') > 0.1 else 1)"; then\n'
+        f'  ffmpeg -y -i "{video_source}" \\\n'
+        '    -vf "tpad=stop=-1:stop_mode=clone:stop_duration=$_PAD" \\\n'
+        "    -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p \\\n"
+        '    "$WORK/video_padded.mp4"\n'
+        "else\n"
+        f'  cp "{video_source}" "$WORK/video_padded.mp4"\n'
+        "fi"
     )
 
 
@@ -200,8 +240,9 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
                 text = _escape_drawtext(ost.text.upper())
                 filters.append(
                     f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
-                    f":fontsize=48:fontcolor=white"
-                    f":x=(w-text_w)/2:y=(h-text_h)/2:enable='{ost.enable_expr}'"
+                    f":fontsize=60:fontcolor=white"
+                    f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+                    f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2:enable='{ost.enable_expr}'"
                 )
 
         t_offset += scene.duration_s
@@ -281,7 +322,7 @@ def _build_render_script(
     if subtitles != "none":
         if scene_words:
             ass_content = _build_captions_with_y_override(
-                scene_words, storyboard.scenes, subtitles
+                scene_words, storyboard.scenes, subtitles, play_res_y=out_h
             )
         else:
             ass_content = build_captions_ass(storyboard.scenes, subtitle_style=subtitles)
@@ -298,6 +339,8 @@ def _build_render_script(
     if overlay_part:
         parts.append(overlay_part)
 
+    parts.append(_pad_video_to_audio_duration(video_source))
+    video_source = "$WORK/video_padded.mp4"
     parts.append(_audio_section(storyboard, audio, video_source=video_source))
     parts.append(f'echo "Done: /tmp/{run_id}/output/final.mp4"')
 
