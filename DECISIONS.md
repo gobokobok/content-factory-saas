@@ -5,6 +5,20 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D065 — On-screen text overlay rendering: opaque box background; quality sprint structure deferred
+**Date:** 2026-06-24
+**Status:** ACTIVE
+**Decision:** On-screen text overlays (stat, date, lower_third type) use `box=1:boxcolor=black@0.55:boxborderw=18` in the FFmpeg `drawtext` filter instead of a drop-shadow only. Font size raised to 60pt. A minimum x-margin of 40px is enforced via `x=max(40,(w-text_w)/2)`. Unicode glyphs unsupported by Poppins (→ – — … smart quotes) are normalised to ASCII equivalents in `_escape_drawtext()` before rendering.
+**Rationale:** First full smoke-test of the native pipeline (P9) revealed that drop-shadow alone fails on light or mid-tone backgrounds — the text becomes illegible. A semi-transparent filled box guarantees readability on any background at the cost of a slight aesthetic trade-off. This is the standard approach used by all major short-form video platforms.
+**Quality sprint structure:** The same smoke-test identified four quality dimensions that require dedicated sprint work beyond P9. Rather than fixing them ad-hoc, they are grouped into future sprints:
+- **QA-1 Storyboard quality** — prompt improvements, multi-photo mixing for Character scenes (same person appearing in every scene), on-screen text timestamp sync.
+- **QA-2 Asset acquisition** — person photo variety (multiple crops/angles per person), Wikimedia diversity, per-asset QA gates, footage relevance scoring.
+- **QA-3 On-screen visuals** — caption timestamp-based assignment (P9-S7), overlay sync accuracy using real TTS timestamps, lower-third positioning for 16:9.
+**Consequence:** `_overlay_section()` in `cf_platform/workers/render_worker.py` updated. No schema changes. No new dependencies.
+**See:** `cf_platform/workers/render_worker.py` (`_escape_drawtext`, `_overlay_section`).
+
+---
+
 ## D064 — Wikimedia Commons as third stock source; historic-first routing; attribution stored per asset
 **Date:** 2026-06-20
 **Status:** ACTIVE

@@ -241,7 +241,7 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
                 filters.append(
                     f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
                     f":fontsize=60:fontcolor=white"
-                    f":shadowcolor=black@0.8:shadowx=3:shadowy=3"
+                    f":box=1:boxcolor=black@0.55:boxborderw=18"
                     f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2:enable='{ost.enable_expr}'"
                 )
 
