@@ -1262,7 +1262,7 @@ Replace the text-matching approach in `assign_words_to_scenes` with timestamp-ba
 
 | Sprint | Theme | Key stories |
 |--------|-------|-------------|
-| P10 | Render quality | Dip-to-black + chapter title cards between segment sections; xfade dissolves within same segment type; slow motion for Emotion scenes (`setpts=2.0*PTS`); per-clip `loudnorm` audio normalization; quote cards (full-frame `drawtext` for Data scenes); chart PNG generation (matplotlib → R2 → overlay) |
+| P10 | Render quality | Dip-to-black + chapter title cards between segment sections; xfade dissolves within same segment type; slow motion for Emotion scenes (`setpts=2.0*PTS`); per-clip `loudnorm` audio normalization; quote cards (full-frame `drawtext` for Data scenes); chart PNG generation (matplotlib → R2 → overlay); **two-pass storyboard** (Pass 1: Sonnet generates core scene structure; Pass 2: Haiku assigns render_options) — removes 16K token ceiling, safe to ~10 min videos |
 | P11 | AI asset library | `/library/` R2 cache layer (portrait + map + chart); portrait colorization via Real-ESRGAN + DeOldify (Replicate); background removal for parallax (rembg); map generation via Mapbox Static API (D entry required); number callout overlays (`drawtext` large-type stat highlight) |
 | P12 | Format tracks | `format_track: Literal["documentary","educational","animated"]` at PipelineState level; `--format` flag in Telegram `/run`; per-track storyboard prompts (different segment_type mix); per-track render templates (different filter presets); animated track stub (returns error until P13–P14) |
 | P13 | Analytics & attribution | Publish linkage capture; YouTube metrics ingestion; retention-by-prompt-version report |
