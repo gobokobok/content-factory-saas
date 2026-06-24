@@ -1209,7 +1209,7 @@ Wire the three native workers into `full_pipeline.py` so `/run`, `/pick`, and `/
 ## [P9-S6] Portrait/landscape format parameter (`--format` flag)
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P9
-**Status:** planned
+**Status:** done
 **Priority:** high
 **Points:** 2
 **Depends on:** P9-S5
@@ -1218,15 +1218,15 @@ Wire the three native workers into `full_pipeline.py` so `/run`, `/pick`, and `/
 Add a `--format portrait|landscape` flag to `/run`, `/produce`, and `/pick` Telegram commands so the operator can choose output orientation per video. Default stays `portrait` (1080×1920) for Shorts. `landscape` outputs 1920×1080 for standard YouTube uploads.
 
 ### Acceptance Criteria
-- [ ] `parse_run_args`, `parse_produce_args`, `parse_pick_command` all parse `--format portrait|landscape`; unknown values fall back to `portrait` with a warning
-- [ ] `PipelineState` gains `format_track: Literal["portrait","landscape"] = "portrait"`
-- [ ] Storyboard prompt header line updated dynamically: `"30–60 second YouTube Short, 9:16 vertical"` when portrait; `"30–180 second YouTube video, 16:9 horizontal"` when landscape
-- [ ] RenderWorker selects output resolution from `format_track`: 1080×1920 (portrait) or 1920×1080 (landscape); all intermediate ffmpeg steps use the correct `scale`/`crop` targets
-- [ ] Telegram command usage strings updated to mention `--format`
-- [ ] Tests: `parse_run_args`/`parse_produce_args`/`parse_pick_command` flag parsing (portrait, landscape, missing, invalid); `PipelineState` default; RenderWorker resolution selection
+- [x] `parse_run_args`, `parse_produce_args`, `parse_pick_command` all parse `--format portrait|landscape`; unknown values fall back to `portrait` with a warning
+- [x] `PipelineState` gains `format_track: Literal["portrait","landscape"] = "portrait"`
+- [x] Storyboard prompt header line updated dynamically: `"30–60 second YouTube Short, 9:16 vertical"` when portrait; `"30–180 second YouTube video, 16:9 horizontal"` when landscape
+- [x] RenderWorker selects output resolution from `format_track`: 1080×1920 (portrait) or 1920×1080 (landscape); all intermediate ffmpeg steps use the correct `scale`/`crop` targets
+- [x] Telegram command usage strings updated to mention `--format`
+- [x] Tests: `parse_run_args`/`parse_produce_args`/`parse_pick_command` flag parsing (portrait, landscape, missing, invalid); `PipelineState` default; RenderWorker resolution selection
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 - [ ] **Human touchpoint:** `/run housing --format landscape` → 1920×1080 `final.mp4` delivered via Telegram
 
 ---

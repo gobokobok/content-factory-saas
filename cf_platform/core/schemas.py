@@ -226,3 +226,4 @@ class PipelineState(StageState):
     hitl: bool = False
     target_duration_seconds: int = 60
     idea_title: Optional[str] = None
+    format_track: Literal["portrait", "landscape"] = "portrait"

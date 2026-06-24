@@ -1037,6 +1037,7 @@ async def _run_pipeline_and_reply(
     niche: str = "",
     idea_title: Optional[str] = None,
     target_duration_seconds: int = 60,
+    format_track: str = "portrait",
     command_name: str = "pipeline",
 ) -> None:
     """Run the full pipeline in the background and push a video URL reply to Telegram.
@@ -1046,8 +1047,9 @@ async def _run_pipeline_and_reply(
 
     `display_label` is shown in the Telegram reply (niche for /run, idea title for /produce
     and /pick). `niche` and `idea_title` are passed to PipelineState; when `idea_title` is
-    set the orchestrator skips niche_to_ideas (P7-S1). `command_name` is used only in error
-    messages for operator clarity.
+    set the orchestrator skips niche_to_ideas (P7-S1). `format_track` selects portrait
+    (1080×1920, default) or landscape (1920×1080) output. `command_name` is used only in
+    error messages for operator clarity.
     """
     client = TelegramClient(settings.TELEGRAM_BOT_TOKEN)
     try:
@@ -1084,6 +1086,7 @@ async def _run_pipeline_and_reply(
             inputs=run_inputs,
             target_duration_seconds=target_duration_seconds,
             idea_title=idea_title,
+            format_track=format_track,
         )
         result = await run_graph(graph, state, thread_id=run.run_id)
         await transition_run(run.run_id, "complete", runs)
@@ -1142,6 +1145,7 @@ async def _run_pick_and_reply(
     trace_events: TraceEventRepository,
     checkpointer: BaseCheckpointSaver,
     target_duration_seconds: int = 60,
+    format_track: str = "portrait",
 ) -> None:
     """Read the ranked_ideas artifact from original_run_id, extract idea N, and produce a video.
 
@@ -1193,6 +1197,7 @@ async def _run_pick_and_reply(
         niche=niche,
         idea_title=chosen.title,
         target_duration_seconds=target_duration_seconds,
+        format_track=format_track,
         command_name="pick",
     )
 
@@ -1377,7 +1382,7 @@ async def telegram_webhook(
         if not run_args:
             await client.send_message(chat_id, format_run_usage())
         else:
-            parsed_niche, duration = parse_run_args(run_args)
+            parsed_niche, duration, run_format = parse_run_args(run_args)
             if not parsed_niche:
                 await client.send_message(chat_id, format_run_usage())
             else:
@@ -1397,13 +1402,14 @@ async def telegram_webhook(
                     checkpointer=checkpointer,
                     niche=parsed_niche,
                     target_duration_seconds=duration,
+                    format_track=run_format,
                     command_name="run",
                 )
     elif produce_args is not None:
         if not produce_args:
             await client.send_message(chat_id, format_produce_usage())
         else:
-            parsed_title, duration = parse_produce_args(produce_args)
+            parsed_title, duration, produce_format = parse_produce_args(produce_args)
             if not parsed_title:
                 await client.send_message(chat_id, format_produce_usage())
             else:
@@ -1423,10 +1429,11 @@ async def telegram_webhook(
                     checkpointer=checkpointer,
                     idea_title=parsed_title,
                     target_duration_seconds=duration,
+                    format_track=produce_format,
                     command_name="produce",
                 )
     elif pick_result is not None:
-        original_run_id, idea_number, pick_duration = pick_result
+        original_run_id, idea_number, pick_duration, pick_format = pick_result
         background_tasks.add_task(
             _run_pick_and_reply,
             chat_id=chat_id,
@@ -1442,6 +1449,7 @@ async def telegram_webhook(
             trace_events=trace_events,
             checkpointer=checkpointer,
             target_duration_seconds=pick_duration,
+            format_track=pick_format,
         )
     elif niche is not None:
         if not niche:

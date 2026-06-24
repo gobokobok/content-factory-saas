@@ -330,7 +330,7 @@ def build_full_pipeline_graph(
         block_state = StageState(
             run_id=state.run_id,
             user_id=state.user_id,
-            inputs={},
+            inputs={"format_track": state.format_track},
             artifacts=sb_artifacts,
         )
         result = await run_graph(storyboard_graph, block_state, thread_id=f"{state.run_id}:storyboard_worker")
@@ -369,7 +369,7 @@ def build_full_pipeline_graph(
         block_state = StageState(
             run_id=state.run_id,
             user_id=state.user_id,
-            inputs={},
+            inputs={"format_track": state.format_track},
             artifacts=render_artifacts,
         )
         result = await run_graph(render_graph, block_state, thread_id=f"{state.run_id}:render_worker")

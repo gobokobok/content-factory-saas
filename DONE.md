@@ -4,6 +4,36 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P9-S6] Portrait/landscape format parameter (`--format` flag)
+**Completed:** 2026-06-24
+**Handover:**
+- `cf_platform/interfaces/telegram.py`:
+  - `_FORMAT_FLAG_RE = re.compile(r"\s*--format\s+(\w+)\b", re.IGNORECASE)`, `_DEFAULT_FORMAT_TRACK = "portrait"`, `_VALID_FORMAT_TRACKS = frozenset(("portrait", "landscape"))` constants added
+  - `_parse_format_flag(args) → (text, format_track)`: strips `--format X` from anywhere in the arg string; unknown values fall back to `"portrait"` with a warning
+  - `parse_run_args(args) → (niche, duration, format_track)`: now 3-tuple (was 2-tuple)
+  - `parse_produce_args(args) → (idea_title, duration, format_track)`: now 3-tuple (was 2-tuple)
+  - `parse_pick_command(text) → Optional[(run_id, n, duration, format_track)]`: now 4-tuple (was 3-tuple)
+  - All three usage strings + `format_unrecognized_command` updated to mention `[--format portrait|landscape]`
+  - Removed duplicate `_DURATION_FLAG_RE` definition (was at lines 109 and 169; kept line 109 only)
+- `cf_platform/core/schemas.py`: `PipelineState.format_track: Literal["portrait","landscape"] = "portrait"` added
+- `cf_platform/workers/storyboard_worker.py`:
+  - `_FORMAT_LINE_SENTINEL`, `_FORMAT_LINE_PORTRAIT`, `_FORMAT_LINE_LANDSCAPE` constants
+  - `_generate(script, voice_timestamps, api_key, format_track="portrait")`: substitutes format line in `_GENERATE_SYSTEM_PROMPT` via `str.replace` before API call; portrait → `"9:16 vertical, 30–60 second YouTube Short"`, landscape → `"16:9 horizontal, 30–180 second YouTube video"`
+  - `_worker()`: reads `state.inputs.get("format_track", "portrait")` and passes to `_generate()`
+- `cf_platform/workers/render_worker.py`:
+  - `_build_render_script(..., format_track="portrait")`: selects `out_w, out_h` directly — portrait → `(1080, 1920)`, landscape → `(1920, 1080)`; removed `_dimensions_for_aspect_ratio` import (VideoSettings still used for audio/subtitles)
+  - `_worker()`: reads `state.inputs.get("format_track", "portrait")` and passes to `_build_render_script()`
+- `cf_platform/orchestrator/full_pipeline.py`: `storyboard_node` and `render_node` both pass `{"format_track": state.format_track}` as block `inputs`
+- `cf_platform/interfaces/api.py`: `_run_pipeline_and_reply` + `_run_pick_and_reply` accept `format_track: str = "portrait"`; all three webhook branches unpack format from parsers and forward
+- `tests/cf_platform/test_p9_s6_format.py` (new, 24 tests): `parse_run_args`/`parse_produce_args`/`parse_pick_command` flag parsing; `PipelineState.format_track` default; `_build_render_script` resolution selection; storyboard prompt sentinel substitution
+- `tests/cf_platform/test_p6_s4_produce.py`: `TestParseRunArgs` and `TestParseProduceArgs` updated to expect 3-tuple returns
+- `tests/cf_platform/test_p7_s1_pick.py`: `test_parse_pick_command_*` updated to expect 4-tuple returns
+- 1742 total tests passing (24 new; 0 regressions from this story)
+**Smoke test:** DEFERRED — requires a live DEV run: `/run housing --format landscape` should produce a 1920×1080 `final.mp4` in Telegram. Portrait path (default) was exercised by P9-S5 smoke test; landscape resolution path is tested only in CI unit tests so far.
+**Promoted to backlog:** none
+
+---
+
 ## [P9-S5] Retire InProcessLegacyVideoAdapter + wire native pipeline
 **Completed:** 2026-06-22
 **Handover:**

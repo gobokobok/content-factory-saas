@@ -166,7 +166,26 @@ def format_script_reply(script_artifact: "ScriptArtifact") -> str:
     return text
 
 
-_DURATION_FLAG_RE = re.compile(r"\s*--duration\s+(\d+)\s*$")
+_FORMAT_FLAG_RE = re.compile(r"\s*--format\s+(\w+)\b", re.IGNORECASE)
+_DEFAULT_FORMAT_TRACK = "portrait"
+_VALID_FORMAT_TRACKS = frozenset(("portrait", "landscape"))
+
+
+def _parse_format_flag(args: str) -> tuple[str, str]:
+    """Extract a `--format portrait|landscape` flag from args, returning (text, format_track).
+
+    The flag can appear anywhere in the string. Defaults to 'portrait' when absent.
+    Unknown values fall back to 'portrait' with a warning logged.
+    """
+    match = _FORMAT_FLAG_RE.search(args)
+    if not match:
+        return args.strip(), _DEFAULT_FORMAT_TRACK
+    fmt = match.group(1).lower()
+    if fmt not in _VALID_FORMAT_TRACKS:
+        _logger.warning("Unknown --format value %r — falling back to portrait", fmt)
+        fmt = _DEFAULT_FORMAT_TRACK
+    remaining = (args[:match.start()] + args[match.end():]).strip()
+    return remaining, fmt
 
 
 def _parse_duration_flag(args: str) -> tuple[str, int]:
@@ -202,18 +221,22 @@ def parse_run_command(text: str) -> Optional[str]:
     return stripped[len("/run"):].strip()
 
 
-def parse_run_args(args: str) -> tuple[str, int]:
-    """Split `args` (text after `/run`) into (niche, target_duration_seconds).
+def parse_run_args(args: str) -> tuple[str, int, str]:
+    """Split `args` (text after `/run`) into (niche, target_duration_seconds, format_track).
 
-    Extracts a trailing `--duration <seconds>` flag. Defaults to 60 s when the
-    flag is absent or the value is not a positive integer.
+    Extracts `--duration <seconds>` and `--format portrait|landscape` flags in any order.
+    Defaults to 60 s and 'portrait' when flags are absent. Unknown format values fall back
+    to 'portrait' with a warning.
 
     Examples:
-        "american housing economics"               → ("american housing economics", 60)
-        "american housing economics --duration 45" → ("american housing economics", 45)
-        "coffee culture --duration 0"              → ("coffee culture", 60)
+        "american housing economics"                              → ("american housing economics", 60, "portrait")
+        "american housing economics --duration 45"               → ("american housing economics", 45, "portrait")
+        "american housing economics --format landscape"          → ("american housing economics", 60, "landscape")
+        "american housing economics --format landscape --duration 45" → ("american housing economics", 45, "landscape")
     """
-    return _parse_duration_flag(args)
+    args, format_track = _parse_format_flag(args)
+    text, duration = _parse_duration_flag(args)
+    return text, duration, format_track
 
 
 _VIDEO_URL_EXPIRY_LABEL = "24 h"
@@ -226,7 +249,7 @@ def format_run_running(niche: str) -> str:
 
 def format_run_usage() -> str:
     """Format the reply when `/run` is sent without a niche (D049)."""
-    return "Usage: /run <niche> [--duration <seconds>] — e.g. /run american housing economics --duration 45"
+    return "Usage: /run <niche> [--duration <seconds>] [--format portrait|landscape] — e.g. /run american housing economics --format landscape"
 
 
 def format_run_reply(niche: str, run_id: str, video_url: str) -> str:
@@ -258,17 +281,21 @@ def parse_produce_command(text: str) -> Optional[str]:
     return stripped[len("/produce"):].strip()
 
 
-def parse_produce_args(args: str) -> tuple[str, int]:
-    """Split `args` (text after `/produce`) into (idea_title, target_duration_seconds).
+def parse_produce_args(args: str) -> tuple[str, int, str]:
+    """Split `args` (text after `/produce`) into (idea_title, target_duration_seconds, format_track).
 
-    Extracts a trailing `--duration <seconds>` flag. Defaults to 60 s when the
-    flag is absent or the value is not a positive integer.
+    Extracts `--duration <seconds>` and `--format portrait|landscape` flags in any order.
+    Defaults to 60 s and 'portrait' when flags are absent. Unknown format values fall back
+    to 'portrait' with a warning.
 
     Examples:
-        "Why starter homes vanished"               → ("Why starter homes vanished", 60)
-        "Why starter homes vanished --duration 45" → ("Why starter homes vanished", 45)
+        "Why starter homes vanished"                        → ("Why starter homes vanished", 60, "portrait")
+        "Why starter homes vanished --duration 45"         → ("Why starter homes vanished", 45, "portrait")
+        "Why starter homes vanished --format landscape"    → ("Why starter homes vanished", 60, "landscape")
     """
-    return _parse_duration_flag(args)
+    args, format_track = _parse_format_flag(args)
+    text, duration = _parse_duration_flag(args)
+    return text, duration, format_track
 
 
 def format_produce_running(idea_title: str) -> str:
@@ -278,7 +305,7 @@ def format_produce_running(idea_title: str) -> str:
 
 def format_produce_usage() -> str:
     """Format the reply when `/produce` is sent without an idea title (D049, P7-S1)."""
-    return "Usage: /produce <idea title> [--duration <seconds>] — e.g. /produce Why starter homes vanished --duration 45"
+    return "Usage: /produce <idea title> [--duration <seconds>] [--format portrait|landscape] — e.g. /produce Why starter homes vanished --format landscape"
 
 
 def format_youtube_metadata_block(metadata: "YoutubeMetadataArtifact") -> str:
@@ -426,17 +453,20 @@ def format_testvoice_reply(run_id: str, mp3_url: str) -> str:
     )
 
 
-def parse_pick_command(text: str) -> Optional[tuple[str, int, int]]:
-    """Parse a `/pick <run_id> <n> [--duration <seconds>]` command (P7-S1).
+def parse_pick_command(text: str) -> Optional[tuple[str, int, int, str]]:
+    """Parse a `/pick <run_id> <n> [--duration <seconds>] [--format portrait|landscape]` command (P7-S1, P9-S6).
 
-    Returns (run_id, n, target_duration_seconds) where n is the 1-based idea index
-    and target_duration_seconds defaults to 60 when the flag is absent. Returns None
+    Returns (run_id, n, target_duration_seconds, format_track) where n is the 1-based
+    idea index. Defaults to 60 s and 'portrait' when flags are absent. Returns None
     for malformed input (missing args, non-integer n, n < 1, or n > _IDEAS_TOP_N).
     """
     stripped = text.strip()
     if not stripped.startswith("/pick "):
         return None
     args = stripped[len("/pick "):].strip()
+
+    # Extract optional --format flag (can appear anywhere)
+    args, format_track = _parse_format_flag(args)
 
     # Extract optional --duration flag from the tail.
     duration = _DEFAULT_DURATION_SECONDS
@@ -459,12 +489,12 @@ def parse_pick_command(text: str) -> Optional[tuple[str, int, int]]:
         return None
     if n < 1 or n > _IDEAS_TOP_N:
         return None
-    return (run_id_part, n, duration)
+    return (run_id_part, n, duration, format_track)
 
 
 def format_pick_usage() -> str:
     """Format the reply when `/pick` is sent with missing or invalid arguments (D049, P7-S1)."""
-    return f"Usage: /pick <run_id> <n> — pick idea 1–{_IDEAS_TOP_N} from a prior /ideas run, e.g. /pick abc-123 2"
+    return f"Usage: /pick <run_id> <n> [--duration <s>] [--format portrait|landscape] — pick idea 1–{_IDEAS_TOP_N} from a prior /ideas run, e.g. /pick abc-123 2 --format landscape"
 
 
 def format_pick_running(run_id: str, idea_title: str) -> str:
@@ -477,9 +507,9 @@ def format_unrecognized_command(text: str) -> str:
     return (
         "Sorry, I didn't understand that. Commands:\n"
         "  /ideas <niche> — generate ranked ideas\n"
-        "  /pick <run_id> <n> [--duration <s>] — produce idea N from a prior /ideas run\n"
-        "  /produce <idea title> [--duration <s>] — produce a named idea directly\n"
-        "  /run <niche> [--duration <s>] — full niche-to-video pipeline\n"
+        "  /pick <run_id> <n> [--duration <s>] [--format portrait|landscape] — produce idea N from a prior /ideas run\n"
+        "  /produce <idea title> [--duration <s>] [--format portrait|landscape] — produce a named idea directly\n"
+        "  /run <niche> [--duration <s>] [--format portrait|landscape] — full niche-to-video pipeline\n"
         "  /script <idea title> [--duration <s>] — generate script only\n"
         "  /testvoice <run_id> — test voiceover for an existing run"
     )

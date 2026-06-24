@@ -54,6 +54,11 @@ STORYBOARD_WORKER_REGISTRATION = WorkerRegistration(
     sampling_params={"max_tokens": 16000},
 )
 
+# Format lines substituted into _GENERATE_SYSTEM_PROMPT per-run based on format_track.
+_FORMAT_LINE_SENTINEL = "Format: 16:9 horizontal. Voiceover only. Stock footage + Wikimedia Commons."
+_FORMAT_LINE_PORTRAIT = "Format: 9:16 vertical, 30–60 second YouTube Short. Voiceover only. Stock footage + Wikimedia Commons."
+_FORMAT_LINE_LANDSCAPE = "Format: 16:9 horizontal, 30–180 second YouTube video. Voiceover only. Stock footage + Wikimedia Commons."
+
 _GENERATE_SYSTEM_PROMPT = """\
 You are a production storyboard generator for a faceless, voiceover-driven YouTube channel.
 
@@ -415,8 +420,16 @@ async def _generate(
     script: str,
     voice_timestamps: list[VoiceWordTimestamp],
     api_key: str,
+    format_track: str = "portrait",
 ) -> Storyboard:
-    """Call Sonnet with prompt v0.12 to generate the raw storyboard JSON."""
+    """Call Sonnet with prompt v0.12 to generate the raw storyboard JSON.
+
+    Substitutes the format-specific header line based on format_track so the model
+    generates scenes at the correct aspect ratio and duration target.
+    """
+    format_line = _FORMAT_LINE_LANDSCAPE if format_track == "landscape" else _FORMAT_LINE_PORTRAIT
+    system_prompt = _GENERATE_SYSTEM_PROMPT.replace(_FORMAT_LINE_SENTINEL, format_line)
+
     if voice_timestamps:
         ts_block = _format_voice_timestamps(voice_timestamps)
         user_content = (
@@ -431,7 +444,7 @@ async def _generate(
     message = await client.messages.create(
         model=_SONNET_MODEL,
         max_tokens=16000,
-        system=[{"type": "text", "text": _GENERATE_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": user_content}],
     )
     raw_text = message.content[0].text
@@ -504,7 +517,8 @@ def build_storyboard_worker(
                 logger.warning("StoryboardWorker: could not read voice_alignment — using word-count durations")
 
         # Step 1: Generate raw storyboard (Sonnet, prompt v0.12)
-        storyboard = await _generate(script_text, voice_timestamps, anthropic_api_key)
+        format_track: str = state.inputs.get("format_track", "portrait")
+        storyboard = await _generate(script_text, voice_timestamps, anthropic_api_key, format_track=format_track)
         logger.info("StoryboardWorker: generated %d scenes", len(storyboard.scenes))
 
         # Step 2: Review — 5 quality dimensions (Haiku, structured JSON)

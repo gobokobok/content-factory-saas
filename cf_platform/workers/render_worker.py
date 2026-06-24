@@ -269,12 +269,16 @@ def _build_render_script(
     scene_words: Optional[list],
     color_grade_preset: str,
     blur_fill_enabled: bool,
+    format_track: str = "portrait",
 ) -> str:
     """Assemble the complete render bash script with render_options extensions.
 
     Calls private helpers from src.ffmpeg_builder for base structure, then inserts
     film_look passes (before concat), overlays (after captions/grade), and wires
     caption y-overrides for lower_third scenes.
+
+    `format_track` selects the output resolution: portrait → 1080×1920 (Shorts),
+    landscape → 1920×1080 (standard YouTube).
     """
     from src.captions import build_captions_ass
     from src.ffmpeg_builder import (
@@ -282,7 +286,6 @@ def _build_render_script(
         _audio_section,
         _burn_voiceover_captions,
         _debug_section,
-        _dimensions_for_aspect_ratio,
         _filter_complex_concat,
         _get_color_grade_filter,
         _header,
@@ -297,7 +300,10 @@ def _build_render_script(
     video_settings = VideoSettings()
     audio = video_settings.audio
     subtitles = video_settings.subtitles
-    out_w, out_h = _dimensions_for_aspect_ratio(video_settings.aspect_ratio)
+    if format_track == "landscape":
+        out_w, out_h = 1920, 1080
+    else:
+        out_w, out_h = 1080, 1920
     entries = {e.scene_id: e for e in manifest.entries}
     n_scenes = len(manifest.entries)
 
@@ -455,6 +461,7 @@ def build_render_worker(
                 )
 
         # Build render script
+        format_track: str = state.inputs.get("format_track", "portrait")
         script_content = _build_render_script(
             run_id=run_id,
             storyboard=storyboard,
@@ -462,6 +469,7 @@ def build_render_worker(
             scene_words=scene_words,
             color_grade_preset=color_grade_preset,
             blur_fill_enabled=blur_fill_enabled,
+            format_track=format_track,
         )
 
         # Persist render_script.sh to R2 BEFORE execution for debuggability

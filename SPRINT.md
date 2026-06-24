@@ -153,7 +153,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P9-S3 | Native AcquisitionWorker | 4 | done |
 | P9-S4 | Native RenderWorker (dumb executor — reads render_options) | 4 | done |
 | P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 2 | done |
-| P9-S6 | Portrait/landscape format parameter (`--format` flag) | 2 | planned |
+| P9-S6 | Portrait/landscape format parameter (`--format` flag) | 2 | done |
 | P9-S7 | Caption word assignment by timestamp (drop script text-matching) | 1 | planned |
 
 **Execution order:** P9-S1 → P9-S2 → P9-S3 → P9-S4 → P9-S5 (fully linear). P9-S6 and P9-S7 are independent; can run in parallel after P9-S5.

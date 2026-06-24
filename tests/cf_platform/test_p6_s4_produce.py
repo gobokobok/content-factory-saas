@@ -105,23 +105,23 @@ class TestParseRunCommand:
 
 
 class TestParseRunArgs:
-    """parse_run_args splits niche from optional --duration flag."""
+    """parse_run_args splits niche from optional --duration and --format flags."""
 
     def test_niche_only(self):
-        assert parse_run_args("american housing economics") == ("american housing economics", 60)
+        assert parse_run_args("american housing economics") == ("american housing economics", 60, "portrait")
 
     def test_niche_with_duration(self):
-        assert parse_run_args("american housing economics --duration 45") == ("american housing economics", 45)
+        assert parse_run_args("american housing economics --duration 45") == ("american housing economics", 45, "portrait")
 
     def test_zero_duration_defaults_to_60(self):
-        assert parse_run_args("coffee --duration 0") == ("coffee", 60)
+        assert parse_run_args("coffee --duration 0") == ("coffee", 60, "portrait")
 
     def test_negative_duration_treated_as_no_flag(self):
-        _, dur = parse_run_args("coffee --duration -5")
+        _, dur, _ = parse_run_args("coffee --duration -5")
         assert dur == 60
 
     def test_empty_args(self):
-        assert parse_run_args("") == ("", 60)
+        assert parse_run_args("") == ("", 60, "portrait")
 
 
 class TestFormatRunFormatters:
@@ -176,23 +176,23 @@ class TestParseProduceCommand:
 
 
 class TestParseProduceArgs:
-    """parse_produce_args splits idea title from optional --duration flag (P7-S1)."""
+    """parse_produce_args splits idea title from optional --duration and --format flags (P7-S1, P9-S6)."""
 
     def test_title_only(self):
-        assert parse_produce_args("Why starter homes vanished") == ("Why starter homes vanished", 60)
+        assert parse_produce_args("Why starter homes vanished") == ("Why starter homes vanished", 60, "portrait")
 
     def test_title_with_duration(self):
-        assert parse_produce_args("Why starter homes vanished --duration 45") == ("Why starter homes vanished", 45)
+        assert parse_produce_args("Why starter homes vanished --duration 45") == ("Why starter homes vanished", 45, "portrait")
 
     def test_zero_duration_defaults_to_60(self):
-        assert parse_produce_args("Some title --duration 0") == ("Some title", 60)
+        assert parse_produce_args("Some title --duration 0") == ("Some title", 60, "portrait")
 
     def test_negative_duration_treated_as_no_flag(self):
-        _, dur = parse_produce_args("Some title --duration -5")
+        _, dur, _ = parse_produce_args("Some title --duration -5")
         assert dur == 60
 
     def test_empty_args(self):
-        assert parse_produce_args("") == ("", 60)
+        assert parse_produce_args("") == ("", 60, "portrait")
 
 
 class TestFormatProduceFormatters:
