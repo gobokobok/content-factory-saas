@@ -45,7 +45,7 @@ _GEMINI_PCM_SAMPLE_FMT = "s16le"
 
 _DEEPGRAM_URL = "https://api.deepgram.com/v1/listen"
 _DEEPGRAM_TIMEOUT_SECONDS = 60.0
-_PUNCT_RE = re.compile(r"[^\w\s]")
+_PUNCT_RE = re.compile(r"[^\w\s.%]")
 
 # ── Narration pace (words-per-second) used for proportional fallback ──────────
 

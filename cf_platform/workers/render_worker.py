@@ -242,7 +242,7 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
                     f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
                     f":fontsize=60:fontcolor=white"
                     f":box=1:boxcolor=black@0.55:boxborderw=18"
-                    f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2:enable='{ost.enable_expr}'"
+                    f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2:enable='{enable}'"
                 )
 
         t_offset += scene.duration_s
@@ -323,7 +323,10 @@ def _build_render_script(
 
     parts.append(_filter_complex_concat(n_scenes))
 
-    video_source = "$WORK/video_only.mp4"
+    # Pad BEFORE captions so captions beyond the raw clip duration burn onto the
+    # freeze-extended frames rather than being silently dropped.
+    parts.append(_pad_video_to_audio_duration("$WORK/video_only.mp4"))
+    video_source = "$WORK/video_padded.mp4"
 
     if subtitles != "none":
         if scene_words:
@@ -333,7 +336,7 @@ def _build_render_script(
         else:
             ass_content = build_captions_ass(storyboard.scenes, subtitle_style=subtitles)
         parts.append(_write_voiceover_captions_ass(ass_content))
-        parts.append(_burn_voiceover_captions())
+        parts.append(_burn_voiceover_captions(input_path="$WORK/video_padded.mp4"))
         video_source = "$WORK/video_captioned.mp4"
 
     grade_filter = _get_color_grade_filter(color_grade_preset)
@@ -344,9 +347,6 @@ def _build_render_script(
     overlay_part, video_source = _overlay_section(storyboard, video_source)
     if overlay_part:
         parts.append(overlay_part)
-
-    parts.append(_pad_video_to_audio_duration(video_source))
-    video_source = "$WORK/video_padded.mp4"
     parts.append(_audio_section(storyboard, audio, video_source=video_source))
     parts.append(f'echo "Done: /tmp/{run_id}/output/final.mp4"')
 

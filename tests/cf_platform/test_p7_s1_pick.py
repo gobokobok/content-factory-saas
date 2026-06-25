@@ -67,19 +67,19 @@ def _make_ranked_ideas(n_alternatives: int = 4) -> RankedIdeasArtifact:
 def test_parse_pick_command_valid() -> None:
     """/pick <run_id> <n> returns (run_id, n, default_duration, default_format) for valid in-range n."""
     result = parse_pick_command("/pick abc-123 1")
-    assert result == ("abc-123", 1, 60, "portrait")
+    assert result == ("abc-123", 1, 60, "landscape")
 
 
 def test_parse_pick_command_valid_n5() -> None:
     """n=5 is the maximum valid index."""
     result = parse_pick_command("/pick run-xyz 5")
-    assert result == ("run-xyz", 5, 60, "portrait")
+    assert result == ("run-xyz", 5, 60, "landscape")
 
 
 def test_parse_pick_command_with_duration_flag() -> None:
     """/pick with --duration extracts duration into the third element."""
     result = parse_pick_command("/pick abc-123 2 --duration 45")
-    assert result == ("abc-123", 2, 45, "portrait")
+    assert result == ("abc-123", 2, 45, "landscape")
 
 
 def test_parse_pick_command_with_zero_duration_defaults() -> None:

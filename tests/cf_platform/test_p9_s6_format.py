@@ -25,9 +25,9 @@ from cf_platform.core.schemas import PipelineState
 class TestParseRunArgsFormat:
     """parse_run_args extracts --format flag in any position."""
 
-    def test_default_portrait_when_no_flag(self):
+    def test_default_landscape_when_no_flag(self):
         _, _, fmt = parse_run_args("american housing economics")
-        assert fmt == "portrait"
+        assert fmt == "landscape"
 
     def test_landscape_flag(self):
         _, _, fmt = parse_run_args("american housing economics --format landscape")
@@ -49,9 +49,9 @@ class TestParseRunArgsFormat:
         assert dur == 45
         assert fmt == "landscape"
 
-    def test_unknown_format_falls_back_to_portrait(self):
+    def test_unknown_format_falls_back_to_landscape(self):
         _, _, fmt = parse_run_args("housing --format widescreen")
-        assert fmt == "portrait"
+        assert fmt == "landscape"
 
     def test_case_insensitive(self):
         _, _, fmt = parse_run_args("housing --format Landscape")
@@ -64,17 +64,17 @@ class TestParseRunArgsFormat:
 class TestParseProduceArgsFormat:
     """parse_produce_args extracts --format flag in any position."""
 
-    def test_default_portrait_when_no_flag(self):
+    def test_default_landscape_when_no_flag(self):
         _, _, fmt = parse_produce_args("Why starter homes vanished")
-        assert fmt == "portrait"
+        assert fmt == "landscape"
 
     def test_landscape_flag(self):
         _, _, fmt = parse_produce_args("Why starter homes vanished --format landscape")
         assert fmt == "landscape"
 
-    def test_unknown_format_falls_back_to_portrait(self):
+    def test_unknown_format_falls_back_to_landscape(self):
         _, _, fmt = parse_produce_args("Some title --format 4k")
-        assert fmt == "portrait"
+        assert fmt == "landscape"
 
     def test_title_preserved_when_flag_present(self):
         title, _, _ = parse_produce_args("Why starter homes vanished --format landscape")
@@ -87,10 +87,10 @@ class TestParseProduceArgsFormat:
 class TestParsePickCommandFormat:
     """parse_pick_command now returns a 4-tuple with format_track as fourth element."""
 
-    def test_default_portrait(self):
+    def test_default_landscape(self):
         result = parse_pick_command("/pick abc-123 2")
         assert result is not None
-        assert result[3] == "portrait"
+        assert result[3] == "landscape"
 
     def test_landscape_flag(self):
         result = parse_pick_command("/pick abc-123 2 --format landscape")
@@ -107,10 +107,10 @@ class TestParsePickCommandFormat:
         assert dur == 90
         assert fmt == "landscape"
 
-    def test_unknown_format_returns_portrait(self):
+    def test_unknown_format_returns_landscape(self):
         result = parse_pick_command("/pick abc-123 2 --format ultra")
         assert result is not None
-        assert result[3] == "portrait"
+        assert result[3] == "landscape"
 
     def test_malformed_still_returns_none(self):
         assert parse_pick_command("/pick abc-123") is None

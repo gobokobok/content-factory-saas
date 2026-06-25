@@ -789,12 +789,12 @@ def _write_voiceover_captions_ass(ass_content: str) -> str:
     )
 
 
-def _burn_voiceover_captions() -> str:
-    """Burn voiceover captions ASS into video_only.mp4, producing video_captioned.mp4."""
+def _burn_voiceover_captions(input_path: str = "$WORK/video_only.mp4") -> str:
+    """Burn voiceover captions ASS into input_path, producing video_captioned.mp4."""
     return (
         "# ── Burn voiceover captions ────────────────────────────────\n"
         "ffmpeg -y \\\n"
-        "  -i \"$WORK/video_only.mp4\" \\\n"
+        f"  -i \"{input_path}\" \\\n"
         "  -vf \"ass=$WORK/voiceover_captions.ass\" \\\n"
         "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
         "  \"$WORK/video_captioned.mp4\""

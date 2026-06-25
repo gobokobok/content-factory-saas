@@ -167,22 +167,22 @@ def format_script_reply(script_artifact: "ScriptArtifact") -> str:
 
 
 _FORMAT_FLAG_RE = re.compile(r"\s*--format\s+(\w+)\b", re.IGNORECASE)
-_DEFAULT_FORMAT_TRACK = "portrait"
+_DEFAULT_FORMAT_TRACK = "landscape"
 _VALID_FORMAT_TRACKS = frozenset(("portrait", "landscape"))
 
 
 def _parse_format_flag(args: str) -> tuple[str, str]:
     """Extract a `--format portrait|landscape` flag from args, returning (text, format_track).
 
-    The flag can appear anywhere in the string. Defaults to 'portrait' when absent.
-    Unknown values fall back to 'portrait' with a warning logged.
+    The flag can appear anywhere in the string. Defaults to 'landscape' when absent.
+    Unknown values fall back to 'landscape' with a warning logged.
     """
     match = _FORMAT_FLAG_RE.search(args)
     if not match:
         return args.strip(), _DEFAULT_FORMAT_TRACK
     fmt = match.group(1).lower()
     if fmt not in _VALID_FORMAT_TRACKS:
-        _logger.warning("Unknown --format value %r — falling back to portrait", fmt)
+        _logger.warning("Unknown --format value %r — falling back to landscape", fmt)
         fmt = _DEFAULT_FORMAT_TRACK
     remaining = (args[:match.start()] + args[match.end():]).strip()
     return remaining, fmt
@@ -225,7 +225,7 @@ def parse_run_args(args: str) -> tuple[str, int, str]:
     """Split `args` (text after `/run`) into (niche, target_duration_seconds, format_track).
 
     Extracts `--duration <seconds>` and `--format portrait|landscape` flags in any order.
-    Defaults to 60 s and 'portrait' when flags are absent. Unknown format values fall back
+    Defaults to 60 s and 'landscape' when flags are absent. Unknown format values fall back
     to 'portrait' with a warning.
 
     Examples:
@@ -285,7 +285,7 @@ def parse_produce_args(args: str) -> tuple[str, int, str]:
     """Split `args` (text after `/produce`) into (idea_title, target_duration_seconds, format_track).
 
     Extracts `--duration <seconds>` and `--format portrait|landscape` flags in any order.
-    Defaults to 60 s and 'portrait' when flags are absent. Unknown format values fall back
+    Defaults to 60 s and 'landscape' when flags are absent. Unknown format values fall back
     to 'portrait' with a warning.
 
     Examples:
@@ -457,7 +457,7 @@ def parse_pick_command(text: str) -> Optional[tuple[str, int, int, str]]:
     """Parse a `/pick <run_id> <n> [--duration <seconds>] [--format portrait|landscape]` command (P7-S1, P9-S6).
 
     Returns (run_id, n, target_duration_seconds, format_track) where n is the 1-based
-    idea index. Defaults to 60 s and 'portrait' when flags are absent. Returns None
+    idea index. Defaults to 60 s and 'landscape' when flags are absent. Returns None
     for malformed input (missing args, non-integer n, n < 1, or n > _IDEAS_TOP_N).
     """
     stripped = text.strip()

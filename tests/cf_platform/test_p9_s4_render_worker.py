@@ -214,16 +214,23 @@ def test_overlay_section_enable_expression():
     assert "between(t,0.000,5.000)" in section
 
 
-def test_overlay_section_on_screen_text_overlay_uses_enable_expr():
-    """on_screen_text_overlay uses its stored enable_expr (not a scene-range expression)."""
+def test_overlay_section_on_screen_text_overlay_uses_scene_range():
+    """on_screen_text_overlay uses the freshly computed scene-range enable expression.
+
+    The stored enable_expr on OnScreenTextOverlay is stale after voice-alignment
+    adjusts scene durations; _overlay_section recomputes timing from t_offset so
+    the overlay appears in sync with the actual video clip.
+    """
     ost = OnScreenTextOverlay(
         text="38% decline",
         type="stat",
-        enable_expr="between(t,2.500,4.500)",
+        enable_expr="between(t,2.500,4.500)",  # stale — should be ignored
     )
-    sb = _storyboard([_scene("1", on_screen_text_overlay=ost)])
+    sb = _storyboard([_scene("1", duration_s=3.0, on_screen_text_overlay=ost)])
     section, _ = _overlay_section(sb, "$WORK/video_captioned.mp4")
-    assert "between(t,2.500,4.500)" in section
+    # Fresh scene-range expression (scene starts at 0, duration 3.0 s)
+    assert "between(t,0.000,3.000)" in section
+    assert "between(t,2.500,4.500)" not in section  # stale expr must not appear
     assert "38% DECLINE" in section  # text is uppercased by _escape_drawtext chain
 
 
