@@ -138,14 +138,17 @@ Example:
 ON_SCREEN_TEXT TYPE
 ═══════════════════════════════════════
 
-on_screen_text_type must be one of three values (or null when on_screen_text is null):
+on_screen_text_type MUST be exactly one of these three string literals (or null):
 - "stat" — a data point, percentage, or number (e.g. "38% decline", "$450K median price")
 - "date" — a year or date range (e.g. "1970–1990", "March 2022")
 - "lower_third" — reserved; do NOT use this — the reviewer computes it for Character scenes
 
+Any other string (e.g. "emphasis", "quote", "highlight") is INVALID and will cause a hard error.
+
 Rules:
 - When on_screen_text contains a stat or figure, set on_screen_text_type: "stat"
 - When on_screen_text is a year or date, set on_screen_text_type: "date"
+- If the text does not fit "stat" or "date", set both on_screen_text and on_screen_text_type to null
 - When on_screen_text is null, on_screen_text_type must also be null
 
 ═══════════════════════════════════════
@@ -415,6 +418,28 @@ def _apply_patches_and_render_options(
 
 # ── API call helpers ──────────────────────────────────────────────────────────
 
+_VALID_OST_TYPES = {"stat", "date", "lower_third"}
+
+
+def _sanitize_storyboard_data(data: dict) -> dict:
+    """Clamp any out-of-enum on_screen_text_type values to null before Pydantic validation.
+
+    Claude occasionally invents types like "emphasis" that aren't in the schema.
+    Rather than rejecting the whole storyboard, we null out the invalid type (and
+    the paired text) so the scene still renders — just without an overlay.
+    """
+    for scene in data.get("scenes", []):
+        ost_type = scene.get("on_screen_text_type")
+        if ost_type is not None and ost_type not in _VALID_OST_TYPES:
+            logger.warning(
+                "StoryboardWorker: scene %s has invalid on_screen_text_type %r — nulling out",
+                scene.get("scene", "?"),
+                ost_type,
+            )
+            scene["on_screen_text_type"] = None
+            scene["on_screen_text"] = None
+    return data
+
 
 async def _generate(
     script: str,
@@ -450,6 +475,7 @@ async def _generate(
     raw_text = message.content[0].text
     try:
         data = _extract_json_object(raw_text)
+        data = _sanitize_storyboard_data(data)
         return Storyboard.model_validate(data)
     except Exception as exc:
         raise ValueError(f"StoryboardWorker: failed to parse generate response: {exc}") from exc
