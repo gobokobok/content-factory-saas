@@ -165,6 +165,15 @@ def pipeline_ui() -> FileResponse:
     )
 
 
+@app.get("/studio", include_in_schema=False)
+def studio_ui() -> FileResponse:
+    """Serve the Studio pipeline UI (step-by-step run management)."""
+    return FileResponse(
+        _STATIC_DIR / "studio.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
 @app.get("/login", include_in_schema=False)
 def login_page() -> FileResponse:
     """Serve the login page."""

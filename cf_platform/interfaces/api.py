@@ -724,6 +724,150 @@ async def render_worker_endpoint(
     )
 
 
+# ── Studio read/patch endpoints ───────────────────────────────────────────────
+
+
+async def _latest_artifact_key(storage: ArtifactStorage, run_id: str, stage: str, name: str) -> Optional[str]:
+    """Return the R2 key for the latest version of an artifact, or None if absent."""
+    prefix = f"users/{_PLATFORM_USER_ID}/runs/{run_id}/{stage}/{name}@v"
+    keys = await storage.list_keys(prefix)
+    return sorted(keys)[-1] if keys else None
+
+
+@router.get("/studio/runs/{run_id}/script")
+async def studio_get_script(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Return the latest script artifact body for a Studio run."""
+    key = await _latest_artifact_key(storage, run_id, "script", "script")
+    if not key:
+        raise HTTPException(status_code=404, detail="No script artifact found for this run.")
+    _, body = await read_artifact(storage, key)
+    return body
+
+
+@router.get("/studio/runs/{run_id}/storyboard")
+async def studio_get_storyboard(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Return the latest verified_storyboard artifact body for a Studio run."""
+    key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
+    if not key:
+        raise HTTPException(status_code=404, detail="No storyboard artifact found for this run.")
+    _, body = await read_artifact(storage, key)
+    return body
+
+
+@router.get("/studio/runs/{run_id}/manifest")
+async def studio_get_manifest(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Return the latest asset_manifest artifact body for a Studio run."""
+    key = await _latest_artifact_key(storage, run_id, "acquisition", "asset_manifest")
+    if not key:
+        raise HTTPException(status_code=404, detail="No asset manifest found for this run.")
+    _, body = await read_artifact(storage, key)
+    return body
+
+
+@router.get("/studio/runs/{run_id}/video")
+async def studio_get_video_url(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Return a 24-hour presigned URL for this run's final.mp4."""
+    video_key = f"runs/{run_id}/output/final.mp4"
+    try:
+        url = await storage.generate_presigned_url(video_key, expires_in=86400)
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=f"Video not found for this run: {exc}")
+    return {"video_url": url, "video_key": video_key}
+
+
+class ScenePatchRequest(BaseModel):
+    """Fields that can be patched on a single storyboard scene via the Studio UI."""
+
+    on_screen_text: Optional[str] = None
+    on_screen_text_type: Optional[str] = None
+    primary_stk: Optional[str] = None
+    context_stk: Optional[str] = None
+    concept_stk: Optional[str] = None
+    clear_on_screen_text: bool = False
+
+
+@router.patch("/studio/runs/{run_id}/storyboard/scenes/{scene_id}")
+async def studio_patch_scene(
+    run_id: str,
+    scene_id: str,
+    body: ScenePatchRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> dict:
+    """Patch one scene's editable fields and write a new storyboard artifact version.
+
+    Recomputes render_options for all scenes (cumulative timing must stay coherent)
+    using the same _patch_storyboard logic as the StoryboardWorker's internal cycle.
+    """
+    from cf_platform.workers.storyboard_worker import _patch_storyboard, VerifiedStoryboardArtifact
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+    from src.models import Storyboard
+
+    key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
+    if not key:
+        raise HTTPException(status_code=404, detail="No storyboard found — run storyboard generation first.")
+
+    _, artifact_body = await read_artifact(storage, key)
+    storyboard = Storyboard.model_validate(artifact_body["storyboard"])
+
+    patches: list[dict] = []
+    if body.clear_on_screen_text:
+        patches += [
+            {"scene_id": scene_id, "field": "on_screen_text", "value": None},
+            {"scene_id": scene_id, "field": "on_screen_text_type", "value": None},
+        ]
+    else:
+        if body.on_screen_text is not None:
+            patches.append({"scene_id": scene_id, "field": "on_screen_text", "value": body.on_screen_text})
+        if body.on_screen_text_type is not None:
+            patches.append({"scene_id": scene_id, "field": "on_screen_text_type", "value": body.on_screen_text_type})
+    if body.primary_stk is not None:
+        patches.append({"scene_id": scene_id, "field": "primary_stk", "value": body.primary_stk})
+    if body.context_stk is not None:
+        patches.append({"scene_id": scene_id, "field": "context_stk", "value": body.context_stk})
+    if body.concept_stk is not None:
+        patches.append({"scene_id": scene_id, "field": "concept_stk", "value": body.concept_stk})
+
+    if not patches:
+        raise HTTPException(status_code=400, detail="No patchable fields provided.")
+
+    patched_storyboard = _patch_storyboard(storyboard, patches)
+
+    new_artifact = VerifiedStoryboardArtifact(
+        prompt_version=artifact_body.get("prompt_version", "patched"),
+        scene_count=len(patched_storyboard.scenes),
+        storyboard=patched_storyboard.model_dump(by_alias=True, mode="json"),
+        generated_at=datetime.now(),
+    )
+    lineage = LineageEnvelope(
+        run_id=run_id,
+        worker="studio_patch",
+        worker_version="1.0.0",
+        prompt_version="manual",
+        model="none",
+        created_at=datetime.now(),
+    )
+    record = await write_artifact(
+        storage, new_artifact,
+        name="verified_storyboard", stage="storyboard",
+        run_id=run_id, user_id=_PLATFORM_USER_ID, lineage=lineage,
+    )
+    return {"artifact_key": record.r2_key, "scene_count": new_artifact.scene_count}
+
+
 class RunSummary(BaseModel):
     """Lineage summary for one run, as returned by GET /platform/runs."""
 
