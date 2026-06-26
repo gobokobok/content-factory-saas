@@ -260,6 +260,18 @@
       background: var(--bg-alt); border: 1px solid var(--border); color: var(--muted);
     }
 
+    /* ── Voice stage ───────────────────────────────────────────────── */
+    .voice-result {
+      display: flex; flex-direction: column; gap: 14px; max-width: 600px;
+    }
+    .voice-stats { display: flex; gap: 20px; flex-wrap: wrap; }
+    .voice-stat { font-size: 12px; color: var(--muted); }
+    .voice-stat strong { font-family: var(--mono); color: var(--text); }
+    .voice-method { font-size: 11px; padding: 2px 8px; border-radius: 3px;
+      background: var(--bg-alt); border: 1px solid var(--border); color: var(--muted); }
+    .voice-method.deepgram { background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+    audio { width: 100%; border-radius: 4px; }
+
     /* ── Render stage ───────────────────────────────────────────────── */
     .render-running { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); margin-bottom: 20px; }
     .video-wrap { position: relative; max-width: 640px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: #000; }
@@ -362,10 +374,31 @@
         </div>
 
         <div class="stage-cta">
-          <button class="btn btn-primary" id="create-storyboard-btn" onclick="createStoryboard()" disabled>
-            Create Storyboard →
+          <button class="btn btn-primary" id="generate-vo-btn" onclick="generateVO()" disabled>
+            Generate VO →
+          </button>
+          <button class="btn btn-ghost" id="skip-vo-btn" onclick="createStoryboard()" disabled title="Skip voiceover — storyboard will use estimated timing">
+            Skip VO
           </button>
           <span id="script-stage-status" class="running-msg"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Voice stage -->
+    <div class="stage-pane" id="pane-voice">
+      <div style="max-width:700px;">
+        <div class="stage-title">Voice</div>
+        <div class="stage-subtitle">Generate TTS voiceover with Gemini and align word timestamps via Deepgram. Accurate timing requires this step before storyboard generation.</div>
+        <div id="voice-error" class="error-bar" style="display:none;"></div>
+        <div id="voice-content">
+          <div class="muted" style="font-size:13px;">No voiceover yet — generate VO from the Script stage.</div>
+        </div>
+        <div class="stage-cta" id="voice-cta" style="display:none;">
+          <button class="btn btn-primary" id="create-storyboard-btn2" onclick="createStoryboard()">
+            Create Storyboard →
+          </button>
+          <span id="voice-stage-status" class="running-msg"></span>
         </div>
       </div>
     </div>
@@ -411,14 +444,14 @@
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
-const STAGES = ['script', 'storyboard', 'assets', 'render'];
-const STAGE_LABELS = { script: 'Script', storyboard: 'Storyboard', assets: 'Assets', render: 'Render' };
+const STAGES = ['script', 'voice', 'storyboard', 'assets', 'render'];
+const STAGE_LABELS = { script: 'Script', voice: 'Voice', storyboard: 'Storyboard', assets: 'Assets', render: 'Render' };
 
 let state = {
   runId: null,
   activeStage: 'script',
-  stageStatus: { script: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' },
-  stageData:   { script: null, storyboard: null, assets: null, render: null },
+  stageStatus: { script: 'idle', voice: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' },
+  stageData:   { script: null, voice: null, storyboard: null, assets: null, render: null },
   autoConfirm: false,
 };
 
@@ -514,15 +547,17 @@ function newRun() {
   const id = uuid();
   state.runId = id;
   state.activeStage = 'script';
-  state.stageStatus = { script: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' };
-  state.stageData   = { script: null, storyboard: null, assets: null, render: null };
+  state.stageStatus = { script: 'idle', voice: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' };
+  state.stageData   = { script: null, voice: null, storyboard: null, assets: null, render: null };
 
   document.getElementById('script-input').value = '';
   document.getElementById('word-count').textContent = '0 words';
   document.getElementById('script-loaded-tag').style.display = 'none';
-  document.getElementById('create-storyboard-btn').disabled = true;
+  document.getElementById('generate-vo-btn').disabled = true;
+  document.getElementById('skip-vo-btn').disabled = true;
   hideErr('script-error');
 
+  resetVoicePane();
   resetStoryboardPane();
   resetAssetsPane();
   resetRenderPane();
@@ -541,8 +576,8 @@ function newRun() {
 async function loadRun(id) {
   state.runId = id;
   state.activeStage = 'script';
-  state.stageStatus = { script: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' };
-  state.stageData   = { script: null, storyboard: null, assets: null, render: null };
+  state.stageStatus = { script: 'idle', voice: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' };
+  state.stageData   = { script: null, voice: null, storyboard: null, assets: null, render: null };
 
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('workspace').style.display = '';
@@ -550,6 +585,7 @@ async function loadRun(id) {
   document.getElementById('auto-confirm').checked = false;
   state.autoConfirm = false;
 
+  resetVoicePane();
   resetStoryboardPane();
   resetAssetsPane();
   resetRenderPane();
@@ -568,6 +604,17 @@ async function loadRun(id) {
       document.getElementById('script-loaded-tag').style.display = '';
       state.stageStatus.script = 'done';
       state.stageData.script = scriptText;
+    }
+  } catch { /* ignore */ }
+
+  // Try to load voice artifact
+  try {
+    const r = await fetch(`/platform/studio/runs/${id}/voice`);
+    if (r.ok) {
+      const data = await r.json();
+      state.stageData.voice = data;
+      state.stageStatus.voice = 'done';
+      renderVoiceResult(data);
     }
   } catch { /* ignore */ }
 
@@ -617,7 +664,8 @@ function onScriptInput() {
   const val = document.getElementById('script-input').value.trim();
   const words = val ? val.split(/\s+/).length : 0;
   document.getElementById('word-count').textContent = `${words} word${words !== 1 ? 's' : ''}`;
-  document.getElementById('create-storyboard-btn').disabled = !val;
+  document.getElementById('generate-vo-btn').disabled = !val;
+  document.getElementById('skip-vo-btn').disabled = !val;
 }
 
 function toggleGeneratePanel() {
@@ -673,7 +721,7 @@ async function generateScript() {
     status.textContent = `✓ ${data.iterations} iteration${data.iterations !== 1 ? 's' : ''}`;
     renderStageTrack();
 
-    if (state.autoConfirm) setTimeout(createStoryboard, 200);
+    if (state.autoConfirm) setTimeout(generateVO, 200);
   } catch (e) {
     clearInterval(timer);
     showErr('script-error', `Network error: ${e.message}`);
@@ -687,16 +735,22 @@ async function createStoryboard() {
   const script = document.getElementById('script-input').value.trim();
   if (!script) { alert('Enter a script first.'); return; }
 
-  const btn = document.getElementById('create-storyboard-btn');
-  const statusEl = document.getElementById('script-stage-status');
-  btn.disabled = true;
+  // Determine which trigger button and error zone to use depending on caller stage
+  const fromVoice = state.activeStage === 'voice';
+  const btn = document.getElementById(fromVoice ? 'create-storyboard-btn2' : 'skip-vo-btn');
+  const errId = fromVoice ? 'voice-error' : 'script-error';
+  const statusEl = document.getElementById(fromVoice ? 'voice-stage-status' : 'script-stage-status');
+  if (btn) btn.disabled = true;
   state.stageStatus.storyboard = 'running';
-  hideErr('script-error');
+  hideErr(errId);
   renderStageTrack();
+  activateStage('storyboard');
 
   const start = Date.now();
-  const timer = setInterval(() => { statusEl.textContent = `Generating… ${elapsed(start)}`; }, 1000);
-  statusEl.textContent = 'Generating…';
+  const timer = setInterval(() => {
+    if (statusEl) statusEl.textContent = `Generating… ${elapsed(start)}`;
+  }, 1000);
+  if (statusEl) statusEl.textContent = 'Generating…';
 
   try {
     const r = await fetch('/platform/workers/storyboard', {
@@ -708,12 +762,12 @@ async function createStoryboard() {
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       state.stageStatus.storyboard = 'error';
-      showErr('script-error', err.detail || `Storyboard error ${r.status}`);
+      showErr(errId, err.detail || `Storyboard error ${r.status}`);
       renderStageTrack();
       return;
     }
     const meta = await r.json();
-    statusEl.textContent = `✓ ${meta.scene_count} scenes (${elapsed(start)})`;
+    if (statusEl) statusEl.textContent = `✓ ${meta.scene_count} scenes (${elapsed(start)})`;
     state.stageStatus.script = 'done';
     state.stageData.script = script;
 
@@ -726,22 +780,121 @@ async function createStoryboard() {
       renderStoryboard(sbData);
     } else {
       state.stageStatus.storyboard = 'done';
-      document.getElementById('sb-content').innerHTML = `<div class="muted">Storyboard generated (${meta.scene_count} scenes). Click Storyboard tab to view.</div>`;
+      document.getElementById('sb-content').innerHTML = `<div class="muted">Storyboard generated (${meta.scene_count} scenes).</div>`;
     }
     renderStageTrack();
     saveLocalRun(state.runId, script.split(/\s+/).slice(0, 6).join(' '));
-    if (state.autoConfirm) {
-      activateStage('storyboard');
-      setTimeout(acquireAssets, 200);
-    }
+    if (state.autoConfirm) setTimeout(acquireAssets, 200);
   } catch (e) {
     clearInterval(timer);
     state.stageStatus.storyboard = 'error';
-    showErr('script-error', `Network error: ${e.message}`);
+    showErr(errId, `Network error: ${e.message}`);
     renderStageTrack();
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
+}
+
+async function generateVO() {
+  if (!state.runId) { alert('Create a new run first.'); return; }
+  const script = document.getElementById('script-input').value.trim();
+  if (!script) { alert('Enter a script first.'); return; }
+
+  const btn = document.getElementById('generate-vo-btn');
+  const skipBtn = document.getElementById('skip-vo-btn');
+  const statusEl = document.getElementById('script-stage-status');
+  btn.disabled = true;
+  skipBtn.disabled = true;
+  state.stageStatus.voice = 'running';
+  hideErr('script-error');
+  renderStageTrack();
+  activateStage('voice');
+
+  const start = Date.now();
+  document.getElementById('voice-content').innerHTML = `
+    <div class="render-running">
+      <span class="dot dot-running"></span>
+      <span id="vo-timer">Generating voiceover… 0s</span>
+    </div>`;
+  document.getElementById('voice-cta').style.display = 'none';
+  const timer = setInterval(() => {
+    const el = document.getElementById('vo-timer');
+    if (el) el.textContent = `Generating voiceover… ${elapsed(start)}`;
+  }, 1000);
+
+  try {
+    const r = await fetch('/platform/workers/voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId, script }),
+    });
+    clearInterval(timer);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      state.stageStatus.voice = 'error';
+      showErr('voice-error', err.detail || `Voice error ${r.status}`);
+      document.getElementById('voice-content').innerHTML = '';
+      renderStageTrack();
+      activateStage('script');
+      btn.disabled = false; skipBtn.disabled = false;
+      return;
+    }
+    const data = await r.json();
+    state.stageData.voice = data;
+    state.stageStatus.voice = 'done';
+    state.stageStatus.script = 'done';
+    state.stageData.script = script;
+    statusEl.textContent = `✓ VO ready (${elapsed(start)})`;
+    renderVoiceResult(data);
+    renderStageTrack();
+    saveLocalRun(state.runId, script.split(/\s+/).slice(0, 6).join(' '));
+    if (state.autoConfirm) setTimeout(createStoryboard, 200);
+  } catch (e) {
+    clearInterval(timer);
+    state.stageStatus.voice = 'error';
+    showErr('voice-error', `Network error: ${e.message}`);
+    document.getElementById('voice-content').innerHTML = '';
+    renderStageTrack();
+    activateStage('script');
+  } finally {
+    btn.disabled = false; skipBtn.disabled = false;
+  }
+}
+
+// ── Voice stage ───────────────────────────────────────────────────────────────
+function resetVoicePane() {
+  document.getElementById('voice-content').innerHTML = '<div class="muted" style="font-size:13px;">No voiceover yet — generate VO from the Script stage.</div>';
+  document.getElementById('voice-cta').style.display = 'none';
+  hideErr('voice-error');
+}
+
+function renderVoiceResult(data) {
+  const dur = data.total_duration_s ? `${data.total_duration_s.toFixed(1)}s` : '—';
+  const words = data.word_count ?? '—';
+  const method = data.alignment_method || '';
+  const isDg = method.startsWith('deepgram');
+  const methodLabel = isDg ? 'Deepgram Nova-2' : method === 'proportional_fallback' ? 'Estimated (no Deepgram)' : method;
+  const methodCls = isDg ? 'voice-method deepgram' : 'voice-method';
+
+  let audioHtml = '';
+  if (data.mp3_url) {
+    audioHtml = `<audio controls src="${esc(data.mp3_url)}"></audio>`;
+  } else {
+    audioHtml = `<div class="muted" style="font-size:12px;">Audio key: ${esc(data.mp3_r2_key || '—')} (no presigned URL)</div>`;
+  }
+
+  document.getElementById('voice-content').innerHTML = `
+    <div class="voice-result">
+      ${audioHtml}
+      <div class="voice-stats">
+        <div class="voice-stat">Duration: <strong>${dur}</strong></div>
+        <div class="voice-stat">Words: <strong>${words}</strong></div>
+        <div class="voice-stat">Alignment: <span class="${methodCls}">${esc(methodLabel)}</span></div>
+      </div>
+    </div>`;
+  document.getElementById('voice-cta').style.display = '';
+  document.getElementById('create-storyboard-btn2').disabled = false;
+  hideErr('voice-error');
 }
 
 // ── Storyboard stage ──────────────────────────────────────────────────────────

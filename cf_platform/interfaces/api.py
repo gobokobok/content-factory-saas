@@ -100,7 +100,7 @@ from cf_platform.workers.storyboard_worker import (
     build_storyboard_worker,
 )
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
-from cf_platform.workers.voice_production import VOICE_PRODUCTION_REGISTRATION, build_voice_production_worker
+from cf_platform.workers.voice_production import VOICE_PRODUCTION_REGISTRATION, VoiceAlignmentArtifact, build_voice_production_worker
 from cf_platform.workers.youtube_metadata import YoutubeMetadataArtifact
 
 router = APIRouter()
@@ -493,12 +493,19 @@ async def storyboard_worker_endpoint(
         lineage=script_lineage,
     )
 
+    # Pick up voice alignment if the Voice stage has already run — gives accurate per-scene timing
+    state_artifacts: dict[str, str] = {"script": script_record.r2_key}
+    va_key = await _latest_artifact_key(storage, body.run_id, "voice", "voice_alignment")
+    if va_key:
+        state_artifacts["voice_alignment"] = va_key
+        _logger.info("Voice alignment found for run %s — using Deepgram timestamps", body.run_id)
+
     worker = build_storyboard_worker(storage, settings.ANTHROPIC_API_KEY)
     state = StageState(
         run_id=body.run_id,
         user_id=_PLATFORM_USER_ID,
         inputs={},
-        artifacts={"script": script_record.r2_key},
+        artifacts=state_artifacts,
     )
     output = await worker(state)
     result_artifact = output.artifact
@@ -527,6 +534,118 @@ async def storyboard_worker_endpoint(
         artifact_key=storyboard_record.r2_key,
         scene_count=result_artifact.scene_count,
         prompt_version=result_artifact.prompt_version,
+    )
+
+
+class VoiceWorkerRequest(BaseModel):
+    """Request body for POST /platform/workers/voice."""
+
+    run_id: str
+    script: str
+
+
+class VoiceWorkerResponse(BaseModel):
+    """Response body for POST /platform/workers/voice."""
+
+    artifact_key: str
+    mp3_r2_key: str
+    mp3_url: Optional[str]
+    alignment_method: str
+    total_duration_s: float
+    word_count: int
+
+
+@router.post("/workers/voice", response_model=VoiceWorkerResponse)
+async def voice_worker_endpoint(
+    body: VoiceWorkerRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> VoiceWorkerResponse:
+    """Generate TTS voiceover and Deepgram word-level timestamps for a script.
+
+    Writes both a script artifact (so the subsequent storyboard step can read it)
+    and a voice_alignment artifact.  The storyboard worker will auto-detect the
+    voice_alignment and use Deepgram timestamps for accurate per-scene durations.
+    Falls back to proportional estimation if Gemini/Deepgram keys are absent.
+    """
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+
+    script_artifact = ScriptArtifact(
+        idea_title="",
+        niche=None,
+        script=body.script,
+        word_count=len(body.script.split()),
+        status="ok",
+        generated_at=datetime.now(),
+    )
+    script_lineage = LineageEnvelope(
+        run_id=body.run_id,
+        worker="voice_request",
+        worker_version="1.0.0",
+        prompt_version="v1",
+        model="none",
+        created_at=datetime.now(),
+    )
+    script_record = await write_artifact(
+        storage,
+        script_artifact,
+        name="script",
+        stage="script",
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        lineage=script_lineage,
+    )
+
+    worker = build_voice_production_worker(
+        storage,
+        gemini_api_key=settings.GEMINI_API_KEY,
+        gemini_tts_voice=settings.GEMINI_TTS_VOICE,
+        deepgram_api_key=settings.DEEPGRAM_API_KEY,
+    )
+    worker_state = StageState(
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        inputs={},
+        artifacts={"script": script_record.r2_key},
+    )
+    output = await worker(worker_state)
+    result = output.artifact
+    if not isinstance(result, VoiceAlignmentArtifact):
+        raise HTTPException(status_code=500, detail="VoiceProductionWorker returned unexpected artifact type")
+
+    voice_lineage = LineageEnvelope(
+        run_id=body.run_id,
+        worker="voice_production",
+        worker_version=VOICE_PRODUCTION_REGISTRATION.worker_version,
+        prompt_version=VOICE_PRODUCTION_REGISTRATION.prompt_version,
+        model=VOICE_PRODUCTION_REGISTRATION.model,
+        created_at=datetime.now(),
+    )
+    voice_record = await write_artifact(
+        storage,
+        result,
+        name="voice_alignment",
+        stage="voice",
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        lineage=voice_lineage,
+    )
+
+    mp3_url: Optional[str] = None
+    if result.mp3_r2_key:
+        try:
+            mp3_url = await storage.generate_presigned_url(result.mp3_r2_key, expires_in=3600)
+        except Exception:
+            pass
+
+    return VoiceWorkerResponse(
+        artifact_key=voice_record.r2_key,
+        mp3_r2_key=result.mp3_r2_key,
+        mp3_url=mp3_url,
+        alignment_method=result.alignment_method,
+        total_duration_s=result.total_duration_s,
+        word_count=len(result.word_timestamps),
     )
 
 
@@ -771,6 +890,33 @@ async def studio_get_manifest(
         raise HTTPException(status_code=404, detail="No asset manifest found for this run.")
     _, body = await read_artifact(storage, key)
     return body
+
+
+@router.get("/studio/runs/{run_id}/voice")
+async def studio_get_voice(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Return the latest voice_alignment artifact for a Studio run, with a presigned audio URL."""
+    key = await _latest_artifact_key(storage, run_id, "voice", "voice_alignment")
+    if not key:
+        raise HTTPException(status_code=404, detail="No voice artifact found for this run.")
+    _, body = await read_artifact(storage, key)
+    mp3_url: Optional[str] = None
+    mp3_r2_key: str = body.get("mp3_r2_key", "")
+    if mp3_r2_key:
+        try:
+            mp3_url = await storage.generate_presigned_url(mp3_r2_key, expires_in=3600)
+        except Exception:
+            pass
+    return {
+        "artifact_key": key,
+        "mp3_r2_key": mp3_r2_key,
+        "mp3_url": mp3_url,
+        "alignment_method": body.get("alignment_method", ""),
+        "total_duration_s": body.get("total_duration_s", 0.0),
+        "word_count": len(body.get("word_timestamps", [])),
+    }
 
 
 @router.get("/studio/runs/{run_id}/video")
