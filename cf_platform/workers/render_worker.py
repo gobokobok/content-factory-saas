@@ -266,6 +266,48 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
     return section, new_source
 
 
+def _collect_overlay_filters(storyboard) -> list[str]:
+    """Return drawtext filter strings for lower_third + on_screen_text overlays.
+
+    Used by _build_render_script to merge overlay rendering into the single
+    post-processing FFmpeg pass rather than a separate invocation.
+    """
+    filters: list[str] = []
+    t_offset = 0.0
+    for scene in storyboard.scenes:
+        opts = scene.render_options
+        if opts:
+            scene_start = t_offset
+            scene_end = t_offset + scene.duration_s
+            enable = f"between(t,{scene_start:.3f},{scene_end:.3f})"
+            if opts.lower_third:
+                lt = opts.lower_third
+                name = _escape_drawtext(lt.name)
+                filters.append(
+                    f"drawtext=text='{name}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
+                    f":fontsize=34:fontcolor=white"
+                    f":x=(w-text_w)/2:y=h-text_h-220:enable='{enable}'"
+                )
+                if lt.title:
+                    title = _escape_drawtext(lt.title)
+                    filters.append(
+                        f"drawtext=text='{title}':fontfile=/usr/local/share/fonts/Poppins-Regular.ttf"
+                        f":fontsize=26:fontcolor=white@0.85"
+                        f":x=(w-text_w)/2:y=h-text_h-270:enable='{enable}'"
+                    )
+            if opts.on_screen_text_overlay:
+                ost = opts.on_screen_text_overlay
+                text = _escape_drawtext(ost.text.upper())
+                filters.append(
+                    f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
+                    f":fontsize=60:fontcolor=white"
+                    f":box=1:boxcolor=black@0.55:boxborderw=18"
+                    f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2:enable='{enable}'"
+                )
+        t_offset += scene.duration_s
+    return filters
+
+
 def _build_render_script(
     run_id: str,
     storyboard,
@@ -286,9 +328,7 @@ def _build_render_script(
     """
     from src.captions import build_captions_ass
     from src.ffmpeg_builder import (
-        _apply_color_grade,
         _audio_section,
-        _burn_voiceover_captions,
         _debug_section,
         _filter_complex_concat,
         _get_color_grade_filter,
@@ -330,7 +370,11 @@ def _build_render_script(
     # Pad BEFORE captions so captions beyond the raw clip duration burn onto the
     # freeze-extended frames rather than being silently dropped.
     parts.append(_pad_video_to_audio_duration("$WORK/video_only.mp4"))
-    video_source = "$WORK/video_padded.mp4"
+
+    # Merge captions + colour grade + overlays into a single FFmpeg pass.
+    # Running them as separate passes meant 3 full decode+encode cycles over the
+    # full video duration. A chained -vf filter handles all three in one pass.
+    post_vf: list[str] = []
 
     if subtitles != "none":
         if scene_words:
@@ -340,17 +384,28 @@ def _build_render_script(
         else:
             ass_content = build_captions_ass(storyboard.scenes, subtitle_style=subtitles)
         parts.append(_write_voiceover_captions_ass(ass_content))
-        parts.append(_burn_voiceover_captions(input_path="$WORK/video_padded.mp4"))
-        video_source = "$WORK/video_captioned.mp4"
+        post_vf.append("ass=$WORK/voiceover_captions.ass")
 
     grade_filter = _get_color_grade_filter(color_grade_preset)
     if grade_filter:
-        parts.append(_apply_color_grade(grade_filter, video_source))
-        video_source = "$WORK/video_graded.mp4"
+        post_vf.append(grade_filter)
 
-    overlay_part, video_source = _overlay_section(storyboard, video_source)
-    if overlay_part:
-        parts.append(overlay_part)
+    post_vf.extend(_collect_overlay_filters(storyboard))
+
+    if post_vf:
+        combined = ",\\\n  ".join(post_vf)
+        parts.append(
+            "# ── Post-process: captions + grade + overlays (single pass) ─\n"
+            'ffmpeg -y \\\n'
+            '  -i "$WORK/video_padded.mp4" \\\n'
+            f'  -vf "{combined}" \\\n'
+            "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
+            '  "$WORK/video_postproc.mp4"'
+        )
+        video_source = "$WORK/video_postproc.mp4"
+    else:
+        video_source = "$WORK/video_padded.mp4"
+
     parts.append(_audio_section(storyboard, audio, video_source=video_source))
     parts.append(f'echo "Done: /tmp/{run_id}/output/final.mp4"')
 
