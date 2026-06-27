@@ -74,7 +74,7 @@ def _film_look_section(storyboard) -> Optional[str]:
                 f"# Film look: scene {n} ({scene.scene})\n"
                 f'ffmpeg -y -i "$WORK/scene_{n}.mp4" \\\n'
                 f'  -vf "{_FILM_LOOK_FILTER}" \\\n'
-                "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+                "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
                 f'  "$WORK/scene_{n}_fl.mp4"\n'
                 f'mv "$WORK/scene_{n}_fl.mp4" "$WORK/scene_{n}.mp4"'
             )
@@ -199,7 +199,7 @@ def _pad_video_to_audio_duration(video_source: str) -> str:
         'if python3 -c "import sys; sys.exit(0 if float(\'$_PAD\') > 0.1 else 1)"; then\n'
         f'  ffmpeg -y -i "{video_source}" \\\n'
         '    -vf "tpad=stop=-1:stop_mode=clone:stop_duration=$_PAD" \\\n'
-        "    -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p \\\n"
+        "    -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p \\\n"
         '    "$WORK/video_padded.mp4"\n'
         "else\n"
         f'  cp "{video_source}" "$WORK/video_padded.mp4"\n'
@@ -260,7 +260,7 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
         "# ── Overlays: lower_third + on_screen_text ─────────────────\n"
         f'ffmpeg -y -i "{video_source}" \\\n'
         f'  -vf "{combined}" \\\n'
-        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
         f'  "{new_source}"'
     )
     return section, new_source

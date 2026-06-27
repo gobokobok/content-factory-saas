@@ -60,7 +60,7 @@ def _apply_color_grade(filter_str: str, video_source: str) -> str:
         "ffmpeg -y \\\n"
         f'  -i "{video_source}" \\\n'
         f'  -vf "{filter_str}" \\\n'
-        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
         '  "$WORK/video_graded.mp4"'
     )
 
@@ -614,7 +614,7 @@ def _render_video_scene(
         # -r forces frame-rate conversion from source fps (e.g. 30) to _FPS (25),
         # ensuring the encoded clip has exactly `frames` frames.
         f"  -r {_FPS} \\\n"
-        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
         # Force the MP4 video track timescale to 1/25 so all per-scene clips share
         # an identical tbn.  Without this flag libx264 writes the container tbn
         # derived from the SOURCE clip (Pexels videos arrive with 12800, 15360, 30000
@@ -657,7 +657,7 @@ def _render_image_scene(
     normal_vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
 
     common_encode = (
-        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
         # Same timescale normalisation as _render_video_scene — see comment there.
         # Image clips using -loop 1 + zoompan inherit a 1/1_000_000 microsecond
         # time base from the still-image decoder; forcing 25 here ensures the clip's
@@ -740,7 +740,7 @@ def _filter_complex_concat(n_scenes: int) -> str:
         # and inflates the output to 2-3x the correct duration.
         # The correct fix is -video_track_timescale 25 on every per-scene clip so all
         # clips share tbn=25 before the concat demuxer accumulates their durations.
-        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
         '  "$WORK/video_only.mp4"'
     )
 
@@ -769,7 +769,7 @@ def _burn_captions() -> str:
         "ffmpeg -y \\\n"
         "  -i \"$WORK/video_only.mp4\" \\\n"
         "  -vf \"ass=$WORK/captions.ass\" \\\n"
-        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
         "  \"$WORK/video_captioned.mp4\""
     )
 
@@ -796,7 +796,7 @@ def _burn_voiceover_captions(input_path: str = "$WORK/video_only.mp4") -> str:
         "ffmpeg -y \\\n"
         f"  -i \"{input_path}\" \\\n"
         "  -vf \"ass=$WORK/voiceover_captions.ass\" \\\n"
-        "  -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p -an \\\n"
+        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
         "  \"$WORK/video_captioned.mp4\""
     )
 
