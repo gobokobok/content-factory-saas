@@ -955,7 +955,7 @@ function renderStoryboard(data) {
           </tr>
         </thead>
         <tbody id="sb-tbody">
-          ${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1])).join('')}
+          ${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1], totalDur)).join('')}
         </tbody>
       </table>
     </div>`;
@@ -965,16 +965,18 @@ function renderStoryboard(data) {
   hideErr('sb-error');
 }
 
-function buildSceneRow(s, nextScene) {
+function buildSceneRow(s, nextScene, totalDur) {
   const ro = s.render_options || {};
   const segCls = s.segment_type === 'Character' ? 'seg-character' : s.segment_type === 'Event' ? 'seg-event' : 'seg-broll';
   const sceneId = esc(s.scene);
 
   // Display duration = gap-based (matches render): from this scene's first word to
-  // next scene's first word. Falls back to word-span if timestamps unavailable.
+  // next scene's first word. Last scene extends to end of audio (includes trailing silence).
   let displayDur = s.duration_s || 0;
   if (nextScene && s.scene_start_ms != null && nextScene.scene_start_ms != null) {
     displayDur = (nextScene.scene_start_ms - s.scene_start_ms) / 1000;
+  } else if (!nextScene && s.scene_start_ms != null && totalDur) {
+    displayDur = totalDur - s.scene_start_ms / 1000;
   }
 
   // Visual badge from asset_tier (P9-S9) or clip_type fallback
