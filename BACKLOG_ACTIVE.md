@@ -1263,12 +1263,93 @@ Replace the text-matching approach in `assign_words_to_scenes` with timestamp-ba
 
 | Sprint | Theme | Key stories |
 |--------|-------|-------------|
-| P10 | Render quality | Dip-to-black + chapter title cards between segment sections; xfade dissolves within same segment type; slow motion for Emotion scenes (`setpts=2.0*PTS`); per-clip `loudnorm` audio normalization; quote cards (full-frame `drawtext` for Data scenes); chart PNG generation (matplotlib → R2 → overlay); **two-pass storyboard** (Pass 1: Sonnet generates core scene structure; Pass 2: Haiku assigns render_options) — removes 16K token ceiling, safe to ~10 min videos |
-| P11 | AI asset library | `/library/` R2 cache layer (portrait + map + chart); portrait colorization via Real-ESRGAN + DeOldify (Replicate); background removal for parallax (rembg); map generation via Mapbox Static API (D entry required); number callout overlays (`drawtext` large-type stat highlight) |
-| P12 | Format tracks | `format_track: Literal["documentary","educational","animated"]` at PipelineState level; `--format` flag in Telegram `/run`; per-track storyboard prompts (different segment_type mix); per-track render templates (different filter presets); animated track stub (returns error until P13–P14) |
+| P10 | Render quality + Studio asset control | Dip-to-black + chapter title cards; xfade dissolves; slow motion for Emotion scenes; per-clip `loudnorm`; quote cards; chart PNG generation; **two-pass storyboard**; **per-scene asset override (P9-S8)** |
+| P11 | AI asset library | `/library/` R2 cache layer (portrait + map + chart); portrait colorization via Real-ESRGAN + DeOldify (Replicate); background removal for parallax (rembg); map generation via Mapbox Static API (D entry required); number callout overlays |
+| P12 | Format tracks | `format_track: Literal["documentary","educational","animated"]` at PipelineState level; per-track storyboard prompts; per-track render templates |
 | P13 | Analytics & attribution | Publish linkage capture; YouTube metrics ingestion; retention-by-prompt-version report |
 | P14 | n8n automation | Callback webhook for n8n; YouTube OAuth upload; scheduled publication with operator preview |
 | P15 | Multi-tenant SaaS frontend | Multi-channel per tenant; multi-run per channel; operator UI rebuild |
+
+---
+
+## [P9-S8] Per-scene asset override — custom query re-acquire + operator upload
+**Epic:** E36 — Native Documentary Production Graph
+**Sprint:** P9 (studio polish, ships with P10)
+**Status:** todo
+**Priority:** high
+**Points:** 4
+**Depends on:** P9-S3
+
+### Goal
+Let the operator override any scene's asset from the Studio Assets screen — either by re-running acquisition with custom search keywords, or by uploading their own file. A slide-in edit panel (right 1/3 of the screen) opens per scene and shows all scene metadata plus the two override paths.
+
+**Multi-agent self-improvement alignment:**
+- **Information Ownership (D060):** re-acquisition runs the same `_run_acquisition_for_scene` logic as the full AcquisitionWorker — no ad-hoc R2 writes that bypass the acquisition layer. Query overrides are worker inputs, not mutations.
+- **Artifact immutability (D057):** every override writes a new `asset_manifest` artifact version. The original auto-generated manifest is preserved.
+- **Feedback signal:** every operator correction is emitted as a `TraceEvent` with type `"operator_asset_override"` carrying `{scene_id, reason: "reacquire"|"upload", original_source, original_query, override_query?}`. A future query-quality judge can replay these to identify patterns in which auto-generated STK queries consistently fail — closing the self-improvement loop without any changes to this story's code.
+
+### UI spec (studio.html)
+- Each row in the Assets table has an edit icon (pencil) on the right.
+- Clicking opens a slide-in right panel (320px, `transform: translateX(100%)` → `0`; backdrop clicks outside close it).
+- Panel header: scene ID + segment type.
+- Panel body two sections:
+
+  **Re-acquire with custom query**
+  ```
+  [text input: custom primary_stk query (pre-filled with current value)]
+  [text input: context query (optional)]
+  [Re-acquire] button → spinner while running
+  → On success: preview link refreshes; panel stays open
+  ```
+
+  **Upload your own asset**
+  ```
+  [file drop zone / file picker: video (mp4/webm) or image (jpg/png/webp)]
+  → progress bar during upload
+  → On success: preview link refreshes; panel closes
+  ```
+
+- Re-acquire and upload are mutually exclusive — using one disables the other during the operation.
+- On success, the row in the table refreshes (status, source badge, QA, preview link).
+- Panel highlights the active scene row.
+
+### Backend spec
+
+**`POST /platform/studio/runs/{run_id}/assets/{scene_id}/reacquire`**
+```json
+{ "primary_stk": "...", "context_stk": "...", "concept_stk": "..." }
+```
+- Read latest `asset_manifest` artifact for the run.
+- Find the `ManifestEntry` for `scene_id`; apply query overrides.
+- Read latest `verified_storyboard` artifact; find scene's `segment_type`, `person_name`.
+- Call the same `_run_acquisition_for_scene(entry, pexels, pixabay, wikimedia, storage)` internal function already used by `build_acquisition_worker`; this ensures routing (Character → person photo; Event → Wikimedia first; B-roll → concurrent Pexels+Pixabay) is preserved.
+- Patch the entry in the manifest dict; write a new `asset_manifest` version via `write_artifact`.
+- Emit `TraceEvent(type="operator_asset_override", data={scene_id, reason="reacquire", ...})`.
+- Return `{ file_key, source, qa_passed, qa_clip_score, asset_url }` (presigned URL for immediate preview).
+
+**`POST /platform/studio/runs/{run_id}/assets/{scene_id}/upload`**
+- `multipart/form-data` with a single `file` field.
+- Detect MIME type → choose R2 key: `runs/{run_id}/images/scene_{scene_id}_operator.{ext}` or `runs/{run_id}/video/scene_{scene_id}_operator.{ext}`.
+- Upload bytes via `storage.put_bytes(key, data, content_type)`.
+- Patch manifest entry: `file_key=key, source="operator_upload", qa_passed=True, qa_resolution_ok=None, qa_clip_score=None, fallback_used=False, status="acquired"`.
+- Write new `asset_manifest` artifact version.
+- Emit `TraceEvent(type="operator_asset_override", data={scene_id, reason="upload", ...})`.
+- Return `{ file_key, asset_url }`.
+
+**Refactor note:** extract `_run_acquisition_for_scene(entry, pexels_client, pixabay_client, wikimedia_client, storage, run_id) → ManifestEntry` as a module-level function from `acquisition_worker.py`'s inner `_worker`. Currently the routing logic is inlined inside the closure. The re-acquire endpoint needs to call it standalone. No behaviour change — just extraction.
+
+### Acceptance Criteria
+- [ ] `_run_acquisition_for_scene` extracted as a standalone importable function from `acquisition_worker.py`; full acquisition worker tests still pass
+- [ ] `POST .../assets/{scene_id}/reacquire`: runs single-scene acquisition with overridden queries; writes new manifest version; returns presigned URL
+- [ ] `POST .../assets/{scene_id}/upload`: accepts `multipart/form-data`; uploads to R2; patches manifest; returns presigned URL
+- [ ] Both endpoints emit `operator_asset_override` TraceEvent with full override metadata
+- [ ] Studio UI: edit panel opens/closes cleanly; re-acquire shows spinner + refreshes row on success; upload shows progress + refreshes row on success; errors shown inline in the panel
+- [ ] Original auto-generated manifest artifact is never mutated — only new versions written
+- [ ] Tests: `_run_acquisition_for_scene` unit tests (Character/Event/B-roll routing); reacquire endpoint (success, scene not found, acquisition fail); upload endpoint (video, image, oversized file rejected); manifest version increments; TraceEvent emitted
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] **Human touchpoint:** operator sees Assets table → clicks pencil on a scene → edits query or uploads file → preview link refreshes in the panel
 
 ---
 
