@@ -925,7 +925,9 @@ function renderStoryboard(data) {
   const summary = data?.storyboard?.summary || {};
   const global_ = data?.storyboard?.global || {};
 
-  const totalDur = summary.total_duration_s || 0;
+  // Prefer actual audio duration (voice_alignment) over storyboard word-span sum.
+  // The storyboard summary omits inter-scene silences; the audio duration is ground truth.
+  const totalDur = state.stageData.voiceAlignment?.total_duration_s || summary.total_duration_s || 0;
   const durStr = totalDur >= 60
     ? `${Math.floor(totalDur/60)}m ${Math.round(totalDur%60)}s`
     : `${Math.round(totalDur)}s`;
