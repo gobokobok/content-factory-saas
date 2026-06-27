@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
-from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact
+from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
 from src.exceptions import PexelsError
 from src.footage_qa import QAResult, pick_best, qa_score
 from src.models import AssetManifest, ManifestEntry, Storyboard
@@ -553,7 +553,7 @@ def build_acquisition_worker(
         sb_key = state.artifacts["verified_storyboard"]
         _, sb_body = await read_artifact(storage, sb_key)
         sb_artifact = VerifiedStoryboardArtifact.model_validate(sb_body)
-        storyboard = Storyboard.model_validate(sb_artifact.storyboard)
+        storyboard = Storyboard.model_validate(_sanitize_storyboard_data(sb_artifact.storyboard))
 
         # Build manifest entries from v2 storyboard scene fields
         entries: list[ManifestEntry] = []

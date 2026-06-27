@@ -957,7 +957,7 @@ async def studio_patch_scene(
     Recomputes render_options for all scenes (cumulative timing must stay coherent)
     using the same _patch_storyboard logic as the StoryboardWorker's internal cycle.
     """
-    from cf_platform.workers.storyboard_worker import _patch_storyboard, VerifiedStoryboardArtifact
+    from cf_platform.workers.storyboard_worker import _apply_patches_and_render_options, _sanitize_storyboard_data, VerifiedStoryboardArtifact
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
     from src.models import Storyboard
@@ -967,7 +967,7 @@ async def studio_patch_scene(
         raise HTTPException(status_code=404, detail="No storyboard found — run storyboard generation first.")
 
     _, artifact_body = await read_artifact(storage, key)
-    storyboard = Storyboard.model_validate(artifact_body["storyboard"])
+    storyboard = Storyboard.model_validate(_sanitize_storyboard_data(artifact_body["storyboard"]))
 
     patches: list[dict] = []
     if body.clear_on_screen_text:
@@ -990,7 +990,7 @@ async def studio_patch_scene(
     if not patches:
         raise HTTPException(status_code=400, detail="No patchable fields provided.")
 
-    patched_storyboard = _patch_storyboard(storyboard, patches)
+    patched_storyboard = _apply_patches_and_render_options(storyboard, patches)
 
     new_artifact = VerifiedStoryboardArtifact(
         prompt_version=artifact_body.get("prompt_version", "patched"),
