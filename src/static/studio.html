@@ -255,6 +255,11 @@
     .qa-fail { color: var(--red); font-weight: 600; }
     .status-acquired { color: var(--green); }
     .status-failed   { color: var(--red); }
+    .asset-preview-link {
+      font-size: 11px; color: var(--blue); text-decoration: none; white-space: nowrap;
+    }
+    .asset-preview-link:hover { text-decoration: underline; }
+
     .source-badge {
       font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
       background: var(--bg-alt); border: 1px solid var(--border); color: var(--muted);
@@ -1141,7 +1146,7 @@ function renderManifest(data) {
             <th>QA</th>
             <th>Fallback</th>
             <th>Status</th>
-            <th>File Key</th>
+            <th>Preview</th>
           </tr>
         </thead>
         <tbody>
@@ -1150,6 +1155,11 @@ function renderManifest(data) {
             const qaLabel = e.qa_passed === true ? `✓ ${e.qa_clip_score != null ? e.qa_clip_score.toFixed(2) : ''}` : e.qa_passed === false ? `✗` : '—';
             const statusCls = e.status === 'acquired' ? 'status-acquired' : 'status-failed';
             const fk = e.file_key ? e.file_key.split('/').pop() : '—';
+            const isVideo = e.file_key && /\.(mp4|webm|mov)$/i.test(e.file_key);
+            const previewIcon = isVideo ? '▶' : '⬚';
+            const previewCell = e.asset_url
+              ? `<a href="${esc(e.asset_url)}" target="_blank" rel="noopener" class="asset-preview-link" title="${esc(fk)}">${previewIcon} Preview</a>`
+              : `<span class="muted">—</span>`;
             return `<tr>
               <td class="mono narrow">${esc(e.scene_id)}</td>
               <td class="narrow">${esc(e.clip_type || e.segment_type || '—')}</td>
@@ -1157,7 +1167,7 @@ function renderManifest(data) {
               <td class="narrow ${qaCls}">${qaLabel}</td>
               <td class="narrow">${e.fallback_used ? '⚠ yes' : '—'}</td>
               <td class="narrow ${statusCls}">${esc(e.status || '—')}</td>
-              <td class="mono" style="font-size:10px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(fk)}</td>
+              <td class="narrow">${previewCell}</td>
             </tr>`;
           }).join('')}
         </tbody>

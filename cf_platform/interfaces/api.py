@@ -884,11 +884,22 @@ async def studio_get_manifest(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
-    """Return the latest asset_manifest artifact body for a Studio run."""
+    """Return the latest asset_manifest artifact body, enriched with 1-hour presigned URLs.
+
+    Each manifest entry gains an asset_url field so the Studio UI can render
+    preview links without a second round-trip per scene.
+    """
     key = await _latest_artifact_key(storage, run_id, "acquisition", "asset_manifest")
     if not key:
         raise HTTPException(status_code=404, detail="No asset manifest found for this run.")
     _, body = await read_artifact(storage, key)
+    for entry in body.get("manifest", {}).get("entries", []):
+        file_key: Optional[str] = entry.get("file_key")
+        if file_key:
+            try:
+                entry["asset_url"] = await storage.generate_presigned_url(file_key, expires_in=3600)
+            except Exception:
+                entry["asset_url"] = None
     return body
 
 
