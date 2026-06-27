@@ -753,16 +753,17 @@ class RenderWorkerResponse(BaseModel):
 
 async def _run_render_background(
     run_id: str,
+    job_id: str,
     state: StageState,
     worker: Any,
     storage: ArtifactStorage,
     settings: Any,
 ) -> None:
-    """Background task: runs FFmpeg render and writes artifact or error marker to R2."""
+    """Background task: runs FFmpeg render and updates current_job.json in R2."""
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
-    error_key = f"runs/{run_id}/render/error.json"
+    job_key = f"runs/{run_id}/render/current_job.json"
     try:
         output = await worker(state)
         result_artifact = output.artifact
@@ -786,11 +787,18 @@ async def _run_render_background(
             user_id=_PLATFORM_USER_ID,
             lineage=render_lineage,
         )
-        _logger.info("RenderWorker background task complete for run %s", run_id)
+        await storage.put_json(job_key, {
+            "job_id": job_id,
+            "status": "complete",
+            "video_key": result_artifact.video_key,
+            "scene_count": result_artifact.scene_count,
+            "duration_s": result_artifact.duration_s,
+        })
+        _logger.info("RenderWorker background task complete for run %s job %s", run_id, job_id)
     except Exception as exc:
         _logger.exception("RenderWorker background task failed for run %s: %s", run_id, exc)
         try:
-            await storage.put_json(error_key, {"error": str(exc), "run_id": run_id})
+            await storage.put_json(job_key, {"job_id": job_id, "status": "error", "error": str(exc)})
         except Exception:
             pass
 
@@ -807,6 +815,7 @@ async def render_worker_endpoint(
     The actual render runs as a background task — FFmpeg can take several minutes.
     Poll GET /platform/studio/runs/{run_id}/render/status for progress.
     """
+    import uuid as _uuid_mod
 
     def _latest_key(keys: list[str]) -> str:
         return sorted(keys)[-1]
@@ -851,14 +860,17 @@ async def render_worker_endpoint(
         artifacts=artifacts,
     )
 
-    # Clear any previous error marker so polling reflects the new attempt
-    try:
-        await storage.put_json(f"runs/{body.run_id}/render/error.json", {})
-    except Exception:
-        pass
+    # Write job marker BEFORE enqueuing so the status endpoint knows a fresh render is running.
+    # This prevents the old final.mp4 (from a previous killed render) from being returned
+    # as "complete" before the new FFmpeg job finishes.
+    job_id = str(_uuid_mod.uuid4())
+    await storage.put_json(
+        f"runs/{body.run_id}/render/current_job.json",
+        {"job_id": job_id, "status": "running"},
+    )
 
-    background_tasks.add_task(_run_render_background, body.run_id, state, worker, storage, settings)
-    _logger.info("RenderWorker background task enqueued for run %s", body.run_id)
+    background_tasks.add_task(_run_render_background, body.run_id, job_id, state, worker, storage, settings)
+    _logger.info("RenderWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return RenderWorkerResponse(status="accepted", run_id=body.run_id)
 
 
@@ -968,19 +980,40 @@ async def studio_get_render_status(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
-    """Poll render progress.  Returns {status: running|complete|error, video_url?, error?}."""
+    """Poll render progress.  Returns {status: running|complete|error, video_url?, error?}.
+
+    Uses current_job.json written by the render endpoint as the source of truth so that
+    a stale final.mp4 from a previously-killed render is not mistaken for a completed job.
+    """
+    job_key = f"runs/{run_id}/render/current_job.json"
+    try:
+        job = await storage.get_json(job_key)
+        if job:
+            if job.get("status") == "complete":
+                video_key = job.get("video_key", f"runs/{run_id}/output/final.mp4")
+                try:
+                    url = await storage.generate_presigned_url(video_key, expires_in=86400)
+                except Exception:
+                    url = None
+                return {
+                    "status": "complete",
+                    "video_url": url,
+                    "video_key": video_key,
+                    "scene_count": job.get("scene_count"),
+                    "duration_s": job.get("duration_s"),
+                }
+            if job.get("status") == "error":
+                return {"status": "error", "error": job.get("error", "Render failed")}
+            # status == "running"
+            return {"status": "running"}
+    except Exception:
+        pass
+
+    # Fallback for runs rendered before the background-task refactor
     video_key = f"runs/{run_id}/output/final.mp4"
     try:
         url = await storage.generate_presigned_url(video_key, expires_in=86400)
         return {"status": "complete", "video_url": url, "video_key": video_key}
-    except Exception:
-        pass
-
-    error_key = f"runs/{run_id}/render/error.json"
-    try:
-        error_body = await storage.get_json(error_key)
-        if error_body and error_body.get("error"):
-            return {"status": "error", "error": error_body["error"]}
     except Exception:
         pass
 
