@@ -953,7 +953,7 @@ function renderStoryboard(data) {
           </tr>
         </thead>
         <tbody id="sb-tbody">
-          ${scenes.map(s => buildSceneRow(s)).join('')}
+          ${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1])).join('')}
         </tbody>
       </table>
     </div>`;
@@ -963,10 +963,17 @@ function renderStoryboard(data) {
   hideErr('sb-error');
 }
 
-function buildSceneRow(s) {
+function buildSceneRow(s, nextScene) {
   const ro = s.render_options || {};
   const segCls = s.segment_type === 'Character' ? 'seg-character' : s.segment_type === 'Event' ? 'seg-event' : 'seg-broll';
   const sceneId = esc(s.scene);
+
+  // Display duration = gap-based (matches render): from this scene's first word to
+  // next scene's first word. Falls back to word-span if timestamps unavailable.
+  let displayDur = s.duration_s || 0;
+  if (nextScene && s.scene_start_ms != null && nextScene.scene_start_ms != null) {
+    displayDur = (nextScene.scene_start_ms - s.scene_start_ms) / 1000;
+  }
 
   // Visual badge from asset_tier (P9-S9) or clip_type fallback
   let visCls = 'vis-still', visLabel = 'still·motion';
@@ -989,7 +996,7 @@ function buildSceneRow(s) {
 
   return `<tr data-scene="${sceneId}">
     <td class="mono narrow">${sceneId}</td>
-    <td class="mono narrow">${(s.duration_s || 0).toFixed(1)}s</td>
+    <td class="mono narrow">${displayDur.toFixed(1)}s</td>
     <td class="wrap" style="max-width:220px;font-size:11px;color:var(--text-sub);">${esc(s.voiceover_line || '')}</td>
     <td class="narrow"><span class="seg-badge ${segCls}">${esc(s.segment_type || 'B-roll')}</span></td>
     <td class="narrow"><span class="vis-badge ${visCls}">${visLabel}</span></td>
