@@ -496,15 +496,43 @@ def build_render_worker(
                         )
                         for w in va.word_timestamps
                     ]
-                    if va.alignment_method == "deepgram_nova2":
-                        # Two-pass assignment so word windows are accurate even when
-                        # estimated storyboard durations differ from actual VO pace.
-                        # Pass 1: assign using estimated durations → rough aligned durations
+                    has_scene_timestamps = all(
+                        s.scene_start_ms is not None for s in storyboard.scenes
+                    )
+                    if va.alignment_method == "deepgram_nova2" and has_scene_timestamps:
+                        # P9-S9 fast path: every scene carries scene_start_ms from
+                        # Deepgram timestamps.  Assign words and derive durations
+                        # directly — no heuristic cumulative-window drift.
+                        import bisect
+                        boundaries_ms = [s.scene_start_ms for s in storyboard.scenes]
+                        raw_scene_words = [[] for _ in storyboard.scenes]
+                        for w in src_timestamps:
+                            idx = bisect.bisect_right(boundaries_ms, w.start_ms) - 1
+                            idx = max(0, min(idx, len(storyboard.scenes) - 1))
+                            raw_scene_words[idx].append(w)
+                        # Gap-based durations: scene N holds until scene N+1's first
+                        # word; last scene holds through end of audio (fixes freeze).
+                        adjusted = []
+                        n_scenes = len(storyboard.scenes)
+                        for i, scene in enumerate(storyboard.scenes):
+                            if i < n_scenes - 1:
+                                dur = (
+                                    storyboard.scenes[i + 1].scene_start_ms
+                                    - scene.scene_start_ms
+                                ) / 1000.0
+                            else:
+                                dur = va.total_duration_s - scene.scene_start_ms / 1000.0
+                            adjusted.append(
+                                scene.model_copy(
+                                    update={"duration_s": max(0.08, round(dur, 3))}
+                                )
+                            )
+                    elif va.alignment_method == "deepgram_nova2":
+                        # Legacy two-pass path for storyboards without scene_start_ms.
                         words_pass1 = assign_words_to_scenes(storyboard.scenes, src_timestamps)
                         adjusted_pass1 = compute_scene_durations_from_alignment(
                             storyboard.scenes, words_pass1
                         )
-                        # Pass 2: assign using aligned durations → tight word windows
                         scenes_pass1 = storyboard.model_copy(
                             update={"scenes": adjusted_pass1}
                         ).scenes

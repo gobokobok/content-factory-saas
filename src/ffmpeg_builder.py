@@ -538,12 +538,31 @@ def _scene_section(
     out_h: int = _OUT_H,
     blur_fill_enabled: bool = True,
 ) -> str:
-    """Generate one ffmpeg command per scene."""
-    parts = ["# ── Per-scene processing ─────────────────────────────────"]
+    """Generate one ffmpeg command per scene, run in parallel with a concurrency cap."""
+    cmds = []
     for i, scene in enumerate(storyboard.scenes, 1):
         entry = entries[scene.scene]
-        parts.append(_render_scene(scene, entry, run_id, i, out_w, out_h, blur_fill_enabled=blur_fill_enabled))
-    return "\n\n".join(parts)
+        cmds.append(_render_scene(scene, entry, run_id, i, out_w, out_h, blur_fill_enabled=blur_fill_enabled))
+
+    # Run scene encodes in parallel (max 4 concurrent jobs) — large win for still images
+    # since zoompan/scale per-frame processing is CPU-bound and mostly independent.
+    lines = ["# ── Per-scene processing (parallel, ≤4 concurrent) ──────────"]
+    lines.append("_JOBS=(); _MAX=4")
+    lines.append("")
+    for cmd in cmds:
+        # Append & to run in background; track PID; drain queue when full
+        bg_cmd = cmd.rstrip() + " &\n_JOBS+=($!)"
+        lines.append(bg_cmd)
+        lines.append(
+            'if [ ${#_JOBS[@]} -ge $_MAX ]; then\n'
+            '  for _pid in "${_JOBS[@]}"; do wait "$_pid" || exit 1; done\n'
+            '  _JOBS=()\n'
+            'fi'
+        )
+        lines.append("")
+    lines.append('for _pid in "${_JOBS[@]}"; do wait "$_pid" || exit 1; done')
+    lines.append("unset _JOBS _MAX")
+    return "\n".join(lines)
 
 
 _IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
@@ -651,10 +670,14 @@ def _render_image_scene(
         f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
         f"crop={out_w}:{out_h}"
     )
-    zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames, out_w, out_h)
-    # fps filter AFTER zoompan rewrites PTS to a 1/{_FPS} time base, fixing the
-    # "MB rate > level limit" libx264 error caused by looped-image microsecond time bases.
-    normal_vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
+    # "scale" motion effect = purely static; zoompan processes every frame individually
+    # even with a constant z value, which is slow.  Skip it and use fps= alone to
+    # normalise PTS from the looped-image microsecond time base.
+    if scene.motion_effect == "scale":
+        normal_vf = f"{scale_vf},fps={_FPS},setsar=1:1"
+    else:
+        zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames, out_w, out_h)
+        normal_vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
 
     common_encode = (
         "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
@@ -681,15 +704,18 @@ def _render_image_scene(
         )
 
     # Blur-fill for portrait photos: blurred full-frame background + portrait
-    # scaled to fit, with zoompan applied to the composite so the portrait isn't
-    # static.  The [composite] pad feeds the same zoompan filter used by normal
-    # scenes — gentle 1.0→1.05 zoom for still_with_motion, motion_effect for animated.
+    # scaled to fit.  For "scale" motion effect, skip zoompan on the composite too.
+    composite_motion = (
+        f"fps={_FPS},setsar=1:1"
+        if scene.motion_effect == "scale"
+        else f"{zoompan_vf},fps={_FPS},setsar=1:1"
+    )
     blur_vf = (
         f"[in]split=2[bg][fg];"
         f"[bg]scale={out_w}:{out_h},boxblur=20:5[blurred];"
         f"[fg]scale=iw*min({out_w}/iw\\,{out_h}/ih):ih*min({out_w}/iw\\,{out_h}/ih)[fitted];"
         f"[blurred][fitted]overlay=(W-w)/2:(H-h)/2[composite];"
-        f"[composite]{zoompan_vf},fps={_FPS},setsar=1:1"
+        f"[composite]{composite_motion}"
     )
     return (
         f"{header}\n"
