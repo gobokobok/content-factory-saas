@@ -429,8 +429,8 @@
         <div class="muted" style="font-size:13px;">No assets yet — acquire after storyboard is ready.</div>
       </div>
       <div class="stage-cta" id="assets-cta" style="display:none;">
-        <button class="btn btn-primary" id="render-btn" onclick="renderVideo()">
-          Render Video →
+        <button class="btn btn-primary" onclick="activateStage('render')">
+          Go to Render →
         </button>
         <span id="assets-stage-status" class="running-msg"></span>
       </div>
@@ -438,9 +438,22 @@
 
     <!-- Render stage -->
     <div class="stage-pane" id="pane-render">
-      <div id="render-error" class="error-bar" style="display:none;"></div>
-      <div id="render-content">
-        <div class="muted" style="font-size:13px;">No video yet — acquire assets first.</div>
+      <div style="max-width:700px;">
+        <div class="stage-title">Render</div>
+        <div class="stage-subtitle">Assemble scenes, voiceover, captions and music into final.mp4</div>
+        <div id="render-error" class="error-bar" style="display:none;"></div>
+        <div id="render-content">
+          <div class="muted" style="font-size:13px;">No video yet — acquire assets first.</div>
+        </div>
+        <div class="stage-cta" id="render-cta">
+          <label style="font-size:12px;color:var(--muted);margin-right:8px;">Aspect ratio</label>
+          <select id="format-track-select" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg-alt);color:var(--text);margin-right:12px;">
+            <option value="landscape" selected>16:9 Landscape</option>
+            <option value="portrait">9:16 Portrait (Shorts)</option>
+          </select>
+          <button class="btn btn-primary" id="render-btn" onclick="renderVideo()">Render Video →</button>
+          <span id="render-stage-status" class="running-msg"></span>
+        </div>
       </div>
     </div>
 
@@ -999,11 +1012,20 @@ async function saveOst(sceneId) {
   const cell = document.getElementById(`ost-${sceneId}`);
   cell.classList.remove('editing');
   cell.innerHTML = val ? `<span>${esc(val)}</span>` : '<span class="muted">—</span>';
-  await patchScene(sceneId, { on_screen_text: val || null });
+  // Always send type alongside text so _apply_patches_and_render_options generates the overlay.
+  // If the type dropdown is still unset, default to 'stat' (most common overlay type).
+  const typeEl = document.getElementById(`osttype-${sceneId}`);
+  const currentType = typeEl?.value || null;
+  const fields = { on_screen_text: val || null };
+  if (val) fields.on_screen_text_type = currentType || 'stat';
+  else fields.on_screen_text_type = null;
+  await patchScene(sceneId, fields);
 }
 
 async function saveOstType(sceneId, val) {
-  await patchScene(sceneId, { on_screen_text_type: val || null });
+  // Re-send the current text too so both fields are patched atomically.
+  const currentText = state.stageData.storyboard?.storyboard?.scenes?.find(s => s.scene === sceneId)?.on_screen_text || null;
+  await patchScene(sceneId, { on_screen_text: currentText, on_screen_text_type: val || null });
 }
 
 // Inline editing — primary stock query
@@ -1175,7 +1197,6 @@ function renderManifest(data) {
     </div>`;
 
   document.getElementById('assets-cta').style.display = '';
-  document.getElementById('render-btn').disabled = false;
   hideErr('assets-error');
 }
 
@@ -1211,7 +1232,10 @@ async function renderVideo() {
     const r = await fetch('/platform/workers/render', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ run_id: state.runId }),
+      body: JSON.stringify({
+        run_id: state.runId,
+        format_track: document.getElementById('format-track-select')?.value || 'landscape',
+      }),
     });
     if (!r.ok) {
       clearInterval(timerInterval);

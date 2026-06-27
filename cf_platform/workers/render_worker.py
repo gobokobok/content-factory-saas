@@ -184,14 +184,18 @@ def _pad_video_to_audio_duration(video_source: str) -> str:
     (they often do because TTS pace varies), the final frame freezes while
     audio plays on. This step measures both durations at runtime and applies
     tpad=stop_mode=clone to freeze-extend the video cleanly.
+
+    Uses $VO (set by _voiceover_check) rather than a hardcoded path so the
+    correct voiceover file is always probed regardless of filename/extension.
     """
     return (
         "# ── Pad video to match voiceover duration ───────────────────\n"
         f'_VID_DUR=$(ffprobe -v quiet -print_format json -show_format "{video_source}" \\\n'
         "  | python3 -c \"import sys,json; print(json.load(sys.stdin)['format']['duration'])\" 2>/dev/null || echo 0)\n"
-        '_VO_DUR=$(ffprobe -v quiet -print_format json -show_format "$WORK/voiceover/generated.wav" \\\n'
+        '_VO_DUR=$(ffprobe -v quiet -print_format json -show_format "$VO" \\\n'
         "  | python3 -c \"import sys,json; print(json.load(sys.stdin)['format']['duration'])\" 2>/dev/null || echo 0)\n"
         '_PAD=$(python3 -c "v=float(\'$_VID_DUR\'); a=float(\'$_VO_DUR\'); print(max(0.0, a - v))")\n'
+        'echo "Pad: video=${_VID_DUR}s  vo=${_VO_DUR}s  pad=${_PAD}s"\n'
         'if python3 -c "import sys; sys.exit(0 if float(\'$_PAD\') > 0.1 else 1)"; then\n'
         f'  ffmpeg -y -i "{video_source}" \\\n'
         '    -vf "tpad=stop=-1:stop_mode=clone:stop_duration=$_PAD" \\\n'
@@ -437,12 +441,26 @@ def build_render_worker(
                         )
                         for w in va.word_timestamps
                     ]
-                    raw_scene_words = assign_words_to_scenes(storyboard.scenes, src_timestamps)
                     if va.alignment_method == "deepgram_nova2":
+                        # Two-pass assignment so word windows are accurate even when
+                        # estimated storyboard durations differ from actual VO pace.
+                        # Pass 1: assign using estimated durations → rough aligned durations
+                        words_pass1 = assign_words_to_scenes(storyboard.scenes, src_timestamps)
+                        adjusted_pass1 = compute_scene_durations_from_alignment(
+                            storyboard.scenes, words_pass1
+                        )
+                        # Pass 2: assign using aligned durations → tight word windows
+                        scenes_pass1 = storyboard.model_copy(
+                            update={"scenes": adjusted_pass1}
+                        ).scenes
+                        raw_scene_words = assign_words_to_scenes(scenes_pass1, src_timestamps)
                         adjusted = compute_scene_durations_from_alignment(
-                            storyboard.scenes, raw_scene_words
+                            scenes_pass1, raw_scene_words
                         )
                     else:
+                        raw_scene_words = assign_words_to_scenes(
+                            storyboard.scenes, src_timestamps
+                        )
                         adjusted = redistribute_scene_durations(
                             storyboard.scenes, va.total_duration_s
                         )
@@ -461,7 +479,7 @@ def build_render_worker(
                 )
 
         # Build render script
-        format_track: str = state.inputs.get("format_track", "portrait")
+        format_track: str = state.inputs.get("format_track", "landscape")
         script_content = _build_render_script(
             run_id=run_id,
             storyboard=storyboard,

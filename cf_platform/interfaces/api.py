@@ -742,6 +742,7 @@ class RenderWorkerRequest(BaseModel):
     """Request body for POST /platform/workers/render."""
 
     run_id: str
+    format_track: str = "landscape"
 
 
 class RenderWorkerResponse(BaseModel):
@@ -856,7 +857,7 @@ async def render_worker_endpoint(
     state = StageState(
         run_id=body.run_id,
         user_id=_PLATFORM_USER_ID,
-        inputs={},
+        inputs={"format_track": body.format_track},
         artifacts=artifacts,
     )
 
