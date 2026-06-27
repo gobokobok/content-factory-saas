@@ -222,16 +222,18 @@
       display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px;
       border-radius: 3px; white-space: nowrap;
     }
-    .seg-broll   { background: #f0f9ff; color: #0369a1; }
-    .seg-event   { background: #fef3c7; color: #92400e; }
+    .seg-broll     { background: #f0f9ff; color: #0369a1; }
+    .seg-event     { background: #fef3c7; color: #92400e; }
     .seg-character { background: #f0fdf4; color: #166534; }
 
-    .render-flags { display: flex; gap: 4px; flex-wrap: wrap; }
-    .rflag {
-      font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 3px;
-      background: var(--bg-alt); color: var(--muted); border: 1px solid var(--border); white-space: nowrap;
+    /* Visual (asset tier) badges */
+    .vis-badge {
+      display: inline-block; font-size: 10px; font-weight: 600; padding: 1px 6px;
+      border-radius: 3px; white-space: nowrap;
     }
-    .rflag.active { background: #f5f3ff; color: #7c3aed; border-color: #ddd6fe; }
+    .vis-image  { background: #f5f3ff; color: #6d28d9; }
+    .vis-still  { background: #ede9fe; color: #7c3aed; }
+    .vis-video  { background: #fff1f2; color: #be123c; }
 
     /* Inline editable cells */
     .editable-cell { cursor: pointer; min-width: 100px; }
@@ -240,13 +242,9 @@
     .cell-input {
       width: 100%; min-width: 100px; border: none; background: transparent;
       font-family: var(--font); font-size: 12px; color: var(--text); outline: none;
-      resize: none; padding: 0; font-size: 12px;
+      resize: none; padding: 0;
     }
-    .ost-type-select {
-      border: 1px solid var(--border); border-radius: 3px; padding: 2px 4px;
-      font-family: var(--font); font-size: 11px; background: var(--bg); cursor: pointer;
-      color: var(--text);
-    }
+    .ost-icon { font-size: 10px; color: #7c3aed; margin-left: 4px; opacity: 0.7; }
     .save-indicator { font-size: 10px; color: var(--green); }
 
     /* ── Assets stage ───────────────────────────────────────────────── */
@@ -946,12 +944,12 @@ function renderStoryboard(data) {
           <tr>
             <th>#</th>
             <th>Dur</th>
-            <th>Type</th>
             <th>Voiceover</th>
+            <th>Type</th>
+            <th>Visual</th>
+            <th>Query</th>
+            <th>Motion</th>
             <th>On-Screen Text</th>
-            <th>OST Type</th>
-            <th>Flags</th>
-            <th>Primary Query</th>
           </tr>
         </thead>
         <tbody id="sb-tbody">
@@ -967,29 +965,37 @@ function renderStoryboard(data) {
 
 function buildSceneRow(s) {
   const ro = s.render_options || {};
-  const flags = [];
-  if (ro.film_look) flags.push('<span class="rflag active">film</span>');
-  if (ro.lower_third) flags.push('<span class="rflag active">L3</span>');
-  if (ro.on_screen_text_overlay) flags.push('<span class="rflag active">OST</span>');
-
   const segCls = s.segment_type === 'Character' ? 'seg-character' : s.segment_type === 'Event' ? 'seg-event' : 'seg-broll';
   const sceneId = esc(s.scene);
+
+  // Visual badge from asset_tier (P9-S9) or clip_type fallback
+  let visCls = 'vis-still', visLabel = 'still·motion';
+  if (s.asset_tier === 'still') { visCls = 'vis-image'; visLabel = 'image'; }
+  else if (s.asset_tier === 'video') { visCls = 'vis-video'; visLabel = 'video'; }
+  else if (!s.asset_tier) {
+    if (s.clip_type === 'hard_cut') { visCls = 'vis-video'; visLabel = 'video'; }
+    else { visCls = 'vis-image'; visLabel = 'image'; }
+  }
+
+  const motionText = s.motion_effect
+    ? `<span style="font-size:10px;color:var(--muted);font-family:var(--mono);">${esc(s.motion_effect)}</span>`
+    : '<span class="muted">—</span>';
+
+  // OST: show text + small indicator if overlay is active
+  const ostHasOverlay = ro.on_screen_text_overlay;
+  const ostDisplay = s.on_screen_text
+    ? `<span>${esc(s.on_screen_text)}${ostHasOverlay ? '<span class="ost-icon">▶</span>' : ''}</span>`
+    : '<span class="muted">—</span>';
 
   return `<tr data-scene="${sceneId}">
     <td class="mono narrow">${sceneId}</td>
     <td class="mono narrow">${(s.duration_s || 0).toFixed(1)}s</td>
-    <td class="narrow"><span class="seg-badge ${segCls}">${esc(s.segment_type)}</span></td>
-    <td class="wrap" style="max-width:200px;font-size:11px;color:var(--text-sub);">${esc(s.voiceover_line || '')}</td>
-    <td class="editable-cell" id="ost-${sceneId}" onclick="editOst(this, '${sceneId}')" title="Click to edit">${s.on_screen_text ? `<span>${esc(s.on_screen_text)}</span>` : '<span class="muted">—</span>'}</td>
-    <td class="narrow" id="osttype-${sceneId}">
-      <select class="ost-type-select" onchange="saveOstType('${sceneId}', this.value)">
-        <option value=""${!s.on_screen_text_type ? ' selected' : ''}>—</option>
-        <option value="stat"${s.on_screen_text_type === 'stat' ? ' selected' : ''}>stat</option>
-        <option value="date"${s.on_screen_text_type === 'date' ? ' selected' : ''}>date</option>
-      </select>
-    </td>
-    <td class="narrow"><div class="render-flags">${flags.join('') || '<span class="muted" style="font-size:10px;">—</span>'}</div></td>
+    <td class="wrap" style="max-width:220px;font-size:11px;color:var(--text-sub);">${esc(s.voiceover_line || '')}</td>
+    <td class="narrow"><span class="seg-badge ${segCls}">${esc(s.segment_type || 'B-roll')}</span></td>
+    <td class="narrow"><span class="vis-badge ${visCls}">${visLabel}</span></td>
     <td class="editable-cell" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Click to edit" style="font-size:11px;max-width:180px;">${esc(s.primary_stk || '—')}</td>
+    <td class="narrow">${motionText}</td>
+    <td class="editable-cell" id="ost-${sceneId}" onclick="editOst(this, '${sceneId}')" title="Click to edit">${ostDisplay}</td>
   </tr>`;
 }
 

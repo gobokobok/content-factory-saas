@@ -42,7 +42,7 @@ from src.models import (
 
 logger = logging.getLogger(__name__)
 
-STORYBOARD_PROMPT_VERSION = "v0.13"
+STORYBOARD_PROMPT_VERSION = "v0.14"
 
 _SONNET_MODEL = "claude-sonnet-4-6"
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
@@ -261,8 +261,9 @@ The voiceover words are provided as a numbered list with timestamps.
 For each scene set start_word and end_word to integer indices from this list.
 
 Rules:
-- Each scene should span approximately 2–8 seconds based on the timestamps.
-- Split at natural semantic pauses: clause boundaries, topic shifts, list items.
+- Target 2–5 seconds per scene. Hard maximum: 7 seconds.
+- If a span would exceed 7 seconds, split it at the nearest clause boundary
+  (comma, semicolon, "and", "but", "because", "so", "which", topic shift, or list item).
 - Do NOT split mid-phrase or at arbitrary word counts.
 - Scenes must be contiguous: scene[i].end_word + 1 == scene[i+1].start_word.
 - The first scene's start_word must be 0.
@@ -586,7 +587,7 @@ def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -
         raw["scene_end_ms"] = 0
         raw["duration_s"] = 0.0
 
-    if raw["duration_s"] >= 10.0:
+    if raw["duration_s"] >= 7.0:
         logger.warning(
             "Scene %s has duration %.1fs ≥ 10s — consider splitting at a clause boundary",
             raw.get("scene", "?"), raw["duration_s"],

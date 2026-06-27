@@ -154,7 +154,7 @@ async def _write_script_artifact(storage, run_id: str, script_text: str) -> str:
 
 
 def test_prompt_version_constant():
-    assert STORYBOARD_PROMPT_VERSION == "v0.13"
+    assert STORYBOARD_PROMPT_VERSION == "v0.14"
 
 
 def test_registration_model():
@@ -166,7 +166,7 @@ def test_registration_worker_version():
 
 
 def test_registration_prompt_version():
-    assert STORYBOARD_WORKER_REGISTRATION.prompt_version == "v0.13"
+    assert STORYBOARD_WORKER_REGISTRATION.prompt_version == "v0.14"
 
 
 # ── _parse_review_response unit tests ────────────────────────────────────────
@@ -365,7 +365,7 @@ async def test_generate_review_patch_round_trip():
 
     artifact = output.artifact
     assert isinstance(artifact, VerifiedStoryboardArtifact)
-    assert artifact.prompt_version == "v0.13"
+    assert artifact.prompt_version == "v0.14"
     assert artifact.scene_count == 1
     assert "scenes" in artifact.storyboard
     # Two API calls: generate (Sonnet) + review (Haiku)
@@ -473,7 +473,7 @@ async def test_verified_storyboard_artifact_written_to_r2():
     # Must round-trip cleanly
     recovered = VerifiedStoryboardArtifact.model_validate(dumped)
     assert recovered.scene_count == artifact.scene_count
-    assert recovered.prompt_version == "v0.13"
+    assert recovered.prompt_version == "v0.14"
     # Storyboard should contain render_options with on_screen_text_overlay
     storyboard = Storyboard.model_validate(recovered.storyboard)
     scene = storyboard.scenes[0]
