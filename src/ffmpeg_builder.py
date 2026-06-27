@@ -670,14 +670,10 @@ def _render_image_scene(
         f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
         f"crop={out_w}:{out_h}"
     )
-    # "scale" motion effect = purely static; zoompan processes every frame individually
-    # even with a constant z value, which is slow.  Skip it and use fps= alone to
-    # normalise PTS from the looped-image microsecond time base.
-    if scene.motion_effect == "scale":
-        normal_vf = f"{scale_vf},fps={_FPS},setsar=1:1"
-    else:
-        zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames, out_w, out_h)
-        normal_vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
+    zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames, out_w, out_h)
+    # zoompan bounds output to d=frames and resets the microsecond PTS from the
+    # JPEG/PNG decoder — skipping it causes container duration corruption.
+    normal_vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
 
     common_encode = (
         "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
@@ -704,18 +700,13 @@ def _render_image_scene(
         )
 
     # Blur-fill for portrait photos: blurred full-frame background + portrait
-    # scaled to fit.  For "scale" motion effect, skip zoompan on the composite too.
-    composite_motion = (
-        f"fps={_FPS},setsar=1:1"
-        if scene.motion_effect == "scale"
-        else f"{zoompan_vf},fps={_FPS},setsar=1:1"
-    )
+    # scaled to fit, with zoompan applied to the composite so the portrait isn't static.
     blur_vf = (
         f"[in]split=2[bg][fg];"
         f"[bg]scale={out_w}:{out_h},boxblur=20:5[blurred];"
         f"[fg]scale=iw*min({out_w}/iw\\,{out_h}/ih):ih*min({out_w}/iw\\,{out_h}/ih)[fitted];"
         f"[blurred][fitted]overlay=(W-w)/2:(H-h)/2[composite];"
-        f"[composite]{composite_motion}"
+        f"[composite]{zoompan_vf},fps={_FPS},setsar=1:1"
     )
     return (
         f"{header}\n"
@@ -955,6 +946,11 @@ def _zoompan_filter(
         return f"zoompan=z='1+0.05*on/{frames}':x='{cx}':y='{cy}'{suffix}"
 
     effect = (motion_effect or "zoom_in").lower().replace("-", "_")
+
+    # "scale" = static hold, no pan/zoom.  z=1.0 constant; d=frames still bounds
+    # output and resets the microsecond PTS from the JPEG/PNG decoder.
+    if effect == "scale":
+        return f"zoompan=z='1.0':x='{cx}':y='{cy}'{suffix}"
 
     if effect == "zoom_in":
         return f"zoompan=z='1+0.1*on/{frames}':x='{cx}':y='{cy}'{suffix}"
