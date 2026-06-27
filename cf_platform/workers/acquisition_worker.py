@@ -469,9 +469,19 @@ async def _acquire_scene(
     pixabay: Optional[PixabayClient],
     wikimedia: WikimediaClient,
 ) -> None:
-    """Route scene acquisition by segment_type; mutates entry in-place on success."""
+    """Route scene acquisition by segment_type; mutates entry in-place on success.
+
+    When asset_tier is set (v0.13 storyboards), uses it to prefer image vs video sources.
+    Falls back to clip_type heuristic for older manifests (v0.12 / legacy).
+    """
     queries = [entry.primary_stk, entry.context_stk, entry.concept_stk]
-    is_video = entry.clip_type == "hard_cut"
+    # Prefer asset_tier (P9-S9 timestamp-first) over clip_type for source selection.
+    if entry.asset_tier == "video":
+        is_video = True
+    elif entry.asset_tier in ("still", "still_motion"):
+        is_video = False
+    else:
+        is_video = entry.clip_type == "hard_cut"  # legacy fallback
 
     if entry.segment_type == "Character" and entry.person_name:
         ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia)
@@ -569,6 +579,7 @@ def build_acquisition_worker(
                 person_title=scene.person_title,
                 duration_s=scene.duration_s,
                 historic=scene.historic,
+                asset_tier=scene.asset_tier,
             ))
 
         # Build source clients

@@ -155,6 +155,8 @@ Legacy Script→Video stays untouched and operable (D047).
 | P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 2 | done |
 | P9-S6 | Portrait/landscape format parameter (`--format` flag) | 2 | done |
 | P9-S7 | Caption word assignment by timestamp (drop script text-matching) | 1 | done |
+| P9-S8 | Per-scene asset override — custom query re-acquire + operator upload | 4 | todo |
+| P9-S9 | Timestamp-first storyboard — word indices + Python-derived duration and asset tier | 5 | done |
 
 **Execution order:** P9-S1 → P9-S2 → P9-S3 → P9-S4 → P9-S5 (fully linear). P9-S6 and P9-S7 are independent; can run in parallel after P9-S5.
 

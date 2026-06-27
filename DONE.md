@@ -4,6 +4,30 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P9-S9] Timestamp-first storyboard — word indices + Python-derived duration and asset tier
+**Completed:** 2026-06-27
+**Handover:**
+- `src/models.py`: `StoryboardScene` gains `start_word`, `end_word`, `scene_start_ms`, `scene_end_ms`, `asset_tier` (all `Optional`, default `None` — backward compat). `ManifestEntry` gains `asset_tier: Optional[Literal["still","still_motion","video"]] = None`.
+- `cf_platform/workers/storyboard_worker.py`:
+  - `STORYBOARD_PROMPT_VERSION = "v0.13"`, `STORYBOARD_WORKER_REGISTRATION.worker_version = "1.1.0"`.
+  - `_GENERATE_SYSTEM_PROMPT_V013` (new): removes DURATION RULES + CLIP TYPE RULES; Claude outputs `start_word`/`end_word` int indices; adds INDEXED WORD LIST guidance with contiguity + coverage constraints; `total_duration_s: 0` placeholder (Python recomputes).
+  - `_normalize_deepgram_words(raw: list[dict]) → list[VoiceWordTimestamp]`: strips terminal punctuation (preserves apostrophes), collapses same-`start_ms` duplicates (Deepgram contraction splits).
+  - `_format_indexed_timestamps(words) → str`: produces `[idx]  "word"    (start–end)` lines for prompt.
+  - `_assign_asset_tier(duration_s) → Literal["still","still_motion","video"]`: `<3s→still`, `3–6s→still_motion`, `≥6s→video`; `≥10s` logs WARNING.
+  - `_asset_tier_to_clip_type(tier) → str`: `video→hard_cut`, else `still_with_motion`.
+  - `_derive_motion_effect(tier, scene_index) → Optional[str]`: `still→scale`, `still_motion→ken_burns_in/out` (even/odd), `video→None`.
+  - `_reify_scene(raw, words, scene_index) → dict`: fills `voiceover_line`, `duration_s`, `scene_start_ms`, `scene_end_ms`, `asset_tier`, `clip_type`, `motion_effect` from Deepgram span. Mutates in-place.
+  - `_generate()` updated: when `voice_timestamps` present → uses v0.13 prompt + calls `_reify_scene()` on every raw scene dict before Pydantic validation + recomputes summary; when absent → v0.12 fallback with WARNING + word-count duration estimation.
+  - `_worker()` updated: duration hard-cap (5s/10s) only applied on v0.12 fallback path (not when Deepgram timestamps are ground truth).
+- `cf_platform/workers/acquisition_worker.py`: `_acquire_scene()` checks `entry.asset_tier` first (`still`/`still_motion`→images, `video`→video) before falling back to `clip_type == "hard_cut"` heuristic for legacy manifests. `ManifestEntry` construction propagates `asset_tier=scene.asset_tier`.
+- `tests/cf_platform/test_p9_s9_timestamp_storyboard.py` (new): 42 tests — all pure functions; prompt structure; schema fields; acquisition routing via `asset_tier`.
+- `tests/cf_platform/test_p9_s2_storyboard_worker.py`: version pins updated to v0.13 / 1.1.0.
+- 1907 tests passing (42 new; 6 pre-existing failures in `test_ffmpeg_builder.py` + `test_runs.py` unrelated to this story).
+**Smoke test:** DEFERRED — verify on next full `/run` that `verified_storyboard.json` in R2 shows `scene_start_ms`/`scene_end_ms` matching Deepgram timestamps, and every `duration_s = (scene_end_ms − scene_start_ms) / 1000`.
+**Promoted to backlog:** none.
+
+---
+
 ## [P9-S7] Caption word assignment by timestamp (drop script text-matching)
 **Completed:** 2026-06-24
 **Handover:**

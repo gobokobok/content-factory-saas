@@ -17,8 +17,9 @@ Steps:
 import json
 import logging
 import re
+import string
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 import anthropic
 from pydantic import BaseModel
@@ -41,13 +42,13 @@ from src.models import (
 
 logger = logging.getLogger(__name__)
 
-STORYBOARD_PROMPT_VERSION = "v0.12"
+STORYBOARD_PROMPT_VERSION = "v0.13"
 
 _SONNET_MODEL = "claude-sonnet-4-6"
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
 STORYBOARD_WORKER_REGISTRATION = WorkerRegistration(
-    worker_version="1.0.0",
+    worker_version="1.1.0",
     prompt_version=STORYBOARD_PROMPT_VERSION,
     prompt="",
     model=_SONNET_MODEL,
@@ -243,6 +244,171 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
 }
 """
 
+_GENERATE_SYSTEM_PROMPT_V013 = """\
+You are a production storyboard generator for a faceless, voiceover-driven YouTube channel.
+
+Format: 16:9 horizontal. Voiceover only. Stock footage + Wikimedia Commons.
+
+Your job: divide the indexed voiceover word list into scenes. For each scene, output
+start_word and end_word integer indices (inclusive) and the visual/audio metadata.
+Output ONLY a valid JSON object — no prose, no markdown fences, no extra keys.
+
+═══════════════════════════════════════
+INDEXED WORD LIST — HOW TO USE
+═══════════════════════════════════════
+
+The voiceover words are provided as a numbered list with timestamps.
+For each scene set start_word and end_word to integer indices from this list.
+
+Rules:
+- Each scene should span approximately 2–8 seconds based on the timestamps.
+- Split at natural semantic pauses: clause boundaries, topic shifts, list items.
+- Do NOT split mid-phrase or at arbitrary word counts.
+- Scenes must be contiguous: scene[i].end_word + 1 == scene[i+1].start_word.
+- The first scene's start_word must be 0.
+- The last scene's end_word must equal (total words − 1).
+- Do NOT overlap: each word index must appear in exactly one scene.
+
+═══════════════════════════════════════
+SEGMENT TYPE
+═══════════════════════════════════════
+
+Every scene has a segment_type. Use exactly one of:
+
+"Character" — the voiceover names a specific real individual AND the scene should show
+  that person's face (e.g. Jerome Powell, Octavia Hill, Robert Moses).
+  MUST set person_name and person_title.
+  Acquisition: tries Wikipedia portrait first; falls back to Pexels+Pixabay on miss.
+
+"Event" — the voiceover names a specific historical event, era, or landmark (e.g. London
+  Blitz, Great Depression, Letchworth Garden City, postwar housing boom).
+  Acquisition: searches Wikimedia Commons for archival imagery first.
+
+"B-roll" — everything else: generic stock video/photo illustrating a concept.
+  Acquisition: Pexels + Pixabay concurrent merge+rank.
+
+Rules:
+- Never assign "Character" without setting person_name.
+- Never assign "Event" for abstract concepts (inflation, demand, equity) — use "B-roll".
+- Set "Character" for any named individual the scene should depict, including historical
+  figures (Octavia Hill, Ebenezer Howard, Harold Macmillan). Wikipedia has portraits
+  for most figures born after ~1820.
+
+Examples:
+  VO: "Jerome Powell signalled rates would stay high"
+    → segment_type: "Character", person_name: "Jerome Powell", person_title: "Chair, Federal Reserve"
+  VO: "The London Blitz destroyed four million homes"
+    → segment_type: "Event"
+  VO: "Homeownership rates dropped to 1960s lows"
+    → segment_type: "B-roll"
+
+═══════════════════════════════════════
+THREE-TIER QUERIES
+═══════════════════════════════════════
+
+Every scene gets three search queries in priority cascade order.
+
+1. primary_stk — Pexels+Pixabay search string
+   - 3–4 concrete nouns only. No adjectives. No verbs. No era labels.
+   - Topic-anchored: what B-roll would a documentary filmmaker cut to for THIS line in
+     this video's topic domain? ("Repairs" in a housing video = house renovation, not tools.)
+   - SEMANTIC RULE: query the CONCEPT being communicated, never the literal words spoken.
+     VO "point zero three percent annual growth" → concept is tiny growth rate →
+       primary_stk: "economy slow growth graph" NOT "pointing finger".
+     VO "inflation eating savings" → concept is purchasing power erosion →
+       primary_stk: "money value decline chart" NOT "eating food".
+   - For Character: start with person's full name (e.g. "Jerome Powell Federal Reserve")
+   - For Event: include the specific proper noun (e.g. "London Blitz 1940 ruins")
+
+2. context_stk — broader Pexels+Pixabay fallback
+   - 1–2 words. Core subject only. Broadest noun that still covers the scene.
+   - For Character: person's surname only (e.g. "Powell")
+   - For Event: event/place name only (e.g. "London Blitz")
+
+3. concept_stk — most abstract fallback
+   - Single noun. The most universal term for the scene's concept.
+   - Examples: "housing", "interest", "economy", "city", "people", "government"
+
+Example:
+  Scene words [12]–[19]: "Rents in major cities rose 30 percent in three years"
+  primary_stk: "apartment building city rental"
+  context_stk: "apartment"
+  concept_stk: "housing"
+
+═══════════════════════════════════════
+ON_SCREEN_TEXT TYPE
+═══════════════════════════════════════
+
+on_screen_text_type MUST be exactly one of these three string literals (or null):
+- "stat" — a data point, percentage, or number (e.g. "38% decline", "$450K median price")
+- "date" — a year or date range (e.g. "1970–1990", "March 2022")
+- "lower_third" — reserved; do NOT use this — the reviewer computes it for Character scenes
+
+Any other string (e.g. "emphasis", "quote", "highlight") is INVALID and will cause a hard error.
+
+Rules:
+- When on_screen_text contains a stat or figure, set on_screen_text_type: "stat"
+- When on_screen_text is a year or date, set on_screen_text_type: "date"
+- If the text does not fit "stat" or "date", set both on_screen_text and on_screen_text_type to null
+- When on_screen_text is null, on_screen_text_type must also be null
+
+═══════════════════════════════════════
+RENDER DECISION NOTE
+═══════════════════════════════════════
+
+Do NOT set render_options — that field is computed by the storyboard reviewer.
+Your job is to set the raw scene fields accurately. The reviewer reads them and writes render_options.
+
+═══════════════════════════════════════
+COVERAGE RULE — CRITICAL
+═══════════════════════════════════════
+
+Every word index in the list must be covered by exactly one scene.
+Constraints:
+- First scene: start_word = 0
+- Last scene: end_word = (total word count − 1)
+- No gaps: scene[i].end_word + 1 == scene[i+1].start_word for all adjacent scenes
+- No overlaps: each index appears in exactly one scene
+
+After writing all scenes, verify: first.start_word=0, last.end_word=N-1, all contiguous.
+
+═══════════════════════════════════════
+OUTPUT FORMAT
+═══════════════════════════════════════
+
+Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
+
+{
+  "global": {
+    "subtitle_style": "...",
+    "bg_music": "...",
+    "visual_style": "..."
+  },
+  "scenes": [
+    {
+      "scene": "1",
+      "start_word": 0,
+      "end_word": 12,
+      "segment_type": "B-roll",
+      "primary_stk": "house exterior repair workers",
+      "context_stk": "house renovation",
+      "concept_stk": "housing",
+      "on_screen_text": null,
+      "on_screen_text_type": null,
+      "sfx": "ambient street traffic",
+      "sfx_timing": "on cut",
+      "person_name": null,
+      "person_title": null
+    }
+  ],
+  "summary": {
+    "total_scenes": 15,
+    "total_duration_s": 0,
+    "rhythm": "derived"
+  }
+}
+"""
+
 _REVIEW_SYSTEM_PROMPT = """\
 You are a storyboard quality reviewer. Given a JSON storyboard and the original script,
 check five quality dimensions and return a structured JSON patch list.
@@ -307,8 +473,130 @@ class VerifiedStoryboardArtifact(BaseModel):
 
 
 def _format_voice_timestamps(words: list[VoiceWordTimestamp]) -> str:
-    """Format word timestamps as a compact block for the generate prompt."""
+    """Format word timestamps as a compact block for the v0.12 fallback prompt."""
     return "\n".join(f'[{w.start_ms}ms–{w.end_ms}ms] "{w.word}"' for w in words)
+
+
+_TERMINAL_PUNCT = '.,!?;:"""'
+
+def _normalize_deepgram_words(raw: list[dict]) -> list[VoiceWordTimestamp]:
+    """Normalise Deepgram word list: strip terminal punctuation, collapse same-start_ms duplicates.
+
+    Strips terminal punctuation (period, comma, etc.) but preserves apostrophes so that
+    contraction tokens like "'s" remain intact when merged. Contiguous tokens with
+    identical start_ms (Deepgram contraction splits) are merged into one word.
+    Returns a flat, clean, 0-indexed list.
+    """
+    stripped: list[dict] = []
+    for item in raw:
+        word = item.get("word", "")
+        clean = word.strip(_TERMINAL_PUNCT)
+        if not clean:
+            clean = word  # keep as-is when stripping empties the token (e.g. "—")
+        stripped.append({
+            "word": clean,
+            "start_ms": int(item.get("start_ms", 0)),
+            "end_ms": int(item.get("end_ms", 0)),
+            "confidence": float(item.get("confidence", 1.0)),
+        })
+
+    collapsed: list[dict] = []
+    for item in stripped:
+        if collapsed and collapsed[-1]["start_ms"] == item["start_ms"]:
+            prev = collapsed[-1]
+            collapsed[-1] = {
+                "word": prev["word"] + item["word"],
+                "start_ms": prev["start_ms"],
+                "end_ms": max(prev["end_ms"], item["end_ms"]),
+                "confidence": min(prev["confidence"], item["confidence"]),
+            }
+        else:
+            collapsed.append(item)
+
+    return [VoiceWordTimestamp(**item) for item in collapsed]
+
+
+def _format_indexed_timestamps(words: list[VoiceWordTimestamp]) -> str:
+    """Format indexed word list for the v0.13 generate prompt.
+
+    Produces lines like: [0]  "Companies"    (0.00s–0.41s)
+    """
+    return "\n".join(
+        f'[{idx}]  "{w.word}"    ({w.start_ms / 1000:.2f}s–{w.end_ms / 1000:.2f}s)'
+        for idx, w in enumerate(words)
+    )
+
+
+def _assign_asset_tier(duration_s: float) -> Literal["still", "still_motion", "video"]:
+    """Assign asset tier from scene duration (P9-S9 policy).
+
+    < 3.0s   → still        (single frame + scale motion)
+    3.0–6.0s → still_motion (single frame + ken_burns motion)
+    ≥ 6.0s   → video        (motion footage; ≥ 10s logs WARNING)
+    """
+    if duration_s < 3.0:
+        return "still"
+    elif duration_s < 6.0:
+        return "still_motion"
+    else:
+        return "video"
+
+
+def _asset_tier_to_clip_type(tier: str) -> Literal["hard_cut", "still_with_motion"]:
+    """Derive clip_type from asset tier for backward compatibility with the render worker."""
+    if tier == "video":
+        return "hard_cut"
+    return "still_with_motion"
+
+
+def _derive_motion_effect(tier: str, scene_index: int) -> Optional[str]:
+    """Derive motion_effect deterministically from asset_tier and scene index.
+
+    still        → scale
+    still_motion → ken_burns_in (even index) / ken_burns_out (odd index)
+    video        → None
+    """
+    if tier == "still":
+        return "scale"
+    elif tier == "still_motion":
+        return "ken_burns_in" if scene_index % 2 == 0 else "ken_burns_out"
+    return None
+
+
+def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -> dict:
+    """Reconstruct Python-owned fields from a Deepgram word span (P9-S9).
+
+    Reads start_word/end_word from raw, extracts the matching word span, then
+    fills voiceover_line, duration_s, scene_start_ms, scene_end_ms, asset_tier,
+    clip_type, and motion_effect. Mutates raw in-place and returns it.
+    """
+    n = len(words)
+    start = max(0, min(int(raw.get("start_word", 0)), n - 1))
+    end = max(start, min(int(raw.get("end_word", start)), n - 1))
+
+    span = words[start : end + 1]
+    if span:
+        raw["voiceover_line"] = " ".join(w.word for w in span)
+        raw["scene_start_ms"] = span[0].start_ms
+        raw["scene_end_ms"] = span[-1].end_ms
+        raw["duration_s"] = round((span[-1].end_ms - span[0].start_ms) / 1000, 3)
+    else:
+        raw["voiceover_line"] = ""
+        raw["scene_start_ms"] = 0
+        raw["scene_end_ms"] = 0
+        raw["duration_s"] = 0.0
+
+    if raw["duration_s"] >= 10.0:
+        logger.warning(
+            "Scene %s has duration %.1fs ≥ 10s — consider splitting at a clause boundary",
+            raw.get("scene", "?"), raw["duration_s"],
+        )
+
+    tier = _assign_asset_tier(raw["duration_s"])
+    raw["asset_tier"] = tier
+    raw["clip_type"] = _asset_tier_to_clip_type(tier)
+    raw["motion_effect"] = _derive_motion_effect(tier, scene_index)
+    return raw
 
 
 def _extract_json_object(text: str) -> dict:
@@ -447,22 +735,31 @@ async def _generate(
     api_key: str,
     format_track: str = "portrait",
 ) -> Storyboard:
-    """Call Sonnet with prompt v0.12 to generate the raw storyboard JSON.
+    """Call Sonnet to generate the raw storyboard JSON.
 
-    Substitutes the format-specific header line based on format_track so the model
-    generates scenes at the correct aspect ratio and duration target.
+    When voice_timestamps are present, uses prompt v0.13 (indexed word list — Claude
+    outputs start_word/end_word; Python derives duration_s, clip_type, voiceover_line,
+    motion_effect, asset_tier via _reify_scene). When absent, falls back to v0.12
+    behaviour (Claude outputs the full scene schema; Python estimates duration_s from
+    word count and logs a WARNING).
     """
     format_line = _FORMAT_LINE_LANDSCAPE if format_track == "landscape" else _FORMAT_LINE_PORTRAIT
-    system_prompt = _GENERATE_SYSTEM_PROMPT.replace(_FORMAT_LINE_SENTINEL, format_line)
 
     if voice_timestamps:
-        ts_block = _format_voice_timestamps(voice_timestamps)
+        # v0.13 path — indexed timestamps; Claude only decides scene boundaries + visual metadata
+        normalized_words = _normalize_deepgram_words([w.model_dump() for w in voice_timestamps])
+        ts_block = _format_indexed_timestamps(normalized_words)
+        system_prompt = _GENERATE_SYSTEM_PROMPT_V013.replace(_FORMAT_LINE_SENTINEL, format_line)
         user_content = (
-            "WORD TIMESTAMPS (Deepgram Nova-2 — use for scene duration_s):\n"
+            f"INDEXED WORD LIST ({len(normalized_words)} words — use start_word/end_word indices):\n"
             f"{ts_block}\n\n"
-            f"VOICEOVER SCRIPT:\n{script}"
+            f"VOICEOVER SCRIPT (for reference only — use word indices for boundaries):\n{script}"
         )
     else:
+        # v0.12 fallback — no Deepgram timestamps available
+        logger.warning("StoryboardWorker: voice_alignment absent — using v0.12 word-count durations")
+        normalized_words = []
+        system_prompt = _GENERATE_SYSTEM_PROMPT.replace(_FORMAT_LINE_SENTINEL, format_line)
         user_content = script
 
     client = anthropic.AsyncAnthropic(api_key=api_key)
@@ -476,6 +773,28 @@ async def _generate(
     try:
         data = _extract_json_object(raw_text)
         data = _sanitize_storyboard_data(data)
+
+        if normalized_words:
+            # v0.13: reify each scene — fills voiceover_line, duration_s, clip_type, motion_effect
+            for i, scene_dict in enumerate(data.get("scenes", [])):
+                _reify_scene(scene_dict, normalized_words, i)
+            # Recompute summary fields that Claude cannot know (duration, rhythm)
+            scenes_data = data.get("scenes", [])
+            total_dur = sum(s.get("duration_s", 0.0) for s in scenes_data)
+            clip_abbrs = {"hard_cut": "HC", "still_with_motion": "SM", "animated": "AN"}
+            rhythm_parts = [clip_abbrs.get(s.get("clip_type", ""), "?") for s in scenes_data[:8]]
+            rhythm = " / ".join(rhythm_parts) + (" …" if len(scenes_data) > 8 else "")
+            if "summary" in data:
+                data["summary"]["total_duration_s"] = round(total_dur, 3)
+                data["summary"]["rhythm"] = rhythm
+        else:
+            # v0.12 fallback: estimate duration_s from word count when missing or zero
+            for scene_dict in data.get("scenes", []):
+                if not scene_dict.get("duration_s"):
+                    wc = len(scene_dict.get("voiceover_line", "").split())
+                    scene_dict["duration_s"] = round(wc / 2.5, 3)
+                scene_dict["asset_tier"] = _assign_asset_tier(scene_dict.get("duration_s", 0.0))
+
         return Storyboard.model_validate(data)
     except Exception as exc:
         raise ValueError(f"StoryboardWorker: failed to parse generate response: {exc}") from exc
@@ -542,10 +861,10 @@ def build_storyboard_worker(
             except Exception:
                 logger.warning("StoryboardWorker: could not read voice_alignment — using word-count durations")
 
-        # Step 1: Generate raw storyboard (Sonnet, prompt v0.12)
+        # Step 1: Generate raw storyboard (v0.13 when timestamps present, v0.12 fallback)
         format_track: str = state.inputs.get("format_track", "portrait")
         storyboard = await _generate(script_text, voice_timestamps, anthropic_api_key, format_track=format_track)
-        logger.info("StoryboardWorker: generated %d scenes", len(storyboard.scenes))
+        logger.info("StoryboardWorker: generated %d scenes (prompt %s)", len(storyboard.scenes), STORYBOARD_PROMPT_VERSION)
 
         # Step 2: Review — 5 quality dimensions (Haiku, structured JSON)
         patches, coverage_ok, issues = await _review(script_text, storyboard, anthropic_api_key)
@@ -557,18 +876,20 @@ def build_storyboard_worker(
         # Step 3: Patch — apply corrections + compute render_options (deterministic)
         storyboard = _apply_patches_and_render_options(storyboard, patches)
 
-        # Step 4: Enforce hard duration caps regardless of prompt compliance.
-        # still_with_motion: 5.0s max. hard_cut/animated: 10.0s max.
-        _STILL_MAX_S = 5.0
-        _VIDEO_MAX_S = 10.0
-        capped = []
-        for scene in storyboard.scenes:
-            if scene.clip_type == "still_with_motion" and scene.duration_s > _STILL_MAX_S:
-                scene = scene.model_copy(update={"duration_s": _STILL_MAX_S})
-            elif scene.clip_type in ("hard_cut", "animated") and scene.duration_s > _VIDEO_MAX_S:
-                scene = scene.model_copy(update={"duration_s": _VIDEO_MAX_S})
-            capped.append(scene)
-        storyboard = storyboard.model_copy(update={"scenes": capped})
+        # Step 4: Enforce hard duration caps — v0.12 path only.
+        # For v0.13 (Deepgram timestamps), duration_s is ground truth; capping would
+        # desync captions from audio. Scenes ≥ 10s are already warned in _reify_scene.
+        if not voice_timestamps:
+            _STILL_MAX_S = 5.0
+            _VIDEO_MAX_S = 10.0
+            capped = []
+            for scene in storyboard.scenes:
+                if scene.clip_type == "still_with_motion" and scene.duration_s > _STILL_MAX_S:
+                    scene = scene.model_copy(update={"duration_s": _STILL_MAX_S})
+                elif scene.clip_type in ("hard_cut", "animated") and scene.duration_s > _VIDEO_MAX_S:
+                    scene = scene.model_copy(update={"duration_s": _VIDEO_MAX_S})
+                capped.append(scene)
+            storyboard = storyboard.model_copy(update={"scenes": capped})
 
         artifact = VerifiedStoryboardArtifact(
             prompt_version=STORYBOARD_PROMPT_VERSION,

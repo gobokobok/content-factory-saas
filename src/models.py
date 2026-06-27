@@ -171,6 +171,12 @@ class StoryboardScene(BaseModel):
     # Routes acquisition to wikimedia_client.fetch_person_photo first (P8-S3).
     person_name: Optional[str] = None
     person_title: Optional[str] = None
+    # v0.13 timestamp-first fields — Claude outputs word indices; Python derives these (P9-S9).
+    start_word: Optional[int] = None
+    end_word: Optional[int] = None
+    scene_start_ms: Optional[int] = None
+    scene_end_ms: Optional[int] = None
+    asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
 
     @model_validator(mode="after")
     def _backfill_flat_queries_from_visual_prompts(self) -> "StoryboardScene":
@@ -246,6 +252,8 @@ class ManifestEntry(BaseModel):
     qa_duration_ok: Optional[bool] = None
     qa_clip_score: Optional[float] = None
     fallback_used: bool = False
+    # Asset tier propagated from StoryboardScene (P9-S9) — guides image-first vs video-first routing.
+    asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
 
 
 class AssetManifest(BaseModel):

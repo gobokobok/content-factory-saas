@@ -1353,6 +1353,162 @@ Let the operator override any scene's asset from the Studio Assets screen — ei
 
 ---
 
+## [P9-S9] Timestamp-first storyboard — word indices + Python-derived duration and asset tier
+**Epic:** E36 — Native Documentary Production Graph
+**Sprint:** P9
+**Status:** done
+**Completed:** 2026-06-27
+**Priority:** high
+**Points:** 5
+**Depends on:** P9-S7
+
+### Goal
+Eliminate the root cause of storyboard duration misalignment: Claude currently derives `duration_s` from a word-count table (even though the prompt says to use Deepgram), and assigns `clip_type` based on heuristics that contradict the computed duration. This story makes **Python the sole source of truth** for `duration_s`, `voiceover_line`, and `asset_tier`. Claude only makes creative decisions: scene boundary identification, visual search queries, and on-screen text.
+
+**Single-source-of-truth table after this story:**
+
+| Data item | Who decides | How |
+|---|---|---|
+| `voiceover_line` | Python | Reconstructed from `words[start_word:end_word+1]` |
+| `duration_s` | Python | `(words[end].end_ms − words[start].start_ms) / 1000` |
+| `scene_start_ms` | Python | `words[start_word].start_ms` |
+| `scene_end_ms` | Python | `words[end_word].end_ms` |
+| `asset_tier` | Python | Duration policy (see below) |
+| `clip_type` | Python | Derived from `asset_tier` (backward compat field) |
+| `motion_effect` | Python | Derived from `asset_tier` + scene index (deterministic) |
+| Scene boundaries | Claude | Word index ranges (`start_word`, `end_word`) |
+| Visual queries | Claude | `primary_stk`, `context_stk`, `concept_stk` |
+| On-screen text | Claude | `on_screen_text`, `on_screen_text_type` |
+| Segment type | Claude | `segment_type` (Character / Event / B-roll) |
+| Person metadata | Claude | `person_name`, `person_title` |
+| SFX | Claude | `sfx`, `sfx_timing` |
+
+### Architecture
+
+**1. New indexed word-list format passed to Claude (prompt v0.12 → v0.13)**
+
+`_format_indexed_timestamps()` replaces `_format_voice_timestamps()`:
+```
+[0]  "Companies"    (0.00s–0.41s)
+[1]  "are"          (0.41s–0.52s)
+[2]  "holding"      (0.52s–0.74s)
+...
+[87] "crisis"       (24.10s–24.55s)
+```
+
+Claude receives this list and outputs `start_word` and `end_word` integer indices instead of `voiceover_line` text. This eliminates all text-matching and Deepgram tokenisation mismatches (contractions, numerals, etc.).
+
+**2. Claude's output schema (what Claude still emits per scene)**
+```json
+{
+  "start_word": 0,
+  "end_word": 12,
+  "segment_type": "B-roll",
+  "primary_stk": "housing market crash aerial view",
+  "context_stk": "American real estate empty homes",
+  "concept_stk": "financial crisis housing",
+  "on_screen_text": "2008 Crisis",
+  "on_screen_text_type": "date",
+  "sfx": null,
+  "sfx_timing": null,
+  "person_name": null,
+  "person_title": null
+}
+```
+Removed from Claude's output: `voiceover_line`, `duration_s`, `clip_type`, `motion_effect`.
+
+**3. Python `_reify_scene` — called in the patch step**
+```python
+def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -> dict:
+    start, end = raw["start_word"], raw["end_word"]
+    span = words[start : end + 1]
+    raw["voiceover_line"] = " ".join(w.word for w in span)
+    raw["duration_s"] = round((span[-1].end_ms - span[0].start_ms) / 1000, 3)
+    raw["scene_start_ms"] = span[0].start_ms
+    raw["scene_end_ms"] = span[-1].end_ms
+    raw["asset_tier"] = _assign_asset_tier(raw["duration_s"])
+    raw["clip_type"] = _asset_tier_to_clip_type(raw["asset_tier"])
+    raw["motion_effect"] = _derive_motion_effect(raw["asset_tier"], scene_index)
+    return raw
+```
+
+**4. Asset tier policy**
+```
+< 3.0 s   → "still"        clip_type=still_with_motion  motion_effect=scale
+3.0–6.0 s → "still_motion" clip_type=still_with_motion  motion_effect=ken_burns_{in|out} (alternating by index)
+6.0–10.0s → "video"        clip_type=hard_cut            motion_effect=None
+≥ 10.0 s  → "video"        clip_type=hard_cut            motion_effect=None  + log WARNING
+```
+`_derive_motion_effect` is deterministic by scene index — even → `ken_burns_in`, odd → `ken_burns_out`. No randomness.
+
+**5. Fallback when `voice_alignment` absent**
+
+When Deepgram timestamps are unavailable, Claude falls back to generating `voiceover_line` as plain text (v0.12 behaviour) and Python estimates `duration_s` via `len(words) / 2.5`. Logs WARNING. Expected to be rare in production (voice always runs before storyboard).
+
+**6. Word-list normalisation**
+
+`_normalize_deepgram_words(raw: list[dict]) -> list[VoiceWordTimestamp]`:
+- Strips punctuation from `word` field before indexing
+- Collapses contiguous tokens with identical `start_ms` (Deepgram sometimes splits contractions into two entries)
+- Returns a flat, clean, 0-indexed list
+
+**7. AcquisitionWorker update (minor)**
+
+`asset_tier` field added to `ManifestEntry`. Acquisition routing uses `asset_tier` to prefer video vs image sources:
+- `still` / `still_motion` → image sources first (Pexels photo, Pixabay photo, Wikimedia); fall back to video only if all image sources fail
+- `video` → video sources first (Pexels video, Pixabay video); fall back to image if no video found
+
+### Prompt changes (v0.12 → v0.13)
+
+**Remove:**
+- Entire `DURATION RULES` section with word-count table
+- `duration_s`, `clip_type`, `motion_effect`, `voiceover_line` from scene output schema
+
+**Add:**
+- Indexed word-list section: "Below is the voiceover word list with timestamps. Set `start_word` and `end_word` to integer indices from this list."
+- Scene guidance: "Each scene should span approximately 2–8 seconds based on the timestamps. Split at natural semantic pauses — clause boundaries, topic shifts — not at arbitrary word counts."
+- Updated output schema: `start_word: int`, `end_word: int`
+
+`STORYBOARD_PROMPT_VERSION` → `"v0.13"`.
+
+### Schema changes (`src/models.py`)
+
+```python
+class StoryboardScene(BaseModel):
+    # New fields
+    start_word: Optional[int] = None
+    end_word: Optional[int] = None
+    scene_start_ms: Optional[int] = None    # computed by Python
+    scene_end_ms: Optional[int] = None      # computed by Python
+    asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
+
+class ManifestEntry(BaseModel):
+    asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
+```
+
+`clip_type`, `motion_effect`, `duration_s`, `voiceover_line` remain on `StoryboardScene` — still populated, consumed by the render worker unchanged.
+
+### Acceptance Criteria
+- [x] `_format_indexed_timestamps(words: list[VoiceWordTimestamp]) → str` added to `storyboard_worker.py`; used when `voice_alignment` artifact present
+- [x] Prompt v0.13: word-count duration table removed; `start_word`/`end_word` in Claude output schema; time-based guidance present; `voiceover_line`/`duration_s`/`clip_type`/`motion_effect` absent from Claude output schema
+- [x] `STORYBOARD_PROMPT_VERSION = "v0.13"` constant
+- [x] `_reify_scene(raw, words, scene_index) → dict` implemented; called for every scene in `_generate()` before Pydantic validation
+- [x] `_assign_asset_tier(duration_s) → Literal["still","still_motion","video"]` pure function implementing policy above; scenes ≥ 10s log WARNING
+- [x] `_derive_motion_effect(tier, scene_index) → Optional[str]`: `still` → `"scale"`, `still_motion` → `"ken_burns_in"` (even) / `"ken_burns_out"` (odd), `video` → `None`
+- [x] `_normalize_deepgram_words(raw: list[dict]) → list[VoiceWordTimestamp]` strips terminal punctuation; collapses same-`start_ms` duplicates (preserves apostrophes for contractions)
+- [x] Fallback path: when `voice_alignment` absent, Claude generates `voiceover_line` as text (v0.12 compat), Python estimates `duration_s` by word count, logs WARNING
+- [x] `StoryboardScene`: `start_word`, `end_word`, `scene_start_ms`, `scene_end_ms`, `asset_tier` fields added
+- [x] `ManifestEntry`: `asset_tier` field added
+- [x] `AcquisitionWorker`: reads `asset_tier` to choose image-first vs video-first source order
+- [x] All existing storyboard and acquisition worker tests pass or are updated to reflect new fields
+- [x] New tests: `_format_indexed_timestamps` produces `[idx] "word" (start–end)` format; `_assign_asset_tier` all four buckets; `_derive_motion_effect` even/odd alternation; `_normalize_deepgram_words` contraction collapse and punctuation strip; `_reify_scene` full reconstruction matches Deepgram spans; prompt v0.13 has no word-count table; prompt v0.13 has no `duration_s` in output schema; acquisition `still` → image sources tried before video; acquisition `video` → video sources tried before image
+
+### Definition of Done
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] **Human touchpoint:** run a video end-to-end; inspect `verified_storyboard.json` in R2 — every `duration_s` matches `(scene_end_ms − scene_start_ms) / 1000` to within 1 ms; scenes 5 and 8 durations correctly reflect their actual VO lengths
+
+---
+
 ## [P6-S6] Niche-aware prompts (replace hardcoded channel)
 **Epic:** E31 — Orchestrator + Legacy Bridge
 **Sprint:** P6
