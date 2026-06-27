@@ -745,30 +745,68 @@ class RenderWorkerRequest(BaseModel):
 
 
 class RenderWorkerResponse(BaseModel):
-    """Response body for POST /platform/workers/render."""
+    """Response body for POST /platform/workers/render (accepted — render runs async)."""
 
-    render_script_key: str
-    video_key: str
-    scene_count: int
-    duration_s: float
+    status: str = "accepted"
+    run_id: str
 
 
-@router.post("/workers/render", response_model=RenderWorkerResponse)
+async def _run_render_background(
+    run_id: str,
+    state: StageState,
+    worker: Any,
+    storage: ArtifactStorage,
+    settings: Any,
+) -> None:
+    """Background task: runs FFmpeg render and writes artifact or error marker to R2."""
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+
+    error_key = f"runs/{run_id}/render/error.json"
+    try:
+        output = await worker(state)
+        result_artifact = output.artifact
+        if not isinstance(result_artifact, RenderArtifact):
+            raise RuntimeError(f"RenderWorker returned unexpected artifact type: {type(result_artifact)}")
+
+        render_lineage = LineageEnvelope(
+            run_id=run_id,
+            worker="render_worker",
+            worker_version=RENDER_WORKER_REGISTRATION.worker_version,
+            prompt_version=RENDER_WORKER_REGISTRATION.prompt_version,
+            model=RENDER_WORKER_REGISTRATION.model,
+            created_at=datetime.now(),
+        )
+        await write_artifact(
+            storage,
+            result_artifact,
+            name="render_result",
+            stage="render",
+            run_id=run_id,
+            user_id=_PLATFORM_USER_ID,
+            lineage=render_lineage,
+        )
+        _logger.info("RenderWorker background task complete for run %s", run_id)
+    except Exception as exc:
+        _logger.exception("RenderWorker background task failed for run %s: %s", run_id, exc)
+        try:
+            await storage.put_json(error_key, {"error": str(exc), "run_id": run_id})
+        except Exception:
+            pass
+
+
+@router.post("/workers/render", response_model=RenderWorkerResponse, status_code=202)
 async def render_worker_endpoint(
     body: RenderWorkerRequest,
+    background_tasks: BackgroundTasks,
     storage: ArtifactStorage = Depends(get_artifact_storage),
     settings: PlatformSettings = Depends(get_platform_settings),
 ) -> RenderWorkerResponse:
-    """Execute FFmpeg render for an acquired run.
+    """Enqueue an FFmpeg render for an acquired run (returns 202 immediately).
 
-    Reads the latest verified_storyboard and asset_manifest artifacts for run_id,
-    plus voice_alignment when present. Applies render_options per scene (film_look,
-    lower_third, on_screen_text_overlay). Persists render_script.sh and final.mp4.
-
-    Designed for future step-by-step manual UI and standalone testing.
+    The actual render runs as a background task — FFmpeg can take several minutes.
+    Poll GET /platform/studio/runs/{run_id}/render/status for progress.
     """
-    from cf_platform.core.artifact_manager import write_artifact
-    from cf_platform.core.schemas import LineageEnvelope
 
     def _latest_key(keys: list[str]) -> str:
         return sorted(keys)[-1]
@@ -812,35 +850,16 @@ async def render_worker_endpoint(
         inputs={},
         artifacts=artifacts,
     )
-    output = await worker(state)
-    result_artifact = output.artifact
-    if not isinstance(result_artifact, RenderArtifact):
-        raise HTTPException(status_code=500, detail="RenderWorker returned unexpected artifact type")
 
-    render_lineage = LineageEnvelope(
-        run_id=body.run_id,
-        worker="render_worker",
-        worker_version=RENDER_WORKER_REGISTRATION.worker_version,
-        prompt_version=RENDER_WORKER_REGISTRATION.prompt_version,
-        model=RENDER_WORKER_REGISTRATION.model,
-        created_at=datetime.now(),
-    )
-    await write_artifact(
-        storage,
-        result_artifact,
-        name="render_result",
-        stage="render",
-        run_id=body.run_id,
-        user_id=_PLATFORM_USER_ID,
-        lineage=render_lineage,
-    )
+    # Clear any previous error marker so polling reflects the new attempt
+    try:
+        await storage.put_json(f"runs/{body.run_id}/render/error.json", {})
+    except Exception:
+        pass
 
-    return RenderWorkerResponse(
-        render_script_key=result_artifact.render_script_key,
-        video_key=result_artifact.video_key,
-        scene_count=result_artifact.scene_count,
-        duration_s=result_artifact.duration_s,
-    )
+    background_tasks.add_task(_run_render_background, body.run_id, state, worker, storage, settings)
+    _logger.info("RenderWorker background task enqueued for run %s", body.run_id)
+    return RenderWorkerResponse(status="accepted", run_id=body.run_id)
 
 
 # ── Studio read/patch endpoints ───────────────────────────────────────────────
@@ -942,6 +961,30 @@ async def studio_get_video_url(
     except Exception as exc:
         raise HTTPException(status_code=404, detail=f"Video not found for this run: {exc}")
     return {"video_url": url, "video_key": video_key}
+
+
+@router.get("/studio/runs/{run_id}/render/status")
+async def studio_get_render_status(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Poll render progress.  Returns {status: running|complete|error, video_url?, error?}."""
+    video_key = f"runs/{run_id}/output/final.mp4"
+    try:
+        url = await storage.generate_presigned_url(video_key, expires_in=86400)
+        return {"status": "complete", "video_url": url, "video_key": video_key}
+    except Exception:
+        pass
+
+    error_key = f"runs/{run_id}/render/error.json"
+    try:
+        error_body = await storage.get_json(error_key)
+        if error_body and error_body.get("error"):
+            return {"status": "error", "error": error_body["error"]}
+    except Exception:
+        pass
+
+    return {"status": "running"}
 
 
 class ScenePatchRequest(BaseModel):

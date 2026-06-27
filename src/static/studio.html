@@ -1201,46 +1201,73 @@ async function renderVideo() {
       <span class="dot dot-running"></span>
       <span id="render-timer">Rendering… 0s</span>
     </div>`;
-  const timer = setInterval(() => {
+  const timerInterval = setInterval(() => {
     const el = document.getElementById('render-timer');
     if (el) el.textContent = `Rendering… ${elapsed(start)}`;
   }, 1000);
 
   try {
+    // Enqueue render — returns 202 immediately
     const r = await fetch('/platform/workers/render', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ run_id: state.runId }),
     });
-    clearInterval(timer);
     if (!r.ok) {
+      clearInterval(timerInterval);
       const err = await r.json().catch(() => ({}));
       state.stageStatus.render = 'error';
       showErr('render-error', err.detail || `Render error ${r.status}`);
       document.getElementById('render-content').innerHTML = '';
       renderStageTrack();
+      btn.disabled = false;
       return;
     }
-    const meta = await r.json();
 
-    // Load presigned video URL
-    const vR = await fetch(`/platform/studio/runs/${state.runId}/video`);
-    if (vR.ok) {
-      const vData = await vR.json();
-      state.stageData.render = { ...vData, ...meta };
-      renderVideoResult({ ...vData, ...meta });
-    } else {
-      document.getElementById('render-content').innerHTML = `<div class="muted">Render complete in ${elapsed(start)}. Video key: ${esc(meta.video_key)}</div>`;
-    }
-    state.stageStatus.render = 'done';
-    renderStageTrack();
+    // Poll /render/status until complete or error (FFmpeg runs in background)
+    const pollInterval = 4000;
+    const maxPolls = 150; // 10 minutes max
+    let polls = 0;
+    const poll = setInterval(async () => {
+      polls++;
+      try {
+        const sr = await fetch(`/platform/studio/runs/${state.runId}/render/status`);
+        if (!sr.ok) return; // transient — keep polling
+        const sd = await sr.json();
+        if (sd.status === 'complete') {
+          clearInterval(poll);
+          clearInterval(timerInterval);
+          state.stageData.render = sd;
+          state.stageStatus.render = 'done';
+          renderVideoResult(sd);
+          renderStageTrack();
+          btn.disabled = false;
+        } else if (sd.status === 'error') {
+          clearInterval(poll);
+          clearInterval(timerInterval);
+          state.stageStatus.render = 'error';
+          showErr('render-error', sd.error || 'Render failed — check Railway logs.');
+          document.getElementById('render-content').innerHTML = '';
+          renderStageTrack();
+          btn.disabled = false;
+        } else if (polls >= maxPolls) {
+          clearInterval(poll);
+          clearInterval(timerInterval);
+          state.stageStatus.render = 'error';
+          showErr('render-error', 'Render timed out after 10 minutes.');
+          document.getElementById('render-content').innerHTML = '';
+          renderStageTrack();
+          btn.disabled = false;
+        }
+      } catch (_) { /* network blip — keep polling */ }
+    }, pollInterval);
+
   } catch (e) {
-    clearInterval(timer);
+    clearInterval(timerInterval);
     state.stageStatus.render = 'error';
     showErr('render-error', `Network error: ${e.message}`);
     document.getElementById('render-content').innerHTML = '';
     renderStageTrack();
-  } finally {
     btn.disabled = false;
   }
 }
