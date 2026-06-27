@@ -1118,7 +1118,7 @@ async function acquireAssets() {
 }
 
 function renderManifest(data) {
-  const entries = data?.entries || [];
+  const entries = data?.manifest?.entries || data?.entries || [];
   const acquired = data?.acquired ?? '?';
   const failed = data?.failed ?? 0;
 
