@@ -7,6 +7,7 @@ FFmpeg execution so it is always available for debugging.
 
 import asyncio
 import logging
+import shlex
 import shutil
 import subprocess
 from datetime import datetime, timezone
@@ -268,14 +269,18 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
     return section, new_source
 
 
-def _collect_overlay_filters(storyboard) -> list[str]:
-    """Return drawtext filter strings for lower_third + on_screen_text overlays.
+def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
+    """Return (preamble_lines, drawtext_filters) for lower_third + on_screen_text overlays.
 
-    Used by _build_render_script to merge overlay rendering into the single
-    post-processing FFmpeg pass rather than a separate invocation.
+    OST text is written to $WORK/ost_NN.txt files (one per overlay) with
+    expansion=none so that % and ' in the text need no filter-chain escaping.
+    Lower-third names/titles still use text= (they are operator-controlled
+    and unlikely to contain problematic characters).
     """
+    preamble: list[str] = []
     filters: list[str] = []
     t_offset = 0.0
+    ost_idx = 0
     for scene in storyboard.scenes:
         opts = scene.render_options
         scene_start = t_offset
@@ -306,20 +311,25 @@ def _collect_overlay_filters(storyboard) -> list[str]:
         if not ost_text:
             ost_text = scene.on_screen_text
         if ost_text:
-            text = _escape_drawtext(ost_text.upper())
+            # Write text to a file so % and ' require no filter-chain escaping
+            fname = f"ost_{ost_idx:02d}.txt"
+            # printf %s prints the argument literally without format expansion
+            preamble.append(f'printf "%s" {shlex.quote(ost_text.upper())} > "$WORK/{fname}"')
             t_appear = scene_start + 0.3
             ost_enable = f"between(t,{t_appear:.3f},{scene_end:.3f})"
             alpha_expr = f"if(lt(t-{t_appear:.3f}\\,0.5)\\,(t-{t_appear:.3f})/0.5\\,1)"
             filters.append(
-                f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
+                f"drawtext=textfile=$WORK/{fname}:expansion=none"
+                f":fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
                 f":fontsize=60:fontcolor=white"
                 f":box=1:boxcolor=black@0.55:boxborderw=18"
                 f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2"
                 f":alpha='{alpha_expr}':enable='{ost_enable}'"
             )
+            ost_idx += 1
 
         t_offset += scene.duration_s
-    return filters
+    return preamble, filters
 
 
 def _build_render_script(
@@ -404,13 +414,18 @@ def _build_render_script(
     if grade_filter:
         post_vf.append(grade_filter)
 
-    post_vf.extend(_collect_overlay_filters(storyboard))
+    ost_preamble, ost_filters = _collect_overlay_filters(storyboard)
+    post_vf.extend(ost_filters)
 
     if post_vf:
         combined = ",\\\n  ".join(post_vf)
+        preamble_block = "\n".join(ost_preamble)
+        header = "# ── Post-process: captions + grade + overlays (single pass) ─\n"
+        if preamble_block:
+            header += preamble_block + "\n"
         parts.append(
-            "# ── Post-process: captions + grade + overlays (single pass) ─\n"
-            'ffmpeg -y \\\n'
+            header
+            + 'ffmpeg -y \\\n'
             '  -i "$WORK/video_padded.mp4" \\\n'
             f'  -vf "{combined}" \\\n'
             "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
