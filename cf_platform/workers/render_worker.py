@@ -172,7 +172,7 @@ def _escape_drawtext(text: str) -> str:
     )
     return (
         text.replace("\\", "\\\\")
-        .replace("%", "%%%%")
+        .replace("%", "\\%")
         .replace("$", "\\$")
         .replace("'", "\\'")
         .replace(":", "\\:")
@@ -278,10 +278,11 @@ def _collect_overlay_filters(storyboard) -> list[str]:
     t_offset = 0.0
     for scene in storyboard.scenes:
         opts = scene.render_options
+        scene_start = t_offset
+        scene_end = t_offset + scene.duration_s
+        enable = f"between(t,{scene_start:.3f},{scene_end:.3f})"
+
         if opts:
-            scene_start = t_offset
-            scene_end = t_offset + scene.duration_s
-            enable = f"between(t,{scene_start:.3f},{scene_end:.3f})"
             if opts.lower_third:
                 lt = opts.lower_third
                 name = _escape_drawtext(lt.name)
@@ -297,21 +298,26 @@ def _collect_overlay_filters(storyboard) -> list[str]:
                         f":fontsize=26:fontcolor=white@0.85"
                         f":x=(w-text_w)/2:y=h-text_h-270:enable='{enable}'"
                     )
-            # Prefer storyboard overlay; fall back to scene.on_screen_text for stale storyboards
-            ost_text = (opts.on_screen_text_overlay.text if opts.on_screen_text_overlay else None) or scene.on_screen_text
-            if ost_text:
-                text = _escape_drawtext(ost_text.upper())
-                t_appear = scene_start + 0.3
-                ost_enable = f"between(t,{t_appear:.3f},{scene_end:.3f})"
-                # alpha fades from 0→1 over 0.5s after the 0.3s delay
-                alpha_expr = f"if(lt(t-{t_appear:.3f}\\,0.5)\\,(t-{t_appear:.3f})/0.5\\,1)"
-                filters.append(
-                    f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
-                    f":fontsize=60:fontcolor=white"
-                    f":box=1:boxcolor=black@0.55:boxborderw=18"
-                    f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2"
-                    f":alpha='{alpha_expr}':enable='{ost_enable}'"
-                )
+
+        # Prefer storyboard overlay; fall back to scene.on_screen_text for stale storyboards
+        ost_text = None
+        if opts and opts.on_screen_text_overlay:
+            ost_text = opts.on_screen_text_overlay.text
+        if not ost_text:
+            ost_text = scene.on_screen_text
+        if ost_text:
+            text = _escape_drawtext(ost_text.upper())
+            t_appear = scene_start + 0.3
+            ost_enable = f"between(t,{t_appear:.3f},{scene_end:.3f})"
+            alpha_expr = f"if(lt(t-{t_appear:.3f}\\,0.5)\\,(t-{t_appear:.3f})/0.5\\,1)"
+            filters.append(
+                f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
+                f":fontsize=60:fontcolor=white"
+                f":box=1:boxcolor=black@0.55:boxborderw=18"
+                f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2"
+                f":alpha='{alpha_expr}':enable='{ost_enable}'"
+            )
+
         t_offset += scene.duration_s
     return filters
 
