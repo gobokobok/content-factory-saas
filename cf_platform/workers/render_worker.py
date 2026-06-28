@@ -172,7 +172,7 @@ def _escape_drawtext(text: str) -> str:
     )
     return (
         text.replace("\\", "\\\\")
-        .replace("%", "%%")
+        .replace("%", "%%%%")
         .replace("$", "\\$")
         .replace("'", "\\'")
         .replace(":", "\\:")
@@ -297,11 +297,11 @@ def _collect_overlay_filters(storyboard) -> list[str]:
                         f":fontsize=26:fontcolor=white@0.85"
                         f":x=(w-text_w)/2:y=h-text_h-270:enable='{enable}'"
                     )
-            if opts.on_screen_text_overlay:
-                ost = opts.on_screen_text_overlay
-                text = _escape_drawtext(ost.text.upper())
+            # Prefer storyboard overlay; fall back to scene.on_screen_text for stale storyboards
+            ost_text = (opts.on_screen_text_overlay.text if opts.on_screen_text_overlay else None) or scene.on_screen_text
+            if ost_text:
+                text = _escape_drawtext(ost_text.upper())
                 t_appear = scene_start + 0.3
-                fade_end = t_appear + 0.5
                 ost_enable = f"between(t,{t_appear:.3f},{scene_end:.3f})"
                 # alpha fades from 0→1 over 0.5s after the 0.3s delay
                 alpha_expr = f"if(lt(t-{t_appear:.3f}\\,0.5)\\,(t-{t_appear:.3f})/0.5\\,1)"
