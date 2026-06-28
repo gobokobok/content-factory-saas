@@ -75,6 +75,7 @@ def _film_look_section(storyboard) -> Optional[str]:
                 f'ffmpeg -y -i "$WORK/scene_{n}.mp4" \\\n'
                 f'  -vf "{_FILM_LOOK_FILTER}" \\\n'
                 "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
+                "  -video_track_timescale 25 \\\n"
                 f'  "$WORK/scene_{n}_fl.mp4"\n'
                 f'mv "$WORK/scene_{n}_fl.mp4" "$WORK/scene_{n}.mp4"'
             )
