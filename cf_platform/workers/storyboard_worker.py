@@ -682,17 +682,14 @@ def _apply_patches_and_render_options(
         if scene.segment_type == "Event":
             render_kwargs["film_look"] = True
 
-        # on_screen_text (stat or date) → timed on_screen_text_overlay
-        if (
-            scene.on_screen_text
-            and scene.on_screen_text_type
-            and scene.on_screen_text_type in ("stat", "date")
-        ):
+        # on_screen_text → timed on_screen_text_overlay; type defaults to "stat"
+        if scene.on_screen_text:
             end_t = scene_start + scene.duration_s
             enable_expr = f"between(t,{scene_start:.3f},{end_t:.3f})"
+            ost_type = scene.on_screen_text_type if scene.on_screen_text_type in ("stat", "date") else "stat"
             render_kwargs["on_screen_text_overlay"] = OnScreenTextOverlay(
                 text=scene.on_screen_text,
-                type=scene.on_screen_text_type,
+                type=ost_type,
                 enable_expr=enable_expr,
             )
 

@@ -172,6 +172,7 @@ def _escape_drawtext(text: str) -> str:
     )
     return (
         text.replace("\\", "\\\\")
+        .replace("%", "%%")
         .replace("$", "\\$")
         .replace("'", "\\'")
         .replace(":", "\\:")
@@ -299,11 +300,17 @@ def _collect_overlay_filters(storyboard) -> list[str]:
             if opts.on_screen_text_overlay:
                 ost = opts.on_screen_text_overlay
                 text = _escape_drawtext(ost.text.upper())
+                t_appear = scene_start + 0.3
+                fade_end = t_appear + 0.5
+                ost_enable = f"between(t,{t_appear:.3f},{scene_end:.3f})"
+                # alpha fades from 0→1 over 0.5s after the 0.3s delay
+                alpha_expr = f"if(lt(t-{t_appear:.3f}\\,0.5)\\,(t-{t_appear:.3f})/0.5\\,1)"
                 filters.append(
                     f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
                     f":fontsize=60:fontcolor=white"
                     f":box=1:boxcolor=black@0.55:boxborderw=18"
-                    f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2:enable='{enable}'"
+                    f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2"
+                    f":alpha='{alpha_expr}':enable='{ost_enable}'"
                 )
         t_offset += scene.duration_s
     return filters
