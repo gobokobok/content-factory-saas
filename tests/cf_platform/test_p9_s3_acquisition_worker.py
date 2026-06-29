@@ -383,7 +383,7 @@ async def test_acquire_broll_three_tier_cascade_on_primary_miss():
 
     tier_call_count = [0]
 
-    async def mock_try(candidates, entry, is_video, run_id, storage, collected):
+    async def mock_try(candidates, entry, is_video, run_id, storage, collected, used_source_urls=None, dup_lock=None):
         tier_call_count[0] += 1
         # Fail primary tier, pass on second
         return tier_call_count[0] == 2
@@ -506,7 +506,7 @@ async def test_worker_returns_asset_manifest_artifact():
     )
 
     with patch("cf_platform.workers.acquisition_worker._acquire_scene", new_callable=AsyncMock) as mock_acquire:
-        async def side_effect_mark_acquired(entry, run_id, storage, pexels, pixabay, wikimedia):
+        async def side_effect_mark_acquired(entry, run_id, storage, pexels, pixabay, wikimedia, used_source_urls=None, dup_lock=None):
             entry.status = "acquired"
             entry.source = "pexels"
             entry.file_key = f"runs/{run_id}/images/{entry.scene_id}.jpg"

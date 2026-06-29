@@ -222,8 +222,8 @@ def _load_storyboard(json_str: str) -> Storyboard:
     return Storyboard.model_validate(json.loads(json_str))
 
 
-def test_character_scene_gets_lower_third_and_null_on_screen_text():
-    """Character scene with person_name → lower_third in render_options; on_screen_text nulled."""
+def test_character_scene_person_name_becomes_ost():
+    """Character scene with person_name → on_screen_text=person_name, type='person'; no lower_third (P10-S1)."""
     storyboard = _load_storyboard(_make_storyboard_json(
         segment_type="Character",
         person_name="Jerome Powell",
@@ -234,13 +234,15 @@ def test_character_scene_gets_lower_third_and_null_on_screen_text():
     result = _apply_patches_and_render_options(storyboard, [])
     scene = result.scenes[0]
     assert scene.render_options is not None
-    assert scene.render_options.lower_third is not None
-    assert scene.render_options.lower_third.name == "Jerome Powell"
-    assert scene.render_options.lower_third.title == "Chair, Federal Reserve"
-    assert scene.render_options.lower_third.caption_y_override == 1540
-    # on_screen_text must be nulled out when lower_third is active
-    assert scene.on_screen_text is None
-    assert scene.on_screen_text_type is None
+    # lower_third must NOT be populated — person name goes to OST instead (P10-S1 Bug 1)
+    assert scene.render_options.lower_third is None
+    # Person name appears as centre OST overlay
+    assert scene.on_screen_text == "Jerome Powell"
+    assert scene.on_screen_text_type == "person"
+    overlay = scene.render_options.on_screen_text_overlay
+    assert overlay is not None
+    assert overlay.text == "Jerome Powell"
+    assert overlay.type == "person"
 
 
 def test_event_scene_gets_film_look():
@@ -322,10 +324,11 @@ def test_patches_applied_before_render_options():
     patches = [{"scene_id": "1", "field": "segment_type", "value": "Character"}]
     result = _apply_patches_and_render_options(storyboard, patches)
     scene = result.scenes[0]
-    # After patch, segment_type is Character → lower_third should be set
+    # After patch, segment_type is Character → OST overlay with person name (P10-S1)
     assert scene.segment_type == "Character"
     assert scene.render_options is not None
-    assert scene.render_options.lower_third is not None
+    assert scene.render_options.lower_third is None
+    assert scene.on_screen_text == "Jerome Powell"
 
 
 def test_unknown_patch_field_ignored():
@@ -436,9 +439,10 @@ async def test_character_scene_review_patch_applied_in_worker():
     scene2 = next(s for s in storyboard.scenes if s.scene == "2")
     assert scene2.segment_type == "Character"
     assert scene2.render_options is not None
-    assert scene2.render_options.lower_third is not None
-    assert scene2.render_options.lower_third.name == "Jerome Powell"
-    assert scene2.on_screen_text is None  # nulled by patch step
+    # P10-S1: lower_third replaced by person OST overlay
+    assert scene2.render_options.lower_third is None
+    assert scene2.on_screen_text == "Jerome Powell"
+    assert scene2.on_screen_text_type == "person"
 
 
 @pytest.mark.asyncio

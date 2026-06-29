@@ -120,7 +120,7 @@ class OnScreenTextOverlay(BaseModel):
     """A timed text overlay (stat, date, or lower-third label) rendered over the scene."""
 
     text: str
-    type: Literal["stat", "date", "lower_third"]
+    type: Literal["stat", "date", "lower_third", "person"]
     # FFmpeg between(t,{offset},{offset+duration}) expression controlling display window.
     enable_expr: str
 
@@ -149,7 +149,7 @@ class StoryboardScene(BaseModel):
     motion_effect: Optional[str] = None
     on_screen_text: Optional[str] = None
     # v2 text overlay type; paired with on_screen_text.
-    on_screen_text_type: Optional[Literal["stat", "date", "lower_third"]] = None
+    on_screen_text_type: Optional[Literal["stat", "date", "lower_third", "person"]] = None
     sfx: str = ""
     sfx_timing: str = ""
 
@@ -254,6 +254,8 @@ class ManifestEntry(BaseModel):
     fallback_used: bool = False
     # Asset tier propagated from StoryboardScene (P9-S9) — guides image-first vs video-first routing.
     asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
+    # Set to True when acquisition skipped a duplicate source URL (P10-S1 deduplication).
+    duplicate_avoided: bool = False
 
 
 class AssetManifest(BaseModel):

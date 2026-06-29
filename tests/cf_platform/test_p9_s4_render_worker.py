@@ -195,21 +195,19 @@ def test_film_look_only_for_flagged_scenes():
 # ── _overlay_section ──────────────────────────────────────────────────────────
 
 
-def test_overlay_section_lower_third_name_and_title():
-    """lower_third with name + title → both drawtext filters in overlay section."""
+def test_overlay_section_lower_third_no_longer_renders():
+    """lower_third alone does not generate drawtext — person name is now OST (P10-S1 Bug 1)."""
     lt = LowerThirdSpec(name="Jerome Powell", title="Chair, Federal Reserve")
     sb = _storyboard([_scene("1", lower_third=lt, duration_s=4.0)])
     section, new_src = _overlay_section(sb, "$WORK/video_captioned.mp4")
-    assert "Jerome Powell" in section
-    assert "Chair" in section
-    assert "drawtext" in section
-    assert new_src == "$WORK/video_overlaid.mp4"
+    assert section == ""
+    assert new_src == "$WORK/video_captioned.mp4"
 
 
 def test_overlay_section_enable_expression():
-    """lower_third drawtext has between(t,...) enable expression scoped to the scene."""
-    lt = LowerThirdSpec(name="Janet Yellen", title="US Treasury Secretary")
-    sb = _storyboard([_scene("1", duration_s=5.0, lower_third=lt)])
+    """on_screen_text_overlay drawtext has between(t,...) enable expression scoped to the scene."""
+    ost = OnScreenTextOverlay(text="Rate hike", type="stat", enable_expr="between(t,0,5)")
+    sb = _storyboard([_scene("1", duration_s=5.0, on_screen_text_overlay=ost)])
     section, _ = _overlay_section(sb, "$WORK/video_captioned.mp4")
     assert "between(t,0.000,5.000)" in section
 
@@ -231,7 +229,7 @@ def test_overlay_section_on_screen_text_overlay_uses_scene_range():
     # Fresh scene-range expression (scene starts at 0, duration 3.0 s)
     assert "between(t,0.000,3.000)" in section
     assert "between(t,2.500,4.500)" not in section  # stale expr must not appear
-    assert "38% DECLINE" in section  # text is uppercased by _escape_drawtext chain
+    assert "38\\% DECLINE" in section  # text is uppercased and % is escaped for drawtext
 
 
 def test_overlay_section_empty_when_no_render_options():
@@ -289,14 +287,13 @@ def test_render_script_no_sepia_when_no_film_look():
     assert "hqdn3d" not in script
 
 
-def test_render_script_overlay_section_present_for_lower_third():
-    """Script includes drawtext overlay when a scene has lower_third."""
+def test_render_script_overlay_section_absent_for_lower_third_only():
+    """lower_third alone does not add drawtext to render script (P10-S1 Bug 1 — use OST instead)."""
     lt = LowerThirdSpec(name="Janet Yellen", title="Treasury Secretary")
     sb = _storyboard([_scene("1", lower_third=lt)])
     mf = _manifest(["1"])
     script = _build_render_script("run42", sb, mf, None, "neutral", True)
-    assert "drawtext" in script
-    assert "Janet Yellen" in script
+    assert "Janet Yellen" not in script
 
 
 def test_render_script_film_look_before_concat():

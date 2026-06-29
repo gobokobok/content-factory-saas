@@ -1691,7 +1691,7 @@ Two-part: (1) **Swap ElevenLabs → Gemini 2.5 Flash TTS** in `voice_production.
 ## [P10-S1] Asset quality, character sourcing, and OST consistency
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P10 (carried from P9-S10)
-**Status:** todo
+**Status:** done
 **Priority:** high
 **Points:** 5
 
@@ -1753,14 +1753,14 @@ Scenes 1, 3, and 5 in a run shared the same image because each scene is acquired
 - `cf_platform/models/storyboard.py` — Bug 1 (add `on_screen_text_type = "person"` literal if not present)
 
 ### Acceptance Criteria
-- [ ] No `lower_third` rendered in any scene; Character scene person name appears as centre OST overlay
-- [ ] Character + historic scenes query Wikimedia first; `asset_manifest.source == "wikimedia"` confirmed for a Kirk Erickson–equivalent scene
-- [ ] No two scenes in the same run share the same `file_key`; `duplicate_avoided: true` appears in manifest where a skip occurred
-- [ ] Every Event scene has non-empty `on_screen_text` after storyboard generation; synthesised OSTs logged at WARNING level
-- [ ] `→` and `↑` render as correct glyphs in the video output; confirmed via a test render
+- [x] No `lower_third` rendered in any scene; Character scene person name appears as centre OST overlay
+- [x] Character + historic scenes query Wikimedia first; `asset_manifest.source == "wikimedia"` confirmed for a Kirk Erickson–equivalent scene
+- [x] No two scenes in the same run share the same `file_key`; `duplicate_avoided: true` appears in manifest where a skip occurred
+- [x] Every Event scene has non-empty `on_screen_text` after storyboard generation; synthesised OSTs logged at WARNING level
+- [x] `→` and `↑` render as correct glyphs in the video output; confirmed via a test render
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ---
 

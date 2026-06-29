@@ -225,14 +225,31 @@ async def _try_candidates(
     run_id: str,
     storage: ArtifactStorage,
     collected: list[tuple["_Candidate", bytes, QAResult]],
+    used_source_urls: Optional[set[str]] = None,
+    dup_lock: Optional[asyncio.Lock] = None,
 ) -> bool:
     """Try each candidate in descending resolution order; accept on first QA pass.
 
     Pre-checks resolution and duration from metadata (no download) before
-    downloading. Appends all downloaded (candidate, bytes, result) tuples to
-    collected for later pick_best fallback. Returns True on first QA pass.
+    downloading. Skips URLs already used by another scene in this run (deduplication).
+    Appends all downloaded (candidate, bytes, result) tuples to collected for later
+    pick_best fallback. Returns True on first QA pass.
     """
+    # Default to no-op deduplication when called without shared state (unit tests / legacy callers).
+    if used_source_urls is None:
+        used_source_urls = set()
+    if dup_lock is None:
+        dup_lock = asyncio.Lock()
+
     for candidate in sorted(candidates, key=lambda c: -c.resolution_score()):
+        # Deduplication: skip any URL already accepted by another scene (P10-S1 Bug 3).
+        async with dup_lock:
+            if candidate.url in used_source_urls:
+                entry.duplicate_avoided = True
+                logger.debug(
+                    "Skipping duplicate URL scene=%s source=%s", entry.scene_id, candidate.source
+                )
+                continue
         pre = qa_score(candidate, entry)
         if not pre.resolution_ok or not pre.duration_ok:
             logger.debug(
@@ -252,6 +269,8 @@ async def _try_candidates(
             key = _asset_key(run_id, entry.scene_id, is_video, candidate.ext)
             await storage.put_bytes(key, data, content_type=candidate.content_type)
             _apply_fields(entry, candidate, key, result)
+            async with dup_lock:
+                used_source_urls.add(candidate.url)
             logger.info(
                 "QA passed: scene=%s source=%s clip_score=%s",
                 entry.scene_id, candidate.source, result.clip_score,
@@ -325,6 +344,8 @@ async def _acquire_character(
     pexels: PexelsClient,
     pixabay: Optional[PixabayClient],
     wikimedia: WikimediaClient,
+    used_source_urls: Optional[set[str]] = None,
+    dup_lock: Optional[asyncio.Lock] = None,
 ) -> bool:
     """Character scene: Wikipedia portrait first; generic Pexels+Pixabay fallback.
 
@@ -332,29 +353,43 @@ async def _acquire_character(
     named person. No Wikimedia general search, no AI fallback for person scenes
     (a generated wrong face is worse than generic B-roll).
     """
+    if used_source_urls is None:
+        used_source_urls = set()
+    if dup_lock is None:
+        dup_lock = asyncio.Lock()
     # 1. Try Wikipedia portrait (QA skipped — ground truth)
     asset = await wikimedia.fetch_person_photo(entry.person_name)  # type: ignore[arg-type]
     if asset is not None:
-        try:
-            data = await _download_bytes(asset.url)
-            ext = _ext_from_url(asset.url)
-            key = _asset_key(run_id, entry.scene_id, is_video=False, ext=ext)
-            await storage.put_bytes(key, data, content_type="image/jpeg")
-            entry.source = "wikimedia_person"
-            entry.file_key = key
-            entry.status = "acquired"
-            entry.attribution = asset.attribution
-            entry.qa_passed = True
-            entry.qa_resolution_ok = True
-            entry.qa_duration_ok = True
-            logger.info(
-                "Character portrait acquired: scene=%s person=%r", entry.scene_id, entry.person_name
-            )
-            return True
-        except Exception as exc:
-            logger.warning(
-                "Character portrait download failed scene=%s person=%r: %s",
-                entry.scene_id, entry.person_name, exc,
+        async with dup_lock:
+            already_used = asset.url in used_source_urls
+        if not already_used:
+            try:
+                data = await _download_bytes(asset.url)
+                ext = _ext_from_url(asset.url)
+                key = _asset_key(run_id, entry.scene_id, is_video=False, ext=ext)
+                await storage.put_bytes(key, data, content_type="image/jpeg")
+                entry.source = "wikimedia_person"
+                entry.file_key = key
+                entry.status = "acquired"
+                entry.attribution = asset.attribution
+                entry.qa_passed = True
+                entry.qa_resolution_ok = True
+                entry.qa_duration_ok = True
+                async with dup_lock:
+                    used_source_urls.add(asset.url)
+                logger.info(
+                    "Character portrait acquired: scene=%s person=%r", entry.scene_id, entry.person_name
+                )
+                return True
+            except Exception as exc:
+                logger.warning(
+                    "Character portrait download failed scene=%s person=%r: %s",
+                    entry.scene_id, entry.person_name, exc,
+                )
+        else:
+            entry.duplicate_avoided = True
+            logger.debug(
+                "Skipping duplicate portrait URL scene=%s person=%r", entry.scene_id, entry.person_name
             )
 
     logger.info(
@@ -378,7 +413,7 @@ async def _acquire_character(
             if not isinstance(result, Exception):
                 tier_cands.extend(result)
         all_seen.extend(tier_cands)
-        if await _try_candidates(tier_cands, entry, False, run_id, storage, collected):
+        if await _try_candidates(tier_cands, entry, False, run_id, storage, collected, used_source_urls, dup_lock):
             return True
 
     return await _accept_best(collected, all_seen, entry, False, run_id, storage)
@@ -392,8 +427,14 @@ async def _acquire_event(
     pexels: PexelsClient,
     pixabay: Optional[PixabayClient],
     wikimedia: WikimediaClient,
+    used_source_urls: Optional[set[str]] = None,
+    dup_lock: Optional[asyncio.Lock] = None,
 ) -> bool:
     """Event scene: Wikimedia Commons (three tiers) → Pexels+Pixabay fallback (three tiers)."""
+    if used_source_urls is None:
+        used_source_urls = set()
+    if dup_lock is None:
+        dup_lock = asyncio.Lock()
     collected: list[tuple[_Candidate, bytes, QAResult]] = []
     all_seen: list[_Candidate] = []
 
@@ -403,7 +444,7 @@ async def _acquire_event(
             continue
         wiki_cands = await _wikimedia_photo_candidates(wikimedia, query)
         all_seen.extend(wiki_cands)
-        if await _try_candidates(wiki_cands, entry, False, run_id, storage, collected):
+        if await _try_candidates(wiki_cands, entry, False, run_id, storage, collected, used_source_urls, dup_lock):
             return True
 
     # Source 2: Pexels+Pixabay concurrent — three-tier cascade
@@ -419,7 +460,7 @@ async def _acquire_event(
             if not isinstance(result, Exception):
                 tier_cands.extend(result)
         all_seen.extend(tier_cands)
-        if await _try_candidates(tier_cands, entry, False, run_id, storage, collected):
+        if await _try_candidates(tier_cands, entry, False, run_id, storage, collected, used_source_urls, dup_lock):
             return True
 
     return await _accept_best(collected, all_seen, entry, False, run_id, storage)
@@ -433,8 +474,14 @@ async def _acquire_broll(
     storage: ArtifactStorage,
     pexels: PexelsClient,
     pixabay: Optional[PixabayClient],
+    used_source_urls: Optional[set[str]] = None,
+    dup_lock: Optional[asyncio.Lock] = None,
 ) -> bool:
     """B-roll scene: Pexels+Pixabay concurrent merge+rank, three-tier cascade."""
+    if used_source_urls is None:
+        used_source_urls = set()
+    if dup_lock is None:
+        dup_lock = asyncio.Lock()
     collected: list[tuple[_Candidate, bytes, QAResult]] = []
     all_seen: list[_Candidate] = []
 
@@ -455,7 +502,7 @@ async def _acquire_broll(
             if not isinstance(result, Exception):
                 tier_cands.extend(result)
         all_seen.extend(tier_cands)
-        if await _try_candidates(tier_cands, entry, is_video, run_id, storage, collected):
+        if await _try_candidates(tier_cands, entry, is_video, run_id, storage, collected, used_source_urls, dup_lock):
             return True
 
     return await _accept_best(collected, all_seen, entry, is_video, run_id, storage)
@@ -468,12 +515,18 @@ async def _acquire_scene(
     pexels: PexelsClient,
     pixabay: Optional[PixabayClient],
     wikimedia: WikimediaClient,
+    used_source_urls: Optional[set[str]] = None,
+    dup_lock: Optional[asyncio.Lock] = None,
 ) -> None:
     """Route scene acquisition by segment_type; mutates entry in-place on success.
 
     When asset_tier is set (v0.13 storyboards), uses it to prefer image vs video sources.
     Falls back to clip_type heuristic for older manifests (v0.12 / legacy).
     """
+    if used_source_urls is None:
+        used_source_urls = set()
+    if dup_lock is None:
+        dup_lock = asyncio.Lock()
     queries = [entry.primary_stk, entry.context_stk, entry.concept_stk]
     # Prefer asset_tier (P9-S9 timestamp-first) over clip_type for source selection.
     if entry.asset_tier == "video":
@@ -484,11 +537,11 @@ async def _acquire_scene(
         is_video = entry.clip_type == "hard_cut"  # legacy fallback
 
     if entry.segment_type == "Character" and entry.person_name:
-        ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia)
+        ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
     elif entry.segment_type == "Event":
-        ok = await _acquire_event(entry, queries, run_id, storage, pexels, pixabay, wikimedia)
+        ok = await _acquire_event(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
     else:
-        ok = await _acquire_broll(entry, queries, is_video, run_id, storage, pexels, pixabay)
+        ok = await _acquire_broll(entry, queries, is_video, run_id, storage, pexels, pixabay, used_source_urls, dup_lock)
 
     if not ok:
         logger.warning(
@@ -587,11 +640,18 @@ def build_acquisition_worker(
         pixabay: Optional[PixabayClient] = PixabayClient(api_key=pixabay_api_key) if pixabay_api_key else None
         wikimedia = WikimediaClient()
 
+        # Shared deduplication state across all scenes in this run (P10-S1 Bug 3).
+        used_source_urls: set[str] = set()
+        dup_lock = asyncio.Lock()
+
         # Acquire all scenes in parallel batches; capture unexpected exceptions per scene
         for batch_start in range(0, len(entries), _BATCH_SIZE):
             batch = entries[batch_start : batch_start + _BATCH_SIZE]
             results = await asyncio.gather(
-                *[_acquire_scene(entry, run_id, storage, pexels, pixabay, wikimedia) for entry in batch],
+                *[
+                    _acquire_scene(entry, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
+                    for entry in batch
+                ],
                 return_exceptions=True,
             )
             for entry, result in zip(batch, results):

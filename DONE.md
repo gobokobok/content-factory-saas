@@ -4,6 +4,25 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P10-S1] Asset quality, character sourcing, and OST consistency
+**Completed:** 2026-06-29
+**Handover:**
+- `src/models.py`: Added `"person"` to `OnScreenTextOverlay.type` and `StoryboardScene.on_screen_text_type` Literals. Added `duplicate_avoided: bool = False` to `ManifestEntry`.
+- `cf_platform/workers/storyboard_worker.py`:
+  - **Bug 1**: `_apply_patches_and_render_options` no longer emits `LowerThirdSpec`. Character scenes with `person_name` now set `on_screen_text = person_name`, `on_screen_text_type = "person"`, and receive an `OnScreenTextOverlay` with `type="person"`.
+  - **Bug 2**: `_sanitize_storyboard_data` normalizes `segment_type` casing via `_SEGMENT_TYPE_MAP` (`"character"→"Character"`, `"event"→"Event"`, `"b-roll"/"broll"→"B-roll"`).
+  - **Bug 4**: New `_synthesize_event_ost(storyboard, api_key)` — Haiku fills missing `on_screen_text` for Event scenes (capped at `_MAX_EVENT_OST_CALLS = 5`); logs WARNING per gap; called in `_worker` after initial generation.
+- `cf_platform/workers/acquisition_worker.py`:
+  - **Bug 3**: `_try_candidates`, `_acquire_character`, `_acquire_event`, `_acquire_broll`, `_acquire_scene` all accept optional `used_source_urls: set[str]` and `dup_lock: asyncio.Lock`; worker creates shared instances and passes them through the scene acquisition loop.
+- `cf_platform/workers/render_worker.py`:
+  - **Bug 1**: `lower_third` blocks removed from `_collect_overlay_filters` and `_overlay_section`.
+  - **Bug 5**: OST `drawtext` font path changed from Poppins to `/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf` in both overlay functions.
+- `Dockerfile`: Added `fonts-noto` to `apt-get install` for NotoSans on Railway.
+- Tests updated: `test_p9_s2_storyboard_worker.py`, `test_p9_s3_acquisition_worker.py`, `test_p9_s4_render_worker.py`. New: `tests/cf_platform/test_p10_s1_quality.py` (16 tests covering all 5 bugs).
+**Smoke test:** DEFERRED — requires a DEV run with a 10-scene storyboard containing Character, Event, and B-roll scenes to confirm NotoSans glyphs, person-name OST placement, and no duplicate assets across scenes.
+
+---
+
 ## [P9-S9] Timestamp-first storyboard — word indices + Python-derived duration and asset tier
 **Completed:** 2026-06-27
 **Handover:**

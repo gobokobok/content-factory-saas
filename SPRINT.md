@@ -166,7 +166,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P10-S1 (was P9-S10) | Asset quality, character sourcing, and OST consistency | 5 | todo |
+| P10-S1 (was P9-S10) | Asset quality, character sourcing, and OST consistency | 5 | done |
 | P10-S2 (was P9-S8) | Per-scene asset override — custom query re-acquire + operator upload | 4 | todo |
 | P10-S3 (was P10-S1) | Semantic enrichment — global context + Entity Resolver + visual deduplication | 6 | todo |
 

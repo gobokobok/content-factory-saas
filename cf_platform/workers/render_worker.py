@@ -226,27 +226,11 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
             scene_end = t_offset + scene.duration_s
             enable = f"between(t,{scene_start:.3f},{scene_end:.3f})"
 
-            if opts.lower_third:
-                lt = opts.lower_third
-                name = _escape_drawtext(lt.name)
-                filters.append(
-                    f"drawtext=text='{name}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
-                    f":fontsize=34:fontcolor=white"
-                    f":x=(w-text_w)/2:y=h-text_h-220:enable='{enable}'"
-                )
-                if lt.title:
-                    title = _escape_drawtext(lt.title)
-                    filters.append(
-                        f"drawtext=text='{title}':fontfile=/usr/local/share/fonts/Poppins-Regular.ttf"
-                        f":fontsize=26:fontcolor=white@0.85"
-                        f":x=(w-text_w)/2:y=h-text_h-270:enable='{enable}'"
-                    )
-
             if opts.on_screen_text_overlay:
                 ost = opts.on_screen_text_overlay
                 text = _escape_drawtext(ost.text.upper())
                 filters.append(
-                    f"drawtext=text='{text}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
+                    f"drawtext=text='{text}':fontfile=/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"
                     f":fontsize=60:fontcolor=white"
                     f":box=1:boxcolor=black@0.55:boxborderw=18"
                     f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2:enable='{enable}'"
@@ -287,24 +271,8 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
         scene_end = t_offset + scene.duration_s
         enable = f"between(t,{scene_start:.3f},{scene_end:.3f})"
 
-        if opts:
-            if opts.lower_third:
-                lt = opts.lower_third
-                name = _escape_drawtext(lt.name)
-                filters.append(
-                    f"drawtext=text='{name}':fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
-                    f":fontsize=34:fontcolor=white"
-                    f":x=(w-text_w)/2:y=h-text_h-220:enable='{enable}'"
-                )
-                if lt.title:
-                    title = _escape_drawtext(lt.title)
-                    filters.append(
-                        f"drawtext=text='{title}':fontfile=/usr/local/share/fonts/Poppins-Regular.ttf"
-                        f":fontsize=26:fontcolor=white@0.85"
-                        f":x=(w-text_w)/2:y=h-text_h-270:enable='{enable}'"
-                    )
-
-        # Prefer storyboard overlay; fall back to scene.on_screen_text for stale storyboards
+        # Prefer storyboard overlay; fall back to scene.on_screen_text for stale storyboards.
+        # lower_third overlays removed in P10-S1 — person name now appears as OST via on_screen_text.
         ost_text = None
         if opts and opts.on_screen_text_overlay:
             ost_text = opts.on_screen_text_overlay.text
@@ -318,9 +286,10 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
             t_appear = scene_start + 0.3
             ost_enable = f"between(t,{t_appear:.3f},{scene_end:.3f})"
             alpha_expr = f"if(lt(t-{t_appear:.3f}\\,0.5)\\,(t-{t_appear:.3f})/0.5\\,1)"
+            # NotoSans covers Unicode arrows/symbols; Poppins does not (P10-S1 Bug 5).
             filters.append(
                 f"drawtext=textfile=$WORK/{fname}:expansion=none"
-                f":fontfile=/usr/local/share/fonts/Poppins-Bold.ttf"
+                f":fontfile=/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"
                 f":fontsize=60:fontcolor=white"
                 f":box=1:boxcolor=black@0.55:boxborderw=18"
                 f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2"

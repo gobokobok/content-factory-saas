@@ -1,7 +1,7 @@
 FROM python:3.11-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg fonts-open-sans fonts-montserrat \
+    && apt-get install -y --no-install-recommends ffmpeg fonts-open-sans fonts-montserrat fonts-noto \
     && rm -rf /var/lib/apt/lists/*
 
 # Poppins Bold is not available via apt — bundled in assets/fonts/ (see D035)

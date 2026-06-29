@@ -669,14 +669,14 @@ def _apply_patches_and_render_options(
         scene_start = cumulative_t
         render_kwargs: dict = {}
 
-        # Character + person_name → lower_third overlay; null on_screen_text
+        # Character + person_name → person name as centre OST overlay (not lower_third).
+        # lower_third banners were removed in P10-S1; person name now appears at the
+        # standard OST position so the acquisition layer can still show who is on screen.
         if scene.segment_type == "Character" and scene.person_name:
-            render_kwargs["lower_third"] = LowerThirdSpec(
-                name=scene.person_name,
-                title=scene.person_title,
-                caption_y_override=1540,
-            )
-            scene = scene.model_copy(update={"on_screen_text": None, "on_screen_text_type": None})
+            scene = scene.model_copy(update={
+                "on_screen_text": scene.person_name,
+                "on_screen_text_type": "person",
+            })
 
         # Event → film_look
         if scene.segment_type == "Event":
@@ -686,7 +686,7 @@ def _apply_patches_and_render_options(
         if scene.on_screen_text:
             end_t = scene_start + scene.duration_s
             enable_expr = f"between(t,{scene_start:.3f},{end_t:.3f})"
-            ost_type = scene.on_screen_text_type if scene.on_screen_text_type in ("stat", "date") else "stat"
+            ost_type = scene.on_screen_text_type if scene.on_screen_text_type in ("stat", "date", "person") else "stat"
             render_kwargs["on_screen_text_overlay"] = OnScreenTextOverlay(
                 text=scene.on_screen_text,
                 type=ost_type,
@@ -704,15 +704,22 @@ def _apply_patches_and_render_options(
 
 # ── API call helpers ──────────────────────────────────────────────────────────
 
-_VALID_OST_TYPES = {"stat", "date", "lower_third"}
+_VALID_OST_TYPES = {"stat", "date", "lower_third", "person"}
+
+# Normalise segment_type casing from Claude (model occasionally outputs lowercase).
+_SEGMENT_TYPE_MAP = {
+    "character": "Character",
+    "event": "Event",
+    "b-roll": "B-roll",
+    "broll": "B-roll",
+}
 
 
 def _sanitize_storyboard_data(data: dict) -> dict:
-    """Clamp any out-of-enum on_screen_text_type values to null before Pydantic validation.
+    """Clamp invalid enum values before Pydantic validation.
 
-    Claude occasionally invents types like "emphasis" that aren't in the schema.
-    Rather than rejecting the whole storyboard, we null out the invalid type (and
-    the paired text) so the scene still renders — just without an overlay.
+    Nulls out unrecognised on_screen_text_type values. Normalises segment_type
+    casing so "character" → "Character" etc. (Claude occasionally outputs lowercase).
     """
     for scene in data.get("scenes", []):
         ost_type = scene.get("on_screen_text_type")
@@ -724,6 +731,15 @@ def _sanitize_storyboard_data(data: dict) -> dict:
             )
             scene["on_screen_text_type"] = None
             scene["on_screen_text"] = None
+        seg = scene.get("segment_type")
+        if seg and seg not in ("Character", "Event", "B-roll"):
+            normalised = _SEGMENT_TYPE_MAP.get(seg.lower())
+            if normalised:
+                logger.warning(
+                    "StoryboardWorker: scene %s segment_type %r normalised to %r",
+                    scene.get("scene", "?"), seg, normalised,
+                )
+                scene["segment_type"] = normalised
     return data
 
 
@@ -827,6 +843,64 @@ async def _review(
     return _parse_review_response(raw_text)
 
 
+# ── Event OST synthesis (Bug 4) ───────────────────────────────────────────────
+
+_MAX_EVENT_OST_CALLS = 5
+
+
+async def _synthesize_event_ost(
+    storyboard: Storyboard,
+    api_key: str,
+) -> Storyboard:
+    """Fill missing on_screen_text for Event scenes using a single Haiku call per gap.
+
+    Scans all scenes where segment_type == "Event" and on_screen_text is null or empty.
+    For each gap (up to _MAX_EVENT_OST_CALLS) calls Haiku to generate a 2–5 word
+    chapter title. Returns a patched Storyboard.
+    """
+    client = anthropic.AsyncAnthropic(api_key=api_key)
+    scenes = list(storyboard.scenes)
+    calls_made = 0
+
+    for i, scene in enumerate(scenes):
+        if calls_made >= _MAX_EVENT_OST_CALLS:
+            break
+        if scene.segment_type != "Event" or scene.on_screen_text:
+            continue
+        try:
+            message = await client.messages.create(
+                model=_HAIKU_MODEL,
+                max_tokens=64,
+                messages=[{
+                    "role": "user",
+                    "content": (
+                        f"Given this voiceover line: \"{scene.voiceover_line}\", "
+                        "write a 2–5 word chapter title for an on-screen text overlay. "
+                        "Respond with only the title in UPPERCASE, maximum 30 characters."
+                    ),
+                }],
+            )
+            raw = message.content[0].text.strip().upper()[:30]
+            logger.warning(
+                "StoryboardWorker: Event scene %s had no OST — synthesised %r",
+                scene.scene, raw,
+            )
+            scenes[i] = scene.model_copy(update={
+                "on_screen_text": raw,
+                "on_screen_text_type": "date",  # broadest valid non-person OST type
+            })
+            calls_made += 1
+        except Exception as exc:
+            logger.warning(
+                "StoryboardWorker: failed to synthesise OST for Event scene %s: %s",
+                scene.scene, exc,
+            )
+
+    if calls_made:
+        storyboard = storyboard.model_copy(update={"scenes": scenes})
+    return storyboard
+
+
 # ── Worker factory ────────────────────────────────────────────────────────────
 
 
@@ -873,6 +947,12 @@ def build_storyboard_worker(
 
         # Step 3: Patch — apply corrections + compute render_options (deterministic)
         storyboard = _apply_patches_and_render_options(storyboard, patches)
+
+        # Step 3b: Synthesise OST for any Event scenes that still lack on_screen_text (Bug 4).
+        # Run AFTER the initial patch so we only fill genuine gaps, not ones the reviewer fixed.
+        # Re-apply render_options afterwards so the new OST text gets an enable_expr.
+        storyboard = await _synthesize_event_ost(storyboard, anthropic_api_key)
+        storyboard = _apply_patches_and_render_options(storyboard, [])
 
         # Step 4: Enforce hard duration caps — v0.12 path only.
         # For v0.13 (Deepgram timestamps), duration_s is ground truth; capping would
