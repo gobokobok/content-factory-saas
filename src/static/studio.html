@@ -247,21 +247,82 @@
     .ost-icon { font-size: 10px; color: #7c3aed; margin-left: 4px; opacity: 0.7; }
     .save-indicator { font-size: 10px; color: var(--green); }
 
-    /* ── Assets stage ───────────────────────────────────────────────── */
-    .assets-summary { display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
+    /* ── Scene thumbnail / preview cells (in storyboard table) ─────── */
     .qa-pass { color: var(--green); font-weight: 600; }
     .qa-fail { color: var(--red); font-weight: 600; }
     .status-acquired { color: var(--green); }
     .status-failed   { color: var(--red); }
-    .asset-preview-link {
-      font-size: 11px; color: var(--blue); text-decoration: none; white-space: nowrap;
-    }
-    .asset-preview-link:hover { text-decoration: underline; }
 
     .source-badge {
       font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px;
       background: var(--bg-alt); border: 1px solid var(--border); color: var(--muted);
     }
+    .source-badge.src-wikimedia  { background:#f0fdf4; color:#166534; border-color:#bbf7d0; }
+    .source-badge.src-pexels     { background:#eff6ff; color:#1d4ed8; border-color:#bfdbfe; }
+    .source-badge.src-pixabay    { background:#fef3c7; color:#92400e; border-color:#fde68a; }
+    .source-badge.src-operator   { background:#fdf4ff; color:#7e22ce; border-color:#e9d5ff; }
+
+    .scene-thumb {
+      width: 80px; height: 50px; object-fit: cover; border-radius: 3px;
+      border: 1px solid var(--border); display: block;
+    }
+    .thumb-placeholder {
+      width: 80px; height: 50px; border-radius: 3px; border: 1px dashed var(--border);
+      background: var(--bg-alt); display: flex; align-items: center; justify-content: center;
+      color: var(--muted); font-size: 10px;
+    }
+    .thumb-video-wrap { position: relative; display: inline-block; }
+    .thumb-video-icon {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.85); font-size: 14px; pointer-events: none;
+    }
+    .pencil-btn {
+      background: transparent; border: none; cursor: pointer; padding: 3px 6px;
+      color: var(--muted); font-size: 14px; border-radius: 3px; line-height: 1;
+    }
+    .pencil-btn:hover { background: var(--bg-alt); color: var(--text); }
+    .pencil-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    /* ── Pencil override modal ─────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+    }
+    .modal-box {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+      width: 480px; max-width: 96vw; box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      display: flex; flex-direction: column;
+    }
+    .modal-header {
+      padding: 14px 18px 10px; border-bottom: 1px solid var(--border2);
+      font-size: 13px; font-weight: 600; color: var(--text);
+    }
+    .modal-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 18px; }
+    .modal-section-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--muted); margin-bottom: 6px;
+    }
+    .modal-row { display: flex; align-items: center; gap: 8px; }
+    .modal-input {
+      flex: 1; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px;
+      font-family: var(--font); font-size: 13px; color: var(--text); background: var(--bg);
+    }
+    .modal-input:focus { outline: none; border-color: #b0aaa8; }
+    .modal-thumb { width: 80px; height: 50px; object-fit: cover; border-radius: 3px;
+      border: 1px solid var(--border); flex-shrink: 0; display: block; }
+    .modal-msg { font-size: 12px; margin-top: 4px; }
+    .modal-msg.err { color: var(--red); }
+    .modal-msg.ok  { color: var(--green); }
+    .drop-zone {
+      border: 1.5px dashed var(--border); border-radius: 5px; padding: 14px;
+      text-align: center; font-size: 12px; color: var(--muted); cursor: pointer;
+      transition: border-color 0.1s;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--blue); color: var(--blue); }
+    .drop-zone input { display: none; }
+    .modal-progress { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+    .modal-progress-bar { height: 100%; background: var(--blue); width: 0%; transition: width 0.2s; }
+    .modal-footer { padding: 10px 18px 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; }
 
     /* ── Voice stage ───────────────────────────────────────────────── */
     .voice-result {
@@ -416,21 +477,46 @@
         <button class="btn btn-primary" id="acquire-btn" onclick="acquireAssets()">
           Acquire Assets →
         </button>
+        <button class="btn btn-primary" id="go-render-btn" onclick="activateStage('render')" style="display:none;">
+          Go to Render →
+        </button>
         <span id="sb-stage-status" class="running-msg"></span>
       </div>
     </div>
 
-    <!-- Assets stage -->
-    <div class="stage-pane" id="pane-assets">
-      <div id="assets-error" class="error-bar" style="display:none;"></div>
-      <div id="assets-content">
-        <div class="muted" style="font-size:13px;">No assets yet — acquire after storyboard is ready.</div>
-      </div>
-      <div class="stage-cta" id="assets-cta" style="display:none;">
-        <button class="btn btn-primary" onclick="activateStage('render')">
-          Go to Render →
-        </button>
-        <span id="assets-stage-status" class="running-msg"></span>
+    <!-- Pencil override modal -->
+    <div class="modal-backdrop" id="pencil-modal" style="display:none;" onclick="if(event.target===this)closePencilModal()">
+      <div class="modal-box">
+        <div class="modal-header" id="pencil-modal-title">Scene — override asset</div>
+        <div class="modal-body">
+          <!-- Section 1: Re-acquire -->
+          <div>
+            <div class="modal-section-label">Search query</div>
+            <div class="modal-row">
+              <img id="pencil-thumb" class="modal-thumb" src="" alt="" style="display:none;">
+              <div id="pencil-thumb-placeholder" class="thumb-placeholder" style="width:80px;height:50px;flex-shrink:0;">no asset</div>
+              <input class="modal-input" id="pencil-query" placeholder="neurons synapse microscope" onkeydown="if(event.key==='Enter')reacquireScene()">
+              <button class="btn btn-secondary btn-sm" id="pencil-reacquire-btn" onclick="reacquireScene()">Re-acquire</button>
+            </div>
+            <div class="modal-msg" id="pencil-reacquire-msg"></div>
+          </div>
+          <!-- Section 2: Upload -->
+          <div>
+            <div class="modal-section-label">Or upload a file</div>
+            <div class="drop-zone" id="pencil-dropzone" onclick="document.getElementById('pencil-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="onPencilDrop(event)">
+              <input type="file" id="pencil-file-input" accept="video/mp4,video/webm,image/jpeg,image/png,image/webp" onchange="onPencilFileChosen(event)">
+              Drop a file here, or click to browse<br>
+              <span style="font-size:11px;color:var(--muted);">MP4, WebM, JPG, PNG, WebP · max 200 MB</span>
+            </div>
+            <div class="modal-progress" id="pencil-progress-wrap" style="display:none;margin-top:6px;">
+              <div class="modal-progress-bar" id="pencil-progress-bar"></div>
+            </div>
+            <div class="modal-msg" id="pencil-upload-msg"></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" onclick="closePencilModal()">Close</button>
+        </div>
       </div>
     </div>
 
@@ -460,15 +546,17 @@
 
 <script>
 // ── State ─────────────────────────────────────────────────────────────────────
-const STAGES = ['script', 'voice', 'storyboard', 'assets', 'render'];
-const STAGE_LABELS = { script: 'Script', voice: 'Voice', storyboard: 'Storyboard', assets: 'Assets', render: 'Render' };
+const STAGES = ['script', 'voice', 'storyboard', 'render'];
+const STAGE_LABELS = { script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Render' };
 
 let state = {
   runId: null,
   activeStage: 'script',
-  stageStatus: { script: 'idle', voice: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' },
-  stageData:   { script: null, voice: null, storyboard: null, assets: null, render: null },
+  stageStatus: { script: 'idle', voice: 'idle', storyboard: 'idle', render: 'idle' },
+  stageData:   { script: null, voice: null, storyboard: null, render: null },
   autoConfirm: false,
+  // manifest entries keyed by scene_id for live thumbnail updates
+  manifestEntries: {},
 };
 
 // ── Auth / 401 intercept ──────────────────────────────────────────────────────
@@ -563,8 +651,9 @@ function newRun() {
   const id = uuid();
   state.runId = id;
   state.activeStage = 'script';
-  state.stageStatus = { script: 'idle', voice: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' };
-  state.stageData   = { script: null, voice: null, storyboard: null, assets: null, render: null };
+  state.stageStatus = { script: 'idle', voice: 'idle', storyboard: 'idle', render: 'idle' };
+  state.stageData   = { script: null, voice: null, storyboard: null, render: null };
+  state.manifestEntries = {};
 
   document.getElementById('script-input').value = '';
   document.getElementById('word-count').textContent = '0 words';
@@ -575,7 +664,6 @@ function newRun() {
 
   resetVoicePane();
   resetStoryboardPane();
-  resetAssetsPane();
   resetRenderPane();
 
   document.getElementById('empty-state').style.display = 'none';
@@ -592,8 +680,9 @@ function newRun() {
 async function loadRun(id) {
   state.runId = id;
   state.activeStage = 'script';
-  state.stageStatus = { script: 'idle', voice: 'idle', storyboard: 'idle', assets: 'idle', render: 'idle' };
-  state.stageData   = { script: null, voice: null, storyboard: null, assets: null, render: null };
+  state.stageStatus = { script: 'idle', voice: 'idle', storyboard: 'idle', render: 'idle' };
+  state.stageData   = { script: null, voice: null, storyboard: null, render: null };
+  state.manifestEntries = {};
 
   document.getElementById('empty-state').style.display = 'none';
   document.getElementById('workspace').style.display = '';
@@ -603,7 +692,6 @@ async function loadRun(id) {
 
   resetVoicePane();
   resetStoryboardPane();
-  resetAssetsPane();
   resetRenderPane();
   hideErr('script-error');
   renderSidebar();
@@ -645,14 +733,12 @@ async function loadRun(id) {
     }
   } catch { /* ignore */ }
 
-  // Try to load manifest artifact
+  // Try to load manifest artifact — inject thumbnails into storyboard table rows
   try {
     const r = await fetch(`/platform/studio/runs/${id}/manifest`);
     if (r.ok) {
       const data = await r.json();
-      state.stageData.assets = data;
-      state.stageStatus.assets = 'done';
-      renderManifest(data);
+      _applyManifestToTable(data);
     }
   } catch { /* ignore */ }
 
@@ -952,6 +1038,8 @@ function renderStoryboard(data) {
             <th>Query</th>
             <th>Motion</th>
             <th>On-Screen Text</th>
+            <th>Preview</th>
+            <th style="width:32px;"></th>
           </tr>
         </thead>
         <tbody id="sb-tbody">
@@ -1015,6 +1103,8 @@ function buildSceneRow(s, nextScene, totalDur) {
     <td class="editable-cell" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Click to edit" style="font-size:11px;max-width:180px;">${esc(s.primary_stk || '—')}</td>
     <td class="narrow">${motionText}</td>
     <td class="editable-cell" id="ost-${sceneId}" onclick="editOst(this, '${sceneId}')" title="Click to edit">${ostDisplay}</td>
+    <td class="narrow" id="thumb-cell-${sceneId}" style="padding:4px 6px;">${buildThumbCell(sceneId)}</td>
+    <td class="narrow" style="padding:4px 2px;"><button class="pencil-btn" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" disabled title="Override asset">✎</button></td>
   </tr>`;
 }
 
@@ -1096,34 +1186,70 @@ async function patchScene(sceneId, fields) {
   }
 }
 
-// ── Asset acquisition stage ───────────────────────────────────────────────────
-function resetAssetsPane() {
-  document.getElementById('assets-content').innerHTML = '<div class="muted" style="font-size:13px;">No assets yet — acquire after storyboard is ready.</div>';
-  document.getElementById('assets-cta').style.display = 'none';
-  hideErr('assets-error');
+// ── Asset acquisition (inline in Storyboard pane) ────────────────────────────
+
+function buildThumbCell(sceneId) {
+  const entry = state.manifestEntries[String(sceneId)];
+  if (!entry || !entry.asset_url) {
+    return `<div class="thumb-placeholder" id="thumb-${esc(sceneId)}">—</div>`;
+  }
+  const isVideo = entry.file_key && /\.(mp4|webm|mov)$/i.test(entry.file_key);
+  const srcCls = 'source-badge src-' + (entry.source || '').split('_')[0];
+  const badge = `<span class="${esc(srcCls)}" style="display:block;margin-top:2px;font-size:9px;">${esc(entry.source || '—')}</span>`;
+  if (isVideo) {
+    return `<div class="thumb-video-wrap" id="thumb-${esc(sceneId)}">
+      <img class="scene-thumb" src="${esc(entry.asset_url)}" alt="" onerror="this.style.display='none'">
+      <div class="thumb-video-icon">▶</div>
+      ${badge}
+    </div>`;
+  }
+  return `<div id="thumb-${esc(sceneId)}">
+    <img class="scene-thumb" src="${esc(entry.asset_url)}" alt="" onerror="this.parentElement.innerHTML='<div class=\\'thumb-placeholder\\'>err</div>'">
+    ${badge}
+  </div>`;
+}
+
+function _applyManifestToTable(data) {
+  const entries = data?.manifest?.entries || data?.entries || [];
+  // Index entries by scene_id
+  entries.forEach(e => { state.manifestEntries[String(e.scene_id)] = e; });
+  // Update each thumb cell and enable pencil buttons
+  entries.forEach(e => {
+    const sid = String(e.scene_id);
+    const thumbCell = document.getElementById(`thumb-cell-${sid}`);
+    if (thumbCell) thumbCell.innerHTML = buildThumbCell(sid);
+    const pencilBtn = document.getElementById(`pencil-btn-${sid}`);
+    if (pencilBtn) pencilBtn.disabled = false;
+  });
 }
 
 async function acquireAssets() {
   if (!state.runId) return;
 
-  const btn = document.getElementById('acquire-btn');
+  const acquireBtn = document.getElementById('acquire-btn');
+  const goRenderBtn = document.getElementById('go-render-btn');
   const statusEl = document.getElementById('sb-stage-status');
-  btn.disabled = true;
-  state.stageStatus.assets = 'running';
+  acquireBtn.disabled = true;
+  acquireBtn.textContent = 'Acquiring… (0 / ?)';
+  goRenderBtn.style.display = 'none';
   hideErr('sb-error');
   renderStageTrack();
-  activateStage('assets');
 
   const start = Date.now();
-  document.getElementById('assets-content').innerHTML = `
-    <div class="render-running">
-      <span class="dot dot-running"></span>
-      <span id="acq-timer">Acquiring assets… 0s</span>
-    </div>`;
-  const timer = setInterval(() => {
-    const el = document.getElementById('acq-timer');
-    if (el) el.textContent = `Acquiring assets… ${elapsed(start)}`;
-  }, 1000);
+
+  // Start polling manifest every 3s for live thumbnails while acquisition runs
+  const pollId = setInterval(async () => {
+    try {
+      const pr = await fetch(`/platform/studio/runs/${state.runId}/manifest`);
+      if (pr.ok) {
+        const pd = await pr.json();
+        _applyManifestToTable(pd);
+        const acquired = (pd?.manifest?.entries || pd?.entries || []).filter(e => e.status === 'acquired').length;
+        const total = (pd?.manifest?.entries || pd?.entries || []).length;
+        if (total) acquireBtn.textContent = `Acquiring… (${acquired} / ${total})`;
+      }
+    } catch { /* ignore */ }
+  }, 3000);
 
   try {
     const r = await fetch('/platform/workers/acquisition', {
@@ -1131,98 +1257,211 @@ async function acquireAssets() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ run_id: state.runId }),
     });
-    clearInterval(timer);
+    clearInterval(pollId);
+
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      state.stageStatus.assets = 'error';
-      showErr('assets-error', err.detail || `Acquisition error ${r.status}`);
-      document.getElementById('assets-content').innerHTML = '';
-      document.getElementById('assets-cta').style.display = 'none';
+      showErr('sb-error', err.detail || `Acquisition error ${r.status}`);
+      acquireBtn.disabled = false;
+      acquireBtn.textContent = 'Acquire Assets →';
       renderStageTrack();
       return;
     }
     const meta = await r.json();
 
-    // Load manifest
+    // Final manifest load
     const mR = await fetch(`/platform/studio/runs/${state.runId}/manifest`);
     if (mR.ok) {
       const mData = await mR.json();
-      state.stageData.assets = mData;
-      renderManifest(mData);
-    } else {
-      document.getElementById('assets-content').innerHTML = `<div class="muted">Acquired ${meta.acquired} scenes, ${meta.failed} failed.</div>`;
-      document.getElementById('assets-cta').style.display = '';
+      _applyManifestToTable(mData);
     }
-    state.stageStatus.assets = 'done';
+
+    acquireBtn.textContent = 'Re-acquire All';
+    acquireBtn.disabled = false;
+    goRenderBtn.style.display = '';
     statusEl.textContent = `✓ ${meta.acquired} acquired, ${meta.failed} failed (${elapsed(start)})`;
     renderStageTrack();
 
     if (state.autoConfirm) setTimeout(renderVideo, 200);
   } catch (e) {
-    clearInterval(timer);
-    state.stageStatus.assets = 'error';
-    showErr('assets-error', `Network error: ${e.message}`);
-    document.getElementById('assets-content').innerHTML = '';
+    clearInterval(pollId);
+    showErr('sb-error', `Network error: ${e.message}`);
+    acquireBtn.disabled = false;
+    acquireBtn.textContent = 'Acquire Assets →';
     renderStageTrack();
-  } finally {
-    btn.disabled = false;
   }
 }
 
-function renderManifest(data) {
-  const entries = data?.manifest?.entries || data?.entries || [];
-  const acquired = data?.acquired ?? '?';
-  const failed = data?.failed ?? 0;
+// ── Pencil modal ──────────────────────────────────────────────────────────────
+let _pencilSceneId = null;
 
-  const qaOk = entries.filter(e => e.qa_passed === true).length;
-  const qaFail = entries.filter(e => e.qa_passed === false).length;
+function openPencilModal(sceneId) {
+  _pencilSceneId = String(sceneId);
+  const scene = state.stageData.storyboard?.storyboard?.scenes?.find(s => String(s.scene) === _pencilSceneId);
+  const entry = state.manifestEntries[_pencilSceneId];
 
-  document.getElementById('assets-content').innerHTML = `
-    <div class="assets-summary">
-      <div class="sb-stat"><strong>${acquired}</strong> acquired</div>
-      <div class="sb-stat"><strong style="color:var(--red)">${failed}</strong> failed</div>
-      <div class="sb-stat">QA: <span class="qa-pass">${qaOk}✓</span> <span class="qa-fail">${qaFail}✗</span></div>
-    </div>
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Type</th>
-            <th>Source</th>
-            <th>QA</th>
-            <th>Fallback</th>
-            <th>Status</th>
-            <th>Preview</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${entries.map(e => {
-            const qaCls = e.qa_passed === true ? 'qa-pass' : e.qa_passed === false ? 'qa-fail' : 'muted';
-            const qaLabel = e.qa_passed === true ? `✓ ${e.qa_clip_score != null ? e.qa_clip_score.toFixed(2) : ''}` : e.qa_passed === false ? `✗` : '—';
-            const statusCls = e.status === 'acquired' ? 'status-acquired' : 'status-failed';
-            const fk = e.file_key ? e.file_key.split('/').pop() : '—';
-            const isVideo = e.file_key && /\.(mp4|webm|mov)$/i.test(e.file_key);
-            const previewIcon = isVideo ? '▶' : '⬚';
-            const previewCell = e.asset_url
-              ? `<a href="${esc(e.asset_url)}" target="_blank" rel="noopener" class="asset-preview-link" title="${esc(fk)}">${previewIcon} Preview</a>`
-              : `<span class="muted">—</span>`;
-            return `<tr>
-              <td class="mono narrow">${esc(e.scene_id)}</td>
-              <td class="narrow">${esc(e.clip_type || e.segment_type || '—')}</td>
-              <td class="narrow"><span class="source-badge">${esc(e.source || '—')}</span></td>
-              <td class="narrow ${qaCls}">${qaLabel}</td>
-              <td class="narrow">${e.fallback_used ? '⚠ yes' : '—'}</td>
-              <td class="narrow ${statusCls}">${esc(e.status || '—')}</td>
-              <td class="narrow">${previewCell}</td>
-            </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>`;
+  document.getElementById('pencil-modal-title').textContent =
+    `Scene ${_pencilSceneId}${scene?.voiceover_line ? ' — ' + scene.voiceover_line.split(' ').slice(0, 6).join(' ') + '…' : ''}`;
 
-  document.getElementById('assets-cta').style.display = '';
-  hideErr('assets-error');
+  // Pre-fill query
+  document.getElementById('pencil-query').value = entry?.primary_stk || scene?.primary_stk || '';
+
+  // Show current thumbnail
+  const thumbImg = document.getElementById('pencil-thumb');
+  const thumbPH  = document.getElementById('pencil-thumb-placeholder');
+  if (entry?.asset_url) {
+    thumbImg.src = entry.asset_url;
+    thumbImg.style.display = '';
+    thumbPH.style.display = 'none';
+  } else {
+    thumbImg.style.display = 'none';
+    thumbPH.style.display = '';
+  }
+
+  // Clear messages
+  document.getElementById('pencil-reacquire-msg').textContent = '';
+  document.getElementById('pencil-reacquire-msg').className = 'modal-msg';
+  document.getElementById('pencil-upload-msg').textContent = '';
+  document.getElementById('pencil-upload-msg').className = 'modal-msg';
+  document.getElementById('pencil-progress-wrap').style.display = 'none';
+  document.getElementById('pencil-progress-bar').style.width = '0%';
+  document.getElementById('pencil-file-input').value = '';
+  document.getElementById('pencil-dropzone').classList.remove('dragover');
+
+  document.getElementById('pencil-modal').style.display = '';
+}
+
+function closePencilModal() {
+  document.getElementById('pencil-modal').style.display = 'none';
+  _pencilSceneId = null;
+}
+
+async function reacquireScene() {
+  if (!_pencilSceneId || !state.runId) return;
+  const query = document.getElementById('pencil-query').value.trim();
+  if (!query) return;
+
+  const btn = document.getElementById('pencil-reacquire-btn');
+  const msg = document.getElementById('pencil-reacquire-msg');
+  btn.disabled = true;
+  btn.textContent = '…';
+  msg.textContent = '';
+  msg.className = 'modal-msg';
+
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/scenes/${_pencilSceneId}/reacquire`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      msg.textContent = e.detail || `Error ${r.status}`;
+      msg.className = 'modal-msg err';
+      return;
+    }
+    const data = await r.json();
+    // Refresh entry and thumbnail
+    if (data.preview_url) {
+      const entry = state.manifestEntries[_pencilSceneId] || {};
+      entry.asset_url = data.preview_url;
+      entry.file_key = data.file_key;
+      entry.source = data.source;
+      entry.qa_passed = data.qa_passed;
+      entry.primary_stk = query;
+      state.manifestEntries[_pencilSceneId] = entry;
+
+      const thumbCell = document.getElementById(`thumb-cell-${_pencilSceneId}`);
+      if (thumbCell) thumbCell.innerHTML = buildThumbCell(_pencilSceneId);
+
+      const thumbImg = document.getElementById('pencil-thumb');
+      const thumbPH  = document.getElementById('pencil-thumb-placeholder');
+      thumbImg.src = data.preview_url;
+      thumbImg.style.display = '';
+      thumbPH.style.display = 'none';
+    }
+    msg.textContent = '✓ Asset updated';
+    msg.className = 'modal-msg ok';
+  } catch (e) {
+    msg.textContent = `Network error: ${e.message}`;
+    msg.className = 'modal-msg err';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Re-acquire';
+  }
+}
+
+function onPencilDrop(event) {
+  event.preventDefault();
+  document.getElementById('pencil-dropzone').classList.remove('dragover');
+  const file = event.dataTransfer?.files?.[0];
+  if (file) _uploadPencilFile(file);
+}
+
+function onPencilFileChosen(event) {
+  const file = event.target.files?.[0];
+  if (file) _uploadPencilFile(file);
+}
+
+async function _uploadPencilFile(file) {
+  if (!_pencilSceneId || !state.runId) return;
+  const msg = document.getElementById('pencil-upload-msg');
+  const progressWrap = document.getElementById('pencil-progress-wrap');
+  const progressBar  = document.getElementById('pencil-progress-bar');
+  msg.textContent = '';
+  msg.className = 'modal-msg';
+
+  const MAX_BYTES = 200 * 1024 * 1024;
+  if (file.size > MAX_BYTES) {
+    msg.textContent = `File too large (${Math.round(file.size / 1024 / 1024)} MB). Max 200 MB.`;
+    msg.className = 'modal-msg err';
+    return;
+  }
+  const allowed = ['video/mp4','video/webm','image/jpeg','image/png','image/webp'];
+  if (!allowed.includes(file.type)) {
+    msg.textContent = `Unsupported type: ${file.type}. Allowed: MP4, WebM, JPG, PNG, WebP.`;
+    msg.className = 'modal-msg err';
+    return;
+  }
+
+  progressWrap.style.display = '';
+  progressBar.style.width = '20%';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    progressBar.style.width = '60%';
+    const r = await fetch(`/platform/studio/runs/${state.runId}/scenes/${_pencilSceneId}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    progressBar.style.width = '100%';
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      msg.textContent = e.detail || `Upload error ${r.status}`;
+      msg.className = 'modal-msg err';
+      progressWrap.style.display = 'none';
+      return;
+    }
+    const data = await r.json();
+    if (data.preview_url) {
+      const entry = state.manifestEntries[_pencilSceneId] || {};
+      entry.asset_url = data.preview_url;
+      entry.file_key = data.file_key;
+      entry.source = 'operator_upload';
+      entry.qa_passed = true;
+      state.manifestEntries[_pencilSceneId] = entry;
+
+      const thumbCell = document.getElementById(`thumb-cell-${_pencilSceneId}`);
+      if (thumbCell) thumbCell.innerHTML = buildThumbCell(_pencilSceneId);
+    }
+    setTimeout(closePencilModal, 800);
+  } catch (e) {
+    msg.textContent = `Network error: ${e.message}`;
+    msg.className = 'modal-msg err';
+    progressWrap.style.display = 'none';
+  }
 }
 
 // ── Render stage ──────────────────────────────────────────────────────────────

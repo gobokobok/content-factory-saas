@@ -1275,7 +1275,8 @@ Replace the text-matching approach in `assign_words_to_scenes` with timestamp-ba
 ## [P10-S2] Merged storyboard+assets table with per-scene asset override
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P10 (carried from P9-S8)
-**Status:** todo
+**Status:** done
+**Completed:** 2026-06-29
 **Priority:** high
 **Points:** 5
 **Depends on:** P9-S3
@@ -1399,20 +1400,27 @@ async def _acquire_single_scene(
 - `cf_platform/models/storyboard.py` / `src/models.py` — no schema changes needed
 
 ### Acceptance Criteria
-- [ ] Assets stage pill removed; nav has 4 stages: Script → Voice → Storyboard → Render
-- [ ] Storyboard table has Preview (thumbnail/video) and pencil columns; cells fill live during acquisition
-- [ ] `"Acquire Assets →"` CTA in Storyboard pane triggers acquisition and shows per-scene progress
-- [ ] After acquisition, `"Go to Render →"` CTA appears; render stage is reachable directly from Storyboard pane
-- [ ] Pencil modal opens with correct pre-filled query and current thumbnail
-- [ ] Re-acquire: new query sent, manifest versioned, thumbnail refreshes in modal
-- [ ] Upload: file validated (type + size), written to R2, manifest versioned, thumbnail refreshes
-- [ ] Both actions emit `operator_asset_override` TraceEvent
-- [ ] `_acquire_single_scene` extracted; full acquisition worker tests still pass; new unit tests cover Character/Event/B-roll routing via the extracted function
-- [ ] Reacquire + upload endpoint tests: success, scene-not-found, acquisition-fail, invalid MIME, oversized file
+- [x] Assets stage pill removed; nav has 4 stages: Script → Voice → Storyboard → Render
+- [x] Storyboard table has Preview (thumbnail/video) and pencil columns; cells fill live during acquisition
+- [x] `"Acquire Assets →"` CTA in Storyboard pane triggers acquisition and shows per-scene progress
+- [x] After acquisition, `"Go to Render →"` CTA appears; render stage is reachable directly from Storyboard pane
+- [x] Pencil modal opens with correct pre-filled query and current thumbnail
+- [x] Re-acquire: new query sent, manifest versioned, thumbnail refreshes in modal
+- [x] Upload: file validated (type + size), written to R2, manifest versioned, thumbnail refreshes
+- [x] Both actions emit `operator_asset_override` TraceEvent
+- [x] `_acquire_single_scene` extracted; full acquisition worker tests still pass; new unit tests cover Character/Event/B-roll routing via the extracted function
+- [x] Reacquire + upload endpoint tests: success, scene-not-found, acquisition-fail, invalid MIME, oversized file
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 - [ ] **Human touchpoint:** operator opens Storyboard pane → clicks "Acquire Assets" → thumbnails fill in live row by row → clicks pencil on one scene → edits query → thumbnail refreshes → clicks "Go to Render →"
+
+### Handover
+- **`_acquire_single_scene(scene, entry, pexels, pixabay, wikimedia, storage, run_id, used_file_keys?)`** — public module-level function in `cf_platform/workers/acquisition_worker.py`; routes by `segment_type` (Character/Event/B-roll), returns updated `ManifestEntry`
+- **`POST /platform/studio/runs/{run_id}/scenes/{scene_n}/reacquire`** — override primary_stk, re-acquire, version manifest, emit TraceEvent; returns `{scene_n, file_key, source, qa_passed, preview_url}`
+- **`POST /platform/studio/runs/{run_id}/scenes/{scene_n}/upload`** — validate MIME + size, write to R2 (`runs/{id}/images/` or `video/`), version manifest, emit TraceEvent; returns `{scene_n, file_key, preview_url}`
+- **studio.html** nav reduced to 4 stages; storyboard table has Preview + pencil columns; pencil modal with re-acquire and upload sections; live 3s polling during acquisition fills thumbnails row by row
+- **`tests/cf_platform/test_p10_s2_asset_override.py`** — 16 tests (6 worker unit + 4 reacquire endpoint + 6 upload endpoint)
 
 ---
 

@@ -6,7 +6,7 @@ from typing import Any, Literal, Optional
 
 _logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
 from pydantic import BaseModel
@@ -1100,6 +1100,270 @@ async def studio_patch_scene(
         run_id=run_id, user_id=_PLATFORM_USER_ID, lineage=lineage,
     )
     return {"artifact_key": record.r2_key, "scene_count": new_artifact.scene_count}
+
+
+# ── Per-scene asset override endpoints (P10-S2) ───────────────────────────────
+
+
+class SceneReacquireRequest(BaseModel):
+    """Request body for POST /studio/runs/{run_id}/scenes/{scene_n}/reacquire."""
+
+    query: str
+
+
+@router.post("/studio/runs/{run_id}/scenes/{scene_n}/reacquire")
+async def studio_reacquire_scene(
+    run_id: str,
+    scene_n: str,
+    body: SceneReacquireRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+) -> dict:
+    """Re-acquire a single scene's asset using a custom query.
+
+    Reads the latest verified_storyboard and asset_manifest. Overrides the scene's
+    primary_stk with the supplied query, re-runs acquisition for that one scene, writes
+    a new asset_manifest artifact version, emits an operator_asset_override TraceEvent,
+    and returns the updated entry with a 1-hour presigned preview URL.
+    """
+    import time
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope, TraceEvent
+    from cf_platform.workers.acquisition_worker import (
+        _acquire_single_scene,
+        ACQUISITION_WORKER_REGISTRATION,
+        AssetManifestArtifact,
+        _compute_footage_summary,
+    )
+    from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
+    from src.models import AssetManifest, ManifestEntry, Storyboard
+    from src.pexels import PexelsClient
+    from src.pixabay_client import PixabayClient
+    from src.wikimedia_client import WikimediaClient
+
+    if not body.query.strip():
+        raise HTTPException(status_code=422, detail="query must not be empty")
+
+    # Load storyboard
+    sb_key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
+    if not sb_key:
+        raise HTTPException(status_code=404, detail="No storyboard found for this run.")
+    _, sb_body = await read_artifact(storage, sb_key)
+    sb_artifact = VerifiedStoryboardArtifact.model_validate(sb_body)
+    storyboard = Storyboard.model_validate(_sanitize_storyboard_data(sb_artifact.storyboard))
+
+    scene = next((s for s in storyboard.scenes if str(s.scene) == scene_n), None)
+    if scene is None:
+        raise HTTPException(status_code=404, detail=f"Scene {scene_n!r} not found in storyboard.")
+
+    # Load manifest
+    mf_key = await _latest_artifact_key(storage, run_id, "acquisition", "asset_manifest")
+    if not mf_key:
+        raise HTTPException(status_code=404, detail="No asset manifest found — run acquisition first.")
+    _, mf_body = await read_artifact(storage, mf_key)
+    manifest = AssetManifest.model_validate(mf_body["manifest"])
+
+    entry = next((e for e in manifest.entries if str(e.scene_id) == scene_n), None)
+    if entry is None:
+        # Bootstrap a new entry if the manifest predates this scene
+        entry = ManifestEntry(
+            scene_id=scene.scene,
+            clip_type=scene.clip_type,
+            segment_type=scene.segment_type,
+            primary_stk=body.query.strip(),
+            context_stk=scene.context_stk,
+            concept_stk=scene.concept_stk,
+            person_name=scene.person_name,
+            person_title=scene.person_title,
+            duration_s=scene.duration_s,
+            historic=scene.historic,
+            asset_tier=scene.asset_tier,
+        )
+        manifest.entries.append(entry)
+
+    original_query = entry.primary_stk
+    entry.primary_stk = body.query.strip()
+
+    pexels = PexelsClient(api_key=settings.PEXELS_API_KEY)
+    pixabay: Optional[PixabayClient] = PixabayClient(api_key=settings.PIXABAY_API_KEY) if settings.PIXABAY_API_KEY else None
+    wikimedia = WikimediaClient()
+
+    t0 = time.monotonic()
+    await _acquire_single_scene(scene, entry, pexels, pixabay, wikimedia, storage, run_id)
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    # Write new manifest artifact version
+    footage_summary = _compute_footage_summary(manifest.entries)
+    acquired = sum(1 for e in manifest.entries if e.status == "acquired")
+    new_artifact = AssetManifestArtifact(
+        scene_count=len(manifest.entries),
+        acquired=acquired,
+        failed=len(manifest.entries) - acquired,
+        footage_summary=footage_summary,
+        manifest=manifest.model_dump(mode="json"),
+        generated_at=datetime.now(),
+    )
+    lineage = LineageEnvelope(
+        run_id=run_id,
+        worker="studio_reacquire",
+        worker_version=ACQUISITION_WORKER_REGISTRATION.worker_version,
+        prompt_version="manual",
+        model="none",
+        created_at=datetime.now(),
+    )
+    await write_artifact(
+        storage, new_artifact,
+        name="asset_manifest", stage="acquisition",
+        run_id=run_id, user_id=_PLATFORM_USER_ID, lineage=lineage,
+    )
+
+    # Emit operator override trace event
+    await trace_events.record(TraceEvent(
+        run_id=run_id,
+        worker="studio_reacquire",
+        source="operator",
+        op="operator_asset_override",
+        latency_ms=latency_ms,
+        status="ok" if entry.status == "acquired" else "error",
+        meta={
+            "scene_n": scene_n,
+            "reason": "reacquire",
+            "original_query": original_query,
+            "override_query": body.query.strip(),
+        },
+    ))
+
+    preview_url: Optional[str] = None
+    if entry.file_key:
+        try:
+            preview_url = await storage.generate_presigned_url(entry.file_key, expires_in=3600)
+        except Exception:
+            pass
+
+    return {
+        "scene_n": scene_n,
+        "file_key": entry.file_key,
+        "source": entry.source,
+        "qa_passed": entry.qa_passed,
+        "preview_url": preview_url,
+    }
+
+
+@router.post("/studio/runs/{run_id}/scenes/{scene_n}/upload")
+async def studio_upload_scene_asset(
+    run_id: str,
+    scene_n: str,
+    file: UploadFile,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+) -> dict:
+    """Upload an operator-supplied asset for a single scene.
+
+    Validates MIME type and size (≤200 MB), stores to R2, patches the asset_manifest
+    entry for this scene, writes a new manifest version, and emits an
+    operator_asset_override TraceEvent. Returns the updated entry with a presigned URL.
+    """
+    import time
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope, TraceEvent
+    from cf_platform.workers.acquisition_worker import (
+        ACQUISITION_WORKER_REGISTRATION,
+        AssetManifestArtifact,
+        _compute_footage_summary,
+    )
+    from src.models import AssetManifest, ManifestEntry
+
+    _ALLOWED_MIME_TYPES = {
+        "video/mp4", "video/webm",
+        "image/jpeg", "image/png", "image/webp",
+    }
+    _MIME_TO_EXT = {
+        "video/mp4": ".mp4", "video/webm": ".webm",
+        "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp",
+    }
+    _MAX_BYTES = 200 * 1024 * 1024  # 200 MB
+
+    content_type = (file.content_type or "").split(";")[0].strip()
+    if content_type not in _ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type!r}. Allowed: mp4, webm, jpg, png, webp.")
+
+    data = await file.read()
+    if len(data) > _MAX_BYTES:
+        raise HTTPException(status_code=422, detail=f"File too large ({len(data) // (1024*1024)} MB). Maximum is 200 MB.")
+
+    ext = _MIME_TO_EXT[content_type]
+    is_video = content_type.startswith("video/")
+    folder = "video" if is_video else "images"
+    r2_key = f"runs/{run_id}/{folder}/scene_{scene_n.zfill(2)}_op{ext}"
+
+    await storage.put_bytes(r2_key, data, content_type=content_type)
+
+    # Load and patch manifest
+    mf_key = await _latest_artifact_key(storage, run_id, "acquisition", "asset_manifest")
+    if not mf_key:
+        raise HTTPException(status_code=404, detail="No asset manifest found — run acquisition first.")
+    _, mf_body = await read_artifact(storage, mf_key)
+    manifest = AssetManifest.model_validate(mf_body["manifest"])
+
+    entry = next((e for e in manifest.entries if str(e.scene_id) == scene_n), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Scene {scene_n!r} not found in manifest.")
+
+    entry.file_key = r2_key
+    entry.source = "operator_upload"
+    entry.status = "acquired"
+    entry.qa_passed = True
+    entry.fallback_used = False
+
+    footage_summary = _compute_footage_summary(manifest.entries)
+    acquired = sum(1 for e in manifest.entries if e.status == "acquired")
+    new_artifact = AssetManifestArtifact(
+        scene_count=len(manifest.entries),
+        acquired=acquired,
+        failed=len(manifest.entries) - acquired,
+        footage_summary=footage_summary,
+        manifest=manifest.model_dump(mode="json"),
+        generated_at=datetime.now(),
+    )
+    lineage = LineageEnvelope(
+        run_id=run_id,
+        worker="studio_upload",
+        worker_version=ACQUISITION_WORKER_REGISTRATION.worker_version,
+        prompt_version="manual",
+        model="none",
+        created_at=datetime.now(),
+    )
+
+    t0 = time.monotonic()
+    await write_artifact(
+        storage, new_artifact,
+        name="asset_manifest", stage="acquisition",
+        run_id=run_id, user_id=_PLATFORM_USER_ID, lineage=lineage,
+    )
+    latency_ms = int((time.monotonic() - t0) * 1000)
+
+    await trace_events.record(TraceEvent(
+        run_id=run_id,
+        worker="studio_upload",
+        source="operator",
+        op="operator_asset_override",
+        latency_ms=latency_ms,
+        status="ok",
+        meta={"scene_n": scene_n, "reason": "upload", "r2_key": r2_key},
+    ))
+
+    try:
+        preview_url = await storage.generate_presigned_url(r2_key, expires_in=3600)
+    except Exception:
+        preview_url = None
+
+    return {
+        "scene_n": scene_n,
+        "file_key": r2_key,
+        "preview_url": preview_url,
+    }
 
 
 class RunSummary(BaseModel):

@@ -508,6 +508,56 @@ async def _acquire_broll(
     return await _accept_best(collected, all_seen, entry, is_video, run_id, storage)
 
 
+async def _acquire_single_scene(
+    scene: Any,
+    entry: ManifestEntry,
+    pexels: PexelsClient,
+    pixabay: Optional[PixabayClient],
+    wikimedia: WikimediaClient,
+    storage: ArtifactStorage,
+    run_id: str,
+    used_file_keys: Optional[set[str]] = None,
+) -> ManifestEntry:
+    """Acquire one scene's asset and return the updated ManifestEntry.
+
+    Extracted from the AcquisitionWorker _worker loop so it can be called standalone
+    by the per-scene re-acquire and upload REST endpoints (P10-S2).
+
+    ``entry`` is mutated in-place and also returned for convenience. ``scene`` is
+    accepted so callers can pass a StoryboardScene to override entry query fields
+    (e.g. the operator supplies a custom query via the Studio pencil modal).
+
+    ``used_file_keys`` may be shared across scenes to avoid re-downloading the same
+    URL in a batch context; pass ``None`` for single-scene standalone calls.
+    """
+    used_source_urls: set[str] = used_file_keys if used_file_keys is not None else set()
+    dup_lock = asyncio.Lock()
+
+    queries = [entry.primary_stk, entry.context_stk, entry.concept_stk]
+    if entry.asset_tier == "video":
+        is_video = True
+    elif entry.asset_tier in ("still", "still_motion"):
+        is_video = False
+    else:
+        is_video = entry.clip_type == "hard_cut"  # legacy fallback
+
+    if entry.segment_type == "Character" and entry.person_name:
+        ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
+    elif entry.segment_type == "Event":
+        ok = await _acquire_event(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
+    else:
+        ok = await _acquire_broll(entry, queries, is_video, run_id, storage, pexels, pixabay, used_source_urls, dup_lock)
+
+    if not ok:
+        logger.warning(
+            "All candidates exhausted for scene=%s segment_type=%s",
+            entry.scene_id, entry.segment_type,
+        )
+        entry.status = "failed"
+
+    return entry
+
+
 async def _acquire_scene(
     entry: ManifestEntry,
     run_id: str,
@@ -520,8 +570,8 @@ async def _acquire_scene(
 ) -> None:
     """Route scene acquisition by segment_type; mutates entry in-place on success.
 
-    When asset_tier is set (v0.13 storyboards), uses it to prefer image vs video sources.
-    Falls back to clip_type heuristic for older manifests (v0.12 / legacy).
+    Thin wrapper around _acquire_single_scene that keeps the internal batch loop
+    signature unchanged (shared used_source_urls + dup_lock across all scenes).
     """
     if used_source_urls is None:
         used_source_urls = set()
