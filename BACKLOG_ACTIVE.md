@@ -1625,7 +1625,313 @@ Two-part: (1) **Swap ElevenLabs → Gemini 2.5 Flash TTS** in `voice_production.
 
 ---
 
+## [P9-S10] Asset quality, character sourcing, and OST consistency
+**Epic:** E36 — Native Documentary Production Graph
+**Sprint:** P9
+**Status:** todo
+**Priority:** high
+**Points:** 5
+
+### Goal
+Fix five categories of production-quality bugs observed on real runs (v0.16.0). No schema changes — all fixes are within existing workers and the render script builder.
+
+#### Bug 1 — Remove lower-third overlays; person name → OST
+`lower_third` in `render_options` was producing name/title banners at the bottom of the frame sourced from Pexels contributor metadata or storyboard person fields. This was never the intended design.
+
+**Fix:**
+- Remove all `lower_third` emission from `StoryboardWorker._reify_scene` and the prompt.
+- Remove `lower_third` rendering from `RenderWorker._collect_overlay_filters`.
+- If a scene has `person_name` (Character scene), set `on_screen_text = person_name` (and `on_screen_text_type = "person"`) so the name appears in the centre OST overlay at the standard position.
+- `LowerThird` model + `render_options.lower_third` field can remain in schema for future use but must never be populated by the storyboard worker.
+
+#### Bug 2 — Wikimedia routing broken for Character and historic scenes
+P8-S2/P8-S3 added Wikimedia Commons routing. Diagnose why named-researcher Character scenes (e.g. "Kirk Erickson") still resolve via Pexels.
+
+**Likely cause:** `AcquisitionWorker` Wikimedia path is gated on `segment_type == "historic_footage"` but Character scenes use `segment_type == "character"`. The person photo routing added in P8-S3 may not have survived the P9 native worker rewrite.
+
+**Fix:**
+- Audit `acquisition_worker.py` routing logic; confirm the Wikimedia/person-photo branch is reachable for `segment_type == "character"` with a non-empty `person_name`.
+- If missing, re-add: query `wikimedia_client.search_person_photo(person_name)` first; fall back to Pexels generic query only on miss.
+- `historic_footage` scenes must also enter the Wikimedia-first path.
+- `asset_manifest` `source` field must record `"wikimedia"` when a Wikimedia asset is used.
+
+#### Bug 3 — Asset deduplication across scenes
+Scenes 1, 3, and 5 in a run shared the same image because each scene is acquired independently with no cross-scene state.
+
+**Fix:**
+- `AcquisitionWorker` maintains a `used_file_keys: set[str]` across the scene acquisition loop.
+- On each Pexels/Pixabay result, skip any asset whose `file_key` is already in the set; retry with `page=2` (or the next result) until a unique asset is found or the source is exhausted.
+- If all results are duplicates, log a warning and use the least-recently-used asset as a last resort.
+- `asset_manifest` records `"duplicate_avoided": true` on scenes where a skip occurred.
+
+#### Bug 4 — OST consistency: Event scenes missing on_screen_text
+`Event`-type scenes (habit milestones, chapter markers) should always have an `on_screen_text` to reinforce the chapter marker visually. Some Event scenes exit storyboard generation with `on_screen_text = null`.
+
+**Fix (post-generation QA pass in StoryboardWorker):**
+- After `_reify_scene` loop, scan all scenes where `scene_type == "Event"` and `on_screen_text` is null or empty.
+- For each gap, make a single Haiku call: `"Given this voiceover line: '{line}', write a 2–5 word chapter title for an on-screen text overlay."` Enforce uppercase, max 30 chars.
+- Patch the scene dict in place; log `WARNING: Event scene {n} had no OST — synthesised '{text}'`.
+- Cap at 5 Haiku calls per run to bound latency/cost.
+
+#### Bug 5 — Unicode characters rendering as □ in OST overlays
+`→` and `↑` (and likely `↓`, `≥`, `≤`, `×`) render as the replacement character because Poppins does not cover the Unicode Miscellaneous Arrows block.
+
+**Fix:**
+- Switch OST `drawtext` font from `Poppins-Bold.ttf` to `NotoSans-Bold.ttf` (or `NotoSansCJK` if available; both ship on Railway's Debian base image).
+- Verify the font path: `fc-list | grep -i noto` on the Railway container.
+- If Noto is not present, add `fonts-noto` to the `Dockerfile` `apt-get install` line.
+- Caption font (Poppins) is unaffected — only the OST overlay path changes.
+
+### Files Affected
+- `cf_platform/workers/storyboard_worker.py` — Bug 1 (lower-third removal, person→OST), Bug 4 (Event QA pass)
+- `cf_platform/workers/acquisition_worker.py` — Bug 2 (Wikimedia routing), Bug 3 (deduplication)
+- `cf_platform/workers/render_worker.py` — Bug 1 (remove lower-third render), Bug 5 (Noto font path)
+- `Dockerfile` — Bug 5 (add fonts-noto if needed)
+- `cf_platform/models/storyboard.py` — Bug 1 (add `on_screen_text_type = "person"` literal if not present)
+
+### Acceptance Criteria
+- [ ] No `lower_third` rendered in any scene; Character scene person name appears as centre OST overlay
+- [ ] Character + historic scenes query Wikimedia first; `asset_manifest.source == "wikimedia"` confirmed for a Kirk Erickson–equivalent scene
+- [ ] No two scenes in the same run share the same `file_key`; `duplicate_avoided: true` appears in manifest where a skip occurred
+- [ ] Every Event scene has non-empty `on_screen_text` after storyboard generation; synthesised OSTs logged at WARNING level
+- [ ] `→` and `↑` render as correct glyphs in the video output; confirmed via a test render
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+---
+
+---
+
+## [P10-S1] Semantic enrichment — global topic context + Entity Resolver + visual deduplication
+**Epic:** E37 — Visual Intelligence Layer
+**Sprint:** P10
+**Status:** todo
+**Priority:** high
+**Points:** 6
+
+### Goal
+The storyboard agent currently produces acquisition queries with no awareness of the global video topic or inter-scene context. A scene mentioning "protein" in a neuroscience video searches for food because it has no way to know "protein" means neuronal BDNF, not dietary intake.
+
+This story introduces three complementary mechanisms that together eliminate context-free acquisition without a full agent decomposition:
+
+1. **Global semantic context in the storyboard** — the storyboard now outputs a `global_context` block that the acquisition layer reads before building any search query.
+2. **Entity Resolver** — a deterministic Python function (no LLM) that classifies entities in each scene and returns the preferred source chain, solving character and historic-event sourcing structurally.
+3. **Visual deduplication pass** — a post-acquisition agent pass that sees the full manifest and rewrites redundant visual queries before any assets are downloaded.
+
+#### Sub-task 1 — Global context block in StoryboardScene schema
+
+Extend `verified_storyboard` output with a new top-level `global_context` object:
+
+```json
+{
+  "global_context": {
+    "topic": "Brain health and cognitive longevity",
+    "domain": "neuroscience",
+    "subtopics": ["neurons", "memory", "BDNF", "aging", "exercise", "diet", "sleep"],
+    "avoid_globally": ["food preparation", "cooking", "generic lifestyle"],
+    "tone": "evidence-based documentary"
+  }
+}
+```
+
+And per-scene, add a `semantic_context` field alongside the existing `visual_query`:
+
+```json
+{
+  "semantic_context": {
+    "primary_concept": "BDNF — brain-derived neurotrophic factor",
+    "domain_qualifier": "neurological protein, not dietary",
+    "avoid": ["fried eggs", "food", "cooking", "meal prep"],
+    "visual_tags": ["microscopy", "neuron", "synapse", "protein structure", "brain science"],
+    "entity_type": null
+  }
+}
+```
+
+**Prompt changes (storyboard_worker.py):**
+- Add `global_context` generation as a preamble step in the storyboard prompt.
+- Add `semantic_context` as a required field per scene in the JSON schema section.
+- Provide 2–3 worked examples in the prompt demonstrating the domain-qualifier pattern (e.g., "protein" in neuroscience context → `domain_qualifier: "neurological protein"`, `avoid: ["food", "cooking"]`).
+
+**Schema changes (storyboard.py):**
+- `GlobalContext` model: `topic`, `domain`, `subtopics: list[str]`, `avoid_globally: list[str]`, `tone`.
+- `SemanticContext` model: `primary_concept`, `domain_qualifier`, `avoid: list[str]`, `visual_tags: list[str]`, `entity_type: Optional[Literal["person", "historic_event", "location", "organization"]]`.
+- `StoryboardScene.semantic_context: Optional[SemanticContext]`.
+- `Storyboard.global_context: Optional[GlobalContext]`.
+
+**AcquisitionWorker changes:**
+- Before building the Pexels/Pixabay query string, inject `global_context.topic` and `semantic_context.visual_tags` into the query.
+- Append negative terms from `semantic_context.avoid` as exclusion filters where the API supports it (Pexels: omit; Pixabay: `-term` syntax in query string).
+- Log the enriched query string at DEBUG level for observability.
+
+#### Sub-task 2 — Entity Resolver (deterministic)
+
+A pure Python function `resolve_entity(scene: StoryboardScene, global_context: GlobalContext) -> EntityResolution` that runs before acquisition for each scene.
+
+```python
+@dataclass
+class EntityResolution:
+    entity_type: str          # "person", "historic_event", "location", "concept", "stock"
+    preferred_sources: list[str]  # ordered: ["wikimedia", "pexels"]
+    search_hint: str          # e.g. "Albert Einstein physicist"
+    fallback_query: str       # generic fallback if preferred sources fail
+```
+
+**Routing rules (no LLM):**
+| Condition | entity_type | preferred_sources |
+|-----------|-------------|-------------------|
+| `scene.segment_type == "character"` and `person_name` set | `person` | `["wikimedia", "pexels"]` |
+| `semantic_context.entity_type == "historic_event"` | `historic_event` | `["wikimedia", "pexels"]` |
+| `semantic_context.entity_type == "location"` | `location` | `["pexels", "pixabay"]` |
+| `semantic_context.entity_type == "organization"` | `organization` | `["wikimedia", "pexels"]` |
+| else | `concept` / `stock` | `["pexels", "pixabay"]` |
+
+`AcquisitionWorker` calls `resolve_entity` per scene; the returned `preferred_sources` list replaces the current hardcoded source order.
+
+#### Sub-task 3 — Visual deduplication pass (post-acquisition)
+
+After all scenes have been acquired, run a lightweight deduplication review:
+
+- Build a `visual_summary` list: `[(scene_n, primary_visual_concept, asset_file_key)]`.
+- Detect clusters: if 3+ consecutive scenes share the same `primary_visual_concept` substring (case-insensitive), flag them.
+- For flagged scenes (excluding scene 1 of each cluster), re-query with the next `visual_tag` from `semantic_context.visual_tags` as the primary term.
+- Log each requery at INFO level: `"Visual dedup: scene {n} requeried as '{new_term}' (was '{old_term}')."`.
+- Cap rerequeries at 6 per run to bound runtime.
+
+This is distinct from the file_key deduplication in P9-S10 (which prevents the exact same file appearing twice). This pass prevents the same *concept* appearing too many times even with different assets.
+
+### Files Affected
+- `cf_platform/models/storyboard.py` — `GlobalContext`, `SemanticContext`, `EntityResolution` models
+- `cf_platform/workers/storyboard_worker.py` — global context preamble, `semantic_context` per scene
+- `cf_platform/workers/acquisition_worker.py` — Entity Resolver call, enriched query building, visual dedup pass
+- `docs/PROMPTS.md` — storyboard prompt changelog (bump to v0.11)
+
+### Acceptance Criteria
+- [ ] `verified_storyboard` artifact contains a `global_context` block on every run
+- [ ] Every scene has a `semantic_context` with `primary_concept`, `domain_qualifier`, and at least 2 `visual_tags`
+- [ ] On a neuroscience-topic run, a "protein" scene queries for neurological visuals (not food); confirmed via enriched query in DEBUG log
+- [ ] `Entity Resolver` routes Character + historic scenes to Wikimedia; `asset_manifest.source` reflects this
+- [ ] Visual dedup pass fires on a run with 3+ consecutive same-concept scenes; at least 1 requery logged
+- [ ] All existing tests pass; new unit tests cover `resolve_entity` routing table (all 5 branches) and dedup cluster detection
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+---
+
+## [P10-S2] Visual Director agent — post-storyboard visual treatment
+**Epic:** E37 — Visual Intelligence Layer
+**Sprint:** P10
+**Status:** todo
+**Priority:** medium
+**Points:** 6
+
+### Goal
+Today the storyboard agent conflates *narrative meaning* with *visual decisions*. A dedicated Visual Director node receives the enriched storyboard (post P10-S1) and produces a `visual_treatment` artifact — a per-scene visual plan that the acquisition layer fulfils. This is the architectural separation between storytelling and asset sourcing described in the sprint planning discussion.
+
+The Visual Director does **not** search for assets. It answers: *"If a top YouTube documentary editor planned the visuals for this script, what would they specify?"*
+
+#### Visual treatment schema
+
+```json
+{
+  "visual_treatment": {
+    "global_style": "evidence-based science documentary — authoritative, not clinical",
+    "shot_sequence_plan": "macro → wide → diagram → person → archive → macro",
+    "scenes": [
+      {
+        "scene": 7,
+        "visual_intent": "Establish the researcher as a credible authority; portrait photo, direct gaze preferred",
+        "shot_type": "portrait",
+        "era": "contemporary",
+        "asset_class": "person_photo",
+        "preferred_source": "wikimedia",
+        "search_terms": ["Kirk Erickson neuroscientist", "exercise brain researcher"],
+        "avoid": ["lab equipment alone", "generic doctor"],
+        "motion": "ken_burns_in",
+        "transition_from_prev": "cut"
+      },
+      {
+        "scene": 10,
+        "visual_intent": "Show BDNF as a molecular/cellular phenomenon — microscopy or animation",
+        "shot_type": "macro_science",
+        "era": "contemporary",
+        "asset_class": "stock",
+        "preferred_source": "pexels",
+        "search_terms": ["neuron synapse microscope", "brain cells fluorescence", "synaptic connection"],
+        "avoid": ["food", "protein shake", "diet"],
+        "motion": "slow_push",
+        "transition_from_prev": "cut"
+      }
+    ],
+    "diversity_plan": {
+      "shot_type_sequence": ["wide", "macro", "portrait", "diagram", "archive", "macro", "wide"],
+      "notes": "No more than 2 consecutive shots of the same type"
+    }
+  }
+}
+```
+
+#### Agent design
+
+- **Model:** Claude Sonnet (visual storytelling requires reasoning; Haiku insufficient).
+- **Input:** `verified_storyboard` artifact (with `global_context` + `semantic_context` from P10-S1).
+- **Output:** `visual_treatment` artifact in R2 at `users/{user}/runs/{run_id}/visual_treatment/visual_treatment@v1.json`.
+- **Prompt structure:**
+  - System: role as documentary video editor; rules for shot variety, diversity, and continuity.
+  - User: full storyboard JSON + shot sequence rules.
+  - Enforce: no two consecutive scenes with same `shot_type`; at least 3 distinct `asset_class` values across the run.
+- **Pipeline position:** after `StoryboardWorker`, before `AcquisitionWorker`.
+- `AcquisitionWorker` reads `visual_treatment.scenes[n].search_terms` (primary), `preferred_source`, and `avoid` in preference to storyboard `visual_query`. Falls back to storyboard query if no treatment available.
+
+#### Shot type vocabulary (controlled list)
+
+`portrait` · `wide` · `macro_science` · `diagram` · `archive` · `drone` · `lifestyle` · `screen_recording` · `animation` · `infographic`
+
+This vocabulary is used in both the prompt and the `shot_type` field to constrain Claude's output to a known set.
+
+#### Diversity enforcement (post-Visual-Director validation in Python)
+
+After the agent returns its treatment, a Python validator checks:
+- No 3+ consecutive identical `shot_type` values → raise `VisualDiversityError` and re-invoke the agent with the violation highlighted (max 1 retry).
+- At least 3 distinct `asset_class` values in runs > 10 scenes.
+- Log `diversity_score = unique_shot_types / total_scenes` to the `footage_summary` artifact.
+
+#### LangGraph wiring
+
+```
+StoryboardWorker → VisualDirectorWorker → AcquisitionWorker → RenderWorker
+```
+
+`VisualDirectorWorker` is a new `WorkerNode`; factory: `build_visual_director_worker(storage, anthropic_api_key) → WorkerNode`.
+
+### Files Affected
+- `cf_platform/workers/visual_director_worker.py` — new file
+- `cf_platform/orchestrator/full_pipeline.py` — wire new node between storyboard and acquisition
+- `cf_platform/workers/acquisition_worker.py` — read `visual_treatment` artifact; prefer its `search_terms` over storyboard `visual_query`
+- `cf_platform/models/visual_treatment.py` — new Pydantic models: `VisualTreatment`, `SceneVisualPlan`, `DiversityPlan`
+- `docs/PROMPTS.md` — Visual Director prompt v0.1
+
+### Acceptance Criteria
+- [ ] `visual_treatment` artifact written to R2 on every run
+- [ ] `AcquisitionWorker` prefers `visual_treatment.search_terms` over storyboard `visual_query`; confirmed in acquisition logs
+- [ ] No run has 3+ consecutive scenes with the same `shot_type`; diversity validator fires and retries when violated
+- [ ] `footage_summary` includes `diversity_score`
+- [ ] A neuroscience-topic run: scene mentioning "protein" gets `shot_type: "macro_science"` and search terms referencing neurons — not food
+- [ ] Character scene with named researcher gets `asset_class: "person_photo"` and `preferred_source: "wikimedia"`
+- [ ] Unit tests: Visual Director prompt construction; diversity validator (pass + violation cases); AcquisitionWorker treatment-preference logic
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+---
+
 ## Post-MVP outlines (not yet detailed)
+
+**EPIC 38 — Multi-asset timelines (P11):** Each scene can hold a sub-timeline of 2–3 assets with individual in/out points. The render worker assembles sub-clips within a scene's duration window. Enables e.g. a 7-second "BDNF" scene that shows 3 seconds of neuron microscopy → 2 seconds of a scientist → 2 seconds of a brain scan without a scene boundary. Requires render_script builder rewrite for sub-scene ffmpeg concat.
+
+**EPIC 39 — Visual motion effects (P11):** Slow push (`zoompan`), subtle camera shake (2–5px overlay), film grain (noise filter), light leak overlay (screen blend), animated callouts (arrow grows, underline draws in FFmpeg `drawbox`+`drawtext` sequence). Each effect is a named preset in `motion_effect` field. Controlled vocabulary so the Visual Director can specify them without free-form strings.
 
 **EPIC 32 — Legacy Rebuild** (~3 sprints after P7): re-author Script→Video as native workers; retire `src/` + adapter.
 **EPIC 34 — Replay & Evaluation Engine** (~3 sprints after P7): replay any worker, golden eval dataset, A/B routing, LLM-judge scoring.

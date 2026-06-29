@@ -25,8 +25,8 @@ Legacy Script→Video stays untouched and operable (D047).
 | P7 | Idea selection + YouTube metadata | 8 | done | `/ideas` → 5 numbered ideas → `/pick <run_id> <n>` → 16:9 video + metadata |
 | P8 | Footage quality | 14 | done | Footage breakdown in Telegram reply; colour grade applied |
 | **P9** | **Storyboard v2 + native engine rebuild** | **~18** | **in-progress** | `/run` → fully native pipeline; person lower thirds; film look for historic scenes |
-| P10 | Render quality | ~14 | planned | Dip-to-black, quote cards, xfade dissolves, slow motion, chart overlays |
-| P11 | AI asset library | ~14 | planned | Portrait colorization, map generation, parallax, number callout overlays |
+| P10 | Visual Intelligence Layer | ~12 | planned | Neuroscience run: no food assets for "protein"; researcher portrait from Wikimedia; diversity score in Telegram reply |
+| P11 | Multi-asset timelines + motion effects | ~14 | planned | Sub-scene asset cuts; slow push; film grain; animated callouts |
 | P12 | Format tracks | ~10 | planned | `documentary`/`educational`/`animated` via `--format` flag |
 | P13 | Analytics & attribution | ~11 | planned | Retention-by-prompt-version report |
 | P14 | n8n automation | ~10 | planned | Niche → scheduled YouTube upload with no operator action |
@@ -157,6 +157,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P9-S7 | Caption word assignment by timestamp (drop script text-matching) | 1 | done |
 | P9-S8 | Per-scene asset override — custom query re-acquire + operator upload | 4 | todo |
 | P9-S9 | Timestamp-first storyboard — word indices + Python-derived duration and asset tier | 5 | done |
+| P9-S10 | Asset quality, character sourcing, and OST consistency | 5 | todo |
 
 **Execution order:** P9-S1 → P9-S2 → P9-S3 → P9-S4 → P9-S5 (fully linear). P9-S6 and P9-S7 are independent; can run in parallel after P9-S5.
 
@@ -170,3 +171,28 @@ Legacy Script→Video stays untouched and operable (D047).
 - [ ] Artifact chain: `verified_storyboard → asset_manifest → render_script.sh → final.mp4`
 - [ ] `/run` / `/pick` / `/produce` commands trigger the native chain; `InProcessLegacyVideoAdapter` not in active call path
 - [ ] **Human touchpoint:** `/run <niche>` → native render; person lower thirds; film look for historic; on_screen_text overlays for dates and stats
+
+---
+
+# Sprint P10 — Visual Intelligence Layer
+
+**Goal:** Eliminate context-free asset acquisition. The storyboard now carries global topic context and per-scene semantic qualifiers. A dedicated Visual Director agent plans the visual treatment for the full run before any asset is fetched. The acquisition layer becomes a fulfillment layer — it reads a visual plan and executes it, rather than deriving intent from raw query strings.
+**Status:** planned
+**Points:** ~12
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P10-S1 | Semantic enrichment — global topic context + Entity Resolver + visual deduplication | 6 | todo |
+| P10-S2 | Visual Director agent — post-storyboard visual treatment | 6 | todo |
+
+**Execution order:** P10-S1 → P10-S2 (S2 depends on enriched storyboard schema from S1).
+
+## Sprint P10 Definition of Done
+- [ ] `verified_storyboard` contains `global_context` block on every run
+- [ ] Every scene has `semantic_context` with `primary_concept`, `domain_qualifier`, `avoid`, `visual_tags`
+- [ ] `Entity Resolver` deterministically routes Character + historic scenes to Wikimedia; stock/concept scenes to Pexels/Pixabay
+- [ ] `visual_treatment` artifact written to R2; `AcquisitionWorker` reads it as primary source of search terms
+- [ ] No 3+ consecutive scenes with the same `shot_type`; diversity validator enforced
+- [ ] `footage_summary` includes `diversity_score`
+- [ ] On a neuroscience-topic run: "protein" scene returns neurological visuals, not food; researcher portrait from Wikimedia
+- [ ] **Human touchpoint:** `/run <niche>` → Telegram reply includes `diversity_score`; neuroscience run has no food assets for biological-protein scenes
