@@ -1272,84 +1272,147 @@ Replace the text-matching approach in `assign_words_to_scenes` with timestamp-ba
 
 ---
 
-## [P10-S2] Per-scene asset override — custom query re-acquire + operator upload
+## [P10-S2] Merged storyboard+assets table with per-scene asset override
 **Epic:** E36 — Native Documentary Production Graph
 **Sprint:** P10 (carried from P9-S8)
 **Status:** todo
 **Priority:** high
-**Points:** 4
+**Points:** 5
 **Depends on:** P9-S3
 
 ### Goal
-Let the operator override any scene's asset from the Studio Assets screen — either by re-running acquisition with custom search keywords, or by uploading their own file. A slide-in edit panel (right 1/3 of the screen) opens per scene and shows all scene metadata plus the two override paths.
+Eliminate the separate Assets stage. Merge asset preview and override controls directly into the Storyboard table so the operator sees voiceover context and footage in the same row. Acquisition becomes a button inside the Storyboard pane, not a pipeline stage. Each row gets a pencil icon that opens a modal for re-query or manual upload.
+
+**Why merge:** the current split means the operator must context-switch between two tables to evaluate whether a clip fits its scene. The voiceover line and the thumbnail need to be in the same row.
 
 **Multi-agent self-improvement alignment:**
-- **Information Ownership (D060):** re-acquisition runs the same `_run_acquisition_for_scene` logic as the full AcquisitionWorker — no ad-hoc R2 writes that bypass the acquisition layer. Query overrides are worker inputs, not mutations.
-- **Artifact immutability (D057):** every override writes a new `asset_manifest` artifact version. The original auto-generated manifest is preserved.
-- **Feedback signal:** every operator correction is emitted as a `TraceEvent` with type `"operator_asset_override"` carrying `{scene_id, reason: "reacquire"|"upload", original_source, original_query, override_query?}`. A future query-quality judge can replay these to identify patterns in which auto-generated STK queries consistently fail — closing the self-improvement loop without any changes to this story's code.
+- **Artifact immutability (D057):** every override writes a new `asset_manifest` artifact version; the original is preserved.
+- **Feedback signal:** every operator correction emits a `TraceEvent(type="operator_asset_override")` with `{scene_n, reason: "reacquire"|"upload", original_query, override_query?}`. A future query-quality judge can replay these to identify which auto-generated queries consistently fail.
 
-### UI spec (studio.html)
-- Each row in the Assets table has an edit icon (pencil) on the right.
-- Clicking opens a slide-in right panel (320px, `transform: translateX(100%)` → `0`; backdrop clicks outside close it).
-- Panel header: scene ID + segment type.
-- Panel body two sections:
+---
 
-  **Re-acquire with custom query**
-  ```
-  [text input: custom primary_stk query (pre-filled with current value)]
-  [text input: context query (optional)]
-  [Re-acquire] button → spinner while running
-  → On success: preview link refreshes; panel stays open
-  ```
+### UI spec — studio.html
 
-  **Upload your own asset**
-  ```
-  [file drop zone / file picker: video (mp4/webm) or image (jpg/png/webp)]
-  → progress bar during upload
-  → On success: preview link refreshes; panel closes
-  ```
+#### Stage nav change
+Remove the **Assets** pill from the stage nav. New order: **Script → Voice → Storyboard → Render** (4 stages, was 5). The `pane-assets` div is deleted.
 
-- Re-acquire and upload are mutually exclusive — using one disables the other during the operation.
-- On success, the row in the table refreshes (status, source badge, QA, preview link).
-- Panel highlights the active scene row.
+#### Storyboard table — new columns
+Add two columns to the right of the existing storyboard table:
+
+| Column | Width | Content |
+|--------|-------|---------|
+| **Preview** | 100px | Thumbnail `<img>` (still) or muted autoplay `<video loop>` (clip). Empty / grey placeholder before acquisition runs. |
+| **✎** | 32px | Pencil icon button. Disabled (greyed) before acquisition runs. |
+
+The **Source** badge (wikimedia / pexels / operator) appears as a small pill below the thumbnail. The QA pass/fail dot appears next to it. These replace the entire Assets pane — no other asset metadata is shown by default.
+
+#### Acquire Assets button
+The existing `"Acquire Assets →"` CTA stays at the bottom of the Storyboard pane, exactly where it is today. When clicked:
+- Button becomes `"Acquiring… (0 / N)"` with a spinner.
+- As each scene completes, its thumbnail cell fills in live (polling `GET /platform/studio/runs/{run_id}/asset-manifest` every 3 s, or server-sent events if available).
+- On full completion, button label changes to `"Re-acquire All"` (secondary style). CTA gains a new `"Go to Render →"` primary button.
+
+#### Pencil modal
+A centred modal (not slide-in; 480px wide) opens when the pencil is clicked.
+
+**Modal header:** `Scene {N} — {first 6 words of voiceover}…`
+
+**Modal body — two sections, vertically stacked:**
+
+**Section 1 — Re-acquire**
+```
+Label: "Search query"
+Input: [pre-filled with current visual_query from storyboard]        [Re-acquire]
+                                                     ↑ spinner replaces button while running
+Current preview thumbnail (80×50) shown inline left of input.
+On success: thumbnail updates, source badge updates, modal stays open.
+On error: inline red message below input.
+```
+
+**Section 2 — Upload your own**
+```
+Label: "Or upload a file"
+[Drop zone / file picker — accept: video/mp4, video/webm, image/jpeg, image/png, image/webp]
+Max file size: 200 MB (enforced client-side before upload).
+Progress bar during upload.
+On success: thumbnail updates, source badge = "operator", modal closes.
+On error: inline red message.
+```
+
+Sections are independent — using one does not disable the other.
+
+**Modal footer:** `[Close]` button (ghost style).
+
+---
 
 ### Backend spec
 
-**`POST /platform/studio/runs/{run_id}/assets/{scene_id}/reacquire`**
+#### New endpoint — single-scene re-acquire
+**`POST /platform/studio/runs/{run_id}/scenes/{scene_n}/reacquire`**
 ```json
-{ "primary_stk": "...", "context_stk": "...", "concept_stk": "..." }
+{ "query": "neurons synapse microscope" }
 ```
-- Read latest `asset_manifest` artifact for the run.
-- Find the `ManifestEntry` for `scene_id`; apply query overrides.
-- Read latest `verified_storyboard` artifact; find scene's `segment_type`, `person_name`.
-- Call the same `_run_acquisition_for_scene(entry, pexels, pixabay, wikimedia, storage)` internal function already used by `build_acquisition_worker`; this ensures routing (Character → person photo; Event → Wikimedia first; B-roll → concurrent Pexels+Pixabay) is preserved.
-- Patch the entry in the manifest dict; write a new `asset_manifest` version via `write_artifact`.
-- Emit `TraceEvent(type="operator_asset_override", data={scene_id, reason="reacquire", ...})`.
-- Return `{ file_key, source, qa_passed, qa_clip_score, asset_url }` (presigned URL for immediate preview).
+- Read latest `verified_storyboard`; find scene N's `segment_type`, `person_name`.
+- Read latest `asset_manifest`; find entry for scene N.
+- Override entry's `visual_query` with the supplied query; preserve `segment_type` routing.
+- Call `_acquire_single_scene(scene, entry, clients, storage, run_id) → ManifestEntry` (see refactor note).
+- Write new `asset_manifest` artifact version via `artifact_repo.write`.
+- Emit `TraceEvent(type="operator_asset_override", data={scene_n, reason="reacquire", original_query, override_query})`.
+- Return `{ scene_n, file_key, source, qa_passed, preview_url }` (presigned URL, 1 h TTL).
 
-**`POST /platform/studio/runs/{run_id}/assets/{scene_id}/upload`**
-- `multipart/form-data` with a single `file` field.
-- Detect MIME type → choose R2 key: `runs/{run_id}/images/scene_{scene_id}_operator.{ext}` or `runs/{run_id}/video/scene_{scene_id}_operator.{ext}`.
-- Upload bytes via `storage.put_bytes(key, data, content_type)`.
-- Patch manifest entry: `file_key=key, source="operator_upload", qa_passed=True, qa_resolution_ok=None, qa_clip_score=None, fallback_used=False, status="acquired"`.
-- Write new `asset_manifest` artifact version.
-- Emit `TraceEvent(type="operator_asset_override", data={scene_id, reason="upload", ...})`.
-- Return `{ file_key, asset_url }`.
+#### New endpoint — operator upload
+**`POST /platform/studio/runs/{run_id}/scenes/{scene_n}/upload`**
+- `multipart/form-data`, single `file` field.
+- Validate MIME type in `{"video/mp4","video/webm","image/jpeg","image/png","image/webp"}`.
+- Validate size ≤ 200 MB.
+- R2 key: `runs/{run_id}/images/scene_{scene_n:02d}_op.{ext}` or `.../video/...`.
+- Write via `storage.put_bytes(key, data, content_type)`.
+- Patch manifest entry: `file_key=key, source="operator_upload", qa_passed=True, fallback_used=False, status="acquired"`. Write new manifest version.
+- Emit `TraceEvent(type="operator_asset_override", data={scene_n, reason="upload"})`.
+- Return `{ scene_n, file_key, preview_url }`.
 
-**Refactor note:** extract `_run_acquisition_for_scene(entry, pexels_client, pixabay_client, wikimedia_client, storage, run_id) → ManifestEntry` as a module-level function from `acquisition_worker.py`'s inner `_worker`. Currently the routing logic is inlined inside the closure. The re-acquire endpoint needs to call it standalone. No behaviour change — just extraction.
+#### Refactor — extract `_acquire_single_scene`
+Extract the per-scene acquisition logic currently inlined in `acquisition_worker.py`'s `_worker` closure into a module-level function:
+```python
+async def _acquire_single_scene(
+    scene: StoryboardScene,
+    entry: ManifestEntry,
+    pexels: PexelsClient,
+    pixabay: PixabayClient,
+    wikimedia: WikimediaClient,
+    storage: StorageBackend,
+    run_id: str,
+    used_file_keys: set[str] | None = None,
+) -> ManifestEntry:
+```
+`AcquisitionWorker._worker` calls this in its loop (no behaviour change). The new REST endpoints call it standalone.
+
+#### Existing endpoint — asset manifest (already exists, extend)
+`GET /platform/studio/runs/{run_id}/asset-manifest` — already returns manifest JSON. Ensure it also returns per-entry `preview_url` (presigned, 1 h TTL) so the Studio can render thumbnails without a second round-trip.
+
+---
+
+### Files affected
+- `src/static/studio.html` — remove Assets pane + pill; add Preview + pencil columns to storyboard table; pencil modal; live-fill polling on acquire; `"Go to Render →"` CTA after acquisition completes
+- `cf_platform/interfaces/api.py` — two new route handlers (`reacquire`, `upload`)
+- `cf_platform/workers/acquisition_worker.py` — extract `_acquire_single_scene`
+- `cf_platform/models/storyboard.py` / `src/models.py` — no schema changes needed
 
 ### Acceptance Criteria
-- [ ] `_run_acquisition_for_scene` extracted as a standalone importable function from `acquisition_worker.py`; full acquisition worker tests still pass
-- [ ] `POST .../assets/{scene_id}/reacquire`: runs single-scene acquisition with overridden queries; writes new manifest version; returns presigned URL
-- [ ] `POST .../assets/{scene_id}/upload`: accepts `multipart/form-data`; uploads to R2; patches manifest; returns presigned URL
-- [ ] Both endpoints emit `operator_asset_override` TraceEvent with full override metadata
-- [ ] Studio UI: edit panel opens/closes cleanly; re-acquire shows spinner + refreshes row on success; upload shows progress + refreshes row on success; errors shown inline in the panel
-- [ ] Original auto-generated manifest artifact is never mutated — only new versions written
-- [ ] Tests: `_run_acquisition_for_scene` unit tests (Character/Event/B-roll routing); reacquire endpoint (success, scene not found, acquisition fail); upload endpoint (video, image, oversized file rejected); manifest version increments; TraceEvent emitted
+- [ ] Assets stage pill removed; nav has 4 stages: Script → Voice → Storyboard → Render
+- [ ] Storyboard table has Preview (thumbnail/video) and pencil columns; cells fill live during acquisition
+- [ ] `"Acquire Assets →"` CTA in Storyboard pane triggers acquisition and shows per-scene progress
+- [ ] After acquisition, `"Go to Render →"` CTA appears; render stage is reachable directly from Storyboard pane
+- [ ] Pencil modal opens with correct pre-filled query and current thumbnail
+- [ ] Re-acquire: new query sent, manifest versioned, thumbnail refreshes in modal
+- [ ] Upload: file validated (type + size), written to R2, manifest versioned, thumbnail refreshes
+- [ ] Both actions emit `operator_asset_override` TraceEvent
+- [ ] `_acquire_single_scene` extracted; full acquisition worker tests still pass; new unit tests cover Character/Event/B-roll routing via the extracted function
+- [ ] Reacquire + upload endpoint tests: success, scene-not-found, acquisition-fail, invalid MIME, oversized file
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
-- [ ] **Human touchpoint:** operator sees Assets table → clicks pencil on a scene → edits query or uploads file → preview link refreshes in the panel
+- [ ] **Human touchpoint:** operator opens Storyboard pane → clicks "Acquire Assets" → thumbnails fill in live row by row → clicks pencil on one scene → edits query → thumbnail refreshes → clicks "Go to Render →"
 
 ---
 
