@@ -99,6 +99,26 @@ class ArtifactResponse(BaseModel):
 # ── Storyboard schemas ────────────────────────────────────────────────────────
 
 
+class GlobalContext(BaseModel):
+    """Top-level semantic context for the full video — guides acquisition domain filtering."""
+
+    topic: str
+    domain: str
+    subtopics: list[str] = []
+    avoid_globally: list[str] = []
+    tone: str = ""
+
+
+class SemanticContext(BaseModel):
+    """Per-scene semantic enrichment — provides domain-qualified acquisition signals."""
+
+    primary_concept: str = ""
+    domain_qualifier: str = ""
+    avoid: list[str] = []
+    visual_tags: list[str] = []
+    entity_type: Optional[Literal["person", "historic_event", "location", "organization"]] = None
+
+
 class VisualPrompts(BaseModel):
     """Three-tier visual prompt hierarchy for a storyboard scene (v1 — deprecated alias)."""
 
@@ -177,6 +197,8 @@ class StoryboardScene(BaseModel):
     scene_start_ms: Optional[int] = None
     scene_end_ms: Optional[int] = None
     asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
+    # Semantic enrichment (P10-S3) — per-scene domain-qualified acquisition signals.
+    semantic_context: Optional[SemanticContext] = None
 
     @model_validator(mode="after")
     def _backfill_flat_queries_from_visual_prompts(self) -> "StoryboardScene":
@@ -213,6 +235,8 @@ class Storyboard(BaseModel):
     global_: StoryboardGlobal = Field(alias="global")
     scenes: list[StoryboardScene]
     summary: StoryboardSummary
+    # Semantic enrichment (P10-S3) — top-level domain context for the full video.
+    global_context: Optional[GlobalContext] = None
 
 
 # ── Asset manifest schemas ─────────────────────────────────────────────────────
@@ -256,6 +280,8 @@ class ManifestEntry(BaseModel):
     asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
     # Set to True when acquisition skipped a duplicate source URL (P10-S1 deduplication).
     duplicate_avoided: bool = False
+    # Semantic enrichment propagated from StoryboardScene (P10-S3).
+    semantic_context: Optional[SemanticContext] = None
 
 
 class AssetManifest(BaseModel):

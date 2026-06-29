@@ -168,7 +168,7 @@ Legacy Script→Video stays untouched and operable (D047).
 |----|-------|--------|--------|
 | P10-S1 (was P9-S10) | Asset quality, character sourcing, and OST consistency | 5 | done |
 | P10-S2 (was P9-S8) | Per-scene asset override — custom query re-acquire + operator upload | 4 | done |
-| P10-S3 (was P10-S1) | Semantic enrichment — global context + Entity Resolver + visual deduplication | 6 | todo |
+| P10-S3 (was P10-S1) | Semantic enrichment — global context + Entity Resolver + visual deduplication | 6 | done |
 
 **Execution order:** P10-S1 and P10-S2 are independent; both can start immediately. P10-S3 depends on neither but should follow S1 (shares acquisition_worker.py).
 

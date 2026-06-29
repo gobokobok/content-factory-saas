@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P10-S3] Semantic enrichment — global context + Entity Resolver + visual deduplication
+**Completed:** 2026-06-30
+**Handover:**
+- `src/models.py`: `GlobalContext(topic, domain, subtopics, avoid_globally, tone)` and `SemanticContext(primary_concept, domain_qualifier, avoid, visual_tags, entity_type)` models added. `StoryboardScene.semantic_context: Optional[SemanticContext]` and `Storyboard.global_context: Optional[GlobalContext]` fields added (both Optional — backward compat). `ManifestEntry.semantic_context: Optional[SemanticContext]` field added.
+- `cf_platform/workers/storyboard_worker.py`: `STORYBOARD_PROMPT_VERSION = "v0.15"`. Both `_GENERATE_SYSTEM_PROMPT` and `_GENERATE_SYSTEM_PROMPT_V013` gain GLOBAL CONTEXT preamble section (topic/domain/subtopics/avoid_globally/tone) and SEMANTIC CONTEXT per-scene section (primary_concept/domain_qualifier/avoid/visual_tags/entity_type). Output format JSON examples updated to include both new blocks. Imports: `GlobalContext`, `SemanticContext` added.
+- `cf_platform/workers/acquisition_worker.py`: `EntityResolution` dataclass + `resolve_entity(entry, global_context) -> EntityResolution` deterministic pure function (5 routing branches: person/historic_event/location/organization/stock). `_build_enriched_queries(entry, global_context) -> list[str]` uses `semantic_context.visual_tags` + domain suffix as leading queries, falls back to STK hierarchy; logs enriched queries at DEBUG. `_visual_dedup_pass()` post-acquisition pass: clusters 3+ consecutive same-concept scenes, rerequeries with next `visual_tag`, caps at `_MAX_DEDUP_REREQUERIES = 6`. `_acquire_scene` updated: calls `resolve_entity` + `_build_enriched_queries`, routes by `resolution.entity_type`, logs entity_type + preferred_sources at DEBUG. Worker `_worker` propagates `global_context` from storyboard into per-entry acquisition; calls `_visual_dedup_pass` after batch loop; propagates `semantic_context` from scene to `ManifestEntry`.
+- `docs/PROMPTS.md`: v0.15 changelog entry added.
+- `tests/cf_platform/test_p10_s3_semantic.py` (new): 25 tests — `GlobalContext`/`SemanticContext` models (4), backward-compat (2), `resolve_entity` all 5 branches (6), `_build_enriched_queries` (5), `_visual_dedup_pass` cluster detection (4), prompt content assertions (4).
+- `tests/cf_platform/test_p9_s2_storyboard_worker.py` + `test_p9_s9_timestamp_storyboard.py` + `test_p9_s3_acquisition_worker.py`: version pins updated; `side_effect_mark_acquired` gains `global_context=None` kwarg.
+- CI: 1964 passed; 6 pre-existing failures in `test_ffmpeg_builder.py` / `test_runs.py` (unchanged).
+**Smoke test:** DEFERRED — requires a full `/run` with a neuroscience/biology topic to confirm DEBUG logs show enriched queries (e.g. "neuron microscopy neuroscience") and no food assets on protein scenes.
+
+---
+
 ## [P10-S2] Merged storyboard+assets table with per-scene asset override
 **Completed:** 2026-06-29
 **Handover:**

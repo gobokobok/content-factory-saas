@@ -26,7 +26,7 @@ from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
 from src.exceptions import PexelsError
 from src.footage_qa import QAResult, pick_best, qa_score
-from src.models import AssetManifest, ManifestEntry, Storyboard
+from src.models import AssetManifest, GlobalContext, ManifestEntry, SemanticContext, Storyboard
 from src.pexels import PexelsClient, _pick_best_video_file
 from src.pixabay_client import PixabayClient
 from src.wikimedia_client import WikimediaClient
@@ -52,6 +52,106 @@ _MIN_PEXELS_PHOTO_HEIGHT = 1080
 
 # Maximum concurrent scene acquisitions per batch.
 _BATCH_SIZE = 20
+
+# Maximum number of concept-deduplication rerequeries per run.
+_MAX_DEDUP_REREQUERIES = 6
+
+# Minimum run of consecutive same-concept scenes that triggers visual dedup.
+_DEDUP_CLUSTER_THRESHOLD = 3
+
+
+# ── Entity Resolver ───────────────────────────────────────────────────────────
+
+
+@dataclass
+class EntityResolution:
+    """Result of resolving a scene's entity type to preferred acquisition sources."""
+
+    entity_type: str            # "person" | "historic_event" | "location" | "organization" | "stock"
+    preferred_sources: list[str]  # ordered source list
+    search_hint: str            # primary search string enriched with entity context
+    fallback_query: str         # generic fallback if preferred sources fail
+
+
+def resolve_entity(entry: ManifestEntry, global_context: Optional[GlobalContext] = None) -> EntityResolution:
+    """Deterministic routing: classify the scene entity type and return preferred sources.
+
+    Reads segment_type, person_name, and semantic_context.entity_type from the manifest
+    entry. Returns an EntityResolution whose preferred_sources list replaces the default
+    hardcoded source order in the acquisition cascade.
+    """
+    sc = entry.semantic_context
+    sc_entity = sc.entity_type if sc else None
+    domain = global_context.domain if global_context else ""
+
+    if entry.segment_type == "Character" and entry.person_name:
+        hint = f"{entry.person_name} {entry.person_title or ''}".strip()
+        return EntityResolution(
+            entity_type="person",
+            preferred_sources=["wikimedia", "pexels"],
+            search_hint=hint,
+            fallback_query=entry.primary_stk,
+        )
+    if sc_entity == "historic_event" or entry.segment_type == "Event":
+        hint = entry.primary_stk
+        return EntityResolution(
+            entity_type="historic_event",
+            preferred_sources=["wikimedia", "pexels"],
+            search_hint=hint,
+            fallback_query=entry.concept_stk,
+        )
+    if sc_entity == "location":
+        return EntityResolution(
+            entity_type="location",
+            preferred_sources=["pexels", "pixabay"],
+            search_hint=entry.primary_stk,
+            fallback_query=entry.concept_stk,
+        )
+    if sc_entity == "organization":
+        hint = f"{entry.primary_stk} {domain}".strip()
+        return EntityResolution(
+            entity_type="organization",
+            preferred_sources=["wikimedia", "pexels"],
+            search_hint=hint,
+            fallback_query=entry.concept_stk,
+        )
+    # Default: generic stock B-roll
+    return EntityResolution(
+        entity_type="stock",
+        preferred_sources=["pexels", "pixabay"],
+        search_hint=entry.primary_stk,
+        fallback_query=entry.concept_stk,
+    )
+
+
+def _build_enriched_queries(
+    entry: ManifestEntry,
+    global_context: Optional[GlobalContext] = None,
+) -> list[str]:
+    """Build domain-enriched search queries for a scene.
+
+    When semantic_context provides visual_tags, uses them as the leading queries
+    (optionally suffixed with the global domain). Falls back to the three-tier STK
+    queries when semantic_context is absent. Deduplicates while preserving order.
+    """
+    sc = entry.semantic_context
+    domain = global_context.domain if global_context else ""
+
+    queries: list[str] = []
+    if sc and sc.visual_tags:
+        for tag in sc.visual_tags[:3]:
+            q = f"{tag} {domain}".strip() if domain else tag
+            queries.append(q)
+
+    # Always append STK queries as the authoritative fallback tier.
+    for stk in [entry.primary_stk, entry.context_stk, entry.concept_stk]:
+        if stk and stk not in queries:
+            queries.append(stk)
+
+    logger.debug(
+        "Enriched queries scene=%s: %s", entry.scene_id, queries
+    )
+    return [q for q in queries if q]
 
 
 # ── Candidate model ───────────────────────────────────────────────────────────
@@ -567,17 +667,21 @@ async def _acquire_scene(
     wikimedia: WikimediaClient,
     used_source_urls: Optional[set[str]] = None,
     dup_lock: Optional[asyncio.Lock] = None,
+    global_context: Optional[GlobalContext] = None,
 ) -> None:
     """Route scene acquisition by segment_type; mutates entry in-place on success.
 
-    Thin wrapper around _acquire_single_scene that keeps the internal batch loop
-    signature unchanged (shared used_source_urls + dup_lock across all scenes).
+    Uses resolve_entity to determine preferred sources and _build_enriched_queries to
+    inject semantic_context visual_tags before falling back to STK queries.
     """
     if used_source_urls is None:
         used_source_urls = set()
     if dup_lock is None:
         dup_lock = asyncio.Lock()
-    queries = [entry.primary_stk, entry.context_stk, entry.concept_stk]
+
+    resolution = resolve_entity(entry, global_context)
+    queries = _build_enriched_queries(entry, global_context)
+
     # Prefer asset_tier (P9-S9 timestamp-first) over clip_type for source selection.
     if entry.asset_tier == "video":
         is_video = True
@@ -586,9 +690,14 @@ async def _acquire_scene(
     else:
         is_video = entry.clip_type == "hard_cut"  # legacy fallback
 
-    if entry.segment_type == "Character" and entry.person_name:
+    logger.debug(
+        "scene=%s entity_type=%s preferred_sources=%s",
+        entry.scene_id, resolution.entity_type, resolution.preferred_sources,
+    )
+
+    if resolution.entity_type == "person":
         ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
-    elif entry.segment_type == "Event":
+    elif resolution.entity_type in ("historic_event",) or entry.segment_type == "Event":
         ok = await _acquire_event(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
     else:
         ok = await _acquire_broll(entry, queries, is_video, run_id, storage, pexels, pixabay, used_source_urls, dup_lock)
@@ -599,6 +708,89 @@ async def _acquire_scene(
             entry.scene_id, entry.segment_type,
         )
         entry.status = "failed"
+
+
+# ── Visual concept deduplication ─────────────────────────────────────────────
+
+
+async def _visual_dedup_pass(
+    entries: list[ManifestEntry],
+    scenes: list[Any],
+    run_id: str,
+    storage: ArtifactStorage,
+    pexels: PexelsClient,
+    pixabay: Optional[PixabayClient],
+    wikimedia: WikimediaClient,
+    used_source_urls: set[str],
+    dup_lock: asyncio.Lock,
+    max_rerequeries: int = _MAX_DEDUP_REREQUERIES,
+) -> None:
+    """Re-acquire scenes where 3+ consecutive share the same primary visual concept.
+
+    Builds a visual_summary list of (scene_index, concept) tuples. Detects clusters
+    of consecutive scenes with matching concept substrings (case-insensitive). For each
+    cluster scene beyond the first, attempts a requery using the next available
+    visual_tag from semantic_context. Mutates entries in-place. Caps at
+    max_rerequeries to bound runtime.
+    """
+    if len(entries) < _DEDUP_CLUSTER_THRESHOLD:
+        return
+
+    rerequeries = 0
+
+    def _concept(i: int) -> str:
+        sc = entries[i].semantic_context
+        if sc and sc.primary_concept:
+            return sc.primary_concept.lower()
+        return entries[i].primary_stk.lower()
+
+    i = 0
+    while i < len(entries) and rerequeries < max_rerequeries:
+        # Find cluster start: count consecutive entries with matching concept.
+        j = i + 1
+        base = _concept(i)
+        while j < len(entries) and base and base in _concept(j):
+            j += 1
+        cluster_len = j - i
+
+        if cluster_len >= _DEDUP_CLUSTER_THRESHOLD:
+            # Requery all cluster scenes except the first one.
+            for k in range(i + 1, j):
+                if rerequeries >= max_rerequeries:
+                    break
+                sc = entries[k].semantic_context
+                if not sc or not sc.visual_tags:
+                    continue
+                # Find the next unused visual_tag (skip the one already used).
+                current_q = entries[k].primary_stk.lower()
+                next_tag: Optional[str] = None
+                for tag in sc.visual_tags:
+                    if tag.lower() not in current_q:
+                        next_tag = tag
+                        break
+                if not next_tag:
+                    continue
+
+                old_primary = entries[k].primary_stk
+                logger.info(
+                    "Visual dedup: scene %s requeried as %r (was %r).",
+                    entries[k].scene_id, next_tag, old_primary,
+                )
+                # Temporarily override queries for this scene.
+                entries[k].primary_stk = next_tag
+                entries[k].context_stk = sc.visual_tags[1] if len(sc.visual_tags) > 1 else entries[k].context_stk
+
+                storyboard_scene = scenes[k] if k < len(scenes) else None
+                await _acquire_scene(
+                    entries[k], run_id, storage, pexels, pixabay, wikimedia,
+                    used_source_urls, dup_lock,
+                )
+                rerequeries += 1
+
+        i = j
+
+    if rerequeries:
+        logger.info("Visual dedup pass complete: %d requery(ies) fired.", rerequeries)
 
 
 # ── Footage summary ───────────────────────────────────────────────────────────
@@ -669,6 +861,7 @@ def build_acquisition_worker(
         storyboard = Storyboard.model_validate(_sanitize_storyboard_data(sb_artifact.storyboard))
 
         # Build manifest entries from v2 storyboard scene fields
+        global_context = storyboard.global_context
         entries: list[ManifestEntry] = []
         for scene in storyboard.scenes:
             entries.append(ManifestEntry(
@@ -683,6 +876,7 @@ def build_acquisition_worker(
                 duration_s=scene.duration_s,
                 historic=scene.historic,
                 asset_tier=scene.asset_tier,
+                semantic_context=scene.semantic_context,
             ))
 
         # Build source clients
@@ -699,7 +893,10 @@ def build_acquisition_worker(
             batch = entries[batch_start : batch_start + _BATCH_SIZE]
             results = await asyncio.gather(
                 *[
-                    _acquire_scene(entry, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
+                    _acquire_scene(
+                        entry, run_id, storage, pexels, pixabay, wikimedia,
+                        used_source_urls, dup_lock, global_context,
+                    )
                     for entry in batch
                 ],
                 return_exceptions=True,
@@ -708,6 +905,12 @@ def build_acquisition_worker(
                 if isinstance(result, Exception):
                     logger.error("Unexpected error scene=%s: %s", entry.scene_id, result)
                     entry.status = "failed"
+
+        # Visual concept deduplication: re-acquire scenes in 3+ consecutive same-concept runs.
+        await _visual_dedup_pass(
+            entries, storyboard.scenes, run_id, storage,
+            pexels, pixabay, wikimedia, used_source_urls, dup_lock,
+        )
 
         manifest = AssetManifest(run_id=run_id, entries=entries)
         footage_summary = _compute_footage_summary(entries)

@@ -506,7 +506,7 @@ async def test_worker_returns_asset_manifest_artifact():
     )
 
     with patch("cf_platform.workers.acquisition_worker._acquire_scene", new_callable=AsyncMock) as mock_acquire:
-        async def side_effect_mark_acquired(entry, run_id, storage, pexels, pixabay, wikimedia, used_source_urls=None, dup_lock=None):
+        async def side_effect_mark_acquired(entry, run_id, storage, pexels, pixabay, wikimedia, used_source_urls=None, dup_lock=None, global_context=None):
             entry.status = "acquired"
             entry.source = "pexels"
             entry.file_key = f"runs/{run_id}/images/{entry.scene_id}.jpg"

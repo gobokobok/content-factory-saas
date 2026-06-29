@@ -30,9 +30,11 @@ from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.voice_production import VoiceAlignmentArtifact, VoiceWordTimestamp
 from src.models import (
+    GlobalContext,
     LowerThirdSpec,
     OnScreenTextOverlay,
     SceneRenderOptions,
+    SemanticContext,
     Storyboard,
     StoryboardGlobal,
     StoryboardScene,
@@ -42,7 +44,7 @@ from src.models import (
 
 logger = logging.getLogger(__name__)
 
-STORYBOARD_PROMPT_VERSION = "v0.14"
+STORYBOARD_PROMPT_VERSION = "v0.15"
 
 _SONNET_MODEL = "claude-sonnet-4-6"
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
@@ -160,6 +162,79 @@ Do NOT set render_options — that field is computed by the storyboard reviewer.
 Your job is to set the raw scene fields accurately. The reviewer reads them and writes render_options.
 
 ═══════════════════════════════════════
+GLOBAL CONTEXT — write this FIRST before any scenes
+═══════════════════════════════════════
+
+Before writing scenes, output a top-level "global_context" block that names the
+video's knowledge domain and its most specific subtopics. This block guides asset
+acquisition so generic words (e.g. "protein", "cell", "market") are never searched
+in the wrong domain.
+
+Fields:
+- topic: 5–10 word plain-English summary of the full video subject
+- domain: single word or short phrase (e.g. "neuroscience", "housing economics",
+  "urban planning history", "personal finance")
+- subtopics: 4–8 key technical concepts from the script (exact nouns, no verbs)
+- avoid_globally: 3–6 terms that stock-photo engines commonly associate with words in
+  this script BUT are wrong for this domain. These are added as exclusion signals.
+- tone: one of "evidence-based documentary" | "educational explainer" | "investigative"
+
+Examples:
+  Neuroscience script about exercise and brain health →
+    topic: "How exercise improves brain health and memory",
+    domain: "neuroscience",
+    subtopics: ["neurons", "BDNF", "hippocampus", "synaptic plasticity", "cortisol", "memory"],
+    avoid_globally: ["food preparation", "cooking", "dietary supplements", "gym selfie"],
+    tone: "evidence-based documentary"
+
+  Housing economics script about rent crisis →
+    topic: "Why US rents tripled in a decade",
+    domain: "housing economics",
+    subtopics: ["rent burden", "supply shortage", "zoning", "median income", "vacancy rate"],
+    avoid_globally: ["luxury interior design", "home decor", "real estate agent smiling"],
+    tone: "investigative"
+
+═══════════════════════════════════════
+SEMANTIC CONTEXT — one block per scene
+═══════════════════════════════════════
+
+Every scene must include a "semantic_context" block. This enriches the three-tier
+STK queries with domain-aware signals so stock engines return conceptually correct
+results even when VO words are ambiguous.
+
+Fields:
+- primary_concept: 3–8 word plain-English label for the visual concept (not the VO words)
+- domain_qualifier: how this concept relates to the video domain — prevents wrong-domain
+  results when the concept word is ambiguous. Keep to 4–10 words.
+- avoid: 2–5 specific stock-photo categories to exclude for THIS scene
+- visual_tags: 3–5 search terms in priority order, from most specific to broadest.
+  These are used as alternative queries if primary_stk misses. Must NOT overlap with
+  the avoid list. Concrete nouns only.
+- entity_type: "person" | "historic_event" | "location" | "organization" | null
+  Use "person" for Character scenes; "historic_event" for Event scenes depicting
+  a named event; "location" for place-centric scenes; "organization" for
+  institution-centric scenes; null for generic B-roll.
+
+Domain-qualifier examples (key pattern — always resolve the ambiguity):
+  Script mentions "protein" in a neuroscience video →
+    primary_concept: "neuronal protein synthesis",
+    domain_qualifier: "neurological protein, not dietary",
+    avoid: ["food", "cooking", "protein powder", "fried eggs"],
+    visual_tags: ["neuron microscopy", "brain cell protein", "synaptic growth", "BDNF molecule"]
+
+  Script mentions "market" in a housing video →
+    primary_concept: "housing market supply and demand",
+    domain_qualifier: "real estate market, not stock market or food market",
+    avoid: ["stock ticker", "Wall Street", "produce market", "supermarket"],
+    visual_tags: ["real estate graph", "house price chart", "housing supply shortage", "rental vacancy"]
+
+  Script mentions "cell" in a biology video →
+    primary_concept: "biological cell under microscope",
+    domain_qualifier: "biological cell, not prison cell or phone cell",
+    avoid: ["prison cell", "mobile phone", "battery cell"],
+    visual_tags: ["microscope cell biology", "cell membrane", "neuron dendrite", "tissue stain"]
+
+═══════════════════════════════════════
 DURATION RULES
 ═══════════════════════════════════════
 
@@ -212,6 +287,13 @@ OUTPUT FORMAT
 Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
 
 {
+  "global_context": {
+    "topic": "...",
+    "domain": "...",
+    "subtopics": ["...", "..."],
+    "avoid_globally": ["...", "..."],
+    "tone": "evidence-based documentary"
+  },
   "global": {
     "subtitle_style": "...",
     "bg_music": "...",
@@ -227,6 +309,13 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
       "primary_stk": "house exterior repair workers",
       "context_stk": "house renovation",
       "concept_stk": "housing",
+      "semantic_context": {
+        "primary_concept": "residential construction and renovation",
+        "domain_qualifier": "housing maintenance, not tool or hardware store",
+        "avoid": ["tool shop", "hardware store", "workshop interior"],
+        "visual_tags": ["house renovation exterior", "construction workers housing", "residential repair"],
+        "entity_type": null
+      },
       "on_screen_text": null,
       "on_screen_text_type": null,
       "motion_effect": "ken_burns_in",
@@ -361,6 +450,42 @@ Do NOT set render_options — that field is computed by the storyboard reviewer.
 Your job is to set the raw scene fields accurately. The reviewer reads them and writes render_options.
 
 ═══════════════════════════════════════
+GLOBAL CONTEXT — write this FIRST before any scenes
+═══════════════════════════════════════
+
+Before writing scenes, output a top-level "global_context" block that names the
+video's knowledge domain and its most specific subtopics. This block guides asset
+acquisition so generic words (e.g. "protein", "cell", "market") are never searched
+in the wrong domain.
+
+Fields:
+- topic: 5–10 word plain-English summary of the full video subject
+- domain: single word or short phrase (e.g. "neuroscience", "housing economics",
+  "urban planning history", "personal finance")
+- subtopics: 4–8 key technical concepts from the script (exact nouns, no verbs)
+- avoid_globally: 3–6 terms that stock-photo engines commonly associate with words in
+  this script BUT are wrong for this domain. These are added as exclusion signals.
+- tone: one of "evidence-based documentary" | "educational explainer" | "investigative"
+
+═══════════════════════════════════════
+SEMANTIC CONTEXT — one block per scene
+═══════════════════════════════════════
+
+Every scene must include a "semantic_context" block with:
+- primary_concept: 3–8 word plain-English label for the visual concept (not the VO words)
+- domain_qualifier: how this concept relates to the video domain — prevents wrong-domain
+  results when the concept word is ambiguous. Keep to 4–10 words.
+- avoid: 2–5 specific stock-photo categories to exclude for THIS scene
+- visual_tags: 3–5 search terms in priority order, most specific to broadest.
+  Concrete nouns only. Must NOT overlap with avoid list.
+- entity_type: "person" | "historic_event" | "location" | "organization" | null
+
+Domain-qualifier example: "protein" in neuroscience →
+  domain_qualifier: "neurological protein, not dietary",
+  avoid: ["food", "cooking", "protein powder"],
+  visual_tags: ["neuron microscopy", "synaptic protein", "brain cell growth"]
+
+═══════════════════════════════════════
 COVERAGE RULE — CRITICAL
 ═══════════════════════════════════════
 
@@ -380,6 +505,13 @@ OUTPUT FORMAT
 Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
 
 {
+  "global_context": {
+    "topic": "...",
+    "domain": "...",
+    "subtopics": ["...", "..."],
+    "avoid_globally": ["...", "..."],
+    "tone": "evidence-based documentary"
+  },
   "global": {
     "subtitle_style": "...",
     "bg_music": "...",
@@ -394,6 +526,13 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
       "primary_stk": "house exterior repair workers",
       "context_stk": "house renovation",
       "concept_stk": "housing",
+      "semantic_context": {
+        "primary_concept": "residential construction and renovation",
+        "domain_qualifier": "housing maintenance, not tool or hardware store",
+        "avoid": ["tool shop", "hardware store", "workshop interior"],
+        "visual_tags": ["house renovation exterior", "construction workers housing", "residential repair"],
+        "entity_type": null
+      },
       "on_screen_text": null,
       "on_screen_text_type": null,
       "sfx": "ambient street traffic",

@@ -1777,7 +1777,7 @@ Scenes 1, 3, and 5 in a run shared the same image because each scene is acquired
 ## [P10-S3] Semantic enrichment — global topic context + Entity Resolver + visual deduplication
 **Epic:** E37 — Visual Intelligence Layer
 **Sprint:** P10
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 6
 
@@ -1887,7 +1887,7 @@ This is distinct from the file_key deduplication in P9-S10 (which prevents the e
 - [ ] All existing tests pass; new unit tests cover `resolve_entity` routing table (all 5 branches) and dedup cluster detection
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
 
 ---
 

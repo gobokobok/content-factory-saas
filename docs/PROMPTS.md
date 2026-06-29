@@ -20,6 +20,8 @@
 | v0.9 | 2026-06-06 | COVERAGE RULE added: every script word must appear verbatim in exactly one voiceover_line. voiceover_line cap raised 4–6→4–8 words, paraphrase forbidden. COMMA-LIST RULE: bridge phrases before lists attach to first item's voiceover_line. |
 | v0.10 | 2026-06-20 | PERSON SCENE RULE added: optional `person_name` + `person_title` scene fields emitted when scene depicts a named real individual. Acquisition routes to Wikipedia portrait first for these scenes (P8-S3). |
 | v0.11 | 2026-06-21 | QUERY DOMAIN ANCHORING: PRIMARY must reflect video topic, not literal VO words. Banned era labels (Victorian, 1880s, etc.) from Pexels queries — Pexels has no genuine historical footage. Renamed HISTORICAL SCENES exception to NAMED EVENTS/PLACES — period labels only allowed in person portrait queries (Wikipedia) and proper-noun event searches. Added counter-example for the housing-repair/workshop failure pattern. |
+| v0.12–v0.14 | 2026-06-22–2026-06-29 | P9 native engine: SEGMENT TYPE (Character/Event/B-roll), THREE-TIER QUERIES, indexed word list (v0.13), per-scene asset_tier derivation, timestamp-first durations, portrait/landscape format parameter. |
+| v0.15 | 2026-06-30 | P10-S3 SEMANTIC ENRICHMENT: GLOBAL CONTEXT block (topic, domain, subtopics, avoid_globally, tone) added as preamble; SEMANTIC CONTEXT block per scene (primary_concept, domain_qualifier, avoid, visual_tags, entity_type). Worked domain-qualifier examples for neuroscience protein / housing market / biology cell disambiguation patterns. |
 
 ### Key rules (v0.8)
 - **Duration (with timestamps):** when WORD TIMESTAMPS block is in input, derive `duration_s` from actual speech timing — `(end_ms − start_ms) / 1000`; word-count table is fallback only
