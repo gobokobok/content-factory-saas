@@ -12,7 +12,7 @@ _Entries added here when a story reaches Definition of Done._
 - `POST /platform/studio/runs/{run_id}/scenes/{scene_n}/upload` — MIME+size validated, R2 write, versioned manifest, TraceEvent
 - `studio.html` nav is now 4 stages (Script/Voice/Storyboard/Render); storyboard table has Preview thumbnail + pencil columns; pencil modal handles both re-acquire and custom upload; live 3s polling fills thumbnails during acquisition
 - `tests/cf_platform/test_p10_s2_asset_override.py` — 16 tests (all green)
-**Smoke test:** DEFERRED — requires DEV run with completed voiceover and at least one storyboard to exercise the live thumbnail fill and pencil modal end-to-end
+**Smoke test:** DEFERRED — requires DEV run with completed voiceover and at least one storyboard to exercise the live thumbnail fill and pencil modal end-to-end. Post-ship fix: `python-multipart` added to requirements.txt (commit 29068b7) — its absence caused the entire `/platform/*` router to fail to mount on DEV.
 **Promoted to backlog:** none
 
 ---
