@@ -173,16 +173,16 @@ Legacy Script→Video stays untouched and operable (D047).
 **Execution order:** P10-S1 and P10-S2 are independent; both can start immediately. P10-S3 depends on neither but should follow S1 (shares acquisition_worker.py).
 
 ## Sprint P10 Definition of Done
-- [ ] No `lower_third` rendered in any scene; Character scene person name appears as centre OST
-- [ ] Character + historic scenes query Wikimedia first; `asset_manifest.source == "wikimedia"` confirmed
-- [ ] No two scenes in the same run share the same `file_key`
-- [ ] Every Event scene has non-empty `on_screen_text` after generation
-- [ ] `→` `↑` render as correct glyphs in OST (Noto Sans font)
-- [ ] Studio pencil icon: operator can swap a scene's asset without re-running full pipeline
-- [ ] `verified_storyboard` contains `global_context` block on every run
-- [ ] Every scene has `semantic_context` with `domain_qualifier` + `avoid` + `visual_tags`
-- [ ] Entity Resolver routes Character + historic scenes to Wikimedia deterministically
-- [ ] Visual concept deduplication pass fires when 3+ consecutive scenes share the same concept
+- [x] No `lower_third` rendered in any scene; Character scene person name appears as centre OST (P10-S1)
+- [x] Character + historic scenes query Wikimedia first; `asset_manifest.source == "wikimedia"` confirmed (P10-S1)
+- [x] No two scenes in the same run share the same `file_key` (P10-S1)
+- [x] Every Event scene has non-empty `on_screen_text` after generation (P10-S1)
+- [x] `→` `↑` render as correct glyphs in OST (Noto Sans font) (P10-S1)
+- [x] Studio pencil icon: operator can swap a scene's asset without re-running full pipeline (P10-S2)
+- [x] `verified_storyboard` contains `global_context` block on every run (P10-S3)
+- [x] Every scene has `semantic_context` with `domain_qualifier` + `avoid` + `visual_tags` (P10-S3)
+- [x] Entity Resolver routes Character + historic scenes to Wikimedia deterministically (P10-S3)
+- [x] Visual concept deduplication pass fires when 3+ consecutive scenes share the same concept (P10-S3)
 - [ ] 6 pre-existing test failures in `test_ffmpeg_builder.py` / `test_runs.py` fixed
 - [ ] **Human touchpoint:** a re-render of a neuroscience topic run shows: no food assets for biological-protein scenes; researcher portrait from Wikimedia; all habit milestones have OST; Unicode arrows render correctly; operator can swap one scene asset from Studio
 

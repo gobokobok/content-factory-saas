@@ -1777,7 +1777,8 @@ Scenes 1, 3, and 5 in a run shared the same image because each scene is acquired
 ## [P10-S3] Semantic enrichment — global topic context + Entity Resolver + visual deduplication
 **Epic:** E37 — Visual Intelligence Layer
 **Sprint:** P10
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-06-30
 **Priority:** high
 **Points:** 6
 
@@ -1879,15 +1880,22 @@ This is distinct from the file_key deduplication in P9-S10 (which prevents the e
 - `docs/PROMPTS.md` — storyboard prompt changelog (bump to v0.11)
 
 ### Acceptance Criteria
-- [ ] `verified_storyboard` artifact contains a `global_context` block on every run
-- [ ] Every scene has a `semantic_context` with `primary_concept`, `domain_qualifier`, and at least 2 `visual_tags`
-- [ ] On a neuroscience-topic run, a "protein" scene queries for neurological visuals (not food); confirmed via enriched query in DEBUG log
-- [ ] `Entity Resolver` routes Character + historic scenes to Wikimedia; `asset_manifest.source` reflects this
-- [ ] Visual dedup pass fires on a run with 3+ consecutive same-concept scenes; at least 1 requery logged
-- [ ] All existing tests pass; new unit tests cover `resolve_entity` routing table (all 5 branches) and dedup cluster detection
+- [x] `verified_storyboard` artifact contains a `global_context` block on every run
+- [x] Every scene has a `semantic_context` with `primary_concept`, `domain_qualifier`, and at least 2 `visual_tags`
+- [x] On a neuroscience-topic run, a "protein" scene queries for neurological visuals (not food); confirmed via enriched query in DEBUG log
+- [x] `Entity Resolver` routes Character + historic scenes to Wikimedia; `asset_manifest.source` reflects this
+- [x] Visual dedup pass fires on a run with 3+ consecutive same-concept scenes; at least 1 requery logged
+- [x] All existing tests pass; new unit tests cover `resolve_entity` routing table (all 5 branches) and dedup cluster detection
 
 ### Definition of Done
 - [x] All AC checked · CI green · DONE.md updated · BACKLOG.md status updated to `done`
+
+### Handover
+- `src/models.py`: `GlobalContext` + `SemanticContext` models; `Storyboard.global_context` + `StoryboardScene.semantic_context` + `ManifestEntry.semantic_context` fields (all Optional)
+- `cf_platform/workers/storyboard_worker.py`: prompt v0.15 — GLOBAL CONTEXT preamble + SEMANTIC CONTEXT per scene in both prompt variants
+- `cf_platform/workers/acquisition_worker.py`: `EntityResolution` dataclass; `resolve_entity()` (5 branches); `_build_enriched_queries()` (visual_tags + domain prefix); `_visual_dedup_pass()` (3+ cluster detection, 6-requery cap)
+- `tests/cf_platform/test_p10_s3_semantic.py`: 25 tests; 1964 total passing
+**Promoted to backlog:** none
 
 ---
 
