@@ -1,10 +1,10 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
-> As of 2026-06-20 the active work is the **Platform v2 track (Sprints P0–P15)**, defined in **docs/v2_platform_plan.md** (decisions D047–D063).
-> - **Sprints P0–P8 complete.** P8-S1 through P8-S6 all done.
+> As of 2026-06-29 the active work is the **Platform v2 track (Sprints P0–P15)**, defined in **docs/v2_platform_plan.md** (decisions D047–D063).
+> - **Sprints P0–P9 complete.** P9 velocity: 8/10 stories done; P9-S8 and P9-S10 carry to P10.
 > - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
 > - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
 > - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
-> - **Next sprint:** P9 — Storyboard v2 + native engine rebuild.
+> - **Next sprint:** P10 — Production quality + Visual Intelligence Layer.
 
 ---
 
@@ -24,9 +24,9 @@ Legacy Script→Video stays untouched and operable (D047).
 | P6 | Orchestrator + legacy bridge | 24 | done | `/produce <niche>` → presigned video URL + confirmed VO sync |
 | P7 | Idea selection + YouTube metadata | 8 | done | `/ideas` → 5 numbered ideas → `/pick <run_id> <n>` → 16:9 video + metadata |
 | P8 | Footage quality | 14 | done | Footage breakdown in Telegram reply; colour grade applied |
-| **P9** | **Storyboard v2 + native engine rebuild** | **~18** | **in-progress** | `/run` → fully native pipeline; person lower thirds; film look for historic scenes |
-| P10 | Visual Intelligence Layer | ~12 | planned | Neuroscience run: no food assets for "protein"; researcher portrait from Wikimedia; diversity score in Telegram reply |
-| P11 | Multi-asset timelines + motion effects | ~14 | planned | Sub-scene asset cuts; slow push; film grain; animated callouts |
+| P9 | Storyboard v2 + native engine rebuild | ~18 | done | `/run` → fully native pipeline; timestamp-first captions; film look; OST overlays |
+| **P10** | **Production quality + Visual Intelligence Layer** | **~15** | **in-progress** | No food assets for "protein"; researcher portrait from Wikimedia; per-scene asset override in Studio |
+| P11 | Visual Director + motion effects | ~12 | planned | Visual Director agent; sub-scene cuts; slow push; film grain; animated callouts |
 | P12 | Format tracks | ~10 | planned | `documentary`/`educational`/`animated` via `--format` flag |
 | P13 | Analytics & attribution | ~11 | planned | Retention-by-prompt-version report |
 | P14 | n8n automation | ~10 | planned | Niche → scheduled YouTube upload with no operator action |
@@ -141,10 +141,7 @@ Legacy Script→Video stays untouched and operable (D047).
 ---
 
 # Sprint P9 — Native Documentary Production Graph
-
-**Goal:** Extract the storyboard→acquisition→render chain from `InProcessLegacyVideoAdapter` into three native LangGraph workers. P9 is a **migration sprint, not an innovation sprint** — every change must either (a) replace existing monolith functionality, or (b) add visible production quality at <10% runtime cost. Defer everything else to P10.
-**Status:** in-progress
-**Points:** ~18
+**Status:** done (2026-06-29) · Velocity: 8/10 · P9-S8 and P9-S10 carried to P10
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
@@ -155,44 +152,60 @@ Legacy Script→Video stays untouched and operable (D047).
 | P9-S5 | Retire InProcessLegacyVideoAdapter + wire native pipeline | 2 | done |
 | P9-S6 | Portrait/landscape format parameter (`--format` flag) | 2 | done |
 | P9-S7 | Caption word assignment by timestamp (drop script text-matching) | 1 | done |
-| P9-S8 | Per-scene asset override — custom query re-acquire + operator upload | 4 | todo |
+| P9-S8 | Per-scene asset override — custom query re-acquire + operator upload | 4 | carried→P10 |
 | P9-S9 | Timestamp-first storyboard — word indices + Python-derived duration and asset tier | 5 | done |
-| P9-S10 | Asset quality, character sourcing, and OST consistency | 5 | todo |
-
-**Execution order:** P9-S1 → P9-S2 → P9-S3 → P9-S4 → P9-S5 (fully linear). P9-S6 and P9-S7 are independent; can run in parallel after P9-S5.
-
-## Sprint P9 Definition of Done
-- [x] `StoryboardScene` schema v2: `segment_type` (3 values), three-tier queries, `on_screen_text_type` (3 values), `render_options` per scene; `historic` and `visual_prompts.ai_generate` removed
-- [x] `StoryboardWorker` emits single `verified_storyboard` artifact; internal generate→review→patch cycle; no intermediate artifacts
-- [x] `AcquisitionWorker` routes by `segment_type`; three-tier query cascade; P8 src/ modules imported directly; `asset_manifest` + `footage_summary` artifacts written
-- [ ] `RenderWorker` reads `scene.render_options` only — no `segment_type` conditionals; persists `render_script.sh`; produces `final.mp4`
-- [ ] Caption position awareness: when `render_options.lower_third` active and `subtitles != "none"`, captions shift up via `caption_y_override`
-- [ ] Each worker has a standalone REST endpoint for future manual UI (alongside pipeline node wiring)
-- [ ] Artifact chain: `verified_storyboard → asset_manifest → render_script.sh → final.mp4`
-- [ ] `/run` / `/pick` / `/produce` commands trigger the native chain; `InProcessLegacyVideoAdapter` not in active call path
-- [ ] **Human touchpoint:** `/run <niche>` → native render; person lower thirds; film look for historic; on_screen_text overlays for dates and stats
+| P9-S10 | Asset quality, character sourcing, and OST consistency | 5 | carried→P10 |
 
 ---
 
-# Sprint P10 — Visual Intelligence Layer
+# Sprint P10 — Production Quality + Visual Intelligence Layer
 
-**Goal:** Eliminate context-free asset acquisition. The storyboard now carries global topic context and per-scene semantic qualifiers. A dedicated Visual Director agent plans the visual treatment for the full run before any asset is fetched. The acquisition layer becomes a fulfillment layer — it reads a visual plan and executes it, rather than deriving intent from raw query strings.
+**Goal:** Two tracks running in parallel. Track A (quality fixes): plug the five production bugs observed on v0.16.0 real runs, add per-scene asset override. Track B (intelligence): inject global semantic context into the storyboard and replace the current flat query lookup with an Entity Resolver + enriched visual signals — eliminating context-free acquisition without a full agent decomposition.
+**Status:** in-progress
+**Points:** ~15
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P10-S1 (was P9-S10) | Asset quality, character sourcing, and OST consistency | 5 | todo |
+| P10-S2 (was P9-S8) | Per-scene asset override — custom query re-acquire + operator upload | 4 | todo |
+| P10-S3 (was P10-S1) | Semantic enrichment — global context + Entity Resolver + visual deduplication | 6 | todo |
+
+**Execution order:** P10-S1 and P10-S2 are independent; both can start immediately. P10-S3 depends on neither but should follow S1 (shares acquisition_worker.py).
+
+## Sprint P10 Definition of Done
+- [ ] No `lower_third` rendered in any scene; Character scene person name appears as centre OST
+- [ ] Character + historic scenes query Wikimedia first; `asset_manifest.source == "wikimedia"` confirmed
+- [ ] No two scenes in the same run share the same `file_key`
+- [ ] Every Event scene has non-empty `on_screen_text` after generation
+- [ ] `→` `↑` render as correct glyphs in OST (Noto Sans font)
+- [ ] Studio pencil icon: operator can swap a scene's asset without re-running full pipeline
+- [ ] `verified_storyboard` contains `global_context` block on every run
+- [ ] Every scene has `semantic_context` with `domain_qualifier` + `avoid` + `visual_tags`
+- [ ] Entity Resolver routes Character + historic scenes to Wikimedia deterministically
+- [ ] Visual concept deduplication pass fires when 3+ consecutive scenes share the same concept
+- [ ] 6 pre-existing test failures in `test_ffmpeg_builder.py` / `test_runs.py` fixed
+- [ ] **Human touchpoint:** a re-render of a neuroscience topic run shows: no food assets for biological-protein scenes; researcher portrait from Wikimedia; all habit milestones have OST; Unicode arrows render correctly; operator can swap one scene asset from Studio
+
+---
+
+# Sprint P11 — Visual Director + Motion Effects
+
+**Goal:** Introduce the Visual Director as a dedicated post-storyboard LangGraph node that produces a full visual treatment (shot type, search terms, motion, diversity plan) before any asset is fetched. Add motion effect presets to the render layer. The acquisition layer becomes a pure fulfillment layer.
 **Status:** planned
 **Points:** ~12
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P10-S1 | Semantic enrichment — global topic context + Entity Resolver + visual deduplication | 6 | todo |
-| P10-S2 | Visual Director agent — post-storyboard visual treatment | 6 | todo |
+| P11-S1 (was P10-S2) | Visual Director agent — post-storyboard visual treatment | 6 | todo |
+| P11-S2 | Motion effect presets — slow push, film grain, camera shake, light leak | 4 | todo |
+| P11-S3 | Sub-scene asset timeline — 2–3 assets per scene with sub-clip in/out points | 5 | todo |
 
-**Execution order:** P10-S1 → P10-S2 (S2 depends on enriched storyboard schema from S1).
+**Execution order:** P11-S1 → P11-S2 (S2 adds `motion` preset execution that S1 specifies). P11-S3 is independent but large; can slip to P12.
 
-## Sprint P10 Definition of Done
-- [ ] `verified_storyboard` contains `global_context` block on every run
-- [ ] Every scene has `semantic_context` with `primary_concept`, `domain_qualifier`, `avoid`, `visual_tags`
-- [ ] `Entity Resolver` deterministically routes Character + historic scenes to Wikimedia; stock/concept scenes to Pexels/Pixabay
-- [ ] `visual_treatment` artifact written to R2; `AcquisitionWorker` reads it as primary source of search terms
-- [ ] No 3+ consecutive scenes with the same `shot_type`; diversity validator enforced
+## Sprint P11 Definition of Done
+- [ ] `visual_treatment` artifact written to R2 on every run
+- [ ] `AcquisitionWorker` reads `visual_treatment.search_terms` as primary source
+- [ ] No 3+ consecutive scenes with same `shot_type`; diversity validator with 1-retry enforced
 - [ ] `footage_summary` includes `diversity_score`
-- [ ] On a neuroscience-topic run: "protein" scene returns neurological visuals, not food; researcher portrait from Wikimedia
-- [ ] **Human touchpoint:** `/run <niche>` → Telegram reply includes `diversity_score`; neuroscience run has no food assets for biological-protein scenes
+- [ ] At least 4 motion presets (slow_push, film_grain, camera_shake, light_leak) applied correctly in render script
+- [ ] **Human touchpoint:** neuroscience run — no food for protein scenes; diversity score in Telegram; 2 motion presets visibly applied in output video

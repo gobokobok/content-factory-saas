@@ -1272,9 +1272,9 @@ Replace the text-matching approach in `assign_words_to_scenes` with timestamp-ba
 
 ---
 
-## [P9-S8] Per-scene asset override — custom query re-acquire + operator upload
+## [P10-S2] Per-scene asset override — custom query re-acquire + operator upload
 **Epic:** E36 — Native Documentary Production Graph
-**Sprint:** P9 (studio polish, ships with P10)
+**Sprint:** P10 (carried from P9-S8)
 **Status:** todo
 **Priority:** high
 **Points:** 4
@@ -1625,9 +1625,9 @@ Two-part: (1) **Swap ElevenLabs → Gemini 2.5 Flash TTS** in `voice_production.
 
 ---
 
-## [P9-S10] Asset quality, character sourcing, and OST consistency
+## [P10-S1] Asset quality, character sourcing, and OST consistency
 **Epic:** E36 — Native Documentary Production Graph
-**Sprint:** P9
+**Sprint:** P10 (carried from P9-S10)
 **Status:** todo
 **Priority:** high
 **Points:** 5
@@ -1703,7 +1703,7 @@ Scenes 1, 3, and 5 in a run shared the same image because each scene is acquired
 
 ---
 
-## [P10-S1] Semantic enrichment — global topic context + Entity Resolver + visual deduplication
+## [P10-S3] Semantic enrichment — global topic context + Entity Resolver + visual deduplication
 **Epic:** E37 — Visual Intelligence Layer
 **Sprint:** P10
 **Status:** todo
@@ -1820,9 +1820,9 @@ This is distinct from the file_key deduplication in P9-S10 (which prevents the e
 
 ---
 
-## [P10-S2] Visual Director agent — post-storyboard visual treatment
+## [P11-S1] Visual Director agent — post-storyboard visual treatment
 **Epic:** E37 — Visual Intelligence Layer
-**Sprint:** P10
+**Sprint:** P11
 **Status:** todo
 **Priority:** medium
 **Points:** 6
