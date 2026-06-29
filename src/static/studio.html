@@ -975,8 +975,16 @@ function buildSceneRow(s, nextScene, totalDur) {
   let displayDur = s.duration_s || 0;
   if (nextScene && s.scene_start_ms != null && nextScene.scene_start_ms != null) {
     displayDur = (nextScene.scene_start_ms - s.scene_start_ms) / 1000;
-  } else if (!nextScene && s.scene_start_ms != null && totalDur) {
-    displayDur = totalDur - s.scene_start_ms / 1000;
+  } else if (!nextScene && s.scene_start_ms != null) {
+    // For the last scene prefer voice-alignment total (includes inter-word gaps).
+    // summary.total_duration_s is word-span sum only and can be < scene_start_ms,
+    // producing a negative display duration. Fall back to scene_end_ms if totalDur
+    // is unreliable (smaller than the scene's own start time).
+    const vaTotal = state.stageData.voiceAlignment?.total_duration_s;
+    const reliableTotal = vaTotal || (totalDur > s.scene_start_ms / 1000 ? totalDur : null);
+    displayDur = reliableTotal
+      ? reliableTotal - s.scene_start_ms / 1000
+      : (s.scene_end_ms != null ? (s.scene_end_ms - s.scene_start_ms) / 1000 : displayDur);
   }
 
   // Visual badge from asset_tier (P9-S9) or clip_type fallback
