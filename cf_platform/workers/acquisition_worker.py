@@ -542,11 +542,16 @@ async def _acquire_character(
         entry.scene_id, entry.person_name,
     )
 
-    # 2. Generic Pexels+Pixabay fallback (no Wikimedia general, no AI)
+    # 2. Generic Pexels+Pixabay fallback (no Wikimedia general, no AI).
+    # Prepend person name as first query so fallback imagery is at least
+    # person-adjacent rather than using the generic B-roll query.
+    name_query = entry.person_name or ""
+    fallback_queries = ([name_query] if name_query and name_query not in queries else []) + list(queries)
+
     collected: list[tuple[_Candidate, bytes, QAResult]] = []
     all_seen: list[_Candidate] = []
 
-    for query in queries:
+    for query in fallback_queries:
         if not query:
             continue
         tasks: list = [asyncio.to_thread(_pexels_photo_candidates, pexels, query)]
