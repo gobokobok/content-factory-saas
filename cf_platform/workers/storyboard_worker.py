@@ -93,18 +93,23 @@ Every scene has a segment_type. Use exactly one of:
 Rules:
 - Never assign "Character" without setting person_name.
 - Never assign "Event" for abstract concepts (inflation, demand, equity) — use "B-roll".
-- ANY scene where the VO mentions a named real person (scientist, researcher, politician,
-  author) MUST be "Character" with that person's name in person_name. Do not use "B-roll"
-  when a name is mentioned just because the scene is about their work.
+- FIRST mention of a named real person (scientist, researcher, politician) in the script
+  → MUST be "Character" with person_name set. This is their introduction scene; show their portrait.
+- SUBSEQUENT mentions of the same person → use "B-roll" with contextual queries about
+  their work (e.g. the study, the concept they're associated with). Do not show the
+  same portrait twice.
+- Never assign "Character" to a scene that is a second or later reference to the same person.
 
 Examples:
-  VO: "Jerome Powell signalled rates would stay high"
+  First mention: VO: "Jerome Powell signalled rates would stay high"
     → segment_type: "Character", person_name: "Jerome Powell", person_title: "Chair, Federal Reserve"
-  VO: "Kirk Erickson's 2011 study found aerobic exercise grew the hippocampus"
+  Second mention: VO: "Powell's decision sent mortgage rates to a 20-year high"
+    → segment_type: "B-roll", primary_stk: "federal reserve interest rate mortgage"
+  First mention: VO: "Kirk Erickson's 2011 study found aerobic exercise grew the hippocampus"
     → segment_type: "Character", person_name: "Kirk Erickson", person_title: "Neuroscientist, University of Pittsburgh"
-  VO: "Cotman and Berchtold's 2002 review established this link directly"
+  First mention: VO: "Cotman and Berchtold's 2002 review established this link directly"
     → segment_type: "Character", person_name: "Carl Cotman", person_title: "Neuroscientist, UC Irvine"
-  VO: "The London Blitz destroyed four million homes"
+  The London Blitz destroyed four million homes"
     → segment_type: "Event"
   VO: "Homeownership rates dropped to 1960s lows"
     → segment_type: "B-roll"
@@ -412,18 +417,23 @@ Every scene has a segment_type. Use exactly one of:
 Rules:
 - Never assign "Character" without setting person_name.
 - Never assign "Event" for abstract concepts (inflation, demand, equity) — use "B-roll".
-- ANY scene where the VO mentions a named real person (scientist, researcher, politician,
-  author) MUST be "Character" with that person's name in person_name. Do not use "B-roll"
-  when a name is mentioned just because the scene is about their work.
+- FIRST mention of a named real person (scientist, researcher, politician) in the script
+  → MUST be "Character" with person_name set. This is their introduction scene; show their portrait.
+- SUBSEQUENT mentions of the same person → use "B-roll" with contextual queries about
+  their work (e.g. the study, the concept they're associated with). Do not show the
+  same portrait twice.
+- Never assign "Character" to a scene that is a second or later reference to the same person.
 
 Examples:
-  VO: "Jerome Powell signalled rates would stay high"
+  First mention: VO: "Jerome Powell signalled rates would stay high"
     → segment_type: "Character", person_name: "Jerome Powell", person_title: "Chair, Federal Reserve"
-  VO: "Kirk Erickson's 2011 study found aerobic exercise grew the hippocampus"
+  Second mention: VO: "Powell's decision sent mortgage rates to a 20-year high"
+    → segment_type: "B-roll", primary_stk: "federal reserve interest rate mortgage"
+  First mention: VO: "Kirk Erickson's 2011 study found aerobic exercise grew the hippocampus"
     → segment_type: "Character", person_name: "Kirk Erickson", person_title: "Neuroscientist, University of Pittsburgh"
-  VO: "Cotman and Berchtold's 2002 review established this link directly"
+  First mention: VO: "Cotman and Berchtold's 2002 review established this link directly"
     → segment_type: "Character", person_name: "Carl Cotman", person_title: "Neuroscientist, UC Irvine"
-  VO: "The London Blitz destroyed four million homes"
+  The London Blitz destroyed four million homes"
     → segment_type: "Event"
   VO: "Homeownership rates dropped to 1960s lows"
     → segment_type: "B-roll"
