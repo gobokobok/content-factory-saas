@@ -134,6 +134,8 @@ async def test_storyboard_node_passes_script_key() -> None:
         if "storyboard_worker" in thread_id:
             captured_sb_states.append(state)
             return _stage("verified_storyboard", sb_r2)
+        if "visual_director_worker" in thread_id:
+            return _stage("visual_treatment", "r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _stage("asset_manifest", "r2://mf@v1")
         return _stage("render_artifact", render_r2)
@@ -187,6 +189,8 @@ async def test_storyboard_node_forwards_voice_alignment() -> None:
         if "storyboard_worker" in thread_id:
             captured_sb_states.append(state)
             return _stage("verified_storyboard", "r2://sb@v1")
+        if "visual_director_worker" in thread_id:
+            return _stage("visual_treatment", "r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _stage("asset_manifest", "r2://mf@v1")
         return _stage("render_artifact", render_r2)
@@ -240,6 +244,8 @@ async def test_acquisition_node_receives_verified_storyboard() -> None:
             return _stage("voice_alignment", "r2://voice@v1")
         if "storyboard_worker" in thread_id:
             return _stage("verified_storyboard", sb_r2)
+        if "visual_director_worker" in thread_id:
+            return _stage("visual_treatment", "r2://vt@v1")
         if "acquisition_worker" in thread_id:
             captured_acq_states.append(state)
             return _stage("asset_manifest", "r2://mf@v1")
@@ -296,6 +302,8 @@ async def test_render_node_receives_all_three_inputs() -> None:
             return _stage("voice_alignment", voice_r2)
         if "storyboard_worker" in thread_id:
             return _stage("verified_storyboard", sb_r2)
+        if "visual_director_worker" in thread_id:
+            return _stage("visual_treatment", "r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _stage("asset_manifest", mf_r2)
         captured_render_states.append(state)
@@ -348,6 +356,8 @@ async def test_render_node_video_key_is_raw_mp4_path() -> None:
             return _stage("voice_alignment", "r2://voice@v1")
         if "storyboard_worker" in thread_id:
             return _stage("verified_storyboard", "r2://sb@v1")
+        if "visual_director_worker" in thread_id:
+            return _stage("visual_treatment", "r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _stage("asset_manifest", "r2://mf@v1")
         return _stage("render_artifact", render_r2)
@@ -402,5 +412,6 @@ def test_registry_registers_all_three_native_workers() -> None:
 
     registered_names = [call.args[0] for call in mock_registry.register.call_args_list]
     assert "storyboard_worker" in registered_names
+    assert "visual_director_worker" in registered_names
     assert "acquisition_worker" in registered_names
     assert "render_worker" in registered_names

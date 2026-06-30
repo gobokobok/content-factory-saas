@@ -147,6 +147,7 @@ async def test_hitl_false_skips_gate_and_runs_native_pipeline() -> None:
         _make_metadata_result(),
         _make_voice_result(),
         _make_stage_result("verified_storyboard", "r2://sb@v1"),
+        _make_stage_result("visual_treatment", "r2://vt@v1"),
         _make_stage_result("asset_manifest", "r2://mf@v1"),
         _make_stage_result("render_artifact", render_r2),
     ])
@@ -171,8 +172,8 @@ async def test_hitl_false_skips_gate_and_runs_native_pipeline() -> None:
         )
         result = await graph.ainvoke(initial, config={"configurable": {"thread_id": "t-no-hitl"}})
 
-    # Gate was bypassed; all 7 run_graph calls completed; video in result.
-    assert mock_run_graph.call_count == 7
+    # Gate was bypassed; all 8 run_graph calls completed; video in result.
+    assert mock_run_graph.call_count == 8
     assert result["artifacts"]["video"] == video_r2
 
 
@@ -230,6 +231,7 @@ async def test_hitl_interrupt_called_with_run_id_and_script_key() -> None:
         _make_metadata_result(),
         _make_voice_result(voice_r2=voice_r2),
         _make_stage_result("verified_storyboard", "r2://sb@v1"),
+        _make_stage_result("visual_treatment", "r2://vt@v1"),
         _make_stage_result("asset_manifest", "r2://mf@v1"),
         _make_stage_result("render_artifact", render_r2),
     ])
@@ -276,6 +278,7 @@ async def test_hitl_approve_runs_native_pipeline() -> None:
         _make_metadata_result(),
         _make_voice_result(),
         _make_stage_result("verified_storyboard", "r2://sb@v1"),
+        _make_stage_result("visual_treatment", "r2://vt@v1"),
         _make_stage_result("asset_manifest", "r2://mf@v1"),
         _make_stage_result("render_artifact", render_r2),
     ])
@@ -302,8 +305,8 @@ async def test_hitl_approve_runs_native_pipeline() -> None:
         )
         result = await graph.ainvoke(initial, config={"configurable": {"thread_id": "t-approve"}})
 
-    # All 7 workers ran; legacy adapter not called; video key is raw MP4 path.
-    assert mock_run_graph.call_count == 7
+    # All 8 workers ran; legacy adapter not called; video key is raw MP4 path.
+    assert mock_run_graph.call_count == 8
     mock_adapter.render.assert_not_called()
     assert result["artifacts"]["video"] == video_r2
 

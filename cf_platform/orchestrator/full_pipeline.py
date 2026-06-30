@@ -54,6 +54,10 @@ from cf_platform.workers.storyboard_worker import (
     STORYBOARD_WORKER_REGISTRATION,
     build_storyboard_worker,
 )
+from cf_platform.workers.visual_director_worker import (
+    VISUAL_DIRECTOR_REGISTRATION,
+    build_visual_director_worker,
+)
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from cf_platform.workers.voice_production import (
     VOICE_PRODUCTION_REGISTRATION,
@@ -173,6 +177,22 @@ def build_full_pipeline_graph(
         "verified_storyboard",
         "storyboard_worker",
         storyboard_worker_fn,
+        registry=registry,
+        storage=storage,
+        executions=executions,
+        artifact_repo=artifact_repo,
+    )
+
+    # ── Visual Director worker — build observed graph once at compile time ──────
+    registry.register("visual_director_worker", VISUAL_DIRECTOR_REGISTRATION)
+    visual_director_worker_fn = build_visual_director_worker(
+        storage=storage,
+        anthropic_api_key=anthropic_api_key,
+    )
+    visual_director_graph = build_observed_node_graph(
+        "visual_treatment",
+        "visual_director_worker",
+        visual_director_worker_fn,
         registry=registry,
         storage=storage,
         executions=executions,
@@ -336,18 +356,42 @@ def build_full_pipeline_graph(
         result = await run_graph(storyboard_graph, block_state, thread_id=f"{state.run_id}:storyboard_worker")
         return {"artifacts": {"verified_storyboard": result.artifacts["verified_storyboard"]}}
 
-    async def acquisition_node(state: PipelineState) -> dict[str, Any]:
-        """Run the AcquisitionWorker; return asset_manifest artifact ref.
+    async def visual_director_node(state: PipelineState) -> dict[str, Any]:
+        """Run the VisualDirectorWorker; return visual_treatment artifact ref.
 
-        Reads verified_storyboard from state; routes each scene by segment_type;
-        three-tier STK cascade with QA gate. Also writes footage_summary.json side-car
-        to R2 for Telegram reply consumption.
+        Receives the enriched verified_storyboard; produces a per-scene visual plan
+        (shot type, search terms, motion, diversity strategy) consumed by the
+        AcquisitionWorker.
         """
         block_state = StageState(
             run_id=state.run_id,
             user_id=state.user_id,
             inputs={},
             artifacts={"verified_storyboard": state.artifacts["verified_storyboard"]},
+        )
+        result = await run_graph(
+            visual_director_graph, block_state, thread_id=f"{state.run_id}:visual_director_worker"
+        )
+        return {"artifacts": {"visual_treatment": result.artifacts["visual_treatment"]}}
+
+    async def acquisition_node(state: PipelineState) -> dict[str, Any]:
+        """Run the AcquisitionWorker; return asset_manifest artifact ref.
+
+        Reads verified_storyboard and optional visual_treatment from state; routes each
+        scene by segment_type; prefers Visual Director search_terms; three-tier STK
+        cascade with QA gate. Also writes footage_summary.json side-car to R2 for
+        Telegram reply consumption.
+        """
+        acq_artifacts: dict[str, str] = {
+            "verified_storyboard": state.artifacts["verified_storyboard"],
+        }
+        if state.artifacts.get("visual_treatment"):
+            acq_artifacts["visual_treatment"] = state.artifacts["visual_treatment"]
+        block_state = StageState(
+            run_id=state.run_id,
+            user_id=state.user_id,
+            inputs={},
+            artifacts=acq_artifacts,
         )
         result = await run_graph(acquisition_graph, block_state, thread_id=f"{state.run_id}:acquisition_worker")
         return {"artifacts": {"asset_manifest": result.artifacts["asset_manifest"]}}
@@ -394,6 +438,7 @@ def build_full_pipeline_graph(
     graph.add_node("youtube_metadata", youtube_metadata_node)
     graph.add_node("voice_production", voice_production_node)
     graph.add_node("storyboard_worker", storyboard_node)
+    graph.add_node("visual_director_worker", visual_director_node)
     graph.add_node("acquisition_worker", acquisition_node)
     graph.add_node("render_worker", render_node)
 
@@ -407,7 +452,8 @@ def build_full_pipeline_graph(
     graph.add_edge("script_approval_gate", "youtube_metadata")
     graph.add_edge("youtube_metadata", "voice_production")
     graph.add_edge("voice_production", "storyboard_worker")
-    graph.add_edge("storyboard_worker", "acquisition_worker")
+    graph.add_edge("storyboard_worker", "visual_director_worker")
+    graph.add_edge("visual_director_worker", "acquisition_worker")
     graph.add_edge("acquisition_worker", "render_worker")
     graph.add_edge("render_worker", END)
 

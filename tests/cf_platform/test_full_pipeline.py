@@ -203,6 +203,7 @@ async def test_full_pipeline_happy_path() -> None:
         _make_stage_result(artifact_key="youtube_metadata", artifact_r2=metadata_r2),
         _make_stage_result(artifact_key="voice_alignment", artifact_r2=voice_r2),
         _make_stage_result(artifact_key="verified_storyboard", artifact_r2=sb_r2),
+        _make_stage_result(artifact_key="visual_treatment", artifact_r2="r2://vt@v1"),
         _make_stage_result(artifact_key="asset_manifest", artifact_r2=mf_r2),
         _make_stage_result(artifact_key="render_artifact", artifact_r2=render_r2),
     ])
@@ -264,6 +265,8 @@ async def test_run_id_threads_into_block_states() -> None:
             return _make_stage_result(run_id=state.run_id, artifact_key="voice_alignment", artifact_r2="r2://voice@v1")
         if "storyboard_worker" in thread_id:
             return _make_stage_result(run_id=state.run_id, artifact_key="verified_storyboard", artifact_r2="r2://sb@v1")
+        if "visual_director_worker" in thread_id:
+            return _make_stage_result(run_id=state.run_id, artifact_key="visual_treatment", artifact_r2="r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _make_stage_result(run_id=state.run_id, artifact_key="asset_manifest", artifact_r2="r2://mf@v1")
         # render_worker
@@ -292,20 +295,22 @@ async def test_run_id_threads_into_block_states() -> None:
         initial = PipelineState(run_id=_RUN_ID, user_id=_USER_ID, inputs={"niche": "housing"})
         await graph.ainvoke(initial, config={"configurable": {"thread_id": "t2"}})
 
-    assert len(captured_states) == 7
+    assert len(captured_states) == 8
     _, niche_thread = captured_states[0]
     _, script_thread = captured_states[1]
     _, metadata_thread = captured_states[2]
     _, voice_thread = captured_states[3]
     _, sb_thread = captured_states[4]
-    _, acq_thread = captured_states[5]
-    _, render_thread = captured_states[6]
+    _, vd_thread = captured_states[5]
+    _, acq_thread = captured_states[6]
+    _, render_thread = captured_states[7]
 
     assert niche_thread == f"{_RUN_ID}:niche_to_ideas"
     assert script_thread == f"{_RUN_ID}:idea_to_script"
     assert metadata_thread == f"{_RUN_ID}:youtube_metadata"
     assert voice_thread == f"{_RUN_ID}:voice_production"
     assert sb_thread == f"{_RUN_ID}:storyboard_worker"
+    assert vd_thread == f"{_RUN_ID}:visual_director_worker"
     assert acq_thread == f"{_RUN_ID}:acquisition_worker"
     assert render_thread == f"{_RUN_ID}:render_worker"
 
@@ -331,6 +336,8 @@ async def test_idea_title_extracted_from_ranked_ideas() -> None:
             return _make_stage_result(artifact_key="voice_alignment", artifact_r2="r2://voice@v1")
         if "storyboard_worker" in thread_id:
             return _make_stage_result(artifact_key="verified_storyboard", artifact_r2="r2://sb@v1")
+        if "visual_director_worker" in thread_id:
+            return _make_stage_result(artifact_key="visual_treatment", artifact_r2="r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _make_stage_result(artifact_key="asset_manifest", artifact_r2="r2://mf@v1")
         return _make_stage_result(artifact_key="render_artifact", artifact_r2=render_r2)
@@ -382,6 +389,8 @@ async def test_niche_flows_into_idea_to_script() -> None:
             return _make_stage_result(artifact_key="voice_alignment", artifact_r2="r2://voice@v1")
         if "storyboard_worker" in thread_id:
             return _make_stage_result(artifact_key="verified_storyboard", artifact_r2="r2://sb@v1")
+        if "visual_director_worker" in thread_id:
+            return _make_stage_result(artifact_key="visual_treatment", artifact_r2="r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _make_stage_result(artifact_key="asset_manifest", artifact_r2="r2://mf@v1")
         return _make_stage_result(artifact_key="render_artifact", artifact_r2=render_r2)
@@ -432,6 +441,8 @@ async def test_niche_absent_not_injected() -> None:
             return _make_stage_result(artifact_key="voice_alignment", artifact_r2="r2://voice@v1")
         if "storyboard_worker" in thread_id:
             return _make_stage_result(artifact_key="verified_storyboard", artifact_r2="r2://sb@v1")
+        if "visual_director_worker" in thread_id:
+            return _make_stage_result(artifact_key="visual_treatment", artifact_r2="r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _make_stage_result(artifact_key="asset_manifest", artifact_r2="r2://mf@v1")
         return _make_stage_result(artifact_key="render_artifact", artifact_r2=render_r2)
@@ -482,6 +493,8 @@ async def test_target_duration_flows_into_idea_to_script() -> None:
             return _make_stage_result(artifact_key="voice_alignment", artifact_r2="r2://voice@v1")
         if "storyboard_worker" in thread_id:
             return _make_stage_result(artifact_key="verified_storyboard", artifact_r2="r2://sb@v1")
+        if "visual_director_worker" in thread_id:
+            return _make_stage_result(artifact_key="visual_treatment", artifact_r2="r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _make_stage_result(artifact_key="asset_manifest", artifact_r2="r2://mf@v1")
         return _make_stage_result(artifact_key="render_artifact", artifact_r2=render_r2)
@@ -531,6 +544,7 @@ async def test_render_node_extracts_video_key_from_render_artifact() -> None:
         _make_stage_result(artifact_key="youtube_metadata", artifact_r2="r2://meta@v1"),
         _make_stage_result(artifact_key="voice_alignment", artifact_r2="r2://voice@v1"),
         _make_stage_result(artifact_key="verified_storyboard", artifact_r2="r2://sb@v1"),
+        _make_stage_result(artifact_key="visual_treatment", artifact_r2="r2://vt@v1"),
         _make_stage_result(artifact_key="asset_manifest", artifact_r2="r2://mf@v1"),
         _make_stage_result(artifact_key="render_artifact", artifact_r2=render_artifact_r2),
     ])
@@ -581,6 +595,8 @@ async def test_render_worker_failure_raises() -> None:
             return _make_stage_result(artifact_key="voice_alignment", artifact_r2="r2://voice@v1")
         if "storyboard_worker" in thread_id:
             return _make_stage_result(artifact_key="verified_storyboard", artifact_r2="r2://sb@v1")
+        if "visual_director_worker" in thread_id:
+            return _make_stage_result(artifact_key="visual_treatment", artifact_r2="r2://vt@v1")
         if "acquisition_worker" in thread_id:
             return _make_stage_result(artifact_key="asset_manifest", artifact_r2="r2://mf@v1")
         raise render_error

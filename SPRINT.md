@@ -26,7 +26,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P8 | Footage quality | 14 | done | Footage breakdown in Telegram reply; colour grade applied |
 | P9 | Storyboard v2 + native engine rebuild | ~18 | done | `/run` → fully native pipeline; timestamp-first captions; film look; OST overlays |
 | **P10** | **Production quality + Visual Intelligence Layer** | **~15** | **in-progress** | No food assets for "protein"; researcher portrait from Wikimedia; per-scene asset override in Studio |
-| P11 | Visual Director + motion effects | ~12 | planned | Visual Director agent; sub-scene cuts; slow push; film grain; animated callouts |
+| P11 | Visual Director + motion effects | ~12 | in-progress | Visual Director agent; sub-scene cuts; slow push; film grain; animated callouts |
 | P12 | Format tracks | ~10 | planned | `documentary`/`educational`/`animated` via `--format` flag |
 | P13 | Analytics & attribution | ~11 | planned | Retention-by-prompt-version report |
 | P14 | n8n automation | ~10 | planned | Niche → scheduled YouTube upload with no operator action |
@@ -196,7 +196,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P11-S1 (was P10-S2) | Visual Director agent — post-storyboard visual treatment | 6 | todo |
+| P11-S1 (was P10-S2) | Visual Director agent — post-storyboard visual treatment | 6 | done |
 | P11-S2 | Motion effect presets — slow push, film grain, camera shake, light leak | 4 | todo |
 | P11-S3 | Sub-scene asset timeline — 2–3 assets per scene with sub-clip in/out points | 5 | todo |
 

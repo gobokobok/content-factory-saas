@@ -23,7 +23,29 @@
 | v0.12–v0.14 | 2026-06-22–2026-06-29 | P9 native engine: SEGMENT TYPE (Character/Event/B-roll), THREE-TIER QUERIES, indexed word list (v0.13), per-scene asset_tier derivation, timestamp-first durations, portrait/landscape format parameter. |
 | v0.15 | 2026-06-30 | P10-S3 SEMANTIC ENRICHMENT: GLOBAL CONTEXT block (topic, domain, subtopics, avoid_globally, tone) added as preamble; SEMANTIC CONTEXT block per scene (primary_concept, domain_qualifier, avoid, visual_tags, entity_type). Worked domain-qualifier examples for neuroscience protein / housing market / biology cell disambiguation patterns. |
 
-### Key rules (v0.8)
+---
+
+## Visual Director — v0.1
+**Used in:** P11-S1 (`cf_platform/workers/visual_director_worker.py`)
+**Input:** `verified_storyboard` artifact (with `global_context` + `semantic_context` from P10-S3)
+**Output:** `visual_treatment` artifact — per-scene visual plan consumed by `AcquisitionWorker`
+**Current version:** v0.1
+
+### Changelog
+| Version | Date | Change |
+|---------|------|--------|
+| v0.1 | 2026-06-30 | Initial prompt — role as documentary video editor; controlled shot-type vocabulary (10 types); diversity rules (no 3+ consecutive identical shot_type); asset class and preferred source rules; domain-anchored search_terms guidance; diversity validator with 1-retry enforcement |
+
+### Key rules (v0.1)
+- **Shot type vocabulary:** `portrait`, `wide`, `macro_science`, `diagram`, `archive`, `drone`, `lifestyle`, `screen_recording`, `animation`, `infographic` — unknown values normalised to `wide`
+- **Diversity rule:** No 3+ consecutive scenes with the same `shot_type`; validator fires and re-invokes the agent (max 1 retry) on violation
+- **Domain anchor:** `search_terms` must be anchored to `global_context.domain` — "protein" in a neuroscience video → "neuron protein synapse" never "protein shake"
+- **person_photo → wikimedia:** Character scenes with `person_name` always get `asset_class: person_photo`, `preferred_source: wikimedia`
+- **diversity_score:** `unique_shot_types / total_scenes`, computed post-validation, written to `footage_summary`
+
+---
+
+### Storyboard Generator key rules (v0.8)
 - **Duration (with timestamps):** when WORD TIMESTAMPS block is in input, derive `duration_s` from actual speech timing — `(end_ms − start_ms) / 1000`; word-count table is fallback only
 - **Duration (no timestamps):** derived from VO word count per lookup table — never from clip type ceiling
 - **Clip type ceilings** are hard limits: `hard_cut` ≤1s, `still_with_motion` ≤3s, `animated` ≤4s

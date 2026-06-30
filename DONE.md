@@ -4,6 +4,22 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P11-S1] Visual Director agent — post-storyboard visual treatment
+**Completed:** 2026-06-30
+**Handover:**
+- `build_visual_director_worker(storage, anthropic_api_key) → WorkerNode` in `cf_platform/workers/visual_director_worker.py`
+- `VISUAL_DIRECTOR_REGISTRATION` (version metadata) for pipeline registry
+- `VisualTreatment`, `SceneVisualPlan`, `DiversityPlan` Pydantic models in `cf_platform/models/visual_treatment.py`
+- `visual_director_node` wired in `full_pipeline.py` between storyboard and acquisition
+- `AcquisitionWorker._build_treatment_queries()` merges treatment search terms (primary) with enriched STK queries (fallback); backward-compatible when `visual_treatment` absent
+- `footage_summary` now includes `diversity_score` (unique_shot_types / total_scenes)
+- 30 unit tests in `tests/cf_platform/test_p11_s1_visual_director.py`
+- Visual Director prompt v0.1 documented in `docs/PROMPTS.md`
+**Smoke test:** DEFERRED — requires DEV run on a neuroscience topic; verify that protein scenes get `shot_type: macro_science` with neuron search terms, and character scenes get `asset_class: person_photo` + `preferred_source: wikimedia`
+**Promoted to backlog:** none
+
+---
+
 ## [P10-S3] Semantic enrichment — global context + Entity Resolver + visual deduplication
 **Completed:** 2026-06-30
 **Handover:**

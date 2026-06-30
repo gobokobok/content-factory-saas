@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
+from cf_platform.models.visual_treatment import SceneVisualPlan, VisualTreatment
 from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
 from src.exceptions import PexelsError
 from src.footage_qa import QAResult, pick_best, qa_score
@@ -122,6 +123,35 @@ def resolve_entity(entry: ManifestEntry, global_context: Optional[GlobalContext]
         search_hint=entry.primary_stk,
         fallback_query=entry.concept_stk,
     )
+
+
+def _build_treatment_queries(
+    entry: ManifestEntry,
+    scene_plan: Optional[SceneVisualPlan],
+    global_context: Optional[GlobalContext] = None,
+) -> list[str]:
+    """Build query list with visual_treatment search_terms as the leading tier.
+
+    When a SceneVisualPlan is available, its ``search_terms`` are prepended before
+    the enriched STK queries so the Visual Director's intent drives acquisition first.
+    Falls back to _build_enriched_queries behaviour when no treatment is available.
+    """
+    enriched = _build_enriched_queries(entry, global_context)
+    if not scene_plan or not scene_plan.search_terms:
+        return enriched
+
+    seen: set[str] = set()
+    merged: list[str] = []
+    for q in [*scene_plan.search_terms, *enriched]:
+        q = q.strip()
+        if q and q not in seen:
+            seen.add(q)
+            merged.append(q)
+
+    logger.debug(
+        "Treatment queries scene=%s: %s", entry.scene_id, merged
+    )
+    return merged
 
 
 def _build_enriched_queries(
@@ -683,11 +713,13 @@ async def _acquire_scene(
     used_source_urls: Optional[set[str]] = None,
     dup_lock: Optional[asyncio.Lock] = None,
     global_context: Optional[GlobalContext] = None,
+    scene_plan: Optional[SceneVisualPlan] = None,
 ) -> None:
     """Route scene acquisition by segment_type; mutates entry in-place on success.
 
-    Uses resolve_entity to determine preferred sources and _build_enriched_queries to
-    inject semantic_context visual_tags before falling back to STK queries.
+    Uses resolve_entity to determine preferred sources and _build_treatment_queries to
+    lead with the Visual Director's search_terms before falling back to enriched STK
+    queries. When no visual_treatment is available, behaviour matches the pre-P11 path.
     """
     if used_source_urls is None:
         used_source_urls = set()
@@ -695,7 +727,7 @@ async def _acquire_scene(
         dup_lock = asyncio.Lock()
 
     resolution = resolve_entity(entry, global_context)
-    queries = _build_enriched_queries(entry, global_context)
+    queries = _build_treatment_queries(entry, scene_plan, global_context)
 
     # Prefer asset_tier (P9-S9 timestamp-first) over clip_type for source selection.
     if entry.asset_tier == "video":
@@ -875,6 +907,26 @@ def build_acquisition_worker(
         sb_artifact = VerifiedStoryboardArtifact.model_validate(sb_body)
         storyboard = Storyboard.model_validate(_sanitize_storyboard_data(sb_artifact.storyboard))
 
+        # Optionally read visual_treatment; absent on runs without a VisualDirectorWorker.
+        scene_plans: dict[int, SceneVisualPlan] = {}
+        diversity_score: Optional[float] = None
+        vt_key = state.artifacts.get("visual_treatment")
+        if vt_key:
+            try:
+                _, vt_body = await read_artifact(storage, vt_key)
+                treatment_raw = vt_body.get("visual_treatment", {})
+                treatment = VisualTreatment.model_validate(treatment_raw)
+                # Key by 0-indexed scene position to match storyboard order.
+                for plan in treatment.scenes:
+                    scene_plans[plan.scene - 1] = plan
+                diversity_score = treatment.diversity_score
+                logger.info(
+                    "AcquisitionWorker run=%s visual_treatment loaded: %d scene plans, diversity_score=%s",
+                    run_id, len(scene_plans), diversity_score,
+                )
+            except Exception as exc:
+                logger.warning("AcquisitionWorker: could not read visual_treatment artifact: %s", exc)
+
         # Build manifest entries from v2 storyboard scene fields
         global_context = storyboard.global_context
         entries: list[ManifestEntry] = []
@@ -911,8 +963,9 @@ def build_acquisition_worker(
                     _acquire_scene(
                         entry, run_id, storage, pexels, pixabay, wikimedia,
                         used_source_urls, dup_lock, global_context,
+                        scene_plan=scene_plans.get(batch_start + i),
                     )
-                    for entry in batch
+                    for i, entry in enumerate(batch)
                 ],
                 return_exceptions=True,
             )
@@ -929,6 +982,8 @@ def build_acquisition_worker(
 
         manifest = AssetManifest(run_id=run_id, entries=entries)
         footage_summary = _compute_footage_summary(entries)
+        if diversity_score is not None:
+            footage_summary["diversity_score"] = diversity_score
 
         # Write footage_summary.json side-car for legacy compatibility (P8-S5 path)
         try:
