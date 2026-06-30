@@ -140,7 +140,7 @@ class OnScreenTextOverlay(BaseModel):
     """A timed text overlay (stat, date, or lower-third label) rendered over the scene."""
 
     text: str
-    type: Literal["stat", "date", "lower_third", "person"]
+    type: Literal["stat", "date", "lower_third", "person", "label"]
     # FFmpeg between(t,{offset},{offset+duration}) expression controlling display window.
     enable_expr: str
 
