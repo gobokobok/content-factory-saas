@@ -342,7 +342,9 @@ async def _try_candidates(
         dup_lock = asyncio.Lock()
 
     for candidate in sorted(candidates, key=lambda c: -c.resolution_score()):
-        # Deduplication: skip any URL already accepted by another scene (P10-S1 Bug 3).
+        # Deduplication: atomically reserve the URL inside the lock before any async work.
+        # Reserving immediately (not after download) prevents a TOCTOU race where two
+        # parallel scene acquisitions both pass the "not in set" check before either adds.
         async with dup_lock:
             if candidate.url in used_source_urls:
                 entry.duplicate_avoided = True
@@ -350,8 +352,14 @@ async def _try_candidates(
                     "Skipping duplicate URL scene=%s source=%s", entry.scene_id, candidate.source
                 )
                 continue
+            # Reserve the slot; released below if pre-check, download, or QA fails.
+            used_source_urls.add(candidate.url)
+
         pre = qa_score(candidate, entry)
         if not pre.resolution_ok or not pre.duration_ok:
+            # Release reservation — this URL is not usable for this scene.
+            async with dup_lock:
+                used_source_urls.discard(candidate.url)
             logger.debug(
                 "Pre-check failed scene=%s source=%s res_ok=%s dur_ok=%s",
                 entry.scene_id, candidate.source, pre.resolution_ok, pre.duration_ok,
@@ -360,6 +368,8 @@ async def _try_candidates(
         try:
             data = await _download_bytes(candidate.url)
         except Exception as exc:
+            async with dup_lock:
+                used_source_urls.discard(candidate.url)
             logger.warning(
                 "Download failed scene=%s source=%s: %s", entry.scene_id, candidate.source, exc
             )
@@ -369,13 +379,15 @@ async def _try_candidates(
             key = _asset_key(run_id, entry.scene_id, is_video, candidate.ext)
             await storage.put_bytes(key, data, content_type=candidate.content_type)
             _apply_fields(entry, candidate, key, result)
-            async with dup_lock:
-                used_source_urls.add(candidate.url)
+            # URL stays reserved — it is now committed to this scene.
             logger.info(
                 "QA passed: scene=%s source=%s clip_score=%s",
                 entry.scene_id, candidate.source, result.clip_score,
             )
             return True
+        # QA failed — release reservation so other scenes can attempt this URL.
+        async with dup_lock:
+            used_source_urls.discard(candidate.url)
         collected.append((candidate, data, result))
         logger.debug(
             "QA failed scene=%s source=%s clip_score=%s", entry.scene_id, candidate.source, result.clip_score,
@@ -460,8 +472,11 @@ async def _acquire_character(
     # 1. Try Wikipedia portrait (QA skipped — ground truth)
     asset = await wikimedia.fetch_person_photo(entry.person_name)  # type: ignore[arg-type]
     if asset is not None:
+        # Atomically reserve the URL to prevent parallel scenes taking the same portrait.
         async with dup_lock:
             already_used = asset.url in used_source_urls
+            if not already_used:
+                used_source_urls.add(asset.url)
         if not already_used:
             try:
                 data = await _download_bytes(asset.url)
@@ -475,13 +490,13 @@ async def _acquire_character(
                 entry.qa_passed = True
                 entry.qa_resolution_ok = True
                 entry.qa_duration_ok = True
-                async with dup_lock:
-                    used_source_urls.add(asset.url)
                 logger.info(
                     "Character portrait acquired: scene=%s person=%r", entry.scene_id, entry.person_name
                 )
                 return True
             except Exception as exc:
+                async with dup_lock:
+                    used_source_urls.discard(asset.url)
                 logger.warning(
                     "Character portrait download failed scene=%s person=%r: %s",
                     entry.scene_id, entry.person_name, exc,
