@@ -385,7 +385,7 @@ def build_ffmpeg_script(
             )
 
     total_s = storyboard.summary.total_duration_s
-    n_scenes = len(manifest.entries)
+    n_scenes = len(storyboard.scenes)
 
     # on-screen text overlay (build_ass / _write_captions_ass / _burn_captions) is
     # intentionally unwired — kept for future rewiring when revisited.

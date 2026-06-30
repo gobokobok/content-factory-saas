@@ -141,17 +141,19 @@ Example:
 ON_SCREEN_TEXT TYPE
 ═══════════════════════════════════════
 
-on_screen_text_type MUST be exactly one of these three string literals (or null):
+on_screen_text_type MUST be exactly one of these four string literals (or null):
 - "stat" — a data point, percentage, or number (e.g. "38% decline", "$450K median price")
 - "date" — a year or date range (e.g. "1970–1990", "March 2022")
+- "label" — a structural section title (e.g. "Habit 1: Aerobic Exercise", "Step 3: Recovery")
 - "lower_third" — reserved; do NOT use this — the reviewer computes it for Character scenes
 
 Any other string (e.g. "emphasis", "quote", "highlight") is INVALID and will cause a hard error.
 
 Rules:
+- When the voiceover_line introduces a numbered section, habit, step, or rule (e.g. "Habit 1", "Step 3", "Rule 2"), set on_screen_text to the full label (e.g. "Habit 1: Aerobic Exercise") and on_screen_text_type: "label". This is MANDATORY — never omit the label for a section-opener scene.
 - When on_screen_text contains a stat or figure, set on_screen_text_type: "stat"
 - When on_screen_text is a year or date, set on_screen_text_type: "date"
-- If the text does not fit "stat" or "date", set both on_screen_text and on_screen_text_type to null
+- If the text does not fit "stat", "date", or "label", set both on_screen_text and on_screen_text_type to null
 - When on_screen_text is null, on_screen_text_type must also be null
 
 ═══════════════════════════════════════
@@ -429,17 +431,19 @@ Example:
 ON_SCREEN_TEXT TYPE
 ═══════════════════════════════════════
 
-on_screen_text_type MUST be exactly one of these three string literals (or null):
+on_screen_text_type MUST be exactly one of these four string literals (or null):
 - "stat" — a data point, percentage, or number (e.g. "38% decline", "$450K median price")
 - "date" — a year or date range (e.g. "1970–1990", "March 2022")
+- "label" — a structural section title (e.g. "Habit 1: Aerobic Exercise", "Step 3: Recovery")
 - "lower_third" — reserved; do NOT use this — the reviewer computes it for Character scenes
 
 Any other string (e.g. "emphasis", "quote", "highlight") is INVALID and will cause a hard error.
 
 Rules:
+- When the voiceover_line introduces a numbered section, habit, step, or rule (e.g. "Habit 1", "Step 3", "Rule 2"), set on_screen_text to the full label (e.g. "Habit 1: Aerobic Exercise") and on_screen_text_type: "label". This is MANDATORY — never omit the label for a section-opener scene.
 - When on_screen_text contains a stat or figure, set on_screen_text_type: "stat"
 - When on_screen_text is a year or date, set on_screen_text_type: "date"
-- If the text does not fit "stat" or "date", set both on_screen_text and on_screen_text_type to null
+- If the text does not fit "stat", "date", or "label", set both on_screen_text and on_screen_text_type to null
 - When on_screen_text is null, on_screen_text_type must also be null
 
 ═══════════════════════════════════════

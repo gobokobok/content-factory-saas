@@ -169,7 +169,7 @@ class StoryboardScene(BaseModel):
     motion_effect: Optional[str] = None
     on_screen_text: Optional[str] = None
     # v2 text overlay type; paired with on_screen_text.
-    on_screen_text_type: Optional[Literal["stat", "date", "lower_third", "person"]] = None
+    on_screen_text_type: Optional[Literal["stat", "date", "lower_third", "person", "label"]] = None
     sfx: str = ""
     sfx_timing: str = ""
 
