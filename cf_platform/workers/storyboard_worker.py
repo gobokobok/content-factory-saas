@@ -77,8 +77,9 @@ SEGMENT TYPE
 
 Every scene has a segment_type. Use exactly one of:
 
-"Character" — the voiceover names a specific real individual AND the scene should show
-  that person's face (e.g. Jerome Powell, Octavia Hill, Robert Moses).
+"Character" — the voiceover mentions a specific named real individual (scientist,
+  politician, researcher, historical figure). Use this even if the scene is about their
+  work or study — the visual should be their portrait, not generic B-roll.
   MUST set person_name and person_title.
   Acquisition: tries Wikipedia portrait first; falls back to Pexels+Pixabay on miss.
 
@@ -92,13 +93,17 @@ Every scene has a segment_type. Use exactly one of:
 Rules:
 - Never assign "Character" without setting person_name.
 - Never assign "Event" for abstract concepts (inflation, demand, equity) — use "B-roll".
-- Set "Character" for any named individual the scene should depict, including historical
-  figures (Octavia Hill, Ebenezer Howard, Harold Macmillan). Wikipedia has portraits
-  for most figures born after ~1820.
+- ANY scene where the VO mentions a named real person (scientist, researcher, politician,
+  author) MUST be "Character" with that person's name in person_name. Do not use "B-roll"
+  when a name is mentioned just because the scene is about their work.
 
 Examples:
   VO: "Jerome Powell signalled rates would stay high"
     → segment_type: "Character", person_name: "Jerome Powell", person_title: "Chair, Federal Reserve"
+  VO: "Kirk Erickson's 2011 study found aerobic exercise grew the hippocampus"
+    → segment_type: "Character", person_name: "Kirk Erickson", person_title: "Neuroscientist, University of Pittsburgh"
+  VO: "Cotman and Berchtold's 2002 review established this link directly"
+    → segment_type: "Character", person_name: "Carl Cotman", person_title: "Neuroscientist, UC Irvine"
   VO: "The London Blitz destroyed four million homes"
     → segment_type: "Event"
   VO: "Homeownership rates dropped to 1960s lows"
@@ -152,7 +157,7 @@ Any other string (e.g. "emphasis", "quote", "highlight") is INVALID and will cau
 Rules:
 - When the voiceover_line introduces a numbered section, habit, step, or rule (e.g. "Habit 1", "Step 3", "Rule 2"), set on_screen_text to the full label (e.g. "Habit 1: Aerobic Exercise") and on_screen_text_type: "label". This is MANDATORY — never omit the label for a section-opener scene.
 - When on_screen_text contains a stat or figure, set on_screen_text_type: "stat"
-- When on_screen_text is a year or date, set on_screen_text_type: "date"
+- When on_screen_text is a year or date, set on_screen_text_type: "date" — but NEVER use a bare year alone (e.g. "2011" is forbidden). Always pair with context: "2011: Hippocampus Study" or "2002 Nature Review"
 - If the text does not fit "stat", "date", or "label", set both on_screen_text and on_screen_text_type to null
 - When on_screen_text is null, on_screen_text_type must also be null
 
@@ -391,8 +396,9 @@ SEGMENT TYPE
 
 Every scene has a segment_type. Use exactly one of:
 
-"Character" — the voiceover names a specific real individual AND the scene should show
-  that person's face (e.g. Jerome Powell, Octavia Hill, Robert Moses).
+"Character" — the voiceover mentions a specific named real individual (scientist,
+  politician, researcher, historical figure). Use this even if the scene is about their
+  work or study — the visual should be their portrait, not generic B-roll.
   MUST set person_name and person_title.
   Acquisition: tries Wikipedia portrait first; falls back to Pexels+Pixabay on miss.
 
@@ -406,13 +412,17 @@ Every scene has a segment_type. Use exactly one of:
 Rules:
 - Never assign "Character" without setting person_name.
 - Never assign "Event" for abstract concepts (inflation, demand, equity) — use "B-roll".
-- Set "Character" for any named individual the scene should depict, including historical
-  figures (Octavia Hill, Ebenezer Howard, Harold Macmillan). Wikipedia has portraits
-  for most figures born after ~1820.
+- ANY scene where the VO mentions a named real person (scientist, researcher, politician,
+  author) MUST be "Character" with that person's name in person_name. Do not use "B-roll"
+  when a name is mentioned just because the scene is about their work.
 
 Examples:
   VO: "Jerome Powell signalled rates would stay high"
     → segment_type: "Character", person_name: "Jerome Powell", person_title: "Chair, Federal Reserve"
+  VO: "Kirk Erickson's 2011 study found aerobic exercise grew the hippocampus"
+    → segment_type: "Character", person_name: "Kirk Erickson", person_title: "Neuroscientist, University of Pittsburgh"
+  VO: "Cotman and Berchtold's 2002 review established this link directly"
+    → segment_type: "Character", person_name: "Carl Cotman", person_title: "Neuroscientist, UC Irvine"
   VO: "The London Blitz destroyed four million homes"
     → segment_type: "Event"
   VO: "Homeownership rates dropped to 1960s lows"
@@ -466,7 +476,7 @@ Any other string (e.g. "emphasis", "quote", "highlight") is INVALID and will cau
 Rules:
 - When the voiceover_line introduces a numbered section, habit, step, or rule (e.g. "Habit 1", "Step 3", "Rule 2"), set on_screen_text to the full label (e.g. "Habit 1: Aerobic Exercise") and on_screen_text_type: "label". This is MANDATORY — never omit the label for a section-opener scene.
 - When on_screen_text contains a stat or figure, set on_screen_text_type: "stat"
-- When on_screen_text is a year or date, set on_screen_text_type: "date"
+- When on_screen_text is a year or date, set on_screen_text_type: "date" — but NEVER use a bare year alone (e.g. "2011" is forbidden). Always pair with context: "2011: Hippocampus Study" or "2002 Nature Review"
 - If the text does not fit "stat", "date", or "label", set both on_screen_text and on_screen_text_type to null
 - When on_screen_text is null, on_screen_text_type must also be null
 
@@ -920,6 +930,16 @@ def _sanitize_storyboard_data(data: dict) -> dict:
             )
             scene["on_screen_text_type"] = None
             scene["on_screen_text"] = None
+        # Strip bare year-only on_screen_text (e.g. "2011") — adds no value.
+        ost = scene.get("on_screen_text")
+        if ost and str(ost).strip().isdigit() and len(str(ost).strip()) == 4:
+            logger.warning(
+                "StoryboardWorker: scene %s has bare year on_screen_text %r — nulling out",
+                scene.get("scene", "?"), ost,
+            )
+            scene["on_screen_text"] = None
+            scene["on_screen_text_type"] = None
+
         seg = scene.get("segment_type")
         if seg and seg not in ("Character", "Event", "B-roll"):
             normalised = _SEGMENT_TYPE_MAP.get(seg.lower())

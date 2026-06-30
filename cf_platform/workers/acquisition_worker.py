@@ -199,10 +199,17 @@ class _Candidate:
     ext: str
     attribution: Optional[str] = None
     duration_seconds: Optional[float] = None
+    # Provider-specific asset ID — used for dedup so different resolution URLs
+    # of the same photo/video are treated as the same asset.
+    source_id: Optional[str] = None
 
     def resolution_score(self) -> int:
         """Return pixel area — higher is preferred."""
         return self.width * self.height
+
+    def dedup_key(self) -> str:
+        """Return the key used to detect duplicate assets across scenes."""
+        return self.source_id if self.source_id else self.url
 
 
 # ── Utility helpers ───────────────────────────────────────────────────────────
@@ -256,6 +263,7 @@ def _pexels_video_candidates(pexels: PexelsClient, query: str) -> list[_Candidat
                 content_type=vfile.get("file_type", "video/mp4"),
                 ext=".mp4",
                 duration_seconds=float(raw_dur) if raw_dur else None,
+                source_id=f"pexels-video-{video.get('id', '')}",
             ))
     return results
 
@@ -280,6 +288,7 @@ def _pexels_photo_candidates(pexels: PexelsClient, query: str) -> list[_Candidat
                 source="pexels",
                 content_type="image/jpeg",
                 ext=_ext_from_url(url),
+                source_id=f"pexels-photo-{photo.get('id', '')}",
             ))
     return results
 
@@ -296,6 +305,7 @@ async def _pixabay_video_candidates(pixabay: PixabayClient, query: str) -> list[
             content_type="video/mp4",
             ext=".mp4",
             duration_seconds=float(v.duration_seconds) if v.duration_seconds else None,
+            source_id=v.page_url,
         )
         for v in videos
     ]
@@ -312,6 +322,7 @@ async def _pixabay_photo_candidates(pixabay: PixabayClient, query: str) -> list[
             source="pixabay",
             content_type="image/jpeg",
             ext=_ext_from_url(p.url),
+            source_id=p.page_url,
         )
         for p in photos
     ]
@@ -372,24 +383,26 @@ async def _try_candidates(
         dup_lock = asyncio.Lock()
 
     for candidate in sorted(candidates, key=lambda c: -c.resolution_score()):
-        # Deduplication: atomically reserve the URL inside the lock before any async work.
-        # Reserving immediately (not after download) prevents a TOCTOU race where two
-        # parallel scene acquisitions both pass the "not in set" check before either adds.
+        # Deduplication: atomically reserve the asset's dedup_key (source_id when
+        # available, URL otherwise) before any async work, preventing two parallel
+        # scenes from acquiring different resolution variants of the same photo/video.
+        dk = candidate.dedup_key()
         async with dup_lock:
-            if candidate.url in used_source_urls:
+            if dk in used_source_urls:
                 entry.duplicate_avoided = True
                 logger.debug(
-                    "Skipping duplicate URL scene=%s source=%s", entry.scene_id, candidate.source
+                    "Skipping duplicate asset scene=%s source=%s key=%s",
+                    entry.scene_id, candidate.source, dk,
                 )
                 continue
             # Reserve the slot; released below if pre-check, download, or QA fails.
-            used_source_urls.add(candidate.url)
+            used_source_urls.add(dk)
 
         pre = qa_score(candidate, entry)
         if not pre.resolution_ok or not pre.duration_ok:
-            # Release reservation — this URL is not usable for this scene.
+            # Release reservation — this asset is not usable for this scene.
             async with dup_lock:
-                used_source_urls.discard(candidate.url)
+                used_source_urls.discard(dk)
             logger.debug(
                 "Pre-check failed scene=%s source=%s res_ok=%s dur_ok=%s",
                 entry.scene_id, candidate.source, pre.resolution_ok, pre.duration_ok,
@@ -399,7 +412,7 @@ async def _try_candidates(
             data = await _download_bytes(candidate.url)
         except Exception as exc:
             async with dup_lock:
-                used_source_urls.discard(candidate.url)
+                used_source_urls.discard(dk)
             logger.warning(
                 "Download failed scene=%s source=%s: %s", entry.scene_id, candidate.source, exc
             )
@@ -409,15 +422,15 @@ async def _try_candidates(
             key = _asset_key(run_id, entry.scene_id, is_video, candidate.ext)
             await storage.put_bytes(key, data, content_type=candidate.content_type)
             _apply_fields(entry, candidate, key, result)
-            # URL stays reserved — it is now committed to this scene.
+            # Key stays reserved — it is now committed to this scene.
             logger.info(
                 "QA passed: scene=%s source=%s clip_score=%s",
                 entry.scene_id, candidate.source, result.clip_score,
             )
             return True
-        # QA failed — release reservation so other scenes can attempt this URL.
+        # QA failed — release reservation so other scenes can attempt this asset.
         async with dup_lock:
-            used_source_urls.discard(candidate.url)
+            used_source_urls.discard(dk)
         collected.append((candidate, data, result))
         logger.debug(
             "QA failed scene=%s source=%s clip_score=%s", entry.scene_id, candidate.source, result.clip_score,
