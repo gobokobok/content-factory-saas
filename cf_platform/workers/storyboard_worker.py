@@ -325,6 +325,30 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
       "sfx_timing": "on cut",
       "person_name": null,
       "person_title": null
+    },
+    {
+      "scene": "2",
+      "clip_type": "still_with_motion",
+      "duration_s": 2.5,
+      "voiceover_line": "...",
+      "segment_type": "Character",
+      "primary_stk": "Jerome Powell Federal Reserve",
+      "context_stk": "Powell",
+      "concept_stk": "central bank",
+      "semantic_context": {
+        "primary_concept": "Federal Reserve chair Jerome Powell",
+        "domain_qualifier": "US monetary policy, not generic finance",
+        "avoid": ["generic banker", "stock market floor"],
+        "visual_tags": ["Jerome Powell portrait", "Federal Reserve"],
+        "entity_type": "person"
+      },
+      "on_screen_text": null,
+      "on_screen_text_type": null,
+      "motion_effect": "ken_burns_in",
+      "sfx": "silence",
+      "sfx_timing": "on cut",
+      "person_name": "Jerome Powell",
+      "person_title": "Chair, Federal Reserve"
     }
   ],
   "summary": {
@@ -543,6 +567,28 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
       "sfx_timing": "on cut",
       "person_name": null,
       "person_title": null
+    },
+    {
+      "scene": "2",
+      "start_word": 13,
+      "end_word": 22,
+      "segment_type": "Character",
+      "primary_stk": "Jerome Powell Federal Reserve",
+      "context_stk": "Powell",
+      "concept_stk": "central bank",
+      "semantic_context": {
+        "primary_concept": "Federal Reserve chair Jerome Powell",
+        "domain_qualifier": "US monetary policy, not generic finance",
+        "avoid": ["generic banker", "stock market floor"],
+        "visual_tags": ["Jerome Powell portrait", "Federal Reserve"],
+        "entity_type": "person"
+      },
+      "on_screen_text": null,
+      "on_screen_text_type": null,
+      "sfx": "silence",
+      "sfx_timing": "on cut",
+      "person_name": "Jerome Powell",
+      "person_title": "Chair, Federal Reserve"
     }
   ],
   "summary": {
@@ -829,7 +875,7 @@ def _apply_patches_and_render_options(
         if scene.on_screen_text:
             end_t = scene_start + scene.duration_s
             enable_expr = f"between(t,{scene_start:.3f},{end_t:.3f})"
-            ost_type = scene.on_screen_text_type if scene.on_screen_text_type in ("stat", "date", "person") else "stat"
+            ost_type = scene.on_screen_text_type if scene.on_screen_text_type in ("stat", "date", "person", "label") else "stat"
             render_kwargs["on_screen_text_overlay"] = OnScreenTextOverlay(
                 text=scene.on_screen_text,
                 type=ost_type,
@@ -847,7 +893,7 @@ def _apply_patches_and_render_options(
 
 # ── API call helpers ──────────────────────────────────────────────────────────
 
-_VALID_OST_TYPES = {"stat", "date", "lower_third", "person"}
+_VALID_OST_TYPES = {"stat", "date", "lower_third", "person", "label"}
 
 # Normalise segment_type casing from Claude (model occasionally outputs lowercase).
 _SEGMENT_TYPE_MAP = {
@@ -1102,7 +1148,7 @@ def build_storyboard_worker(
         # desync captions from audio. Scenes ≥ 10s are already warned in _reify_scene.
         if not voice_timestamps:
             _STILL_MAX_S = 5.0
-            _VIDEO_MAX_S = 10.0
+            _VIDEO_MAX_S = 8.0
             capped = []
             for scene in storyboard.scenes:
                 if scene.clip_type == "still_with_motion" and scene.duration_s > _STILL_MAX_S:
