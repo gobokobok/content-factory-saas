@@ -561,10 +561,9 @@ async def _acquire_character(
     if name_query:
         wiki_cands = await _wikimedia_photo_candidates(wikimedia, name_query)
         if wiki_cands:
-            ok = await _try_candidate(
-                wiki_cands, entry, run_id, storage,
-                is_video=False, used_source_urls=used_source_urls, dup_lock=dup_lock,
-                collected=[], all_seen=[],
+            ok = await _try_candidates(
+                wiki_cands, entry, is_video=False, run_id=run_id, storage=storage,
+                collected=[], used_source_urls=used_source_urls, dup_lock=dup_lock,
             )
             if ok:
                 logger.info(

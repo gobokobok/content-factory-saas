@@ -281,7 +281,7 @@ class TestBuildFfmpegScript:
         scenes = [_scene("01", "hard_cut", 4.0)]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("01", "hard_cut")])
-        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=VideoSettings(aspect_ratio="9:16"))
         assert "scale=1080:1920" in script
         assert "crop=1080:1920" in script
         assert "setsar=1:1" in script
@@ -376,7 +376,7 @@ class TestBuildFfmpegScript:
         scenes = [_scene("02", "still_with_motion", 4.0)]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("02", "still_with_motion")])
-        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=VideoSettings(aspect_ratio="9:16"))
         assert "scale=1080:1920" in script
         assert "crop=1080:1920" in script
         # Must NOT use the old 2× scale which broke centering
@@ -388,7 +388,7 @@ class TestBuildFfmpegScript:
         scenes = [_scene("03", "animated", 3.0, motion_effect="pan_left")]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("03", "animated")])
-        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=VideoSettings(aspect_ratio="9:16"))
         assert "scale=1080:1920" in script
         assert "crop=1080:1920" in script
         assert "scale=2160:3840" not in script
@@ -403,7 +403,7 @@ class TestBuildFfmpegScript:
         scenes = [_scene("02", "still_with_motion", 3.0)]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("02", "still_with_motion")])
-        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=VideoSettings(aspect_ratio="9:16"))
         # Find the vf= argument for the image scene
         vf_start = script.index("scale=1080:1920:force_original_aspect_ratio=increase")
         vf_chunk = script[vf_start:vf_start + 250]
@@ -1678,12 +1678,12 @@ class TestAspectRatioDimensions:
         assert "scale=1080:1080" in script
         assert "crop=1080:1080" in script
 
-    def test_9_16_is_default_when_no_video_settings(self):
-        """Omitting video_settings defaults to 9:16 (1080×1920)."""
+    def test_16_9_is_default_when_no_video_settings(self):
+        """Omitting video_settings defaults to 16:9 (1920×1080) per VideoSettings model default."""
         sb = _storyboard([_scene("01", "hard_cut")])
         mf = _manifest([_entry("01", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "scale=1080:1920" in script
+        assert "scale=1920:1080" in script
 
     def test_16_9_zoompan_uses_correct_dimensions(self):
         """16:9 image scenes use 1920×1080 in the zoompan s= parameter."""

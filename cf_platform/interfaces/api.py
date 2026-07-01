@@ -530,6 +530,16 @@ async def storyboard_worker_endpoint(
         lineage=storyboard_lineage,
     )
 
+    # Invalidate stale asset_manifest from a previous storyboard run, if any.
+    # Overwrites in place so the Studio sees 0/0 rather than stale acquired/failed counts.
+    old_manifest_key = await _latest_artifact_key(storage, body.run_id, "acquisition", "asset_manifest")
+    if old_manifest_key:
+        try:
+            await storage.put_json(old_manifest_key, {"run_id": body.run_id, "entries": []})
+            _logger.info("Invalidated stale asset_manifest for run %s", body.run_id)
+        except Exception:
+            _logger.warning("Could not invalidate asset_manifest for run %s", body.run_id)
+
     return StoryboardWorkerResponse(
         artifact_key=storyboard_record.r2_key,
         scene_count=result_artifact.scene_count,

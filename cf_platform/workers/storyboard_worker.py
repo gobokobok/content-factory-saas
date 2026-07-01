@@ -1151,11 +1151,13 @@ def build_storyboard_worker(
 
         # Read voice alignment timestamps (optional — absent for standalone endpoint calls)
         voice_timestamps: list[VoiceWordTimestamp] = []
+        timestamps_are_real: bool = False  # True only for actual Deepgram timestamps
         if "voice_alignment" in state.artifacts:
             try:
                 _, va_body = await read_artifact(storage, state.artifacts["voice_alignment"])
                 va = VoiceAlignmentArtifact.model_validate(va_body)
                 voice_timestamps = va.word_timestamps
+                timestamps_are_real = va.alignment_method == "deepgram"
             except Exception:
                 logger.warning("StoryboardWorker: could not read voice_alignment — using word-count durations")
 
@@ -1180,10 +1182,9 @@ def build_storyboard_worker(
         storyboard = await _synthesize_event_ost(storyboard, anthropic_api_key)
         storyboard = _apply_patches_and_render_options(storyboard, [])
 
-        # Step 4: Enforce hard duration caps — v0.12 path only.
-        # For v0.13 (Deepgram timestamps), duration_s is ground truth; capping would
-        # desync captions from audio. Scenes ≥ 10s are already warned in _reify_scene.
-        if not voice_timestamps:
+        # Step 4: Enforce hard duration caps — skip only for real Deepgram timestamps.
+        # Proportional fallback ("Estimated") timestamps are not ground truth; cap applies.
+        if not timestamps_are_real:
             _STILL_MAX_S = 5.0
             _VIDEO_MAX_S = 8.0
             capped = []

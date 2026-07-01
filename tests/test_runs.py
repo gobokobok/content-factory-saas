@@ -712,7 +712,7 @@ class TestVideoSettings:
             res = client.get(f"/runs/{self.RUN_ID}/settings")
         assert res.status_code == 200
         s = res.json()["settings"]
-        assert s["aspect_ratio"] == "9:16"
+        assert s["aspect_ratio"] == "16:9"
         assert s["visual_style"] == "Realistic"
         assert s["subtitles"] == "TikTok"
 
