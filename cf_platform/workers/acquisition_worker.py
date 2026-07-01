@@ -551,14 +551,35 @@ async def _acquire_character(
             )
 
     logger.info(
-        "Character portrait miss — falling back to generic stock: scene=%s person=%r",
+        "Character portrait miss (infobox) — trying Wikimedia general search: scene=%s person=%r",
         entry.scene_id, entry.person_name,
     )
 
-    # 2. Generic Pexels+Pixabay fallback (no Wikimedia general, no AI).
-    # Prepend person name as first query so fallback imagery is at least
-    # person-adjacent rather than using the generic B-roll query.
+    # 2. Wikimedia Commons general search for the person's name.
+    # Catches cases where a researcher has a Commons photo but no Wikipedia infobox portrait.
     name_query = entry.person_name or ""
+    if name_query:
+        wiki_cands = await _wikimedia_photo_candidates(wikimedia, name_query)
+        if wiki_cands:
+            ok = await _try_candidate(
+                wiki_cands, entry, run_id, storage,
+                is_video=False, used_source_urls=used_source_urls, dup_lock=dup_lock,
+                collected=[], all_seen=[],
+            )
+            if ok:
+                logger.info(
+                    "Character portrait acquired via Wikimedia general: scene=%s person=%r",
+                    entry.scene_id, entry.person_name,
+                )
+                return True
+
+    logger.info(
+        "Character portrait miss (Wikimedia) — falling back to stock: scene=%s person=%r",
+        entry.scene_id, entry.person_name,
+    )
+
+    # 3. Generic Pexels+Pixabay fallback.
+    # Prepend person name as first query so fallback imagery is at least person-adjacent.
     fallback_queries = ([name_query] if name_query and name_query not in queries else []) + list(queries)
 
     collected: list[tuple[_Candidate, bytes, QAResult]] = []

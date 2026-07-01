@@ -256,6 +256,7 @@ async def test_acquire_character_wikipedia_miss_falls_back_to_generic():
 
     mock_wikimedia = MagicMock()
     mock_wikimedia.fetch_person_photo = AsyncMock(return_value=None)
+    mock_wikimedia.search_media = AsyncMock(return_value=[])  # Wikimedia general also misses
 
     mock_pexels = MagicMock()
     mock_pixabay = MagicMock()
@@ -273,6 +274,7 @@ async def test_acquire_character_wikipedia_miss_falls_back_to_generic():
 
     assert result is True
     mock_wikimedia.fetch_person_photo.assert_called_once_with("Unknown Person")
+    mock_wikimedia.search_media.assert_called_once_with("Unknown Person", media_type="photo")
 
 
 # ── _acquire_event ────────────────────────────────────────────────────────────
