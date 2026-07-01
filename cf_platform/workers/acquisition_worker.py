@@ -727,6 +727,12 @@ async def _acquire_single_scene(
 
     if entry.segment_type == "Character" and entry.person_name:
         ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
+        if not ok:
+            logger.warning(
+                "Character acquisition fully exhausted — falling back to B-roll: scene=%s person=%r",
+                entry.scene_id, entry.person_name,
+            )
+            ok = await _acquire_broll(entry, queries, is_video, run_id, storage, pexels, pixabay, used_source_urls, dup_lock)
     elif entry.segment_type == "Event":
         ok = await _acquire_event(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
     else:
@@ -783,6 +789,12 @@ async def _acquire_scene(
 
     if resolution.entity_type == "person":
         ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
+        if not ok:
+            logger.warning(
+                "Character acquisition fully exhausted — falling back to B-roll: scene=%s person=%r",
+                entry.scene_id, entry.person_name,
+            )
+            ok = await _acquire_broll(entry, queries, is_video, run_id, storage, pexels, pixabay, used_source_urls, dup_lock)
     elif resolution.entity_type in ("historic_event",) or entry.segment_type == "Event":
         ok = await _acquire_event(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
     else:
