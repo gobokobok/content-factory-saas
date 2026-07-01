@@ -803,6 +803,10 @@ def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -
         )
 
     tier = _assign_asset_tier(raw["duration_s"])
+    # Character scenes always use a portrait photo — cap at still_motion regardless of
+    # duration so acquisition never searches for video clips of a named person.
+    if raw.get("segment_type") == "Character":
+        tier = "still_motion"
     raw["asset_tier"] = tier
     raw["clip_type"] = _asset_tier_to_clip_type(tier)
     raw["motion_effect"] = _derive_motion_effect(tier, scene_index)
@@ -1026,7 +1030,10 @@ async def _generate(
                 if not scene_dict.get("duration_s"):
                     wc = len(scene_dict.get("voiceover_line", "").split())
                     scene_dict["duration_s"] = round(wc / 2.5, 3)
-                scene_dict["asset_tier"] = _assign_asset_tier(scene_dict.get("duration_s", 0.0))
+                tier = _assign_asset_tier(scene_dict.get("duration_s", 0.0))
+                if scene_dict.get("segment_type") == "Character":
+                    tier = "still_motion"
+                scene_dict["asset_tier"] = tier
 
         return Storyboard.model_validate(data)
     except Exception as exc:
