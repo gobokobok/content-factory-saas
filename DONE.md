@@ -4,6 +4,20 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P-UX1] Studio UX Redesign — S1 shell, S2 Settings stage, S3 Metadata stage, S4 legacy retirement
+**Completed:** 2026-07-03
+**Handover:**
+- **S1 (run shell):** `src/static/studio.html` sidebar removed; landing view shows a centered `studio_runs` localStorage run list + "+ New run" button (~20% top offset). Pipeline header rebuilt as `.pipe-row-outer > .pipe-row` (flex `justify-content:center` — plain `margin:0 auto` does not reliably center a flex item inside a column-flex parent) holding the existing `.stage-track` pills, an auto-advance checkbox, and a new info-icon button; no "Studio" label or run-id badge remain visible. New slide-out `#info-panel` (run id, created date, aspect ratio, cost placeholder, Log out). All stage-pane content wrappers gained `margin:0 auto` to stay centered under the nav row (Storyboard's table pane intentionally left full-width, per story scope).
+- **S2 (Settings stage):** New first stage — aspect ratio (9:16/16:9), style (Realistic active, Animated disabled), background-music upload, captions toggle. Backend: `StoryboardWorkerRequest.format_track` now actually forwarded into `state.inputs` (was defined but never passed — root cause of the aspect-ratio-at-render-time gap noted in memory); `RenderWorkerRequest.captions: bool` maps to `subtitles="TikTok"/"none"` in `_build_render_script`; new `POST /platform/studio/runs/{run_id}/music` upload endpoint; new async `_copy_music_to_run` in `render_worker.py` (ports `src/renderer.py:copy_music_to_run` to the async `ArtifactStorage` protocol) as a fallback to the shared `music-library/`.
+- **S3 (Metadata stage):** New `POST /platform/workers/metadata` + `GET /platform/studio/runs/{run_id}/metadata` wire the existing `youtube_metadata` worker (P7-S2) into Studio's step-by-step flow for the first time (previously only reachable via the Telegram `full_pipeline` graph). New `pane-metadata` stage displays editable title/description/tags/pinned-comment with a permanently-disabled "Upload to channel" button (channel API explicitly out of scope).
+- **S4 (legacy retirement):** `src/main.py` — `GET /` now serves `studio.html`; legacy `pipeline.html` moved to `GET /legacy` (kept fully operable, not deleted); `GET /studio` kept as an alias. D066 logged in DECISIONS.md, narrowing (not reversing) D047.
+- New test files: `tests/cf_platform/test_pux1_s2_settings_backend.py` (12), `tests/cf_platform/test_pux1_s3_metadata_endpoint.py` (3), `tests/test_pux1_s4_routing.py` (3). 2018 total tests passing (was 2000).
+- Found in passing, spawned as a separate task (not fixed here — out of scope): `GET /studio/runs/{run_id}/video` returns 200 for any run because presigned-URL generation doesn't check object existence, so Studio can show a run's Video stage as "done" when nothing was ever rendered.
+**Smoke test:** PASSED — verified live against the real R2 DEV bucket via browser preview: landing → new run → Settings (aspect ratio, captions, music upload) → Script (reused "Generate from idea" panel unchanged) → Metadata stage render → `/legacy` fallback confirmed serving the untouched legacy UI with its existing real runs.
+**Promoted to backlog:** none — `spawn_task` filed separately for the presigned-URL existence-check bug (`GET /studio/runs/{run_id}/video`).
+
+---
+
 ## [P11-S1] Visual Director agent — post-storyboard visual treatment
 **Completed:** 2026-06-30
 **Handover:**

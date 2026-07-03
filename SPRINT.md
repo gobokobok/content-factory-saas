@@ -191,7 +191,7 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P11 — Visual Director + Motion Effects
 
 **Goal:** Introduce the Visual Director as a dedicated post-storyboard LangGraph node that produces a full visual treatment (shot type, search terms, motion, diversity plan) before any asset is fetched. Add motion effect presets to the render layer. The acquisition layer becomes a pure fulfillment layer.
-**Status:** in-progress — S1 done; S2 and S3 active this sprint (2026-07-03 planning)
+**Status:** PAUSED — S1 done; S2/S3 resume now that Sprint P-UX1 (Studio UX redesign) is complete (2026-07-03)
 **Points:** ~15
 
 | ID | Title | Points | Status |
@@ -209,3 +209,30 @@ Legacy Script→Video stays untouched and operable (D047).
 - [ ] `footage_summary` includes `diversity_score`
 - [ ] At least 4 motion presets (slow_push, film_grain, camera_shake, light_leak) applied correctly in render script
 - [ ] **Human touchpoint:** neuroscience run — no food for protein scenes; diversity score in Telegram; 2 motion presets visibly applied in output video
+
+---
+
+# Sprint P-UX1 — Studio UX Redesign
+
+**Goal:** Redesign the Studio operator UI per the approved mockup: centered run-list landing screen, a centered pipeline shell (stage nav + auto-advance + info panel, no "Studio"/run-id header chrome), a new Settings stage (aspect ratio, style, background music, captions) so these are chosen before acquisition instead of at render time, and a new Metadata stage (title/description/tags/pinned comment) wired to the existing `youtube_metadata` worker. Legacy `pipeline.html` stops being the default UI — Studio becomes primary.
+**Status:** done (2026-07-03)
+**Points:** 14
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P-UX1-S1 | Run shell redesign — centered landing + pipeline header + info panel | 3 | done |
+| P-UX1-S2 | Settings stage — aspect ratio, style, music upload, captions | 5 | done |
+| P-UX1-S3 | Metadata stage — youtube_metadata worker wired into Studio | 3 | done |
+| P-UX1-S4 | Retire legacy pipeline.html as default UI (`/` → Studio) | 3 | done |
+
+**Execution order:** S1 → (S2 ∥ S3) → S4.
+
+## Sprint P-UX1 Definition of Done
+- [x] Landing screen shows a centered run list (from `studio_runs` local history) with a "+ New run" button above it
+- [x] Pipeline header has no "Studio" label or run-id badge; stage nav is centered with auto-advance toggle + info icon on the same row
+- [x] Info icon opens a slide-out panel with run id, created date, cost placeholder, aspect ratio
+- [x] Settings stage: aspect ratio (9:16/16:9) and captions on/off flow into the storyboard + render worker calls; style pills show Realistic active / Animated disabled
+- [x] Background music: operator can upload an MP3 to the run; render falls back to the shared `music-library/` copy when none is uploaded
+- [x] Metadata stage: suggested title/description/tags/pinned comment generated via the existing `youtube_metadata` worker (P7-S2), editable, with a permanently-disabled "Upload to channel" button (channel API is out of scope)
+- [x] `GET /` serves Studio; legacy `pipeline.html` moved to `/legacy` (kept operable, not deleted, per D047)
+- [x] **Human touchpoint:** operator opens `/`, sees the run list, starts a new run, sets aspect ratio + captions in Settings, runs the pipeline through to Metadata — VERIFIED 2026-07-03 against the real R2 DEV bucket via browser preview; "Upload to channel" correctly disabled pending channel API (out of scope)

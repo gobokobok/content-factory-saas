@@ -439,6 +439,7 @@ class StoryboardWorkerRequest(BaseModel):
 
     run_id: str
     script: str
+    format_track: str = "portrait"
 
 
 class StoryboardWorkerResponse(BaseModel):
@@ -504,7 +505,7 @@ async def storyboard_worker_endpoint(
     state = StageState(
         run_id=body.run_id,
         user_id=_PLATFORM_USER_ID,
-        inputs={},
+        inputs={"format_track": body.format_track},
         artifacts=state_artifacts,
     )
     output = await worker(state)
@@ -544,6 +545,87 @@ async def storyboard_worker_endpoint(
         artifact_key=storyboard_record.r2_key,
         scene_count=result_artifact.scene_count,
         prompt_version=result_artifact.prompt_version,
+    )
+
+
+class MetadataWorkerRequest(BaseModel):
+    """Request body for POST /platform/workers/metadata."""
+
+    run_id: str
+
+
+class MetadataWorkerResponse(BaseModel):
+    """Response body for POST /platform/workers/metadata."""
+
+    artifact_key: str
+    title: str
+    description: str
+    tags: list[str]
+
+
+@router.post("/workers/metadata", response_model=MetadataWorkerResponse)
+async def metadata_worker_endpoint(
+    body: MetadataWorkerRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> MetadataWorkerResponse:
+    """Generate suggested YouTube title/description/tags from the run's script.
+
+    Reuses the existing youtube_metadata worker (P7-S2), previously only invoked
+    from the Telegram full_pipeline graph. Reads the latest script artifact for
+    this run directly (Studio's step-by-step flow already has one from the
+    Script stage) rather than the graph's `state.artifacts["script"]` handoff.
+    """
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+    from cf_platform.workers.youtube_metadata import (
+        YOUTUBE_METADATA_REGISTRATION,
+        YoutubeMetadataArtifact,
+        build_youtube_metadata_worker,
+    )
+
+    script_key = await _latest_artifact_key(storage, body.run_id, "script", "script")
+    if not script_key:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No script artifact for run_id={body.run_id!r}. Write a script first.",
+        )
+
+    worker = build_youtube_metadata_worker(storage, settings.ANTHROPIC_API_KEY)
+    state = StageState(
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        inputs={},
+        artifacts={"script": script_key},
+    )
+    output = await worker(state)
+    result_artifact = output.artifact
+    if not isinstance(result_artifact, YoutubeMetadataArtifact):
+        raise HTTPException(status_code=500, detail="youtube_metadata worker returned unexpected artifact type")
+
+    lineage = LineageEnvelope(
+        run_id=body.run_id,
+        worker="youtube_metadata",
+        worker_version=YOUTUBE_METADATA_REGISTRATION.worker_version,
+        prompt_version=YOUTUBE_METADATA_REGISTRATION.prompt_version,
+        model=YOUTUBE_METADATA_REGISTRATION.model,
+        created_at=datetime.now(),
+    )
+    record = await write_artifact(
+        storage,
+        result_artifact,
+        name="youtube_metadata",
+        stage="metadata",
+        run_id=body.run_id,
+        user_id=_PLATFORM_USER_ID,
+        lineage=lineage,
+    )
+
+    return MetadataWorkerResponse(
+        artifact_key=record.r2_key,
+        title=result_artifact.title,
+        description=result_artifact.description,
+        tags=result_artifact.tags,
     )
 
 
@@ -753,6 +835,7 @@ class RenderWorkerRequest(BaseModel):
 
     run_id: str
     format_track: str = "landscape"
+    captions: bool = True
 
 
 class RenderWorkerResponse(BaseModel):
@@ -867,7 +950,7 @@ async def render_worker_endpoint(
     state = StageState(
         run_id=body.run_id,
         user_id=_PLATFORM_USER_ID,
-        inputs={"format_track": body.format_track},
+        inputs={"format_track": body.format_track, "captions": body.captions},
         artifacts=artifacts,
     )
 
@@ -904,6 +987,19 @@ async def studio_get_script(
     key = await _latest_artifact_key(storage, run_id, "script", "script")
     if not key:
         raise HTTPException(status_code=404, detail="No script artifact found for this run.")
+    _, body = await read_artifact(storage, key)
+    return body
+
+
+@router.get("/studio/runs/{run_id}/metadata")
+async def studio_get_metadata(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Return the latest youtube_metadata artifact body for a Studio run."""
+    key = await _latest_artifact_key(storage, run_id, "metadata", "youtube_metadata")
+    if not key:
+        raise HTTPException(status_code=404, detail="No metadata artifact found for this run.")
     _, body = await read_artifact(storage, key)
     return body
 
@@ -1374,6 +1470,43 @@ async def studio_upload_scene_asset(
         "file_key": r2_key,
         "preview_url": preview_url,
     }
+
+
+@router.post("/studio/runs/{run_id}/music")
+async def studio_upload_music(
+    run_id: str,
+    file: UploadFile,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Upload background music for a run (Settings stage).
+
+    Validates MIME type and size (≤50 MB), then stores at a fixed key
+    (`runs/{run_id}/music/track{ext}`) so a re-upload of the same format
+    overwrites the previous track — RenderWorker's `_copy_music_to_run`
+    fallback only fires when no track is present. Uploading a different
+    audio format after a prior upload leaves both files in place (both get
+    mixed in by the render script); operators should stick to one format
+    per run.
+    """
+    _ALLOWED_MIME_TYPES = {"audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4"}
+    _MIME_TO_EXT = {
+        "audio/mpeg": ".mp3", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/mp4": ".m4a",
+    }
+    _MAX_BYTES = 50 * 1024 * 1024  # 50 MB
+
+    content_type = (file.content_type or "").split(";")[0].strip()
+    if content_type not in _ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type!r}. Allowed: mp3, wav, m4a.")
+
+    data = await file.read()
+    if len(data) > _MAX_BYTES:
+        raise HTTPException(status_code=422, detail=f"File too large ({len(data) // (1024*1024)} MB). Maximum is 50 MB.")
+
+    ext = _MIME_TO_EXT[content_type]
+    r2_key = f"runs/{run_id}/music/track{ext}"
+    await storage.put_bytes(r2_key, data, content_type=content_type)
+
+    return {"run_id": run_id, "file_key": r2_key}
 
 
 class RunSummary(BaseModel):

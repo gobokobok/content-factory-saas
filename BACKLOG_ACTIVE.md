@@ -2021,3 +2021,150 @@ StoryboardWorker → VisualDirectorWorker → AcquisitionWorker → RenderWorker
 
 **EPIC 32 — Legacy Rebuild** (~3 sprints after P7): re-author Script→Video as native workers; retire `src/` + adapter.
 **EPIC 34 — Replay & Evaluation Engine** (~3 sprints after P7): replay any worker, golden eval dataset, A/B routing, LLM-judge scoring.
+
+---
+
+## EPIC 41 — Studio UX Redesign (Sprint P-UX1)
+
+Operator-facing rework of `src/static/studio.html` per the approved mockup (2026-07-03 design session): centered landing/pipeline shell, a new Settings stage that moves aspect-ratio/style/music/captions decisions to the front of the run (before acquisition, not at render time — see [[project_run_settings_ui]]), and a new Metadata stage that surfaces the existing `youtube_metadata` worker output for copy-paste/future channel upload. Legacy `pipeline.html` stops being the default UI.
+
+---
+
+## [P-UX1-S1] Run shell redesign — centered landing + pipeline header + info panel
+**Epic:** E41 — Studio UX Redesign
+**Sprint:** P-UX1
+**Status:** done
+**Completed:** 2026-07-03
+**Priority:** high
+**Points:** 3
+**Depends on:** —
+
+### Goal
+Replace the current empty-state + sidebar + `run-header` chrome with the approved mockup layout: a centered run list (from `studio_runs` localStorage history) with a "+ New run" button above it on the landing screen; on the pipeline screen, a centered stage-nav row (reusing the existing `.stage-pill`/`.stage-track` visual style — dot status, `›` arrow separators, active underline) with the auto-advance checkbox and a new info icon on the right of the same row. No "Studio" label or run-id badge anywhere in the header. Info icon opens a slide-out right panel (run id, created date, cost placeholder, aspect ratio) — pure front-end, no new endpoints.
+
+### Acceptance Criteria
+- [x] Landing view: centered run list + "+ New run" button, ~20% top offset; no persistent sidebar
+- [x] Pipeline view: centered stage-nav row; auto-advance + info icon pinned right of the same row; no "Studio" text or run-id badge visible
+- [x] Info icon toggles a right-side panel showing run id, created date, aspect ratio, and a cost placeholder
+- [x] Small "← All runs" affordance replaces the removed header as the only way back to the landing list
+- [x] Existing stage-pill visual states (idle/running/done/error, dot colors, `›` arrows) are unchanged — only repositioned
+- [x] No regressions to existing stage navigation, auto-advance behavior, or `#run/{id}/{stage}` URL hash routing
+
+### Definition of Done
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `src/static/studio.html`: sidebar (`<aside>`) removed entirely; landing view (`#landing`) shows a centered run list from `studio_runs` localStorage with a "+ New run" button; `renderSidebar()` renamed `renderRunList()`. Pipeline header rebuilt as `.pipe-row-outer > .pipe-row` (flex `justify-content:center` wrapper — plain `margin:0 auto` does not reliably center a flex item inside a column-flex parent) containing the existing `.stage-track` pills plus a right-pinned auto-advance checkbox and a new info-icon button. `run-id-display` kept as a hidden span for backward JS compat; visible run id now lives only in the info panel.
+- New `#info-panel` slide-out (width 0→260px transition): run id, created timestamp (from the local run-list entry), aspect ratio (live-synced from Settings), cost placeholder, Log out link.
+- `showLanding()` / `enterWorkspace()` / `populateInfoPanel()` / `toggleInfoPanel()` added.
+- All stage-pane content wrappers (`Settings/Script/Voice/Video/Metadata`) gained `margin:0 auto` to center within the pipe-row's alignment; Storyboard pane intentionally left as full-width (table content, per story scope — "OK as is").
+
+---
+
+## [P-UX1-S2] Settings stage — aspect ratio, style, music upload, captions
+**Epic:** E41 — Studio UX Redesign
+**Sprint:** P-UX1
+**Status:** done
+**Completed:** 2026-07-03
+**Priority:** high
+**Points:** 5
+**Depends on:** P-UX1-S1
+
+### Goal
+New first stage ("Settings") ahead of Script. Fixes the long-standing gap where aspect ratio is only chosen at the Render pane (too late — storyboard framing and acquisition already ran): `format_track` now flows from Settings into both the storyboard worker call and the render worker call.
+
+### Backend changes
+- `StoryboardWorkerRequest` (`cf_platform/interfaces/api.py`) gains `format_track: str = "portrait"`; `storyboard_worker_endpoint` passes it via `StageState(inputs={"format_track": body.format_track})` — `_generate()` and `build_storyboard_worker` already read this field (P9-S6), the REST endpoint just never forwarded it.
+- `RenderWorkerRequest` gains `captions: bool = True`; render endpoint maps `True → subtitles="TikTok"`, `False → subtitles="none"` when constructing render inputs.
+- New `POST /platform/studio/runs/{run_id}/music` — multipart upload (`audio/mpeg`, `audio/wav`, `audio/mp4`; ≤ 50 MB), stored at `runs/{run_id}/music/{filename}`, replacing any prior upload for that run (single active track).
+- RenderWorker gains an async `_copy_music_to_run` fallback (mirrors `src/renderer.py:copy_music_to_run` but against the async `ArtifactStorage` protocol): if the run has no music file when render starts, copy the first eligible track from `music-library/`; log and continue silently if the library is empty.
+
+### Frontend changes
+- New `pane-settings` stage: aspect ratio pills (9:16 / 16:9), style pills (Realistic active, Animated disabled with a "Soon" badge), music dropzone (upload → new endpoint) + current-track chip, captions on/off toggle.
+- Settings choices held in client state (`state.settings`); threaded into the Script→Storyboard call (`format_track`) and the Render call (`format_track`, `captions`).
+
+### Acceptance Criteria
+- [x] Aspect ratio chosen in Settings reaches the storyboard worker call (verify via `verified_storyboard` scene framing / prompt format line)
+- [x] Aspect ratio chosen in Settings reaches the render worker call (already partially wired — confirm end-to-end)
+- [x] Captions toggle reaches the render worker call and maps to `subtitles="TikTok"`/`"none"`
+- [x] Music upload endpoint: valid MP3 accepted and stored; invalid MIME rejected; oversized file rejected
+- [x] Render falls back to `music-library/` copy when no run-specific music was uploaded; skips the copy when one already exists
+- [x] Style pills: Animated is visibly disabled and does not trigger any request
+- [x] Tests: `format_track` threading (storyboard + render requests), captions→subtitles mapping, music upload endpoint (success/invalid-mime/oversized), async music fallback copy (has-music skip, library-empty warning, happy path)
+
+### Definition of Done
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `cf_platform/interfaces/api.py`: `StoryboardWorkerRequest.format_track: str = "portrait"` now forwarded into `StageState(inputs={"format_track": ...})` (previously defined but never passed — root cause of the aspect-ratio-at-render-time gap). `RenderWorkerRequest.captions: bool = True` forwarded as `state.inputs["captions"]`. New `POST /studio/runs/{run_id}/music` — validates `audio/mpeg|wav|x-wav|mp4`, ≤50MB, stores at a fixed key `runs/{run_id}/music/track{ext}` (same-format re-upload overwrites; a different format after a prior upload leaves both — documented limitation).
+- `cf_platform/workers/render_worker.py`: `_build_render_script` gains `captions: bool = True` → `subtitles = video_settings.subtitles if captions else "none"`. New async `_copy_music_to_run(run_id, storage)` (async port of `src/renderer.py:copy_music_to_run` for the `ArtifactStorage` protocol) called in `_worker` before `_download_assets`.
+- `src/static/studio.html`: new `pane-settings` stage (first in `STAGES`) with aspect-ratio pills, style pills (Animated disabled), music dropzone, captions toggle; `state.settings = {aspectRatio, style, captions, musicKey}` threaded into the storyboard and render fetch calls; old `#format-track-select` in the Render pane removed.
+- `tests/cf_platform/test_pux1_s2_settings_backend.py` (new, 12 tests).
+- 2015 tests passing after this story (was 2000).
+
+---
+
+## [P-UX1-S3] Metadata stage — youtube_metadata worker wired into Studio
+**Epic:** E41 — Studio UX Redesign
+**Sprint:** P-UX1
+**Status:** done
+**Completed:** 2026-07-03
+**Priority:** medium
+**Points:** 3
+**Depends on:** P-UX1-S1
+
+### Goal
+The `youtube_metadata` worker (P7-S2) already produces title/description/tags from a script artifact, but it's only ever invoked from the Telegram `full_pipeline.py` graph — Studio's step-by-step flow never calls it. Add a Metadata stage after Video that calls it directly, matching the existing per-stage worker-endpoint pattern (`/platform/workers/storyboard`, `/voice`, `/acquisition`, `/render`).
+
+### Backend changes
+- New `POST /platform/workers/metadata` — builds `youtube_metadata_worker` directly from the run's `script` artifact (same pattern as `storyboard_worker_endpoint`); persists `YoutubeMetadataArtifact`.
+- New `GET /platform/studio/runs/{run_id}/metadata` — returns the latest metadata artifact, mirroring `GET .../video`.
+
+### Frontend changes
+- New `pane-metadata` stage (nav label "Metadata"; internal stage key can stay distinct from `render`/`video` labeling decided in S1): editable title/description/tags/pinned-comment fields pre-filled from the artifact, a "Generate metadata" trigger, and a permanently-disabled "Upload to channel" button with helper text ("Connect a channel in Settings to enable uploads") — no channel API in this story.
+
+### Acceptance Criteria
+- [x] Metadata stage generates and displays title/description/tags from the run's script
+- [x] Fields are editable client-side (not yet persisted back — display/copy only, matching current AC scope)
+- [x] "Upload to channel" button is disabled with explanatory helper text; no request fires on click
+- [x] Tests: metadata worker endpoint happy path + missing-script-artifact error; GET metadata endpoint present/absent cases
+
+### Definition of Done
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `cf_platform/interfaces/api.py`: `POST /workers/metadata` — looks up the run's latest `script` artifact directly (no graph), calls `build_youtube_metadata_worker` (P7-S2, unchanged), persists under `stage="metadata"`. `GET /studio/runs/{run_id}/metadata` mirrors the other studio GET endpoints.
+- `src/static/studio.html`: new `pane-metadata` stage (nav label "Metadata"); `generateMetadata()` / `renderMetadataResult()` / `resetMetadataPane()`; render-complete auto-advances into Metadata when auto-advance is on; `loadRun()` fetches existing metadata on load.
+- `tests/cf_platform/test_pux1_s3_metadata_endpoint.py` (new, 3 tests).
+- 2018 tests passing after this story.
+
+---
+
+## [P-UX1-S4] Retire legacy pipeline.html as default UI
+**Epic:** E41 — Studio UX Redesign
+**Sprint:** P-UX1
+**Status:** done
+**Completed:** 2026-07-03
+**Priority:** medium
+**Points:** 3
+**Depends on:** P-UX1-S1, P-UX1-S2, P-UX1-S3
+
+### Goal
+Studio becomes the primary operator UI. `GET /` now serves `studio.html`; the legacy pipeline UI moves to `GET /legacy` (kept fully operable per D047 — this is a routing change, not a deletion of the legacy engine or its backend).
+
+### Acceptance Criteria
+- [x] `GET /` serves `studio.html`
+- [x] `GET /legacy` serves `pipeline.html` unchanged
+- [x] `GET /studio` still works (redirect or alias) for any bookmarked links
+- [x] Decision logged in DECISIONS.md noting this narrows (does not reverse) D047 — legacy backend stays untouched and operable, only its UI default changes
+- [x] Tests: route status codes for `/`, `/legacy`, `/studio`
+
+### Definition of Done
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `src/main.py`: `GET /` now serves `studio.html` (was `pipeline.html`); `GET /legacy` serves `pipeline.html` unchanged; `GET /studio` kept as an alias.
+- `DECISIONS.md`: D066 logged — narrows D047 (UI default only; legacy engine untouched and still operable at `/legacy`).
+- `tests/test_pux1_s4_routing.py` (new, 3 tests).
+- 2018 total tests passing (was 2000 before this sprint).
+**Smoke test:** PASSED — verified live on the local dev server against the real R2 DEV bucket: landing list, Settings→Script→Metadata flow, info panel, music upload, and `/legacy` fallback all confirmed working via browser preview.

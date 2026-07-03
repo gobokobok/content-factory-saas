@@ -309,6 +309,7 @@ def _build_render_script(
     color_grade_preset: str,
     blur_fill_enabled: bool,
     format_track: str = "portrait",
+    captions: bool = True,
 ) -> str:
     """Assemble the complete render bash script with render_options extensions.
 
@@ -318,6 +319,8 @@ def _build_render_script(
 
     `format_track` selects the output resolution: portrait → 1080×1920 (Shorts),
     landscape → 1920×1080 (standard YouTube).
+    `captions` toggles burned-in subtitles: False forces `subtitles="none"`
+    regardless of the `VideoSettings` default.
     """
     from src.captions import build_captions_ass
     from src.ffmpeg_builder import (
@@ -336,7 +339,7 @@ def _build_render_script(
 
     video_settings = VideoSettings()
     audio = video_settings.audio
-    subtitles = video_settings.subtitles
+    subtitles = video_settings.subtitles if captions else "none"
     if format_track == "landscape":
         out_w, out_h = 1920, 1080
     else:
@@ -431,6 +434,37 @@ async def _download_assets(run_id: str, manifest, storage: ArtifactStorage) -> N
             local.parent.mkdir(parents=True, exist_ok=True)
             data = await storage.get_bytes(key)
             local.write_bytes(data)
+
+
+async def _copy_music_to_run(run_id: str, storage: ArtifactStorage) -> None:
+    """
+    Copy the first eligible music file from music-library/ in R2 to runs/{run_id}/music/.
+
+    Async counterpart of src.renderer.copy_music_to_run for the native RenderWorker's
+    ArtifactStorage protocol. Only runs when the run has no music file already —
+    an operator-uploaded track (Settings stage) takes precedence over the shared
+    library. Logs a warning and returns if the library has no eligible file — the
+    render script handles the no-music case via anullsrc so this never blocks a render.
+    """
+    run_music_prefix = f"runs/{run_id}/music/"
+    existing = await storage.list_keys(run_music_prefix)
+    if any(k.lower().endswith((".mp3", ".wav", ".m4a")) for k in existing):
+        logger.info("Run %s already has a music file — skipping music-library copy", run_id)
+        return
+
+    keys = await storage.list_keys("music-library/")
+    music_key = next(
+        (k for k in keys if k.lower().endswith((".mp3", ".wav", ".m4a"))),
+        None,
+    )
+    if music_key is None:
+        logger.warning("No music file found in music-library/ — silence fallback will be used")
+        return
+    filename = music_key.split("/")[-1]
+    dest_key = f"{run_music_prefix}{filename}"
+    data = await storage.get_bytes(music_key)
+    await storage.put_bytes(dest_key, data, content_type="audio/mpeg")
+    logger.info("Copied music %s → %s", music_key, dest_key)
 
 
 # ── Worker factory ────────────────────────────────────────────────────────────
@@ -561,6 +595,7 @@ def build_render_worker(
 
         # Build render script
         format_track: str = state.inputs.get("format_track", "landscape")
+        captions: bool = state.inputs.get("captions", True)
         script_content = _build_render_script(
             run_id=run_id,
             storyboard=storyboard,
@@ -569,6 +604,7 @@ def build_render_worker(
             color_grade_preset=color_grade_preset,
             blur_fill_enabled=blur_fill_enabled,
             format_track=format_track,
+            captions=captions,
         )
 
         # Persist render_script.sh to R2 BEFORE execution for debuggability
@@ -577,6 +613,9 @@ def build_render_worker(
             script_key, script_content.encode("utf-8"), content_type="text/plain"
         )
         logger.info("RenderWorker: render_script.sh written → %s", script_key)
+
+        # Fall back to the shared music library if no track was uploaded for this run
+        await _copy_music_to_run(run_id, storage)
 
         # Download all scene assets to /tmp/{run_id}/
         await _download_assets(run_id, manifest, storage)

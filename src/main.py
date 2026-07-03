@@ -157,19 +157,28 @@ async def auth_middleware(request: Request, call_next):
 
 
 @app.get("/", include_in_schema=False)
-def pipeline_ui() -> FileResponse:
-    """Serve the end-to-end pipeline UI."""
+def studio_ui() -> FileResponse:
+    """Serve the Studio UI (step-by-step run management) — the primary operator UI."""
     return FileResponse(
-        _STATIC_DIR / "pipeline.html",
+        _STATIC_DIR / "studio.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
 
 
 @app.get("/studio", include_in_schema=False)
-def studio_ui() -> FileResponse:
-    """Serve the Studio pipeline UI (step-by-step run management)."""
+def studio_ui_alias() -> FileResponse:
+    """Alias for / — kept for bookmarked links to the Studio UI."""
     return FileResponse(
         _STATIC_DIR / "studio.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@app.get("/legacy", include_in_schema=False)
+def legacy_pipeline_ui() -> FileResponse:
+    """Serve the legacy end-to-end pipeline UI (D047 — kept operable, no longer default)."""
+    return FileResponse(
+        _STATIC_DIR / "pipeline.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
 

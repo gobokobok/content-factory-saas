@@ -5,6 +5,16 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D066 — Studio becomes the default operator UI; legacy pipeline UI moves to /legacy
+**Date:** 2026-07-03
+**Status:** ACTIVE
+**Decision:** `GET /` now serves `studio.html` (previously `pipeline.html`); the legacy Script→Video pipeline UI is still served, unchanged, at `GET /legacy`. `GET /studio` remains as an alias for bookmarked links.
+**Rationale:** Sprint P-UX1 redesigned the Studio operator UI (centered run list, Settings/Metadata stages, per-run asset control) to be the primary way operators work the pipeline. Keeping the old UI as the default `/` route was no longer accurate — Studio is where day-to-day work happens.
+**Scope — this narrows, does not reverse, D047:** the legacy Script→Video engine (`src/pipeline.py` and everything it calls) is untouched and still fully operable at `/legacy`. Only the *default UI route* changed; no legacy backend code was modified or removed.
+**Consequence:** `src/main.py` — `pipeline_ui()` renamed `legacy_pipeline_ui()` and remounted at `/legacy`; `studio_ui()` remounted at `/` with `studio_ui_alias()` kept at `/studio`.
+
+---
+
 ## D065 — On-screen text overlay rendering: opaque box background; quality sprint structure deferred
 **Date:** 2026-06-24
 **Status:** ACTIVE
