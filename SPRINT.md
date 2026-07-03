@@ -161,7 +161,7 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P10 — Production Quality + Visual Intelligence Layer
 
 **Goal:** Two tracks running in parallel. Track A (quality fixes): plug the five production bugs observed on v0.16.0 real runs, add per-scene asset override. Track B (intelligence): inject global semantic context into the storyboard and replace the current flat query lookup with an Entity Resolver + enriched visual signals — eliminating context-free acquisition without a full agent decomposition.
-**Status:** in-progress
+**Status:** done (2026-07-03) · all stories complete; human touchpoint line below remains deferred to a future DEV smoke test
 **Points:** ~15
 
 | ID | Title | Points | Status |
@@ -183,16 +183,16 @@ Legacy Script→Video stays untouched and operable (D047).
 - [x] Every scene has `semantic_context` with `domain_qualifier` + `avoid` + `visual_tags` (P10-S3)
 - [x] Entity Resolver routes Character + historic scenes to Wikimedia deterministically (P10-S3)
 - [x] Visual concept deduplication pass fires when 3+ consecutive scenes share the same concept (P10-S3)
-- [ ] 6 pre-existing test failures in `test_ffmpeg_builder.py` / `test_runs.py` fixed
-- [ ] **Human touchpoint:** a re-render of a neuroscience topic run shows: no food assets for biological-protein scenes; researcher portrait from Wikimedia; all habit milestones have OST; Unicode arrows render correctly; operator can swap one scene asset from Studio
+- [x] 6 pre-existing test failures in `test_ffmpeg_builder.py` / `test_runs.py` fixed — confirmed resolved at 2026-07-03 sprint review (full suite: 2000 passed, 0 failed)
+- [ ] **Human touchpoint:** a re-render of a neuroscience topic run shows: no food assets for biological-protein scenes; researcher portrait from Wikimedia; all habit milestones have OST; Unicode arrows render correctly; operator can swap one scene asset from Studio — DEFERRED
 
 ---
 
 # Sprint P11 — Visual Director + Motion Effects
 
 **Goal:** Introduce the Visual Director as a dedicated post-storyboard LangGraph node that produces a full visual treatment (shot type, search terms, motion, diversity plan) before any asset is fetched. Add motion effect presets to the render layer. The acquisition layer becomes a pure fulfillment layer.
-**Status:** planned
-**Points:** ~12
+**Status:** in-progress — S1 done; S2 and S3 active this sprint (2026-07-03 planning)
+**Points:** ~15
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
@@ -200,7 +200,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P11-S2 | Motion effect presets — slow push, film grain, camera shake, light leak | 4 | todo |
 | P11-S3 | Sub-scene asset timeline — 2–3 assets per scene with sub-clip in/out points | 5 | todo |
 
-**Execution order:** P11-S1 → P11-S2 (S2 adds `motion` preset execution that S1 specifies). P11-S3 is independent but large; can slip to P12.
+**Execution order:** P11-S1 → P11-S2 (S2 adds `motion` preset execution that S1 specifies). P11-S3 is independent but large.
 
 ## Sprint P11 Definition of Done
 - [ ] `visual_treatment` artifact written to R2 on every run
