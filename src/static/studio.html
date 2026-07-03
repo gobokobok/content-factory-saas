@@ -29,6 +29,21 @@
 
     body { font-family: var(--font); font-size: 14px; line-height: 1.5; color: var(--text); background: var(--bg); height: 100vh; overflow: hidden; display: flex; }
 
+    /* ── Left panel ─────────────────────────────────────────────────── */
+    .left-panel {
+      width: 180px; flex-shrink: 0; background: var(--bg-alt); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column; padding: 16px 10px; gap: 2px;
+    }
+    .left-panel-btn {
+      display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px;
+      background: none; border: none; text-align: left; font-family: var(--font); font-size: 13px;
+      color: var(--text-sub); cursor: pointer; width: 100%;
+    }
+    .left-panel-btn:hover { background: var(--border2); color: var(--text); }
+    .left-panel-btn.disabled { opacity: 0.5; cursor: not-allowed; }
+    .left-panel-btn.disabled:hover { background: none; color: var(--text-sub); }
+    .left-panel-spacer { flex: 1; }
+
     /* ── Main ───────────────────────────────────────────────────────── */
     .main { flex: 1; display: flex; overflow: hidden; }
     .main-col { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
@@ -56,21 +71,16 @@
     .run-entry-id { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
 
     /* ── Pipeline header row ────────────────────────────────────────── */
-    .back-to-runs {
-      display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted);
-      background: none; border: none; cursor: pointer; padding: 10px 28px 0; font-family: var(--font);
-    }
-    .back-to-runs:hover { color: var(--text); }
     .pipe-row-outer {
-      display: flex; justify-content: center; flex-shrink: 0; padding: 6px 28px 0;
+      display: flex; justify-content: center; flex-shrink: 0; padding: 20vh 28px 0;
     }
     .pipe-row {
       display: flex; align-items: center; width: 100%; max-width: 760px;
     }
     .pipe-row .stage-track { flex: 1; justify-content: center; padding: 0; border-bottom: none; }
-    .pipe-row-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    .pipe-row-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; margin-left: 20px; }
     .auto-confirm-wrap-row {
-      display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap;
+      display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap;
     }
     .icon-btn {
       width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border);
@@ -78,15 +88,20 @@
       cursor: pointer; color: var(--text-sub); font-size: 13px; flex-shrink: 0;
     }
     .icon-btn:hover { color: var(--text); border-color: #d8d4d2; }
-    .pipe-divider { border-bottom: 1px solid var(--border); max-width: 760px; margin: 10px auto 0; }
+    .pipe-divider { border-bottom: 1px solid var(--border); max-width: 760px; margin: 20px auto 0; }
 
-    /* ── Info panel ─────────────────────────────────────────────────── */
+    /* ── Stage content width (Settings/Script/Voice/Video/Metadata) ──── */
+    .stage-content { width: 80%; max-width: 900px; margin: 0 auto; }
+
+    /* ── Info panel (overlay, does not shift the main layout) ────────── */
     .info-panel {
-      width: 0; overflow: hidden; border-left: 1px solid var(--border);
-      background: var(--bg-alt); transition: width 0.2s ease; flex-shrink: 0;
+      position: fixed; top: 0; right: 0; height: 100vh; width: 280px;
+      overflow-y: auto; border-left: 1px solid var(--border);
+      background: var(--bg-alt); transform: translateX(100%); transition: transform 0.2s ease;
+      z-index: 100;
     }
-    .info-panel.open { width: 260px; }
-    .info-panel-inner { padding: 20px; width: 260px; }
+    .info-panel.open { transform: translateX(0); }
+    .info-panel-inner { padding: 20px; width: 280px; }
     .info-panel-inner h4 { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
     .info-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-sub);
       padding: 8px 0; border-top: 1px solid var(--border2); }
@@ -123,8 +138,8 @@
     .meta-tag { display: inline-flex; align-items: center; background: var(--border2); color: var(--text-sub);
       font-size: 11px; padding: 4px 9px; border-radius: 12px; margin: 0 6px 6px 0; }
 
-    /* ── Workspace ──────────────────────────────────────────────────── */
-    .workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    /* ── Workspace (nav + panes scroll together as one column) ───────── */
+    .workspace { flex: 1; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
 
     .logout-btn {
       background: transparent; border: none; cursor: pointer; color: var(--muted);
@@ -132,27 +147,26 @@
     }
     .logout-btn:hover { color: var(--text); background: var(--border2); }
 
-    /* ── Stage track ────────────────────────────────────────────────── */
+    /* ── Stage track — checkmark + connector line style ──────────────── */
     .stage-track {
-      display: flex; align-items: center; gap: 0;
-      padding: 0 28px; border-bottom: 1px solid var(--border); flex-shrink: 0;
-      background: var(--bg);
+      display: flex; align-items: center; gap: 0; flex-shrink: 0;
     }
     .stage-pill {
-      display: flex; align-items: center; gap: 7px;
-      padding: 10px 16px; cursor: pointer; font-size: 12px;
-      color: var(--muted); border-bottom: 2px solid transparent;
-      user-select: none; white-space: nowrap; transition: color 0.1s;
+      display: flex; align-items: center; gap: 6px;
+      cursor: pointer; font-size: 13px;
+      color: var(--muted); white-space: nowrap;
+      user-select: none; transition: color 0.1s;
     }
     .stage-pill:hover { color: var(--text); }
-    .stage-pill.active { color: var(--text); border-bottom-color: var(--text); font-weight: 500; }
+    .stage-pill.active { color: var(--text); font-weight: 500; }
     .stage-pill.done { color: var(--text-sub); }
     .stage-pill.running { color: var(--blue); }
     .stage-pill.error { color: var(--red); }
-    .stage-arrow { color: var(--border); font-size: 11px; padding: 0 2px; }
+    .stage-icon { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; font-size: 11px; flex-shrink: 0; }
+    .stage-connector { flex: 1; height: 1px; background: var(--border); margin: 0 14px; min-width: 20px; }
 
     /* ── Stage pane ─────────────────────────────────────────────────── */
-    .stage-pane { display: none; flex: 1; overflow-y: auto; padding: 28px 28px 40px; }
+    .stage-pane { display: none; padding: 28px 28px 60px; }
     .stage-pane.active { display: block; }
 
     .stage-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
@@ -384,6 +398,17 @@
 </head>
 <body>
 
+<div class="left-panel">
+  <button class="left-panel-btn" onclick="showLanding()">
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="7,1 2,6 7,11"/></svg>
+    All runs
+  </button>
+  <div class="left-panel-spacer"></div>
+  <button class="left-panel-btn disabled" disabled title="Coming soon">Global settings</button>
+  <button class="left-panel-btn disabled" disabled title="Coming soon">User settings</button>
+  <button class="left-panel-btn" onclick="logOut()">Log out</button>
+</div>
+
 <div class="main">
 <div class="main-col">
 
@@ -400,18 +425,17 @@
 
   <!-- Workspace -->
   <div class="workspace" id="workspace" style="display:none;">
-
-    <button class="back-to-runs" onclick="showLanding()">
-      <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="7,1 2,6 7,11"/></svg>
-      All runs
-    </button>
     <div class="pipe-row-outer">
       <div class="pipe-row">
         <nav class="stage-track" id="stage-track"><!-- rendered by JS --></nav>
         <div class="pipe-row-right">
-          <label class="auto-confirm-wrap-row" title="Automatically advance to the next stage after each completes">
-            <input type="checkbox" id="auto-confirm" onchange="onAutoConfirmChange()"> Auto-advance
-          </label>
+          <div class="auto-confirm-wrap-row" title="Automatically advance to the next stage after each completes">
+            <label class="toggle-switch">
+              <input type="checkbox" id="auto-confirm" onchange="onAutoConfirmChange()">
+              <span class="toggle-slider"></span>
+            </label>
+            <span>Auto-advance</span>
+          </div>
           <button class="icon-btn" aria-label="Run info" onclick="toggleInfoPanel()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/></svg>
           </button>
@@ -423,7 +447,7 @@
 
     <!-- Settings stage -->
     <div class="stage-pane active" id="pane-settings">
-      <div style="max-width:640px;margin:0 auto;">
+      <div class="stage-content">
         <div class="stage-title">Settings</div>
         <div class="stage-subtitle">Aspect ratio, style, background music and captions — set once before the pipeline runs.</div>
 
@@ -463,7 +487,7 @@
 
     <!-- Script stage -->
     <div class="stage-pane" id="pane-script">
-      <div style="max-width:700px;margin:0 auto;">
+      <div class="stage-content">
         <div class="stage-title">Script</div>
         <div class="stage-subtitle">Paste a voiceover script, or generate one from an idea.</div>
         <div id="script-error" class="error-bar" style="display:none;"></div>
@@ -515,7 +539,7 @@
 
     <!-- Voice stage -->
     <div class="stage-pane" id="pane-voice">
-      <div style="max-width:700px;margin:0 auto;">
+      <div class="stage-content">
         <div class="stage-title">Voice</div>
         <div class="stage-subtitle">Generate TTS voiceover with Gemini and align word timestamps via Deepgram. Accurate timing requires this step before storyboard generation.</div>
         <div id="voice-error" class="error-bar" style="display:none;"></div>
@@ -586,7 +610,7 @@
 
     <!-- Render stage -->
     <div class="stage-pane" id="pane-render">
-      <div style="max-width:700px;margin:0 auto;">
+      <div class="stage-content">
         <div class="stage-title">Video</div>
         <div class="stage-subtitle">Assemble scenes, voiceover, captions and music into final.mp4</div>
         <div id="render-error" class="error-bar" style="display:none;"></div>
@@ -602,7 +626,7 @@
 
     <!-- Metadata stage -->
     <div class="stage-pane" id="pane-metadata">
-      <div style="max-width:640px;margin:0 auto;">
+      <div class="stage-content">
         <div class="stage-title">Metadata</div>
         <div class="stage-subtitle">Suggested title, description, tags and pinned comment for the upload.</div>
         <div id="metadata-error" class="error-bar" style="display:none;"></div>
@@ -627,9 +651,6 @@
     <div class="info-row"><span>Aspect ratio</span><span id="info-aspect">—</span></div>
     <div class="info-row"><span>Cost so far</span><span id="info-cost">—</span></div>
     <div class="muted" style="font-size:11px;margin-top:14px;">Full cost breakdown and logs land here later.</div>
-    <div style="margin-top:20px;border-top:1px solid var(--border2);padding-top:12px;">
-      <button class="logout-btn" onclick="logOut()" style="padding:0;color:var(--muted);">Log out</button>
-    </div>
   </div>
 </div>
 </div><!-- /.main -->
@@ -723,14 +744,14 @@ function renderStageTrack() {
   const el = document.getElementById('stage-track');
   el.innerHTML = STAGES.map((s, i) => {
     const st = state.stageStatus[s];
-    const dotCls = st === 'done' ? 'dot-done' : st === 'running' ? 'dot-running' : st === 'error' ? 'dot-error' : 'dot-idle';
+    const icon = st === 'done' ? '✓' : st === 'error' ? '✕' : st === 'running' ? '<span class="dot dot-running"></span>' : '○';
     const pillCls = st === 'running' ? ' running' : st === 'done' ? ' done' : st === 'error' ? ' error' : '';
     const active = s === state.activeStage ? ' active' : '';
-    const arrow = i < STAGES.length - 1 ? '<span class="stage-arrow">›</span>' : '';
+    const connector = i < STAGES.length - 1 ? '<span class="stage-connector"></span>' : '';
     return `<div class="stage-pill${active}${pillCls}" onclick="activateStage('${s}')">
-      <span class="dot ${dotCls}"></span>
+      <span class="stage-icon">${icon}</span>
       ${esc(STAGE_LABELS[s])}
-    </div>${arrow}`;
+    </div>${connector}`;
   }).join('');
 }
 
@@ -740,6 +761,7 @@ function activateStage(stage) {
   document.querySelectorAll('.stage-pane').forEach(p => p.classList.remove('active'));
   document.getElementById(`pane-${stage}`).classList.add('active');
   renderStageTrack();
+  document.getElementById('workspace').scrollTo(0, 0);
   if (state.runId) {
     history.replaceState(null, '', `#run/${state.runId}/${stage}`);
   }

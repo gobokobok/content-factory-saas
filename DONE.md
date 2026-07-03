@@ -16,6 +16,15 @@ _Entries added here when a story reaches Definition of Done._
 **Smoke test:** PASSED — verified live against the real R2 DEV bucket via browser preview: landing → new run → Settings (aspect ratio, captions, music upload) → Script (reused "Generate from idea" panel unchanged) → Metadata stage render → `/legacy` fallback confirmed serving the untouched legacy UI with its existing real runs.
 **Promoted to backlog:** none — `spawn_task` filed separately for the presigned-URL existence-check bug (`GET /studio/runs/{run_id}/video`).
 
+**Follow-up polish pass (same day, post-review):**
+- Stage nav restyled to checkmark (✓/✕/spinner/○) + horizontal connector-line pills, replacing the dot+chevron style; `renderStageTrack()` rewritten accordingly.
+- Pipe-row now sits at the same 20vh top offset as the landing run list; `.workspace` (not each `.stage-pane`) owns the scrollbar, so the nav scrolls out of view with the rest of the content instead of staying pinned — `activateStage()` resets scroll to top on every stage switch.
+- All non-Storyboard stage-panes standardized to a shared `.stage-content` class (80% width, 900px cap, centered); Storyboard intentionally excluded — stays full-width and left-aligned for its wide table.
+- New persistent `.left-panel` (All runs, Global settings [stub], User settings [stub], Log out) replaces the per-run info panel's Log out button.
+- `#info-panel` changed from an in-flow width-transition sibling (which shrank the main content) to a `position:fixed` overlay that slides on top without shifting layout.
+- Auto-advance control changed from a bare checkbox to the same `.toggle-switch` component used for captions.
+- No backend changes; no new tests needed (pure HTML/CSS/JS).
+
 ---
 
 ## [P11-S1] Visual Director agent — post-storyboard visual treatment
