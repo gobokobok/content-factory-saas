@@ -26,6 +26,7 @@ from src.routes import tts as tts_router
 _AUTH_EXEMPT_PATHS = {
     "/health",
     "/login",
+    "/login/v2",
     "/auth/login",
     "/auth/logout",
     "/platform/telegram/webhook",
@@ -172,6 +173,21 @@ def studio_ui_alias() -> FileResponse:
         _STATIC_DIR / "studio.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
+
+
+@app.get("/v2", include_in_schema=False)
+def studio_v2_ui() -> FileResponse:
+    """Serve the Studio v2 UI (monochrome redesign, approval preview)."""
+    return FileResponse(
+        _STATIC_DIR / "studio-v2.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
+
+
+@app.get("/login/v2", include_in_schema=False)
+def login_v2_page() -> FileResponse:
+    """Serve the redesigned login page (matches Studio v2 design)."""
+    return FileResponse(_STATIC_DIR / "login-v2.html")
 
 
 @app.get("/legacy", include_in_schema=False)

@@ -1,0 +1,2277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Factory Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════════════════════
+       CONTENT FACTORY STUDIO v2 — "Monochrome Console"
+       White / grey / black + one accent (ultramarine). Red = errors only.
+       ═══════════════════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #FAFAFA;
+      --surface:     #FFFFFF;
+      --border:      #E7E7E9;
+      --border2:     #F0F0F2;
+      --ink:         #121215;
+      --ink-sub:     #55555C;
+      --muted:       #8B8B92;
+      --faint:       #B4B4BA;
+
+      --accent:      #2E45EC;
+      --accent-h:    #1F33C9;
+      --accent-tint: #EEF0FE;
+      --accent-ring: rgba(46, 69, 236, 0.28);
+
+      --red:         #D92D20;
+      --red-tint:    #FEF1F0;
+
+      --font: 'Schibsted Grotesk', system-ui, sans-serif;
+      --mono: 'Fragment Mono', ui-monospace, monospace;
+
+      --sb-w: 240px;
+      --sb-w-min: 64px;
+      --r: 8px;
+      --r-sm: 6px;
+      --shadow-drawer: -12px 0 32px rgba(18, 18, 21, 0.08);
+      --shadow-modal: 0 16px 48px rgba(18, 18, 21, 0.16);
+    }
+
+    html { height: 100%; }
+    body {
+      font-family: var(--font); font-size: 14px; line-height: 1.5;
+      color: var(--ink); background: var(--bg);
+      height: 100vh; overflow: hidden; display: flex;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::selection { background: var(--accent-tint); color: var(--accent); }
+
+    button { font-family: var(--font); }
+    :focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; border-radius: 4px; }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sb-w); flex-shrink: 0; height: 100vh;
+      background: var(--surface); border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: hidden;
+    }
+    body.sb-collapsed .sidebar { width: var(--sb-w-min); }
+
+    .sb-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 14px 14px 18px; flex-shrink: 0;
+    }
+    .sb-collapse-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; flex-shrink: 0; border-radius: var(--r-sm);
+      background: none; border: 1px solid var(--border); cursor: pointer;
+      color: var(--muted); margin-left: auto;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .sb-collapse-btn:hover { background: var(--border2); color: var(--ink); border-color: var(--faint); }
+    body.sb-collapsed .sb-head { padding: 16px 0; justify-content: center; gap: 0; }
+    body.sb-collapsed .sb-head .brand-mark { display: none; }
+    body.sb-collapsed .sb-head .brand-name { display: none; }
+    body.sb-collapsed .sb-collapse-btn { margin-left: 0; }
+    .brand-mark {
+      width: 26px; height: 26px; flex-shrink: 0; border-radius: 7px;
+      background: var(--ink); position: relative;
+    }
+    .brand-mark::after {
+      content: ""; position: absolute; width: 8px; height: 8px;
+      border-radius: 50%; background: var(--accent); right: 5px; bottom: 5px;
+    }
+    .brand-name {
+      font-weight: 700; font-size: 14px; letter-spacing: -0.01em; white-space: nowrap;
+      opacity: 1; transition: opacity 0.15s;
+    }
+    .brand-name span { color: var(--muted); font-weight: 500; }
+    body.sb-collapsed .brand-name { opacity: 0; pointer-events: none; }
+
+    .sb-section { padding: 0 12px; flex-shrink: 0; }
+
+    .sb-new-run {
+      display: flex; align-items: center; gap: 9px; width: 100%;
+      padding: 9px 12px; margin-bottom: 14px;
+      background: var(--ink); color: #fff; border: none; border-radius: var(--r-sm);
+      font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .sb-new-run:hover { background: #2A2A30; }
+    .sb-new-run svg { flex-shrink: 0; }
+    .sb-new-run .lbl { opacity: 1; transition: opacity 0.15s; }
+    body.sb-collapsed .sb-new-run { padding: 9px 0; justify-content: center; }
+    body.sb-collapsed .sb-new-run .lbl { display: none; }
+
+    .sb-nav-btn {
+      display: flex; align-items: center; gap: 9px; width: 100%;
+      padding: 8px 12px; background: none; border: none; border-radius: var(--r-sm);
+      font-size: 13px; font-weight: 500; color: var(--ink-sub); cursor: pointer;
+      white-space: nowrap; text-align: left; transition: background 0.12s, color 0.12s;
+    }
+    .sb-nav-btn:hover { background: var(--border2); color: var(--ink); }
+    .sb-nav-btn.active { background: var(--accent-tint); color: var(--accent); }
+    .sb-nav-btn svg { flex-shrink: 0; }
+    .sb-nav-btn .lbl { opacity: 1; transition: opacity 0.15s; }
+    body.sb-collapsed .sb-nav-btn { padding: 8px 0; justify-content: center; }
+    body.sb-collapsed .sb-nav-btn .lbl { display: none; }
+
+    .sb-recent {
+      flex: 1; overflow-y: auto; padding: 18px 12px 8px; min-height: 0;
+    }
+    body.sb-collapsed .sb-recent { opacity: 0; pointer-events: none; }
+    .sb-recent-label {
+      font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--faint); padding: 0 12px; margin-bottom: 6px;
+      white-space: nowrap;
+    }
+    .sb-run-link {
+      display: block; width: 100%; padding: 6px 12px; border: none; background: none;
+      border-radius: var(--r-sm); font-size: 12px; color: var(--ink-sub); cursor: pointer;
+      text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      transition: background 0.12s, color 0.12s;
+    }
+    .sb-run-link:hover { background: var(--border2); color: var(--ink); }
+    .sb-run-link.active { background: var(--accent-tint); color: var(--accent); font-weight: 500; }
+
+    .sb-foot {
+      flex-shrink: 0; padding: 10px 12px 14px;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+
+    /* ── Main area ───────────────────────────────────────────────────── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+    /* ── Landing (Runs page) ─────────────────────────────────────────── */
+    .landing { flex: 1; overflow-y: auto; }
+    .landing-inner { max-width: 1200px; margin: 0; padding: 48px 40px 80px 40px; }
+    .landing-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 28px; }
+    .landing-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+    .landing-count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+    .landing-head .spacer { flex: 1; }
+
+    .btn-new-run-lg {
+      display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px;
+      background: var(--accent); color: #fff; border: none; border-radius: var(--r-sm);
+      font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.15s;
+    }
+    .btn-new-run-lg:hover { background: var(--accent-h); }
+
+    .run-row {
+      display: flex; align-items: center; gap: 16px; width: 100%;
+      padding: 14px 18px; margin-bottom: 8px; text-align: left;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+      cursor: pointer; transition: border-color 0.12s, transform 0.12s, box-shadow 0.12s;
+      animation: rowIn 0.35s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+    }
+    .run-row:hover { border-color: var(--faint); box-shadow: 0 2px 8px rgba(18,18,21,0.05); }
+    .run-row:nth-child(1) { animation-delay: 0.02s; } .run-row:nth-child(2) { animation-delay: 0.05s; }
+    .run-row:nth-child(3) { animation-delay: 0.08s; } .run-row:nth-child(4) { animation-delay: 0.11s; }
+    .run-row:nth-child(5) { animation-delay: 0.14s; } .run-row:nth-child(6) { animation-delay: 0.17s; }
+    .run-row:nth-child(7) { animation-delay: 0.20s; } .run-row:nth-child(8) { animation-delay: 0.23s; }
+    @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    .run-row-main { flex: 1; min-width: 0; }
+    .run-row-name {
+      font-size: 14px; font-weight: 600; color: var(--ink);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .run-row-meta { display: flex; align-items: center; gap: 10px; margin-top: 3px; }
+    .run-row-id { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+    .run-row-date { font-size: 11px; color: var(--muted); }
+    .run-row-progress { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .prog-tick { width: 6px; height: 6px; border-radius: 50%; background: var(--border); }
+    .prog-tick.on { background: var(--ink); }
+    .run-row-arrow { color: var(--faint); flex-shrink: 0; transition: transform 0.12s, color 0.12s; }
+    .run-row:hover .run-row-arrow { transform: translateX(2px); color: var(--ink); }
+
+    .empty-state {
+      text-align: center; padding: 96px 0 48px;
+      animation: rowIn 0.4s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+    }
+    .empty-glyph {
+      font-family: var(--mono); font-size: 13px; color: var(--faint);
+      letter-spacing: 0.3em; margin-bottom: 18px;
+    }
+    .empty-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .empty-sub { font-size: 13px; color: var(--muted); margin-bottom: 24px; }
+
+    /* ── Workspace ───────────────────────────────────────────────────── */
+    .workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .ws-header {
+      flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+      padding: 14px 40px 32px;
+    }
+    .ws-back {
+      display: flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--surface); color: var(--ink-sub); cursor: pointer;
+      transition: border-color 0.12s, color 0.12s;
+    }
+    .ws-back:hover { border-color: var(--faint); color: var(--ink); }
+    .ws-run-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+    .ws-run-id {
+      font-family: var(--mono); font-size: 10px; color: var(--muted);
+      background: var(--border2); padding: 3px 8px; border-radius: 10px;
+    }
+    .ws-header .spacer { flex: 1; }
+
+    .pill-toggle {
+      display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px;
+      border: 1px solid var(--border); border-radius: 999px; background: var(--surface);
+      font-size: 12px; font-weight: 500; color: var(--muted); cursor: pointer;
+      transition: all 0.12s;
+    }
+    .pill-toggle:hover { color: var(--ink); border-color: var(--faint); }
+    .pill-toggle.active { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+    .pill-toggle .pt-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.4; }
+    .pill-toggle.active .pt-dot { opacity: 1; }
+
+    /* ── Stage stepper ───────────────────────────────────────────────── */
+    .ws-scroll { flex: 1; overflow-y: auto; min-width: 0; }
+    .stepper-outer { flex-shrink: 0; padding: 16px 40px 14px; }
+    .stage-track { display: flex; align-items: center; min-width: fit-content; }
+    .stage-pill {
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+      font-size: 12.5px; font-weight: 500; color: var(--muted); white-space: nowrap;
+      user-select: none; transition: color 0.12s; background: none; border: none; padding: 0;
+    }
+    .stage-pill:hover { color: var(--ink); }
+    .stage-pill.active { color: var(--ink); font-weight: 600; }
+    .stage-pill.error { color: var(--red); }
+
+    .step-marker {
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: 10px;
+      border: 1.5px solid var(--border); color: var(--muted); background: var(--surface);
+      transition: all 0.15s;
+    }
+    .stage-pill.active .step-marker { border-color: var(--ink); color: var(--ink); }
+    .step-marker.done { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .step-marker.running {
+      border-color: var(--accent); color: var(--accent);
+      animation: markerPulse 1.6s ease-in-out infinite;
+    }
+    .step-marker.error { border-color: var(--red); color: var(--red); background: var(--red-tint); }
+    @keyframes markerPulse {
+      0%, 100% { box-shadow: 0 0 0 0 var(--accent-ring); }
+      50% { box-shadow: 0 0 0 5px rgba(46, 69, 236, 0); }
+    }
+    .stage-connector { width: 32px; height: 1.5px; background: var(--border); margin: 0 10px; flex-shrink: 0; }
+    .stage-connector.done { background: var(--ink); }
+
+    /* ── Stage panes ─────────────────────────────────────────────────── */
+    .ws-body { flex: 1; }
+    .stage-pane { display: none; padding: 32px 40px 96px 40px; }
+    .stage-pane.active { display: block; animation: paneIn 0.25s cubic-bezier(0.2, 0.7, 0.3, 1); }
+    @keyframes paneIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    .stage-content { max-width: 720px; margin: 0; }
+    .stage-content.wide { max-width: none; }
+
+    .stage-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .stage-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+    .stage-cta {
+      margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border2);
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    }
+    .running-msg { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+    /* ── Cards / fields ──────────────────────────────────────────────── */
+    .field-label {
+      font-size: 11px; font-weight: 600; color: var(--ink-sub); text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: 8px; margin-top: 26px;
+    }
+    .field-label:first-of-type { margin-top: 0; }
+
+    .error-bar {
+      padding: 10px 14px; border: 1px solid #F4C6C2; border-radius: var(--r-sm);
+      background: var(--red-tint); color: var(--red); font-size: 13px; margin-bottom: 16px;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 18px; border-radius: var(--r-sm); font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 1px solid transparent; line-height: 1; transition: all 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-h); border-color: var(--accent-h); }
+    .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--faint); background: var(--border2); }
+    .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); font-weight: 500; }
+    .btn-ghost:hover:not(:disabled) { color: var(--ink); background: var(--border2); }
+    .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+    /* ── Status dots (run rows, timers) ──────────────────────────────── */
+    .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-idle    { border: 1.5px solid var(--faint); background: transparent; }
+    .dot-running { background: var(--accent); animation: pulse 1s ease-in-out infinite; }
+    .dot-done    { background: var(--ink); }
+    .dot-error   { background: var(--red); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    /* ── Settings stage ──────────────────────────────────────────────── */
+    .settings-opt-row { display: flex; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+    .settings-opt {
+      border: 1px solid var(--border); background: var(--surface); border-radius: var(--r-sm);
+      padding: 9px 16px; font-size: 13px; font-weight: 500; color: var(--ink-sub); cursor: pointer;
+      display: flex; align-items: center; gap: 6px; transition: all 0.12s;
+    }
+    .settings-opt:hover:not(.disabled) { border-color: var(--faint); }
+    .settings-opt.active { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+    .settings-opt.disabled { opacity: 0.45; cursor: not-allowed; }
+    .settings-soon { font-size: 9px; background: var(--border2); color: var(--muted); padding: 2px 6px; border-radius: 8px; font-weight: 600; }
+
+    .music-dropzone {
+      border: 1.5px dashed var(--border); border-radius: var(--r-sm); padding: 18px;
+      text-align: center; color: var(--muted); font-size: 12.5px; cursor: pointer;
+      max-width: 300px; transition: all 0.12s; background: var(--surface);
+    }
+    .music-dropzone:hover, .music-dropzone.dragover { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+    .music-dropzone input { display: none; }
+    .music-chip {
+      display: inline-flex; align-items: center; gap: 8px; background: var(--border2);
+      color: var(--ink-sub); font-size: 12px; padding: 6px 12px; border-radius: 999px; margin-top: 10px;
+    }
+    .music-chip button { border: none; background: none; cursor: pointer; color: var(--muted); font-size: 12px; padding: 0; }
+    .music-chip button:hover { color: var(--ink); }
+
+    .toggle-switch { position: relative; width: 36px; height: 20px; display: inline-block; vertical-align: middle; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 12px; cursor: pointer; transition: 0.15s; }
+    .toggle-slider:before { content: ""; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: #fff; border-radius: 50%; transition: 0.15s; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+    .toggle-switch input:checked + .toggle-slider:before { transform: translateX(16px); }
+
+    /* ── Script stage ────────────────────────────────────────────────── */
+    .script-textarea {
+      width: 100%; padding: 14px 16px; border: 1px solid var(--border);
+      border-radius: var(--r-sm); font-family: var(--font); font-size: 13.5px; color: var(--ink);
+      background: var(--surface); resize: vertical; min-height: 200px; line-height: 1.65;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .script-textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .script-textarea::placeholder { color: var(--faint); }
+    .script-meta { display: flex; align-items: center; gap: 12px; margin-top: 8px; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+    .generate-section { margin-top: 20px; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; background: var(--surface); }
+    .generate-toggle {
+      width: 100%; padding: 11px 16px; background: var(--surface); border: none;
+      text-align: left; font-size: 12.5px; font-weight: 500; color: var(--ink-sub);
+      cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.12s;
+    }
+    .generate-toggle:hover { background: var(--border2); color: var(--ink); }
+    .generate-toggle svg { transition: transform 0.18s; }
+    .generate-body { display: none; padding: 16px; border-top: 1px solid var(--border2); }
+    .generate-body.open { display: block; }
+    .generate-section:has(.generate-body.open) .generate-toggle svg { transform: rotate(180deg); }
+
+    .gen-row { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .gen-input {
+      flex: 1; min-width: 160px; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      font-family: var(--font); font-size: 13px; color: var(--ink); background: var(--surface);
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .gen-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .gen-input::placeholder { color: var(--faint); }
+    .gen-label { font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+    .duration-row { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; max-width: 380px; }
+    .duration-row input[type=range] {
+      flex: 1; -webkit-appearance: none; height: 3px; background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
+    }
+    .duration-row input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 15px; height: 15px; border-radius: 50%; background: var(--ink); cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .duration-row input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    .duration-val { font-family: var(--mono); font-size: 12px; color: var(--ink); min-width: 40px; text-align: right; }
+
+    /* ── Storyboard stage ────────────────────────────────────────────── */
+    .sb-summary { display: flex; gap: 24px; margin-bottom: 18px; flex-wrap: wrap; }
+    .sb-stat { font-size: 12px; color: var(--muted); }
+    .sb-stat strong { color: var(--ink); font-family: var(--mono); font-weight: 400; }
+
+    .tbl-wrap { overflow-x: auto; margin-bottom: 16px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
+    table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+    thead th {
+      text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted); padding: 10px 12px;
+      background: var(--bg); border-bottom: 1px solid var(--border); white-space: nowrap;
+      position: sticky; top: 0;
+    }
+    tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border2); vertical-align: top; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--bg); }
+
+    td.mono { font-family: var(--mono); font-size: 11px; }
+    td.wrap { white-space: normal; word-break: break-word; max-width: 220px; }
+    td.narrow { white-space: nowrap; }
+
+    /* Data badges — monochrome by design; accent reserved for interaction */
+    .seg-badge, .vis-badge {
+      display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px;
+      border-radius: 999px; white-space: nowrap; border: 1px solid var(--border);
+      color: var(--ink-sub); background: var(--surface);
+    }
+    .seg-event     { background: var(--border2); }
+    .seg-character { border-color: var(--ink); color: var(--ink); }
+    .vis-video     { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .vis-still     { background: var(--border2); }
+
+    .editable-cell { cursor: pointer; min-width: 100px; transition: background 0.1s; }
+    .editable-cell:hover { background: var(--accent-tint); }
+    .editable-cell.editing { background: var(--accent-tint); outline: 1.5px solid var(--accent); border-radius: 3px; }
+    .cell-input {
+      width: 100%; min-width: 100px; border: none; background: transparent;
+      font-family: var(--font); font-size: 12px; color: var(--ink); outline: none;
+      resize: none; padding: 0;
+    }
+    .ost-icon { font-size: 10px; color: var(--accent); margin-left: 4px; opacity: 0.8; }
+    .save-indicator { font-size: 10px; color: var(--ink); }
+
+    .qa-pass { color: var(--ink); font-weight: 600; }
+    .qa-fail { color: var(--red); font-weight: 600; }
+    .status-acquired { color: var(--ink); }
+    .status-failed   { color: var(--red); }
+
+    .source-badge {
+      font-size: 9px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+      text-transform: lowercase; letter-spacing: 0.02em;
+    }
+
+    .scene-thumb {
+      width: 84px; height: 52px; object-fit: cover; border-radius: 4px;
+      border: 1px solid var(--border); display: block;
+    }
+    .thumb-placeholder {
+      width: 84px; height: 52px; border-radius: 4px; border: 1px dashed var(--border);
+      background: var(--bg); display: flex; align-items: center; justify-content: center;
+      color: var(--faint); font-size: 10px; font-family: var(--mono);
+    }
+    .thumb-video-wrap { position: relative; display: inline-block; }
+    .thumb-video-icon {
+      position: absolute; top: 0; left: 0; width: 84px; height: 52px;
+      display: flex; align-items: center; justify-content: center;
+      color: rgba(255,255,255,0.9); font-size: 14px; pointer-events: none;
+    }
+    .pencil-btn {
+      background: transparent; border: none; cursor: pointer; padding: 4px 7px;
+      color: var(--muted); font-size: 13px; border-radius: 4px; line-height: 1; transition: all 0.1s;
+    }
+    .pencil-btn:hover:not(:disabled) { background: var(--accent-tint); color: var(--accent); }
+    .pencil-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    /* ── Modal ───────────────────────────────────────────────────────── */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(18, 18, 21, 0.4);
+      display: flex; align-items: center; justify-content: center; z-index: 200;
+      animation: fadeIn 0.15s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal-box {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      width: 500px; max-width: 96vw; box-shadow: var(--shadow-modal);
+      display: flex; flex-direction: column;
+      animation: modalIn 0.2s cubic-bezier(0.2, 0.7, 0.3, 1);
+    }
+    @keyframes modalIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: none; } }
+    .modal-header {
+      padding: 16px 20px 12px; border-bottom: 1px solid var(--border2);
+      font-size: 14px; font-weight: 600; color: var(--ink);
+    }
+    .modal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 20px; }
+    .modal-section-label {
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--muted); margin-bottom: 8px;
+    }
+    .modal-row { display: flex; align-items: center; gap: 10px; }
+    .modal-input {
+      flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      font-family: var(--font); font-size: 13px; color: var(--ink); background: var(--surface);
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .modal-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .modal-thumb { width: 84px; height: 52px; object-fit: cover; border-radius: 4px;
+      border: 1px solid var(--border); flex-shrink: 0; display: block; }
+    .modal-msg { font-size: 12px; margin-top: 6px; }
+    .modal-msg.err { color: var(--red); }
+    .modal-msg.ok  { color: var(--ink); }
+    .drop-zone {
+      border: 1.5px dashed var(--border); border-radius: var(--r-sm); padding: 16px;
+      text-align: center; font-size: 12.5px; color: var(--muted); cursor: pointer;
+      transition: all 0.12s;
+    }
+    .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+    .drop-zone input { display: none; }
+    .modal-progress { height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+    .modal-progress-bar { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s; }
+    .modal-footer { padding: 12px 20px 16px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; }
+
+    /* ── Voice stage ─────────────────────────────────────────────────── */
+    .voice-result { display: flex; flex-direction: column; gap: 16px; max-width: 620px; }
+    .voice-stats { display: flex; gap: 24px; flex-wrap: wrap; }
+    .voice-stat { font-size: 12px; color: var(--muted); }
+    .voice-stat strong { font-family: var(--mono); color: var(--ink); font-weight: 400; }
+    .voice-method { font-size: 11px; padding: 2px 9px; border-radius: 999px;
+      background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
+    .voice-method.deepgram { border-color: var(--ink); color: var(--ink); }
+    audio { width: 100%; border-radius: var(--r-sm); }
+
+    /* ── Render stage ────────────────────────────────────────────────── */
+    .render-running { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); margin-bottom: 20px; font-family: var(--mono); }
+    .video-wrap { position: relative; max-width: 640px; border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; background: #000; }
+    .video-wrap video { display: block; width: 100%; max-height: 400px; object-fit: contain; }
+    .video-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+    .render-stats { margin-top: 18px; display: flex; gap: 24px; }
+    .render-stat { font-size: 12px; color: var(--muted); }
+    .render-stat strong { font-family: var(--mono); color: var(--ink); font-weight: 400; }
+
+    /* ── Metadata stage ──────────────────────────────────────────────── */
+    .meta-tag { display: inline-flex; align-items: center; background: var(--border2); color: var(--ink-sub);
+      font-size: 11px; padding: 4px 10px; border-radius: 999px; margin: 0 6px 6px 0; }
+
+    /* ── Info panel (right drawer) ───────────────────────────────────── */
+    .info-panel {
+      position: fixed; top: 0; right: 0; height: 100vh; width: 300px;
+      overflow-y: auto; border-left: 1px solid var(--border);
+      background: var(--surface); transform: translateX(100%);
+      transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 100; box-shadow: none;
+    }
+    .info-panel.open { transform: translateX(0); box-shadow: var(--shadow-drawer); }
+    .info-panel-inner { padding: 22px; }
+    .info-panel-inner h4 { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .info-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-sub);
+      padding: 10px 0; border-top: 1px solid var(--border2); }
+    .info-row span:last-child { font-family: var(--mono); font-size: 11px; }
+    .icon-btn {
+      width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border);
+      background: var(--surface); display: flex; align-items: center; justify-content: center;
+      cursor: pointer; color: var(--ink-sub); font-size: 12px; flex-shrink: 0; transition: all 0.12s;
+    }
+    .icon-btn:hover { color: var(--ink); border-color: var(--faint); }
+
+    /* ── Misc ────────────────────────────────────────────────────────── */
+    .muted { color: var(--muted); }
+    .spacer { flex: 1; }
+    .demo-banner {
+      position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+      background: var(--ink); color: #fff; font-size: 11px; font-family: var(--mono);
+      padding: 6px 14px; border-radius: 999px; z-index: 300; opacity: 0.92; pointer-events: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Sidebar ──────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-head">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <div class="brand-name">CF <span>Studio</span></div>
+    <button class="sb-collapse-btn" onclick="toggleSidebar()" title="Collapse sidebar" id="collapse-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="collapse-icon"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+  </div>
+
+  <div class="sb-section">
+    <button class="sb-new-run" onclick="newRun()" title="New run">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span class="lbl">New run</span>
+    </button>
+    <button class="sb-nav-btn" id="nav-runs" onclick="showLanding()" title="All runs">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
+      <span class="lbl">All runs</span>
+    </button>
+  </div>
+
+  <div class="sb-recent" id="sb-recent">
+    <div class="sb-recent-label">Recent</div>
+    <div id="sb-recent-list"></div>
+  </div>
+
+  <div class="sb-foot">
+    <button class="sb-nav-btn" onclick="logOut()" title="Log out">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      <span class="lbl">Log out</span>
+    </button>
+  </div>
+</aside>
+
+<!-- ── Main ─────────────────────────────────────────────────────────── -->
+<div class="main">
+
+  <!-- Landing: run list -->
+  <div class="landing" id="landing">
+    <div class="landing-inner">
+      <div class="landing-head">
+        <div class="landing-title">Runs</div>
+        <div class="landing-count" id="run-count"></div>
+      </div>
+      <div id="run-list"></div>
+    </div>
+  </div>
+
+  <!-- Workspace -->
+  <div class="workspace" id="workspace" style="display:none;">
+
+    <div class="ws-header">
+      <span class="ws-run-name" id="ws-run-name">—</span>
+      <span class="ws-run-id" id="run-id-display">—</span>
+      <div class="spacer"></div>
+      <button class="pill-toggle" id="auto-confirm-btn" title="Automatically advance to the next stage after each completes" onclick="toggleAutoConfirm()">
+        <span class="pt-dot"></span> Auto-advance
+      </button>
+      <button class="pill-toggle" id="log-btn" aria-label="Run details" onclick="toggleInfoPanel()">Details</button>
+    </div>
+
+    <div class="ws-scroll" id="ws-scroll">
+    <div class="stepper-outer">
+      <nav class="stage-track" id="stage-track"><!-- rendered by JS --></nav>
+    </div>
+
+    <div class="ws-body" id="ws-body">
+
+      <!-- Settings stage -->
+      <div class="stage-pane active" id="pane-settings">
+        <div class="stage-content">
+          <div class="stage-title">Settings</div>
+          <div class="stage-subtitle">Configure the run before generating content. These apply to every downstream stage.</div>
+
+          <div class="field-label">Aspect ratio</div>
+          <div class="settings-opt-row" style="margin-bottom:6px;">
+            <button class="settings-opt active" id="opt-aspect-portrait" onclick="setAspectRatio('portrait')">9:16 Portrait</button>
+            <button class="settings-opt" id="opt-aspect-landscape" onclick="setAspectRatio('landscape')">16:9 Landscape</button>
+          </div>
+
+          <div class="field-label">Style</div>
+          <div class="settings-opt-row" style="margin-bottom:6px;">
+            <button class="settings-opt active" id="opt-style-realistic" onclick="setStyle('realistic')">Realistic</button>
+            <button class="settings-opt disabled" disabled title="Coming soon">Animated <span class="settings-soon">Soon</span></button>
+          </div>
+
+          <div class="field-label">Background music</div>
+          <div class="music-dropzone" id="music-dropzone" onclick="document.getElementById('music-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="onMusicDrop(event)">
+            <input type="file" id="music-file-input" accept="audio/mpeg,audio/wav,audio/mp4" onchange="onMusicFileChosen(event)">
+            Drop an MP3, or click to upload
+          </div>
+          <div id="music-status"></div>
+
+          <div class="field-label">Captions</div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="captions-toggle" checked onchange="onCaptionsToggle()">
+            <span class="toggle-slider"></span>
+          </label>
+          <span style="font-size:13px;color:var(--ink-sub);vertical-align:3px;margin-left:10px;">Burn in captions</span>
+
+          <div class="stage-cta">
+            <button class="btn btn-primary" onclick="activateStage('script')">Continue to Script →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Script stage -->
+      <div class="stage-pane" id="pane-script">
+        <div class="stage-content">
+          <div class="stage-title">Script</div>
+          <div class="stage-subtitle">Paste a voiceover script, or generate one from an idea.</div>
+          <div id="script-error" class="error-bar" style="display:none;"></div>
+
+          <div class="field-label">Voiceover script</div>
+          <textarea class="script-textarea" id="script-input" placeholder="Paste your script here…" oninput="onScriptInput()"></textarea>
+          <div class="script-meta">
+            <span id="word-count">0 words</span>
+            <span id="script-loaded-tag" style="display:none;color:var(--ink);">✓ loaded from artifact</span>
+          </div>
+
+          <div class="generate-section" style="margin-top:18px;">
+            <button class="generate-toggle" onclick="toggleGeneratePanel()">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,4 6,8 10,4"/></svg>
+              Generate from idea
+            </button>
+            <div class="generate-body" id="generate-body">
+              <div class="gen-row">
+                <div style="flex:2;min-width:220px;">
+                  <div class="gen-label">Idea / Title</div>
+                  <input class="gen-input" style="width:100%;" id="gen-idea" placeholder="Why starter homes disappeared from America" oninput="updateGenerateBtn()">
+                </div>
+                <div style="flex:1;min-width:160px;">
+                  <div class="gen-label">Niche (optional)</div>
+                  <input class="gen-input" style="width:100%;" id="gen-niche" placeholder="housing economics">
+                </div>
+              </div>
+              <div class="gen-label">Target duration</div>
+              <div class="duration-row">
+                <input type="range" id="gen-duration" min="30" max="180" step="15" value="90" oninput="document.getElementById('gen-duration-val').textContent=this.value+'s'">
+                <span class="duration-val" id="gen-duration-val">90s</span>
+              </div>
+              <button class="btn btn-secondary btn-sm" id="gen-btn" onclick="generateScript()" disabled>Generate script</button>
+              <span id="gen-status" class="running-msg" style="margin-left:10px;"></span>
+            </div>
+          </div>
+
+          <div class="stage-cta">
+            <button class="btn btn-primary" id="generate-vo-btn" onclick="generateVO()" disabled>Generate VO →</button>
+            <button class="btn btn-ghost" id="skip-vo-btn" onclick="createStoryboard()" disabled title="Skip voiceover — storyboard will use estimated timing">Skip VO</button>
+            <span id="script-stage-status" class="running-msg"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Voice stage -->
+      <div class="stage-pane" id="pane-voice">
+        <div class="stage-content">
+          <div class="stage-title">Voice</div>
+          <div class="stage-subtitle">Generate TTS voiceover and align word timestamps. Accurate timing requires this step before storyboard generation.</div>
+          <div id="voice-error" class="error-bar" style="display:none;"></div>
+          <div id="voice-content">
+            <div class="muted" style="font-size:13px;">No voiceover yet — generate VO from the Script stage.</div>
+          </div>
+          <div class="stage-cta" id="voice-cta" style="display:none;">
+            <button class="btn btn-primary" id="create-storyboard-btn2" onclick="createStoryboard()">Create Storyboard →</button>
+            <span id="voice-stage-status" class="running-msg"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Storyboard stage -->
+      <div class="stage-pane" id="pane-storyboard">
+        <div class="stage-content">
+          <div class="stage-title">Storyboard</div>
+          <div class="stage-subtitle">Scene-by-scene plan. Click a query or on-screen text cell to edit; use ✎ to override an asset.</div>
+          <div id="sb-error" class="error-bar" style="display:none;"></div>
+        </div>
+        <div class="stage-content wide" style="margin-top:0; padding-top:0;">
+          <div id="sb-content">
+            <div class="muted" style="font-size:13px;">No storyboard yet — create one in the Script stage.</div>
+          </div>
+          <div class="stage-cta" id="sb-cta" style="display:none;">
+            <button class="btn btn-primary" id="acquire-btn" onclick="acquireAssets()">Acquire Assets →</button>
+            <button class="btn btn-primary" id="go-render-btn" onclick="activateStage('render')" style="display:none;">Go to Render →</button>
+            <span id="sb-stage-status" class="running-msg"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Render stage -->
+      <div class="stage-pane" id="pane-render">
+        <div class="stage-content">
+          <div class="stage-title">Video</div>
+          <div class="stage-subtitle">Assemble scenes, voiceover, captions and music into final.mp4.</div>
+          <div id="render-error" class="error-bar" style="display:none;"></div>
+          <div id="render-content">
+            <div class="muted" style="font-size:13px;">No video yet — acquire assets first.</div>
+          </div>
+          <div class="stage-cta" id="render-cta">
+            <button class="btn btn-primary" id="render-btn" onclick="renderVideo()">Render Video →</button>
+            <span id="render-stage-status" class="running-msg"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Metadata stage -->
+      <div class="stage-pane" id="pane-metadata">
+        <div class="stage-content">
+          <div class="stage-title">Metadata</div>
+          <div class="stage-subtitle">Suggested title, description, tags and pinned comment for the upload.</div>
+          <div id="metadata-error" class="error-bar" style="display:none;"></div>
+          <div id="metadata-content">
+            <div class="muted" style="font-size:13px;">No metadata yet — generate it once the video is rendered.</div>
+          </div>
+          <div class="stage-cta" id="metadata-cta">
+            <button class="btn btn-primary" id="generate-metadata-btn" onclick="generateMetadata()">Generate metadata →</button>
+            <span id="metadata-stage-status" class="running-msg"></span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /.ws-body -->
+    </div><!-- /.ws-scroll -->
+  </div><!-- /.workspace -->
+</div><!-- /.main -->
+
+<!-- ── Pencil override modal ────────────────────────────────────────── -->
+<div class="modal-backdrop" id="pencil-modal" style="display:none;" onclick="if(event.target===this)closePencilModal()">
+  <div class="modal-box">
+    <div class="modal-header" id="pencil-modal-title">Scene — override asset</div>
+    <div class="modal-body">
+      <div>
+        <div class="modal-section-label">Search query</div>
+        <div class="modal-row">
+          <img id="pencil-thumb" class="modal-thumb" src="" alt="" style="display:none;">
+          <div id="pencil-thumb-placeholder" class="thumb-placeholder" style="width:84px;height:52px;flex-shrink:0;">no asset</div>
+          <input class="modal-input" id="pencil-query" placeholder="neurons synapse microscope" onkeydown="if(event.key==='Enter')reacquireScene()">
+          <button class="btn btn-secondary btn-sm" id="pencil-reacquire-btn" onclick="reacquireScene()">Re-acquire</button>
+        </div>
+        <div class="modal-msg" id="pencil-reacquire-msg"></div>
+      </div>
+      <div>
+        <div class="modal-section-label">Or upload a file</div>
+        <div class="drop-zone" id="pencil-dropzone" onclick="document.getElementById('pencil-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="onPencilDrop(event)">
+          <input type="file" id="pencil-file-input" accept="video/mp4,video/webm,image/jpeg,image/png,image/webp" onchange="onPencilFileChosen(event)">
+          Drop a file here, or click to browse<br>
+          <span style="font-size:11px;color:var(--faint);">MP4, WebM, JPG, PNG, WebP · max 200 MB</span>
+        </div>
+        <div class="modal-progress" id="pencil-progress-wrap" style="display:none;margin-top:8px;">
+          <div class="modal-progress-bar" id="pencil-progress-bar"></div>
+        </div>
+        <div class="modal-msg" id="pencil-upload-msg"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePencilModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Info panel (right drawer) ────────────────────────────────────── -->
+<div class="info-panel" id="info-panel">
+  <div class="info-panel-inner">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <h4 id="info-run-name">—</h4>
+      <button class="icon-btn" aria-label="Close panel" onclick="closeInfoPanel()" style="margin-top:-4px;">✕</button>
+    </div>
+    <div class="muted" style="font-family:var(--mono);font-size:10px;margin-bottom:14px;" id="info-run-id">—</div>
+    <div class="info-row"><span>Created</span><span id="info-created">—</span></div>
+    <div class="info-row"><span>Aspect ratio</span><span id="info-aspect">—</span></div>
+    <div class="info-row"><span>Cost so far</span><span id="info-cost">—</span></div>
+    <div class="muted" style="font-size:11px;margin-top:16px;">Full cost breakdown and logs land here later.</div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════
+//  DEMO MODE — ?demo=1 serves mock data so the full flow can be reviewed
+//  without a backend. Real deployments never hit this path.
+// ═══════════════════════════════════════════════════════════════════════
+const DEMO = new URLSearchParams(location.search).has('demo');
+
+const DEMO_SCRIPT = "In 1980, the average first home in America cost three times the median income. Today it costs seven. But this isn't just inflation — starter homes have physically vanished. In 1982, 40% of new construction was entry-level housing. By 2020, it was 7%. Builders didn't abandon small homes by accident. Zoning laws set minimum lot sizes. Permit fees became fixed costs that only pencil out on luxury builds. And the math is brutal: a builder pays the same $40,000 in fees whether the house sells for $200k or $800k. So the starter home didn't die of natural causes. It was regulated out of existence — one city council vote at a time.";
+
+const DEMO_SCENES = [
+  { scene: "1", duration_s: 6.2, scene_start_ms: 0,     voiceover_line: "In 1980, the average first home in America cost three times the median income.", segment_type: "B-roll",    asset_tier: "video", primary_stk: "suburban house 1980s archival", motion_effect: null,          on_screen_text: "1980: 3× income" },
+  { scene: "2", duration_s: 5.1, scene_start_ms: 6200,  voiceover_line: "Today it costs seven. But this isn't just inflation — starter homes have physically vanished.", segment_type: "Event",     asset_tier: "still", primary_stk: "modern expensive house for sale sign", motion_effect: "kenburns_in", on_screen_text: "2024: 7× income" },
+  { scene: "3", duration_s: 7.4, scene_start_ms: 11300, voiceover_line: "In 1982, 40% of new construction was entry-level housing. By 2020, it was 7%.", segment_type: "B-roll",    asset_tier: "still", primary_stk: "construction site framing timber", motion_effect: "kenburns_out", on_screen_text: "40% → 7%" },
+  { scene: "4", duration_s: 6.8, scene_start_ms: 18700, voiceover_line: "Builders didn't abandon small homes by accident. Zoning laws set minimum lot sizes.", segment_type: "Character", asset_tier: "video", primary_stk: "city council meeting zoning", motion_effect: null,          on_screen_text: null },
+  { scene: "5", duration_s: 7.9, scene_start_ms: 25500, voiceover_line: "Permit fees became fixed costs that only pencil out on luxury builds. A builder pays the same $40,000 in fees either way.", segment_type: "B-roll",    asset_tier: "still", primary_stk: "blueprint permit documents desk", motion_effect: "kenburns_in", on_screen_text: "$40,000 flat" },
+  { scene: "6", duration_s: 8.1, scene_start_ms: 33400, voiceover_line: "So the starter home didn't die of natural causes. It was regulated out of existence — one city council vote at a time.", segment_type: "Event",     asset_tier: "video", primary_stk: "empty lot suburban fence", motion_effect: null,          on_screen_text: "Regulated away" },
+];
+
+function demoManifest() {
+  return { entries: DEMO_SCENES.map((s, i) => ({
+    scene_id: s.scene, status: "acquired", qa_passed: true,
+    source: i % 3 === 0 ? "pexels" : i % 3 === 1 ? "wikimedia" : "pixabay",
+    asset_url: `https://picsum.photos/seed/cf${s.scene}/168/104`,
+    file_key: i % 3 === 0 ? `scene_${s.scene}.mp4` : `scene_${s.scene}.jpg`,
+    primary_stk: s.primary_stk,
+  })) };
+}
+
+const DEMO_VOICE = { mp3_url: "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3", total_duration_s: 41.5, word_count: 118, alignment_method: "deepgram_nova2" };
+const DEMO_VIDEO = { status: "complete", video_url: "https://www.w3schools.com/html/mov_bbb.mp4", duration_s: 41.5, scene_count: 6 };
+const DEMO_META  = { title: "Why Starter Homes Disappeared From America", description: "In 1982, 40% of new homes were entry-level. Today it's 7%. This is the story of how zoning laws and permit fees regulated the starter home out of existence.\n\nSources linked in pinned comment.", tags: ["housing crisis", "starter homes", "zoning laws", "housing economics", "real estate", "first time home buyer"] };
+
+let _demoRuns = [
+  { id: "d3f8a2c1-demo-4a1b-9c2d-000000000001", name: "Why starter homes disappeared", ts: Date.now() - 3600e3 * 26, progress: 6 },
+  { id: "b7e1c4d9-demo-4f2a-8b3c-000000000002", name: "The 40-year mortgage trap", ts: Date.now() - 3600e3 * 4, progress: 3 },
+];
+let _demoRenderPolls = 0;
+
+function demoResponse(body, status = 200, delay = 300) {
+  return new Promise(res => setTimeout(() =>
+    res(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })), delay));
+}
+
+function demoRoute(url, opts) {
+  const method = (opts?.method || 'GET').toUpperCase();
+  const u = String(url);
+  if (u.includes('/auth/logout')) return demoResponse({ ok: true }, 200, 100);
+  if (u.includes('/platform/blocks/idea-to-script')) {
+    const id = 'a1b2c3d4-demo-4e5f-8a9b-' + String(Date.now()).slice(-12).padStart(12, '0');
+    return demoResponse({ run_id: id, script: DEMO_SCRIPT, iterations: 2 }, 200, 1600);
+  }
+  if (u.includes('/platform/workers/voice'))       return demoResponse(DEMO_VOICE, 200, 2200);
+  if (u.includes('/platform/workers/storyboard'))  return demoResponse({ scene_count: 6 }, 200, 2400);
+  if (u.includes('/platform/workers/acquisition')) return demoResponse({ acquired: 6, failed: 0 }, 200, 2600);
+  if (u.includes('/platform/workers/render'))      { _demoRenderPolls = 0; return demoResponse({ queued: true }, 202, 400); }
+  if (u.includes('/platform/workers/metadata'))    return demoResponse(DEMO_META, 200, 1600);
+  if (u.includes('/render/status')) {
+    _demoRenderPolls++;
+    return demoResponse(_demoRenderPolls >= 2 ? DEMO_VIDEO : { status: 'running' }, 200, 250);
+  }
+  if (u.match(/\/scenes\/[^/]+\/reacquire/)) {
+    const sid = u.match(/\/scenes\/([^/]+)\//)[1];
+    return demoResponse({ preview_url: `https://picsum.photos/seed/re${sid}${Date.now() % 97}/168/104`, file_key: `scene_${sid}.jpg`, source: 'pexels', qa_passed: true }, 200, 1400);
+  }
+  if (u.match(/\/scenes\/[^/]+\/upload/)) {
+    const sid = u.match(/\/scenes\/([^/]+)\//)[1];
+    return demoResponse({ preview_url: `https://picsum.photos/seed/up${sid}/168/104`, file_key: `scene_${sid}_upload.jpg` }, 200, 1200);
+  }
+  if (method === 'PATCH' && u.includes('/storyboard/scenes/')) return demoResponse({ ok: true }, 200, 250);
+  if (u.includes('/music'))       return demoResponse({ file_key: 'runs/demo/music/track.mp3' }, 200, 900);
+  if (u.endsWith('/script'))      return demoResponse({ script: DEMO_SCRIPT }, 200, 250);
+  if (u.endsWith('/voice'))       return demoResponse(DEMO_VOICE, 200, 250);
+  if (u.endsWith('/storyboard'))  return demoResponse({ storyboard: { scenes: DEMO_SCENES, summary: { total_duration_s: 41.5 }, global: { visual_style: 'documentary', aspect_ratio: '9:16' } } }, 200, 300);
+  if (u.endsWith('/manifest'))    return demoResponse({ manifest: demoManifest() }, 200, 250);
+  if (u.endsWith('/video'))       return demoResponse(DEMO_VIDEO, 200, 250);
+  if (u.endsWith('/metadata'))    return demoResponse(DEMO_META, 200, 250);
+  return demoResponse({ detail: 'demo: not found' }, 404, 100);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════════════
+const STAGES = ['settings', 'script', 'voice', 'storyboard', 'render', 'metadata'];
+const STAGE_LABELS = { settings: 'Settings', script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Video', metadata: 'Metadata' };
+
+function defaultStageStatus() {
+  return { settings: 'idle', script: 'idle', voice: 'idle', storyboard: 'idle', render: 'idle', metadata: 'idle' };
+}
+function defaultStageData() {
+  return { settings: null, script: null, voice: null, storyboard: null, render: null, metadata: null };
+}
+function defaultSettings() {
+  return { aspectRatio: 'portrait', style: 'realistic', captions: true, musicKey: null };
+}
+
+let state = {
+  runId: null,
+  activeStage: 'settings',
+  stageStatus: defaultStageStatus(),
+  stageData: defaultStageData(),
+  settings: defaultSettings(),
+  autoConfirm: false,
+  manifestEntries: {},
+};
+
+// ── Auth / 401 intercept (and demo routing) ──────────────────────────────
+const _fetch = window.fetch;
+window.fetch = async (...args) => {
+  if (DEMO) {
+    const u = String(args[0]);
+    if (u.startsWith('/platform/') || u.startsWith('/auth/')) return demoRoute(args[0], args[1]);
+  }
+  const r = await _fetch(...args);
+  if (r.status === 401) window.location.href = '/login';
+  return r;
+};
+async function logOut() {
+  await fetch('/auth/logout', { method: 'POST' });
+  window.location.href = DEMO ? location.pathname + '?demo=1' : '/login';
+}
+
+// ── Sidebar fold ──────────────────────────────────────────────────────────
+function toggleSidebar() {
+  const collapsed = document.body.classList.toggle('sb-collapsed');
+  try { localStorage.setItem('studio_sidebar', collapsed ? 'collapsed' : 'open'); } catch { /* private mode */ }
+  document.getElementById('collapse-icon').innerHTML = collapsed
+    ? '<polyline points="9 18 15 12 9 6"/>' : '<polyline points="15 18 9 12 15 6"/>';
+  document.getElementById('collapse-btn').title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+}
+(function restoreSidebar() {
+  try {
+    if (localStorage.getItem('studio_sidebar') === 'collapsed') {
+      document.body.classList.add('sb-collapsed');
+      document.getElementById('collapse-icon').innerHTML = '<polyline points="9 18 15 12 9 6"/>';
+    }
+  } catch { /* private mode */ }
+})();
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function esc(v) {
+  return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.style.display = msg ? '' : 'none';
+}
+function hideErr(id) { showErr(id, ''); }
+function elapsed(start) {
+  const s = Math.round((Date.now() - start) / 1000);
+  return s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
+}
+function timeAgo(ts) {
+  if (!ts) return '';
+  const m = Math.round((Date.now() - ts) / 60000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  return d === 1 ? 'yesterday' : `${d}d ago`;
+}
+
+// ── Local storage run list ────────────────────────────────────────────────
+function getLocalRuns() {
+  if (DEMO) return _demoRuns;
+  try { return JSON.parse(localStorage.getItem('studio_runs') || '[]'); } catch { return []; }
+}
+function saveLocalRun(runId, fields) {
+  const doneCount = Object.values(state.stageStatus).filter(s => s === 'done').length;
+  if (DEMO) {
+    const idx = _demoRuns.findIndex(r => r.id === runId);
+    const existing = idx >= 0 ? _demoRuns[idx] : { id: runId, ts: Date.now() };
+    if (idx >= 0) _demoRuns.splice(idx, 1);
+    _demoRuns.unshift({ ...existing, ...fields, id: runId, progress: Math.max(existing.progress || 0, doneCount) });
+    renderRunList();
+    return;
+  }
+  const runs = getLocalRuns();
+  const idx = runs.findIndex(r => r.id === runId);
+  const existing = idx >= 0 ? runs[idx] : { id: runId, ts: Date.now() };
+  if (idx >= 0) runs.splice(idx, 1);
+  runs.unshift({ ...existing, ...fields, id: runId, progress: Math.max(existing.progress || 0, doneCount) });
+  localStorage.setItem('studio_runs', JSON.stringify(runs.slice(0, 20)));
+  renderRunList();
+}
+
+function renderRunList() {
+  const el = document.getElementById('run-list');
+  const countEl = document.getElementById('run-count');
+  const runs = getLocalRuns();
+  countEl.textContent = runs.length ? `${runs.length}` : '';
+
+  if (!runs.length) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-glyph">[ · · · ]</div>
+        <div class="empty-title">No runs yet</div>
+        <div class="empty-sub">Create your first run to start producing a video.</div>
+        <button class="btn-new-run-lg" onclick="newRun()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New run
+        </button>
+      </div>`;
+  } else {
+    el.innerHTML = runs.map(r => {
+      const label = esc((r.name || r.scriptPreview || r.id).slice(0, 60));
+      const prog = Math.min(r.progress || 0, STAGES.length);
+      const ticks = STAGES.map((_, i) => `<span class="prog-tick${i < prog ? ' on' : ''}"></span>`).join('');
+      return `<button class="run-row" onclick="loadRun('${esc(r.id)}')">
+        <div class="run-row-main">
+          <div class="run-row-name">${label}</div>
+          <div class="run-row-meta">
+            <span class="run-row-id">${esc(r.id.split('-')[0])}</span>
+            <span class="run-row-date">${esc(timeAgo(r.ts))}</span>
+          </div>
+        </div>
+        <div class="run-row-progress" title="${prog}/${STAGES.length} stages complete">${ticks}</div>
+        <svg class="run-row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>`;
+    }).join('');
+  }
+  renderSidebarRecent();
+}
+
+function renderSidebarRecent() {
+  const el = document.getElementById('sb-recent-list');
+  const runs = getLocalRuns().slice(0, 8);
+  el.innerHTML = runs.length
+    ? runs.map(r => {
+        const label = esc((r.name || r.scriptPreview || r.id.split('-')[0]).slice(0, 30));
+        const active = r.id === state.runId ? ' active' : '';
+        return `<button class="sb-run-link${active}" onclick="loadRun('${esc(r.id)}')" title="${label}">${label}</button>`;
+      }).join('')
+    : '<div class="muted" style="font-size:11px;padding:0 12px;">No runs yet</div>';
+}
+
+// ── Stage stepper ─────────────────────────────────────────────────────────
+function renderStageTrack() {
+  const el = document.getElementById('stage-track');
+  el.innerHTML = STAGES.map((s, i) => {
+    const st = state.stageStatus[s];
+    const active = s === state.activeStage ? ' active' : '';
+    const errCls = st === 'error' ? ' error' : '';
+    let marker;
+    if (st === 'done') {
+      marker = `<span class="step-marker done"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
+    } else if (st === 'running') {
+      marker = `<span class="step-marker running">${i + 1}</span>`;
+    } else if (st === 'error') {
+      marker = `<span class="step-marker error">!</span>`;
+    } else {
+      marker = `<span class="step-marker">${i + 1}</span>`;
+    }
+    const connDone = st === 'done' ? ' done' : '';
+    const connector = i < STAGES.length - 1 ? `<span class="stage-connector${connDone}"></span>` : '';
+    return `<button class="stage-pill${active}${errCls}" onclick="activateStage('${s}')">${marker}${esc(STAGE_LABELS[s])}</button>${connector}`;
+  }).join('');
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────
+function activateStage(stage) {
+  state.activeStage = stage;
+  document.querySelectorAll('.stage-pane').forEach(p => p.classList.remove('active'));
+  document.getElementById(`pane-${stage}`).classList.add('active');
+  renderStageTrack();
+  document.getElementById('ws-scroll').scrollTo(0, 0);
+  if (state.runId) {
+    history.replaceState(null, '', `#run/${state.runId}/${stage}` + (DEMO ? '?d' : ''));
+  }
+}
+
+// ── Landing / workspace switch ────────────────────────────────────────────
+function showLanding() {
+  document.getElementById('workspace').style.display = 'none';
+  document.getElementById('landing').style.display = '';
+  document.getElementById('info-panel').classList.remove('open');
+  document.getElementById('nav-runs').classList.add('active');
+  const lb = document.getElementById('log-btn'); if (lb) lb.classList.remove('active');
+  state.runId = null;
+  history.replaceState(null, '', location.pathname + (DEMO ? '?demo=1' : ''));
+  renderRunList();
+}
+
+function enterWorkspace(id, createdTs, name) {
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('workspace').style.display = '';
+  document.getElementById('nav-runs').classList.remove('active');
+  document.getElementById('ws-run-name').textContent = name || 'Untitled run';
+  document.getElementById('run-id-display').textContent = id.split('-')[0];
+  document.getElementById('run-id-display').title = id;
+  document.getElementById('auto-confirm-btn').classList.remove('active');
+  state.autoConfirm = false;
+  resetSettingsPane();
+  populateInfoPanel(id, createdTs);
+  renderSidebarRecent();
+}
+
+function resetSettingsPane() {
+  state.settings = defaultSettings();
+  setAspectRatio('portrait');
+  setStyle('realistic');
+  document.getElementById('captions-toggle').checked = true;
+  document.getElementById('music-status').innerHTML = '';
+}
+
+// ── Info panel ────────────────────────────────────────────────────────────
+function toggleInfoPanel() {
+  const panel = document.getElementById('info-panel');
+  panel.classList.toggle('open');
+  document.getElementById('log-btn').classList.toggle('active', panel.classList.contains('open'));
+}
+function closeInfoPanel() {
+  document.getElementById('info-panel').classList.remove('open');
+  document.getElementById('log-btn').classList.remove('active');
+}
+function populateInfoPanel(id, createdTs) {
+  document.getElementById('info-run-name').textContent = id.split('-')[0];
+  document.getElementById('info-run-id').textContent = id;
+  document.getElementById('info-created').textContent = createdTs ? new Date(createdTs).toLocaleString() : '—';
+  document.getElementById('info-aspect').textContent = state.settings.aspectRatio === 'landscape' ? '16:9' : '9:16';
+  document.getElementById('info-cost').textContent = '—';
+}
+
+// ── New run ───────────────────────────────────────────────────────────────
+function newRun() {
+  const id = uuid();
+  state.runId = id;
+  state.activeStage = 'settings';
+  state.stageStatus = defaultStageStatus();
+  state.stageData   = defaultStageData();
+  state.manifestEntries = {};
+
+  document.getElementById('script-input').value = '';
+  document.getElementById('word-count').textContent = '0 words';
+  document.getElementById('script-loaded-tag').style.display = 'none';
+  document.getElementById('generate-vo-btn').disabled = true;
+  document.getElementById('skip-vo-btn').disabled = true;
+  hideErr('script-error');
+
+  resetVoicePane();
+  resetStoryboardPane();
+  resetRenderPane();
+  resetMetadataPane();
+
+  const createdTs = Date.now();
+  enterWorkspace(id, createdTs);
+  saveLocalRun(id, {});
+  activateStage('settings');
+}
+
+// ── Load existing run ─────────────────────────────────────────────────────
+async function loadRun(id) {
+  state.runId = id;
+  state.activeStage = 'settings';
+  state.stageStatus = defaultStageStatus();
+  state.stageData   = defaultStageData();
+  state.manifestEntries = {};
+
+  const localEntry = getLocalRuns().find(r => r.id === id);
+  enterWorkspace(id, localEntry?.ts, localEntry?.name || localEntry?.scriptPreview);
+
+  resetVoicePane();
+  resetStoryboardPane();
+  resetRenderPane();
+  resetMetadataPane();
+  hideErr('script-error');
+  renderRunList();
+  activateStage('script');
+
+  // Try to load script artifact
+  try {
+    const r = await fetch(`/platform/studio/runs/${id}/script`);
+    if (r.ok) {
+      const data = await r.json();
+      const scriptText = data.script || '';
+      document.getElementById('script-input').value = scriptText;
+      onScriptInput();
+      document.getElementById('script-loaded-tag').style.display = '';
+      state.stageStatus.script = 'done';
+      state.stageData.script = scriptText;
+    }
+  } catch { /* ignore */ }
+
+  // Try to load voice artifact
+  try {
+    const r = await fetch(`/platform/studio/runs/${id}/voice`);
+    if (r.ok) {
+      const data = await r.json();
+      state.stageData.voice = data;
+      state.stageStatus.voice = 'done';
+      renderVoiceResult(data);
+    }
+  } catch { /* ignore */ }
+
+  // Try to load storyboard artifact
+  try {
+    const r = await fetch(`/platform/studio/runs/${id}/storyboard`);
+    if (r.ok) {
+      const data = await r.json();
+      state.stageData.storyboard = data;
+      state.stageStatus.storyboard = 'done';
+      renderStoryboard(data);
+    }
+  } catch { /* ignore */ }
+
+  // Try to load manifest artifact — inject thumbnails into storyboard table rows
+  try {
+    const r = await fetch(`/platform/studio/runs/${id}/manifest`);
+    if (r.ok) {
+      const data = await r.json();
+      _applyManifestToTable(data);
+    }
+  } catch { /* ignore */ }
+
+  // Try to load video URL
+  try {
+    const r = await fetch(`/platform/studio/runs/${id}/video`);
+    if (r.ok) {
+      const data = await r.json();
+      state.stageData.render = data;
+      state.stageStatus.render = 'done';
+      renderVideoResult(data);
+    }
+  } catch { /* ignore */ }
+
+  // Try to load metadata artifact
+  try {
+    const r = await fetch(`/platform/studio/runs/${id}/metadata`);
+    if (r.ok) {
+      const data = await r.json();
+      state.stageData.metadata = data;
+      state.stageStatus.metadata = 'done';
+      renderMetadataResult(data);
+    }
+  } catch { /* ignore */ }
+
+  renderStageTrack();
+  renderSidebarRecent();
+}
+
+// ── Auto-confirm ──────────────────────────────────────────────────────────
+function toggleAutoConfirm() {
+  state.autoConfirm = !state.autoConfirm;
+  document.getElementById('auto-confirm-btn').classList.toggle('active', state.autoConfirm);
+}
+
+// ── Settings stage ────────────────────────────────────────────────────────
+function setAspectRatio(val) {
+  state.settings.aspectRatio = val;
+  document.getElementById('opt-aspect-portrait').classList.toggle('active', val === 'portrait');
+  document.getElementById('opt-aspect-landscape').classList.toggle('active', val === 'landscape');
+  document.getElementById('info-aspect').textContent = val === 'landscape' ? '16:9' : '9:16';
+}
+
+function setStyle(val) {
+  state.settings.style = val;
+  document.getElementById('opt-style-realistic').classList.toggle('active', val === 'realistic');
+}
+
+function onCaptionsToggle() {
+  state.settings.captions = document.getElementById('captions-toggle').checked;
+}
+
+function onMusicDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('dragover');
+  const file = event.dataTransfer.files[0];
+  if (file) uploadMusicFile(file);
+}
+
+function onMusicFileChosen(event) {
+  const file = event.target.files[0];
+  if (file) uploadMusicFile(file);
+}
+
+async function uploadMusicFile(file) {
+  if (!state.runId) { alert('Create a new run first.'); return; }
+  const statusEl = document.getElementById('music-status');
+  statusEl.innerHTML = '<span class="muted" style="font-size:12px;">Uploading…</span>';
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const r = await fetch(`/platform/studio/runs/${state.runId}/music`, { method: 'POST', body: form });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      statusEl.innerHTML = `<span style="color:var(--red);font-size:12px;">${esc(err.detail || 'Upload failed')}</span>`;
+      return;
+    }
+    const data = await r.json();
+    state.settings.musicKey = data.file_key;
+    statusEl.innerHTML = `<span class="music-chip">${esc(file.name)}<button onclick="clearMusicUpload()" aria-label="Remove track">✕</button></span>`;
+  } catch (e) {
+    statusEl.innerHTML = `<span style="color:var(--red);font-size:12px;">Network error: ${esc(e.message)}</span>`;
+  }
+}
+
+function clearMusicUpload() {
+  // The uploaded track stays in R2 (overwritten by the next upload of the same
+  // format); this only clears the local chip — RenderWorker still falls back to
+  // the shared music library only when the run truly has no music file.
+  state.settings.musicKey = null;
+  document.getElementById('music-status').innerHTML = '';
+}
+
+// ── Script stage ──────────────────────────────────────────────────────────
+function onScriptInput() {
+  const val = document.getElementById('script-input').value.trim();
+  const words = val ? val.split(/\s+/).length : 0;
+  document.getElementById('word-count').textContent = `${words} word${words !== 1 ? 's' : ''}`;
+  document.getElementById('generate-vo-btn').disabled = !val;
+  document.getElementById('skip-vo-btn').disabled = !val;
+}
+
+function toggleGeneratePanel() {
+  const body = document.getElementById('generate-body');
+  body.classList.toggle('open');
+}
+
+function updateGenerateBtn() {
+  const val = document.getElementById('gen-idea').value.trim();
+  document.getElementById('gen-btn').disabled = !val;
+}
+
+async function generateScript() {
+  const idea = document.getElementById('gen-idea').value.trim();
+  if (!idea) return;
+  const niche = document.getElementById('gen-niche').value.trim() || undefined;
+  const duration = parseInt(document.getElementById('gen-duration').value, 10);
+
+  const btn = document.getElementById('gen-btn');
+  const status = document.getElementById('gen-status');
+  btn.disabled = true;
+  const start = Date.now();
+  const timer = setInterval(() => { status.textContent = `Running… ${elapsed(start)}`; }, 1000);
+  status.textContent = 'Running…';
+  hideErr('script-error');
+
+  try {
+    const body = { idea_title: idea, target_duration_seconds: duration };
+    if (niche) body.niche = niche;
+    const r = await fetch('/platform/blocks/idea-to-script', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    clearInterval(timer);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      showErr('script-error', err.detail || `Error ${r.status}`);
+      return;
+    }
+    const data = await r.json();
+    // Update run_id to the one the API generated (has lineage in DB)
+    const newRunId = data.run_id;
+    state.runId = newRunId;
+    document.getElementById('run-id-display').textContent = newRunId.split('-')[0];
+    document.getElementById('run-id-display').title = newRunId;
+    document.getElementById('ws-run-name').textContent = idea.slice(0, 40);
+    saveLocalRun(newRunId, { name: idea.slice(0, 40) });
+    renderRunList();
+
+    document.getElementById('script-input').value = data.script;
+    onScriptInput();
+    state.stageStatus.script = 'done';
+    state.stageData.script = data.script;
+    status.textContent = `✓ ${data.iterations} iteration${data.iterations !== 1 ? 's' : ''}`;
+    renderStageTrack();
+
+    if (state.autoConfirm) setTimeout(generateVO, 200);
+  } catch (e) {
+    clearInterval(timer);
+    showErr('script-error', `Network error: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function createStoryboard() {
+  if (!state.runId) { alert('Create a new run first.'); return; }
+  const script = document.getElementById('script-input').value.trim();
+  if (!script) { alert('Enter a script first.'); return; }
+
+  // Determine which trigger button and error zone to use depending on caller stage
+  const fromVoice = state.activeStage === 'voice';
+  const btn = document.getElementById(fromVoice ? 'create-storyboard-btn2' : 'skip-vo-btn');
+  const errId = fromVoice ? 'voice-error' : 'script-error';
+  const statusEl = document.getElementById(fromVoice ? 'voice-stage-status' : 'script-stage-status');
+  if (btn) btn.disabled = true;
+  state.stageStatus.storyboard = 'running';
+  hideErr(errId);
+  renderStageTrack();
+  activateStage('storyboard');
+
+  const start = Date.now();
+  const timer = setInterval(() => {
+    if (statusEl) statusEl.textContent = `Generating… ${elapsed(start)}`;
+  }, 1000);
+  if (statusEl) statusEl.textContent = 'Generating…';
+
+  try {
+    const r = await fetch('/platform/workers/storyboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId, script, format_track: state.settings.aspectRatio }),
+    });
+    clearInterval(timer);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      state.stageStatus.storyboard = 'error';
+      showErr(errId, err.detail || `Storyboard error ${r.status}`);
+      renderStageTrack();
+      return;
+    }
+    const meta = await r.json();
+    if (statusEl) statusEl.textContent = `✓ ${meta.scene_count} scenes (${elapsed(start)})`;
+    state.stageStatus.script = 'done';
+    state.stageData.script = script;
+
+    // Load the artifact content to display it
+    const sbR = await fetch(`/platform/studio/runs/${state.runId}/storyboard`);
+    if (sbR.ok) {
+      const sbData = await sbR.json();
+      state.stageData.storyboard = sbData;
+      state.stageStatus.storyboard = 'done';
+      renderStoryboard(sbData);
+    } else {
+      state.stageStatus.storyboard = 'done';
+      document.getElementById('sb-content').innerHTML = `<div class="muted">Storyboard generated (${meta.scene_count} scenes).</div>`;
+    }
+    renderStageTrack();
+    saveLocalRun(state.runId, { scriptPreview: script.slice(0, 40) });
+    if (state.autoConfirm) setTimeout(acquireAssets, 200);
+  } catch (e) {
+    clearInterval(timer);
+    state.stageStatus.storyboard = 'error';
+    showErr(errId, `Network error: ${e.message}`);
+    renderStageTrack();
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function generateVO() {
+  if (!state.runId) { alert('Create a new run first.'); return; }
+  const script = document.getElementById('script-input').value.trim();
+  if (!script) { alert('Enter a script first.'); return; }
+
+  const btn = document.getElementById('generate-vo-btn');
+  const skipBtn = document.getElementById('skip-vo-btn');
+  const statusEl = document.getElementById('script-stage-status');
+  btn.disabled = true;
+  skipBtn.disabled = true;
+  state.stageStatus.voice = 'running';
+  hideErr('script-error');
+  renderStageTrack();
+  activateStage('voice');
+
+  const start = Date.now();
+  document.getElementById('voice-content').innerHTML = `
+    <div class="render-running">
+      <span class="dot dot-running"></span>
+      <span id="vo-timer">Generating voiceover… 0s</span>
+    </div>`;
+  document.getElementById('voice-cta').style.display = 'none';
+  const timer = setInterval(() => {
+    const el = document.getElementById('vo-timer');
+    if (el) el.textContent = `Generating voiceover… ${elapsed(start)}`;
+  }, 1000);
+
+  try {
+    const r = await fetch('/platform/workers/voice', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId, script }),
+    });
+    clearInterval(timer);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      state.stageStatus.voice = 'error';
+      showErr('voice-error', err.detail || `Voice error ${r.status}`);
+      document.getElementById('voice-content').innerHTML = '';
+      renderStageTrack();
+      activateStage('script');
+      btn.disabled = false; skipBtn.disabled = false;
+      return;
+    }
+    const data = await r.json();
+    state.stageData.voice = data;
+    state.stageStatus.voice = 'done';
+    state.stageStatus.script = 'done';
+    state.stageData.script = script;
+    statusEl.textContent = `✓ VO ready (${elapsed(start)})`;
+    renderVoiceResult(data);
+    renderStageTrack();
+    saveLocalRun(state.runId, { scriptPreview: script.slice(0, 40) });
+    if (state.autoConfirm) setTimeout(createStoryboard, 200);
+  } catch (e) {
+    clearInterval(timer);
+    state.stageStatus.voice = 'error';
+    showErr('voice-error', `Network error: ${e.message}`);
+    document.getElementById('voice-content').innerHTML = '';
+    renderStageTrack();
+    activateStage('script');
+  } finally {
+    btn.disabled = false; skipBtn.disabled = false;
+  }
+}
+
+// ── Voice stage ───────────────────────────────────────────────────────────
+function resetVoicePane() {
+  document.getElementById('voice-content').innerHTML = '<div class="muted" style="font-size:13px;">No voiceover yet — generate VO from the Script stage.</div>';
+  document.getElementById('voice-cta').style.display = 'none';
+  hideErr('voice-error');
+}
+
+function renderVoiceResult(data) {
+  const dur = data.total_duration_s ? `${data.total_duration_s.toFixed(1)}s` : '—';
+  const words = data.word_count ?? '—';
+  const method = data.alignment_method || '';
+  const isDg = method.startsWith('deepgram');
+  const methodLabel = isDg ? 'Deepgram Nova-2' : method === 'proportional_fallback' ? 'Estimated (no Deepgram)' : method;
+  const methodCls = isDg ? 'voice-method deepgram' : 'voice-method';
+
+  let audioHtml = '';
+  if (data.mp3_url) {
+    audioHtml = `<audio controls src="${esc(data.mp3_url)}"></audio>`;
+  } else {
+    audioHtml = `<div class="muted" style="font-size:12px;">Audio key: ${esc(data.mp3_r2_key || '—')} (no presigned URL)</div>`;
+  }
+
+  document.getElementById('voice-content').innerHTML = `
+    <div class="voice-result">
+      ${audioHtml}
+      <div class="voice-stats">
+        <div class="voice-stat">Duration: <strong>${dur}</strong></div>
+        <div class="voice-stat">Words: <strong>${words}</strong></div>
+        <div class="voice-stat">Alignment: <span class="${methodCls}">${esc(methodLabel)}</span></div>
+      </div>
+    </div>`;
+  document.getElementById('voice-cta').style.display = '';
+  document.getElementById('create-storyboard-btn2').disabled = false;
+  hideErr('voice-error');
+}
+
+// ── Storyboard stage ──────────────────────────────────────────────────────
+function resetStoryboardPane() {
+  document.getElementById('sb-content').innerHTML = '<div class="muted" style="font-size:13px;">No storyboard yet — create one in the Script stage.</div>';
+  document.getElementById('sb-cta').style.display = 'none';
+  hideErr('sb-error');
+}
+
+function renderStoryboard(data) {
+  const scenes = data?.storyboard?.scenes || [];
+  const summary = data?.storyboard?.summary || {};
+  const global_ = data?.storyboard?.global || {};
+
+  // Prefer actual audio duration (voice_alignment) over storyboard word-span sum.
+  // The storyboard summary omits inter-scene silences; the audio duration is ground truth.
+  const totalDur = state.stageData.voiceAlignment?.total_duration_s || summary.total_duration_s || 0;
+  const durStr = totalDur >= 60
+    ? `${Math.floor(totalDur/60)}m ${Math.round(totalDur%60)}s`
+    : `${Math.round(totalDur)}s`;
+
+  const container = document.getElementById('sb-content');
+  container.innerHTML = `
+    <div class="sb-summary">
+      <div class="sb-stat"><strong>${scenes.length}</strong> scenes</div>
+      <div class="sb-stat"><strong>${durStr}</strong> total</div>
+      <div class="sb-stat"><strong>${esc(global_.visual_style || '—')}</strong> style</div>
+      <div class="sb-stat"><strong>${esc(global_.aspect_ratio || '—')}</strong></div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Dur</th>
+            <th>Voiceover</th>
+            <th>Type</th>
+            <th>Visual</th>
+            <th>Query</th>
+            <th>Motion</th>
+            <th>On-Screen Text</th>
+            <th>Preview</th>
+            <th style="width:32px;"></th>
+          </tr>
+        </thead>
+        <tbody id="sb-tbody">
+          ${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1], totalDur)).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.getElementById('sb-cta').style.display = '';
+  document.getElementById('acquire-btn').disabled = false;
+  hideErr('sb-error');
+}
+
+function buildSceneRow(s, nextScene, totalDur) {
+  const ro = s.render_options || {};
+  const segCls = s.segment_type === 'Character' ? 'seg-character' : s.segment_type === 'Event' ? 'seg-event' : 'seg-broll';
+  const sceneId = esc(s.scene);
+
+  // Display duration = gap-based (matches render): from this scene's first word to
+  // next scene's first word. Last scene extends to end of audio (includes trailing silence).
+  let displayDur = s.duration_s || 0;
+  if (nextScene && s.scene_start_ms != null && nextScene.scene_start_ms != null) {
+    displayDur = (nextScene.scene_start_ms - s.scene_start_ms) / 1000;
+  } else if (!nextScene && s.scene_start_ms != null) {
+    // For the last scene prefer voice-alignment total (includes inter-word gaps).
+    // summary.total_duration_s is word-span sum only and can be < scene_start_ms,
+    // producing a negative display duration. Fall back to scene_end_ms if totalDur
+    // is unreliable (smaller than the scene's own start time).
+    const vaTotal = state.stageData.voiceAlignment?.total_duration_s;
+    const reliableTotal = vaTotal || (totalDur > s.scene_start_ms / 1000 ? totalDur : null);
+    displayDur = reliableTotal
+      ? reliableTotal - s.scene_start_ms / 1000
+      : (s.scene_end_ms != null ? (s.scene_end_ms - s.scene_start_ms) / 1000 : displayDur);
+  }
+
+  // Visual badge from asset_tier (P9-S9) or clip_type fallback
+  let visCls = 'vis-still', visLabel = 'still·motion';
+  if (s.asset_tier === 'still') { visCls = 'vis-image'; visLabel = 'image'; }
+  else if (s.asset_tier === 'video') { visCls = 'vis-video'; visLabel = 'video'; }
+  else if (!s.asset_tier) {
+    if (s.clip_type === 'hard_cut') { visCls = 'vis-video'; visLabel = 'video'; }
+    else { visCls = 'vis-image'; visLabel = 'image'; }
+  }
+
+  const motionText = s.motion_effect
+    ? `<span style="font-size:10px;color:var(--muted);font-family:var(--mono);">${esc(s.motion_effect)}</span>`
+    : '<span class="muted">—</span>';
+
+  // OST: show text + small indicator if overlay is active
+  const ostHasOverlay = ro.on_screen_text_overlay;
+  const ostDisplay = s.on_screen_text
+    ? `<span>${esc(s.on_screen_text)}${ostHasOverlay ? '<span class="ost-icon">▶</span>' : ''}</span>`
+    : '<span class="muted">—</span>';
+
+  return `<tr data-scene="${sceneId}">
+    <td class="mono narrow">${sceneId}</td>
+    <td class="mono narrow">${displayDur.toFixed(1)}s</td>
+    <td class="wrap" style="max-width:220px;font-size:11px;color:var(--ink-sub);">${esc(s.voiceover_line || '')}</td>
+    <td class="narrow"><span class="seg-badge ${segCls}">${esc(s.segment_type || 'B-roll')}</span></td>
+    <td class="narrow"><span class="vis-badge ${visCls}">${visLabel}</span></td>
+    <td class="editable-cell" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Click to edit" style="font-size:11px;max-width:180px;">${esc(s.primary_stk || '—')}</td>
+    <td class="narrow">${motionText}</td>
+    <td class="editable-cell" id="ost-${sceneId}" onclick="editOst(this, '${sceneId}')" title="Click to edit">${ostDisplay}</td>
+    <td class="narrow" id="thumb-cell-${sceneId}" style="padding:4px 6px;">${buildThumbCell(sceneId)}</td>
+    <td class="narrow" style="padding:4px 2px;"><button class="pencil-btn" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" disabled title="Override asset">✎</button></td>
+  </tr>`;
+}
+
+// Inline editing — on-screen text
+let _editingOst = null;
+function editOst(cell, sceneId) {
+  if (_editingOst === sceneId) return;
+  _editingOst = sceneId;
+  const current = state.stageData.storyboard?.storyboard?.scenes?.find(s => s.scene === sceneId)?.on_screen_text || '';
+  cell.classList.add('editing');
+  cell.innerHTML = `<input class="cell-input" id="ost-input-${esc(sceneId)}" value="${esc(current)}" placeholder="—" onblur="saveOst('${esc(sceneId)}')" onkeydown="if(event.key==='Enter'){event.preventDefault();saveOst('${esc(sceneId)}')}">`;
+  document.getElementById(`ost-input-${sceneId}`)?.focus();
+}
+
+async function saveOst(sceneId) {
+  _editingOst = null;
+  const input = document.getElementById(`ost-input-${sceneId}`);
+  if (!input) return;
+  const val = input.value.trim();
+  const cell = document.getElementById(`ost-${sceneId}`);
+  cell.classList.remove('editing');
+  cell.innerHTML = val ? `<span>${esc(val)}</span>` : '<span class="muted">—</span>';
+  // Always send type alongside text so _apply_patches_and_render_options generates the overlay.
+  // If the type dropdown is still unset, default to 'stat' (most common overlay type).
+  const typeEl = document.getElementById(`osttype-${sceneId}`);
+  const currentType = typeEl?.value || null;
+  const fields = { on_screen_text: val || null };
+  if (val) fields.on_screen_text_type = currentType || 'stat';
+  else fields.on_screen_text_type = null;
+  await patchScene(sceneId, fields);
+}
+
+async function saveOstType(sceneId, val) {
+  // Re-send the current text too so both fields are patched atomically.
+  const currentText = state.stageData.storyboard?.storyboard?.scenes?.find(s => s.scene === sceneId)?.on_screen_text || null;
+  await patchScene(sceneId, { on_screen_text: currentText, on_screen_text_type: val || null });
+}
+
+// Inline editing — primary stock query
+let _editingStk = null;
+function editPrimaryStk(cell, sceneId) {
+  if (_editingStk === sceneId) return;
+  _editingStk = sceneId;
+  const current = state.stageData.storyboard?.storyboard?.scenes?.find(s => s.scene === sceneId)?.primary_stk || '';
+  cell.classList.add('editing');
+  cell.innerHTML = `<input class="cell-input" id="stk-input-${esc(sceneId)}" value="${esc(current)}" placeholder="search query" onblur="savePrimaryStk('${esc(sceneId)}')" onkeydown="if(event.key==='Enter'){event.preventDefault();savePrimaryStk('${esc(sceneId)}')}">`;
+  document.getElementById(`stk-input-${sceneId}`)?.focus();
+}
+
+async function savePrimaryStk(sceneId) {
+  _editingStk = null;
+  const input = document.getElementById(`stk-input-${sceneId}`);
+  if (!input) return;
+  const val = input.value.trim();
+  const cell = document.getElementById(`pstk-${sceneId}`);
+  cell.classList.remove('editing');
+  cell.textContent = val || '—';
+  await patchScene(sceneId, { primary_stk: val || undefined });
+}
+
+async function patchScene(sceneId, fields) {
+  if (!state.runId) return;
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/storyboard/scenes/${sceneId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      showErr('sb-error', `Patch failed: ${e.detail || r.status}`);
+      return;
+    }
+    // Refresh local storyboard data
+    const sbR = await fetch(`/platform/studio/runs/${state.runId}/storyboard`);
+    if (sbR.ok) state.stageData.storyboard = await sbR.json();
+  } catch (e) {
+    showErr('sb-error', `Patch error: ${e.message}`);
+  }
+}
+
+// ── Asset acquisition (inline in Storyboard pane) ─────────────────────────
+
+function buildThumbCell(sceneId) {
+  const entry = state.manifestEntries[String(sceneId)];
+  if (!entry || !entry.asset_url) {
+    return `<div class="thumb-placeholder" id="thumb-${esc(sceneId)}">—</div>`;
+  }
+  const isVideo = entry.file_key && /\.(mp4|webm|mov)$/i.test(entry.file_key);
+  const badge = `<span class="source-badge" style="display:block;margin-top:3px;width:fit-content;">${esc(entry.source || '—')}</span>`;
+  if (isVideo) {
+    return `<div class="thumb-video-wrap" id="thumb-${esc(sceneId)}">
+      <img class="scene-thumb" src="${esc(entry.asset_url)}" alt="" onerror="this.style.display='none'">
+      <div class="thumb-video-icon">▶</div>
+      ${badge}
+    </div>`;
+  }
+  return `<div id="thumb-${esc(sceneId)}">
+    <img class="scene-thumb" src="${esc(entry.asset_url)}" alt="" onerror="this.parentElement.innerHTML='<div class=\\'thumb-placeholder\\'>err</div>'">
+    ${badge}
+  </div>`;
+}
+
+function _applyManifestToTable(data) {
+  const entries = data?.manifest?.entries || data?.entries || [];
+  // Index entries by scene_id
+  entries.forEach(e => { state.manifestEntries[String(e.scene_id)] = e; });
+  // Update each thumb cell and enable pencil buttons
+  entries.forEach(e => {
+    const sid = String(e.scene_id);
+    const thumbCell = document.getElementById(`thumb-cell-${sid}`);
+    if (thumbCell) thumbCell.innerHTML = buildThumbCell(sid);
+    const pencilBtn = document.getElementById(`pencil-btn-${sid}`);
+    if (pencilBtn) pencilBtn.disabled = false;
+  });
+}
+
+async function acquireAssets() {
+  if (!state.runId) return;
+
+  const acquireBtn = document.getElementById('acquire-btn');
+  const goRenderBtn = document.getElementById('go-render-btn');
+  const statusEl = document.getElementById('sb-stage-status');
+  acquireBtn.disabled = true;
+  acquireBtn.textContent = 'Acquiring… (0 / ?)';
+  goRenderBtn.style.display = 'none';
+  hideErr('sb-error');
+  renderStageTrack();
+
+  const start = Date.now();
+
+  // Start polling manifest every 3s for live thumbnails while acquisition runs
+  const pollId = setInterval(async () => {
+    try {
+      const pr = await fetch(`/platform/studio/runs/${state.runId}/manifest`);
+      if (pr.ok) {
+        const pd = await pr.json();
+        _applyManifestToTable(pd);
+        const acquired = (pd?.manifest?.entries || pd?.entries || []).filter(e => e.status === 'acquired').length;
+        const total = (pd?.manifest?.entries || pd?.entries || []).length;
+        if (total) acquireBtn.textContent = `Acquiring… (${acquired} / ${total})`;
+      }
+    } catch { /* ignore */ }
+  }, 3000);
+
+  try {
+    const r = await fetch('/platform/workers/acquisition', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId }),
+    });
+    clearInterval(pollId);
+
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      showErr('sb-error', err.detail || `Acquisition error ${r.status}`);
+      acquireBtn.disabled = false;
+      acquireBtn.textContent = 'Acquire Assets →';
+      renderStageTrack();
+      return;
+    }
+    const meta = await r.json();
+
+    // Final manifest load
+    const mR = await fetch(`/platform/studio/runs/${state.runId}/manifest`);
+    if (mR.ok) {
+      const mData = await mR.json();
+      _applyManifestToTable(mData);
+    }
+
+    acquireBtn.textContent = 'Re-acquire All';
+    acquireBtn.disabled = false;
+    goRenderBtn.style.display = '';
+    statusEl.textContent = `✓ ${meta.acquired} acquired, ${meta.failed} failed (${elapsed(start)})`;
+    renderStageTrack();
+
+    if (state.autoConfirm) setTimeout(renderVideo, 200);
+  } catch (e) {
+    clearInterval(pollId);
+    showErr('sb-error', `Network error: ${e.message}`);
+    acquireBtn.disabled = false;
+    acquireBtn.textContent = 'Acquire Assets →';
+    renderStageTrack();
+  }
+}
+
+// ── Pencil modal ──────────────────────────────────────────────────────────
+let _pencilSceneId = null;
+
+function openPencilModal(sceneId) {
+  _pencilSceneId = String(sceneId);
+  const scene = state.stageData.storyboard?.storyboard?.scenes?.find(s => String(s.scene) === _pencilSceneId);
+  const entry = state.manifestEntries[_pencilSceneId];
+
+  document.getElementById('pencil-modal-title').textContent =
+    `Scene ${_pencilSceneId}${scene?.voiceover_line ? ' — ' + scene.voiceover_line.split(' ').slice(0, 6).join(' ') + '…' : ''}`;
+
+  // Pre-fill query
+  document.getElementById('pencil-query').value = entry?.primary_stk || scene?.primary_stk || '';
+
+  // Show current thumbnail
+  const thumbImg = document.getElementById('pencil-thumb');
+  const thumbPH  = document.getElementById('pencil-thumb-placeholder');
+  if (entry?.asset_url) {
+    thumbImg.src = entry.asset_url;
+    thumbImg.style.display = '';
+    thumbPH.style.display = 'none';
+  } else {
+    thumbImg.style.display = 'none';
+    thumbPH.style.display = '';
+  }
+
+  // Clear messages
+  document.getElementById('pencil-reacquire-msg').textContent = '';
+  document.getElementById('pencil-reacquire-msg').className = 'modal-msg';
+  document.getElementById('pencil-upload-msg').textContent = '';
+  document.getElementById('pencil-upload-msg').className = 'modal-msg';
+  document.getElementById('pencil-progress-wrap').style.display = 'none';
+  document.getElementById('pencil-progress-bar').style.width = '0%';
+  document.getElementById('pencil-file-input').value = '';
+  document.getElementById('pencil-dropzone').classList.remove('dragover');
+
+  document.getElementById('pencil-modal').style.display = '';
+}
+
+function closePencilModal() {
+  document.getElementById('pencil-modal').style.display = 'none';
+  _pencilSceneId = null;
+}
+
+async function reacquireScene() {
+  if (!_pencilSceneId || !state.runId) return;
+  const query = document.getElementById('pencil-query').value.trim();
+  if (!query) return;
+
+  const btn = document.getElementById('pencil-reacquire-btn');
+  const msg = document.getElementById('pencil-reacquire-msg');
+  btn.disabled = true;
+  btn.textContent = '…';
+  msg.textContent = '';
+  msg.className = 'modal-msg';
+
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/scenes/${_pencilSceneId}/reacquire`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      msg.textContent = e.detail || `Error ${r.status}`;
+      msg.className = 'modal-msg err';
+      return;
+    }
+    const data = await r.json();
+    // Refresh entry and thumbnail
+    if (data.preview_url) {
+      const entry = state.manifestEntries[_pencilSceneId] || {};
+      entry.asset_url = data.preview_url;
+      entry.file_key = data.file_key;
+      entry.source = data.source;
+      entry.qa_passed = data.qa_passed;
+      entry.primary_stk = query;
+      state.manifestEntries[_pencilSceneId] = entry;
+
+      const thumbCell = document.getElementById(`thumb-cell-${_pencilSceneId}`);
+      if (thumbCell) thumbCell.innerHTML = buildThumbCell(_pencilSceneId);
+
+      const thumbImg = document.getElementById('pencil-thumb');
+      const thumbPH  = document.getElementById('pencil-thumb-placeholder');
+      thumbImg.src = data.preview_url;
+      thumbImg.style.display = '';
+      thumbPH.style.display = 'none';
+    }
+    msg.textContent = '✓ Asset updated';
+    msg.className = 'modal-msg ok';
+  } catch (e) {
+    msg.textContent = `Network error: ${e.message}`;
+    msg.className = 'modal-msg err';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Re-acquire';
+  }
+}
+
+function onPencilDrop(event) {
+  event.preventDefault();
+  document.getElementById('pencil-dropzone').classList.remove('dragover');
+  const file = event.dataTransfer?.files?.[0];
+  if (file) _uploadPencilFile(file);
+}
+
+function onPencilFileChosen(event) {
+  const file = event.target.files?.[0];
+  if (file) _uploadPencilFile(file);
+}
+
+async function _uploadPencilFile(file) {
+  if (!_pencilSceneId || !state.runId) return;
+  const msg = document.getElementById('pencil-upload-msg');
+  const progressWrap = document.getElementById('pencil-progress-wrap');
+  const progressBar  = document.getElementById('pencil-progress-bar');
+  msg.textContent = '';
+  msg.className = 'modal-msg';
+
+  const MAX_BYTES = 200 * 1024 * 1024;
+  if (file.size > MAX_BYTES) {
+    msg.textContent = `File too large (${Math.round(file.size / 1024 / 1024)} MB). Max 200 MB.`;
+    msg.className = 'modal-msg err';
+    return;
+  }
+  const allowed = ['video/mp4','video/webm','image/jpeg','image/png','image/webp'];
+  if (!allowed.includes(file.type)) {
+    msg.textContent = `Unsupported type: ${file.type}. Allowed: MP4, WebM, JPG, PNG, WebP.`;
+    msg.className = 'modal-msg err';
+    return;
+  }
+
+  progressWrap.style.display = '';
+  progressBar.style.width = '20%';
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    progressBar.style.width = '60%';
+    const r = await fetch(`/platform/studio/runs/${state.runId}/scenes/${_pencilSceneId}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    progressBar.style.width = '100%';
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      msg.textContent = e.detail || `Upload error ${r.status}`;
+      msg.className = 'modal-msg err';
+      progressWrap.style.display = 'none';
+      return;
+    }
+    const data = await r.json();
+    if (data.preview_url) {
+      const entry = state.manifestEntries[_pencilSceneId] || {};
+      entry.asset_url = data.preview_url;
+      entry.file_key = data.file_key;
+      entry.source = 'operator_upload';
+      entry.qa_passed = true;
+      state.manifestEntries[_pencilSceneId] = entry;
+
+      const thumbCell = document.getElementById(`thumb-cell-${_pencilSceneId}`);
+      if (thumbCell) thumbCell.innerHTML = buildThumbCell(_pencilSceneId);
+    }
+    setTimeout(closePencilModal, 800);
+  } catch (e) {
+    msg.textContent = `Network error: ${e.message}`;
+    msg.className = 'modal-msg err';
+    progressWrap.style.display = 'none';
+  }
+}
+
+// ── Render stage ──────────────────────────────────────────────────────────
+function resetRenderPane() {
+  document.getElementById('render-content').innerHTML = '<div class="muted" style="font-size:13px;">No video yet — acquire assets first.</div>';
+  hideErr('render-error');
+}
+
+// ── Metadata stage ────────────────────────────────────────────────────────
+function resetMetadataPane() {
+  document.getElementById('metadata-content').innerHTML = '<div class="muted" style="font-size:13px;">No metadata yet — generate it once the video is rendered.</div>';
+  hideErr('metadata-error');
+}
+
+async function generateMetadata() {
+  if (!state.runId) return;
+  const btn = document.getElementById('generate-metadata-btn');
+  const statusEl = document.getElementById('metadata-stage-status');
+  btn.disabled = true;
+  hideErr('metadata-error');
+  activateStage('metadata');
+  statusEl.textContent = 'Generating…';
+
+  try {
+    const r = await fetch('/platform/workers/metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run_id: state.runId }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      statusEl.textContent = '';
+      showErr('metadata-error', err.detail || `Metadata error ${r.status}`);
+      return;
+    }
+    const data = await r.json();
+    state.stageData.metadata = data;
+    state.stageStatus.metadata = 'done';
+    renderMetadataResult(data);
+    renderStageTrack();
+    statusEl.textContent = '✓ generated';
+    saveLocalRun(state.runId, {});
+  } catch (e) {
+    showErr('metadata-error', `Network error: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderMetadataResult(data) {
+  const tags = (data.tags || []).map(t => `<span class="meta-tag">${esc(t)}</span>`).join('');
+  document.getElementById('metadata-content').innerHTML = `
+    <div class="field-label">Suggested title</div>
+    <input class="gen-input" style="width:100%;margin-bottom:18px;" id="meta-title" value="${esc(data.title || '')}">
+    <div class="field-label">Suggested description</div>
+    <textarea class="script-textarea" style="min-height:90px;margin-bottom:18px;" id="meta-description">${esc(data.description || '')}</textarea>
+    <div class="field-label">Tags</div>
+    <div style="margin-bottom:18px;">${tags || '<span class="muted" style="font-size:12px;">none</span>'}</div>
+    <div class="field-label">Pinned comment</div>
+    <textarea class="script-textarea" style="min-height:50px;margin-bottom:18px;" id="meta-pinned-comment">Sources for every stat in this video are linked below.</textarea>
+    <button class="btn btn-primary" disabled title="Connect a channel in Settings to enable uploads">Upload to channel</button>
+    <div class="muted" style="font-size:11px;margin-top:8px;">Connect a channel in Settings to enable uploads.</div>`;
+  hideErr('metadata-error');
+}
+
+async function renderVideo() {
+  if (!state.runId) return;
+
+  const btn = document.getElementById('render-btn');
+  btn.disabled = true;
+  state.stageStatus.render = 'running';
+  hideErr('render-error');
+  renderStageTrack();
+  activateStage('render');
+
+  const start = Date.now();
+  document.getElementById('render-content').innerHTML = `
+    <div class="render-running">
+      <span class="dot dot-running"></span>
+      <span id="render-timer">Rendering… 0s</span>
+    </div>`;
+  const timerInterval = setInterval(() => {
+    const el = document.getElementById('render-timer');
+    if (el) el.textContent = `Rendering… ${elapsed(start)}`;
+  }, 1000);
+
+  try {
+    // Enqueue render — returns 202 immediately
+    const r = await fetch('/platform/workers/render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        run_id: state.runId,
+        format_track: state.settings.aspectRatio,
+        captions: state.settings.captions,
+      }),
+    });
+    if (!r.ok) {
+      clearInterval(timerInterval);
+      const err = await r.json().catch(() => ({}));
+      state.stageStatus.render = 'error';
+      showErr('render-error', err.detail || `Render error ${r.status}`);
+      document.getElementById('render-content').innerHTML = '';
+      renderStageTrack();
+      btn.disabled = false;
+      return;
+    }
+
+    // Poll /render/status until complete or error (FFmpeg runs in background)
+    const pollInterval = 4000;
+    const maxPolls = 150; // 10 minutes max
+    let polls = 0;
+    const poll = setInterval(async () => {
+      polls++;
+      try {
+        const sr = await fetch(`/platform/studio/runs/${state.runId}/render/status`);
+        if (!sr.ok) return; // transient — keep polling
+        const sd = await sr.json();
+        if (sd.status === 'complete') {
+          clearInterval(poll);
+          clearInterval(timerInterval);
+          state.stageData.render = sd;
+          state.stageStatus.render = 'done';
+          renderVideoResult(sd);
+          renderStageTrack();
+          saveLocalRun(state.runId, {});
+          btn.disabled = false;
+          if (state.autoConfirm) setTimeout(generateMetadata, 200);
+        } else if (sd.status === 'error') {
+          clearInterval(poll);
+          clearInterval(timerInterval);
+          state.stageStatus.render = 'error';
+          showErr('render-error', sd.error || 'Render failed — check Railway logs.');
+          document.getElementById('render-content').innerHTML = '';
+          renderStageTrack();
+          btn.disabled = false;
+        } else if (polls >= maxPolls) {
+          clearInterval(poll);
+          clearInterval(timerInterval);
+          state.stageStatus.render = 'error';
+          showErr('render-error', 'Render timed out after 10 minutes.');
+          document.getElementById('render-content').innerHTML = '';
+          renderStageTrack();
+          btn.disabled = false;
+        }
+      } catch (_) { /* network blip — keep polling */ }
+    }, DEMO ? 800 : pollInterval);
+
+  } catch (e) {
+    clearInterval(timerInterval);
+    state.stageStatus.render = 'error';
+    showErr('render-error', `Network error: ${e.message}`);
+    document.getElementById('render-content').innerHTML = '';
+    renderStageTrack();
+    btn.disabled = false;
+  }
+}
+
+function renderVideoResult(data) {
+  const url = data.video_url;
+  const dur = data.duration_s != null ? `${data.duration_s.toFixed(1)}s` : '—';
+  const sc = data.scene_count != null ? data.scene_count : '—';
+
+  document.getElementById('render-content').innerHTML = `
+    <div class="video-wrap">
+      <video controls src="${esc(url)}"></video>
+    </div>
+    <div class="video-actions">
+      <a href="${esc(url)}" download class="btn btn-secondary btn-sm">Download MP4</a>
+    </div>
+    <div class="render-stats">
+      <div class="render-stat">Duration: <strong>${dur}</strong></div>
+      <div class="render-stat">Scenes: <strong>${sc}</strong></div>
+    </div>`;
+  hideErr('render-error');
+}
+
+// ── URL hash routing ──────────────────────────────────────────────────────
+function parseHash() {
+  const hash = location.hash.slice(1);
+  const m = hash.match(/^run\/([^/?]+)(?:\/(\w+))?/);
+  if (m) return { runId: m[1], stage: m[2] || 'script' };
+  return null;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+(async function init() {
+  if (DEMO) {
+    const b = document.createElement('div');
+    b.className = 'demo-banner';
+    b.textContent = 'DEMO MODE — mock data, no backend';
+    document.body.appendChild(b);
+  }
+  document.getElementById('nav-runs').classList.add('active');
+  renderRunList();
+  renderStageTrack();
+
+  const parsed = parseHash();
+  if (parsed && parsed.runId) {
+    await loadRun(parsed.runId);
+    if (parsed.stage && STAGES.includes(parsed.stage)) activateStage(parsed.stage);
+  }
+})();
+</script>
+</body>
+</html>

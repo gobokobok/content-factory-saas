@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Factory — Sign in</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #FAFAFA;
+      --surface:     #FFFFFF;
+      --border:      #E7E7E9;
+      --ink:         #121215;
+      --ink-sub:     #55555C;
+      --muted:       #8B8B92;
+      --faint:       #B4B4BA;
+      --accent:      #2E45EC;
+      --accent-h:    #1F33C9;
+      --accent-ring: rgba(46, 69, 236, 0.28);
+      --red:         #D92D20;
+      --font: 'Schibsted Grotesk', system-ui, sans-serif;
+      --mono: 'Fragment Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--ink);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh; gap: 28px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .brand {
+      display: flex; align-items: center; gap: 11px;
+      animation: fadeUp 0.4s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+    }
+    .brand-mark {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: var(--ink); position: relative;
+    }
+    .brand-mark::after {
+      content: ""; position: absolute; width: 10px; height: 10px;
+      border-radius: 50%; background: var(--accent); right: 6px; bottom: 6px;
+    }
+    .brand-name { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+    .brand-name span { color: var(--muted); font-weight: 500; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 36px;
+      width: 380px; max-width: calc(100vw - 32px);
+      box-shadow: 0 2px 16px rgba(18, 18, 21, 0.05);
+      animation: fadeUp 0.4s 0.06s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+    }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    .card h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .card p  { font-size: 13px; color: var(--muted); margin-bottom: 26px; }
+
+    label {
+      display: block; font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--ink-sub); margin-bottom: 8px;
+    }
+
+    input[type="password"] {
+      width: 100%; padding: 10px 14px; font-size: 14px; font-family: var(--font);
+      border: 1px solid var(--border); border-radius: 6px; outline: none;
+      background: var(--surface); color: var(--ink);
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    input[type="password"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+
+    .error { font-size: 13px; color: var(--red); margin-top: 10px; min-height: 18px; }
+
+    button[type="submit"] {
+      width: 100%; margin-top: 16px; padding: 11px;
+      background: var(--accent); color: #fff;
+      font-family: var(--font); font-size: 14px; font-weight: 600;
+      border: none; border-radius: 6px; cursor: pointer;
+      transition: background 0.15s;
+    }
+    button[type="submit"]:hover:not(:disabled) { background: var(--accent-h); }
+    button[type="submit"]:disabled { opacity: 0.6; cursor: default; }
+
+    .foot {
+      font-family: var(--mono); font-size: 10px; color: var(--faint);
+      letter-spacing: 0.08em;
+      animation: fadeUp 0.4s 0.12s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <div class="brand-name">Content Factory <span>Studio</span></div>
+  </div>
+
+  <div class="card">
+    <h1>Sign in</h1>
+    <p>Enter your operator password to continue.</p>
+    <form id="loginForm">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" autofocus required>
+      <div class="error" id="errorMsg"></div>
+      <button type="submit" id="submitBtn">Sign in</button>
+    </form>
+  </div>
+
+  <div class="foot">OPERATOR CONSOLE</div>
+
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('submitBtn');
+      const err = document.getElementById('errorMsg');
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+      err.textContent = '';
+
+      try {
+        const res = await fetch('/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+        if (res.ok) {
+          window.location.href = '/';
+        } else {
+          err.textContent = 'Incorrect password. Please try again.';
+          document.getElementById('password').value = '';
+          document.getElementById('password').focus();
+        }
+      } catch {
+        err.textContent = 'Network error. Please try again.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
+    });
+  </script>
+</body>
+</html>
