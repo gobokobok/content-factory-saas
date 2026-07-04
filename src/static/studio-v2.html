@@ -237,6 +237,32 @@
     .pill-toggle .pt-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.4; }
     .pill-toggle.active .pt-dot { opacity: 1; }
 
+    .run-menu-wrap { position: relative; }
+    .run-menu-btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; border-radius: var(--r-sm);
+      background: none; border: 1px solid var(--border); cursor: pointer;
+      color: var(--muted); transition: color 0.12s, border-color 0.12s, background 0.12s;
+    }
+    .run-menu-btn:hover { color: var(--ink); border-color: var(--faint); background: var(--surface); }
+    .run-menu-dropdown {
+      display: none; position: absolute; top: calc(100% + 6px); right: 0;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; box-shadow: 0 4px 16px rgba(18,18,21,0.10);
+      min-width: 160px; z-index: 200; overflow: hidden;
+    }
+    .run-menu-dropdown.open { display: block; }
+    .run-menu-item {
+      display: flex; align-items: center; gap: 8px;
+      width: 100%; padding: 10px 14px; background: none; border: none;
+      font-family: var(--font); font-size: 13px; font-weight: 500;
+      cursor: pointer; text-align: left; color: var(--ink);
+      transition: background 0.1s;
+    }
+    .run-menu-item:hover { background: var(--bg); }
+    .run-menu-item.danger { color: var(--red); }
+    .run-menu-item.danger:hover { background: #FEF2F2; }
+
     /* ── Stage stepper ───────────────────────────────────────────────── */
     .ws-scroll { flex: 1; overflow-y: auto; min-width: 0; }
     .stepper-outer { flex-shrink: 0; padding: 16px 40px 14px; }
@@ -643,6 +669,17 @@
         <span class="pt-dot"></span> Auto-advance
       </button>
       <button class="pill-toggle" id="log-btn" aria-label="Run details" onclick="toggleInfoPanel()">Details</button>
+      <div class="run-menu-wrap" id="run-menu-wrap">
+        <button class="run-menu-btn" id="run-menu-btn" aria-label="Run options" onclick="toggleRunMenu(event)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+        <div class="run-menu-dropdown" id="run-menu-dropdown">
+          <button class="run-menu-item danger" onclick="deleteRun()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            Delete run
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="ws-scroll" id="ws-scroll">
@@ -1171,6 +1208,37 @@ function resetSettingsPane() {
 }
 
 // ── Info panel ────────────────────────────────────────────────────────────
+function toggleRunMenu(e) {
+  e.stopPropagation();
+  document.getElementById('run-menu-dropdown').classList.toggle('open');
+}
+document.addEventListener('click', () => {
+  document.getElementById('run-menu-dropdown')?.classList.remove('open');
+});
+
+async function deleteRun() {
+  document.getElementById('run-menu-dropdown').classList.remove('open');
+  const name = document.getElementById('ws-run-name').textContent || 'this run';
+  if (!confirm(`Delete "${name}" and all its assets? This cannot be undone.`)) return;
+
+  const id = state.runId;
+  try {
+    const r = await fetch(`/runs/${id}`, { method: 'DELETE' });
+    if (!r.ok && r.status !== 404) {
+      alert('Failed to delete run. Please try again.');
+      return;
+    }
+  } catch {
+    alert('Network error. Please try again.');
+    return;
+  }
+
+  // Remove from local run list and navigate back
+  const stored = getLocalRuns().filter(r => r.id !== id);
+  localStorage.setItem('cf_runs', JSON.stringify(stored));
+  showLanding();
+}
+
 function toggleInfoPanel() {
   const panel = document.getElementById('info-panel');
   panel.classList.toggle('open');
