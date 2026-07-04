@@ -685,7 +685,7 @@
           <span style="font-size:13px;color:var(--ink-sub);vertical-align:3px;margin-left:10px;">Burn in captions</span>
 
           <div class="stage-cta">
-            <button class="btn btn-primary" onclick="activateStage('script')">Continue to Script →</button>
+            <button class="btn btn-primary" onclick="state.stageStatus.settings='done';renderStageTrack();activateStage('script');">Continue to Script →</button>
           </div>
         </div>
       </div>
@@ -2133,14 +2133,14 @@ async function generateMetadata() {
 }
 
 function renderMetadataResult(data) {
-  const tags = (data.tags || []).map(t => `<span class="meta-tag">${esc(t)}</span>`).join('');
+  const tagsValue = (data.tags || []).join(', ');
   document.getElementById('metadata-content').innerHTML = `
     <div class="field-label">Suggested title</div>
     <input class="gen-input" style="width:100%;margin-bottom:18px;" id="meta-title" value="${esc(data.title || '')}">
     <div class="field-label">Suggested description</div>
     <textarea class="script-textarea" style="min-height:90px;margin-bottom:18px;" id="meta-description">${esc(data.description || '')}</textarea>
     <div class="field-label">Tags</div>
-    <div style="margin-bottom:18px;">${tags || '<span class="muted" style="font-size:12px;">none</span>'}</div>
+    <input class="gen-input" style="width:100%;margin-bottom:18px;" id="meta-tags" value="${esc(tagsValue)}">
     <div class="field-label">Pinned comment</div>
     <textarea class="script-textarea" style="min-height:50px;margin-bottom:18px;" id="meta-pinned-comment">Sources for every stat in this video are linked below.</textarea>
     <button class="btn btn-primary" disabled title="Connect a channel in Settings to enable uploads">Upload to channel</button>
