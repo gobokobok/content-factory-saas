@@ -32,7 +32,7 @@
     /* ── Left panel ─────────────────────────────────────────────────── */
     .left-panel {
       width: 180px; flex-shrink: 0; background: var(--bg-alt); border-right: 1px solid var(--border);
-      display: flex; flex-direction: column; padding: 16px 10px; gap: 2px;
+      display: flex; flex-direction: column; justify-content: center; padding: 16px 10px; gap: 2px;
     }
     .left-panel-btn {
       display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 6px;
@@ -52,7 +52,7 @@
     .landing {
       flex: 1; overflow-y: auto; padding-top: 20vh;
     }
-    .landing-col { max-width: 480px; margin: 0 auto; padding: 0 24px; }
+    .landing-col { width: 60%; max-width: 760px; margin: 0 auto; padding: 0 24px; }
     .btn-new-run {
       display: block; margin: 0 auto 22px; padding: 9px 20px; border: none;
       background: var(--blue); color: #fff; border-radius: 6px; font-family: var(--font);
@@ -72,26 +72,28 @@
 
     /* ── Pipeline header row ────────────────────────────────────────── */
     .pipe-row-outer {
-      display: flex; justify-content: center; flex-shrink: 0; padding: 20vh 28px 0;
+      flex-shrink: 0; padding: 20vh 28px 0 64px;
     }
     .pipe-row {
-      display: flex; align-items: center; width: 100%; max-width: 760px;
+      display: flex; align-items: center; width: fit-content;
     }
-    .pipe-row .stage-track { flex: 1; justify-content: center; padding: 0; border-bottom: none; }
-    .pipe-row-right { display: flex; align-items: center; gap: 12px; flex-shrink: 0; margin-left: 20px; }
-    .auto-confirm-wrap-row {
-      display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); white-space: nowrap;
-    }
+    .pipe-row .stage-track { padding: 0; border-bottom: none; }
     .icon-btn {
       width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border);
       background: var(--bg-card); display: flex; align-items: center; justify-content: center;
       cursor: pointer; color: var(--text-sub); font-size: 13px; flex-shrink: 0;
     }
     .icon-btn:hover { color: var(--text); border-color: #d8d4d2; }
-    .pipe-divider { border-bottom: 1px solid var(--border); max-width: 760px; margin: 20px auto 0; }
+    .pipe-controls-row { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+    .tag-btn {
+      border: 1px solid var(--border); background: var(--bg-card); color: var(--muted);
+      font-size: 11px; font-family: var(--font); padding: 4px 10px; border-radius: 12px; cursor: pointer;
+    }
+    .tag-btn:hover { color: var(--text); border-color: #d8d4d2; }
+    .tag-btn.active { border-color: var(--blue); color: var(--blue); background: #eaf1ff; }
 
     /* ── Stage content width (Settings/Script/Voice/Video/Metadata) ──── */
-    .stage-content { width: 80%; max-width: 900px; margin: 0 auto; }
+    .stage-content { width: 50%; min-width: 480px; max-width: 900px; margin: 0; }
 
     /* ── Info panel (overlay, does not shift the main layout) ────────── */
     .info-panel {
@@ -119,6 +121,7 @@
     .music-dropzone {
       border: 1.5px dashed var(--border); border-radius: 6px; padding: 16px;
       text-align: center; color: var(--muted); font-size: 12px; cursor: pointer;
+      max-width: 260px;
     }
     .music-dropzone:hover { border-color: var(--blue); color: var(--blue); }
     .music-dropzone input { display: none; }
@@ -139,7 +142,7 @@
       font-size: 11px; padding: 4px 9px; border-radius: 12px; margin: 0 6px 6px 0; }
 
     /* ── Workspace (nav + panes scroll together as one column) ───────── */
-    .workspace { flex: 1; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; }
+    .workspace { flex: 1; display: flex; flex-direction: column; overflow: auto; }
 
     .logout-btn {
       background: transparent; border: none; cursor: pointer; color: var(--muted);
@@ -166,7 +169,7 @@
     .stage-connector { flex: 1; height: 1px; background: var(--border); margin: 0 14px; min-width: 20px; }
 
     /* ── Stage pane ─────────────────────────────────────────────────── */
-    .stage-pane { display: none; padding: 28px 28px 60px; }
+    .stage-pane { display: none; padding: 28px 28px 60px 64px; }
     .stage-pane.active { display: block; }
 
     .stage-title { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
@@ -197,14 +200,15 @@
     /* ── Status dots ────────────────────────────────────────────────── */
     .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
     .dot-idle    { border: 1.5px solid #d1d5db; background: transparent; }
-    .dot-running { border: 1.5px dashed #9ca3af; background: transparent; animation: spin 1s linear infinite; }
+    .dot-running { background: var(--amber); animation: pulse 1s ease-in-out infinite; }
     .dot-done    { background: var(--green); }
     .dot-error   { background: var(--red); }
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
     /* ── Script stage ───────────────────────────────────────────────── */
     .script-area { max-width: 680px; }
-    .field-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .field-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; margin-top: 24px; }
+    .field-label:first-child { margin-top: 0; }
     .script-textarea {
       width: 100%; padding: 12px 14px; border: 1px solid var(--border);
       border-radius: 5px; font-family: var(--font); font-size: 13px; color: var(--text);
@@ -399,14 +403,11 @@
 <body>
 
 <div class="left-panel">
-  <button class="left-panel-btn" onclick="showLanding()">
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="7,1 2,6 7,11"/></svg>
-    All runs
+  <button class="left-panel-btn" onclick="showLanding()">All runs</button>
+  <button class="left-panel-btn" onclick="logOut()">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5;flex-shrink:0;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+    Log out
   </button>
-  <div class="left-panel-spacer"></div>
-  <button class="left-panel-btn disabled" disabled title="Coming soon">Global settings</button>
-  <button class="left-panel-btn disabled" disabled title="Coming soon">User settings</button>
-  <button class="left-panel-btn" onclick="logOut()">Log out</button>
 </div>
 
 <div class="main">
@@ -428,30 +429,20 @@
     <div class="pipe-row-outer">
       <div class="pipe-row">
         <nav class="stage-track" id="stage-track"><!-- rendered by JS --></nav>
-        <div class="pipe-row-right">
-          <div class="auto-confirm-wrap-row" title="Automatically advance to the next stage after each completes">
-            <label class="toggle-switch">
-              <input type="checkbox" id="auto-confirm" onchange="onAutoConfirmChange()">
-              <span class="toggle-slider"></span>
-            </label>
-            <span>Auto-advance</span>
-          </div>
-          <button class="icon-btn" aria-label="Run info" onclick="toggleInfoPanel()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="0.6" fill="currentColor"/></svg>
-          </button>
-        </div>
+      </div>
+      <div class="pipe-controls-row">
+        <button class="tag-btn" id="auto-confirm-btn" title="Automatically advance to the next stage after each completes" onclick="toggleAutoConfirm()">Auto-advance</button>
+        <button class="tag-btn" id="log-btn" aria-label="Log" onclick="toggleInfoPanel()">Log</button>
       </div>
     </div>
-    <div class="pipe-divider"></div>
     <span id="run-id-display" style="display:none;">—</span>
 
     <!-- Settings stage -->
     <div class="stage-pane active" id="pane-settings">
       <div class="stage-content">
         <div class="stage-title">Settings</div>
-        <div class="stage-subtitle">Aspect ratio, style, background music and captions — set once before the pipeline runs.</div>
 
-        <div class="field-label" style="margin-top:8px;">Aspect ratio</div>
+        <div class="field-label">Aspect ratio</div>
         <div class="settings-opt-row" style="margin-bottom:20px;">
           <button class="settings-opt active" id="opt-aspect-portrait" onclick="setAspectRatio('portrait')">9:16 Portrait</button>
           <button class="settings-opt" id="opt-aspect-landscape" onclick="setAspectRatio('landscape')">16:9 Landscape</button>
@@ -462,15 +453,13 @@
           <button class="settings-opt active" id="opt-style-realistic" onclick="setStyle('realistic')">Realistic</button>
           <button class="settings-opt disabled" disabled title="Coming soon">Animated <span class="settings-soon">Soon</span></button>
         </div>
-        <div class="muted" style="font-size:11px;margin-bottom:20px;">Animated will use generated images instead of stock footage.</div>
 
-        <div class="field-label">Background music</div>
+        <div class="field-label" style="margin-top:20px;">Background music</div>
         <div class="music-dropzone" id="music-dropzone" onclick="document.getElementById('music-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="onMusicDrop(event)">
           <input type="file" id="music-file-input" accept="audio/mpeg,audio/wav,audio/mp4" onchange="onMusicFileChosen(event)">
           Drop an MP3, or click to upload
         </div>
         <div id="music-status"></div>
-        <div class="muted" style="font-size:11px;margin:8px 0 20px;">If no track is uploaded, the shared music library supplies a default.</div>
 
         <div class="field-label">Captions</div>
         <label class="toggle-switch">
@@ -720,9 +709,12 @@ function elapsed(start) {
 function getLocalRuns() {
   try { return JSON.parse(localStorage.getItem('studio_runs') || '[]'); } catch { return []; }
 }
-function saveLocalRun(runId, label) {
-  const runs = getLocalRuns().filter(r => r.id !== runId);
-  runs.unshift({ id: runId, label: label || runId, ts: Date.now() });
+function saveLocalRun(runId, fields) {
+  const runs = getLocalRuns();
+  const idx = runs.findIndex(r => r.id === runId);
+  const existing = idx >= 0 ? runs[idx] : { id: runId, ts: Date.now() };
+  if (idx >= 0) runs.splice(idx, 1);
+  runs.unshift({ ...existing, ...fields, id: runId });
   localStorage.setItem('studio_runs', JSON.stringify(runs.slice(0, 20)));
   renderRunList();
 }
@@ -734,7 +726,7 @@ function renderRunList() {
     return;
   }
   el.innerHTML = runs.map(r => {
-    const label = r.label && r.label !== r.id ? esc(r.label.slice(0, 40)) : esc(r.id);
+    const label = esc((r.name || r.scriptPreview || r.id).slice(0, 40));
     return `<div class="run-entry" onclick="loadRun('${esc(r.id)}')">
       <span>${label}</span>
       <span class="run-entry-id">${esc(r.id.split('-')[0])}…</span>
@@ -747,7 +739,8 @@ function renderStageTrack() {
   const el = document.getElementById('stage-track');
   el.innerHTML = STAGES.map((s, i) => {
     const st = state.stageStatus[s];
-    const icon = st === 'done' ? '✓' : st === 'error' ? '✕' : st === 'running' ? '<span class="dot dot-running"></span>' : '○';
+    const dotCls = st === 'done' ? 'dot-done' : st === 'error' ? 'dot-error' : st === 'running' ? 'dot-running' : 'dot-idle';
+    const icon = `<span class="dot ${dotCls}"></span>`;
     const pillCls = st === 'running' ? ' running' : st === 'done' ? ' done' : st === 'error' ? ' error' : '';
     const active = s === state.activeStage ? ' active' : '';
     const connector = i < STAGES.length - 1 ? '<span class="stage-connector"></span>' : '';
@@ -775,6 +768,7 @@ function showLanding() {
   document.getElementById('workspace').style.display = 'none';
   document.getElementById('landing').style.display = '';
   document.getElementById('info-panel').classList.remove('open');
+  const lb = document.getElementById('log-btn'); if (lb) lb.classList.remove('active');
   state.runId = null;
   history.replaceState(null, '', '#');
   renderRunList();
@@ -784,7 +778,7 @@ function enterWorkspace(id, createdTs) {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('workspace').style.display = '';
   document.getElementById('run-id-display').textContent = id;
-  document.getElementById('auto-confirm').checked = false;
+  document.getElementById('auto-confirm-btn').classList.remove('active');
   state.autoConfirm = false;
   resetSettingsPane();
   populateInfoPanel(id, createdTs);
@@ -800,10 +794,13 @@ function resetSettingsPane() {
 
 // ── Info panel ──────────────────────────────────────────────────────────────────
 function toggleInfoPanel() {
-  document.getElementById('info-panel').classList.toggle('open');
+  const panel = document.getElementById('info-panel');
+  panel.classList.toggle('open');
+  document.getElementById('log-btn').classList.toggle('active', panel.classList.contains('open'));
 }
 function closeInfoPanel() {
   document.getElementById('info-panel').classList.remove('open');
+  document.getElementById('log-btn').classList.remove('active');
 }
 function populateInfoPanel(id, createdTs) {
   document.getElementById('info-run-name').textContent = id.split('-')[0];
@@ -836,7 +833,7 @@ function newRun() {
 
   const createdTs = Date.now();
   enterWorkspace(id, createdTs);
-  saveLocalRun(id, id);
+  saveLocalRun(id, {});
   activateStage('settings');
 }
 
@@ -930,8 +927,9 @@ async function loadRun(id) {
 }
 
 // ── Auto-confirm ──────────────────────────────────────────────────────────────
-function onAutoConfirmChange() {
-  state.autoConfirm = document.getElementById('auto-confirm').checked;
+function toggleAutoConfirm() {
+  state.autoConfirm = !state.autoConfirm;
+  document.getElementById('auto-confirm-btn').classList.toggle('active', state.autoConfirm);
 }
 
 // ── Settings stage ────────────────────────────────────────────────────────────
@@ -1044,7 +1042,7 @@ async function generateScript() {
     const newRunId = data.run_id;
     state.runId = newRunId;
     document.getElementById('run-id-display').textContent = newRunId;
-    saveLocalRun(newRunId, idea.slice(0, 40));
+    saveLocalRun(newRunId, { name: idea.slice(0, 40) });
     renderRunList();
 
     document.getElementById('script-input').value = data.script;
@@ -1116,7 +1114,7 @@ async function createStoryboard() {
       document.getElementById('sb-content').innerHTML = `<div class="muted">Storyboard generated (${meta.scene_count} scenes).</div>`;
     }
     renderStageTrack();
-    saveLocalRun(state.runId, script.split(/\s+/).slice(0, 6).join(' '));
+    saveLocalRun(state.runId, { scriptPreview: script.slice(0, 40) });
     if (state.autoConfirm) setTimeout(acquireAssets, 200);
   } catch (e) {
     clearInterval(timer);
@@ -1180,7 +1178,7 @@ async function generateVO() {
     statusEl.textContent = `✓ VO ready (${elapsed(start)})`;
     renderVoiceResult(data);
     renderStageTrack();
-    saveLocalRun(state.runId, script.split(/\s+/).slice(0, 6).join(' '));
+    saveLocalRun(state.runId, { scriptPreview: script.slice(0, 40) });
     if (state.autoConfirm) setTimeout(createStoryboard, 200);
   } catch (e) {
     clearInterval(timer);
