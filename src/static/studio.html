@@ -645,7 +645,10 @@
 
 <div class="info-panel" id="info-panel">
   <div class="info-panel-inner">
-    <h4 id="info-run-name">—</h4>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+      <h4 id="info-run-name">—</h4>
+      <button class="icon-btn" aria-label="Close panel" onclick="closeInfoPanel()" style="margin-top:-4px;">✕</button>
+    </div>
     <div class="muted" style="font-family:var(--mono);font-size:10px;" id="info-run-id">—</div>
     <div class="info-row"><span>Created</span><span id="info-created">—</span></div>
     <div class="info-row"><span>Aspect ratio</span><span id="info-aspect">—</span></div>
@@ -798,6 +801,9 @@ function resetSettingsPane() {
 // ── Info panel ──────────────────────────────────────────────────────────────────
 function toggleInfoPanel() {
   document.getElementById('info-panel').classList.toggle('open');
+}
+function closeInfoPanel() {
+  document.getElementById('info-panel').classList.remove('open');
 }
 function populateInfoPanel(id, createdTs) {
   document.getElementById('info-run-name').textContent = id.split('-')[0];
