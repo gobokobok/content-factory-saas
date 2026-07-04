@@ -26,7 +26,6 @@ from src.routes import tts as tts_router
 _AUTH_EXEMPT_PATHS = {
     "/health",
     "/login",
-    "/login/v2",
     "/auth/login",
     "/auth/logout",
     "/platform/telegram/webhook",
@@ -159,35 +158,20 @@ async def auth_middleware(request: Request, call_next):
 
 @app.get("/", include_in_schema=False)
 def studio_ui() -> FileResponse:
-    """Serve the Studio UI (step-by-step run management) — the primary operator UI."""
-    return FileResponse(
-        _STATIC_DIR / "studio.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
-
-
-@app.get("/studio", include_in_schema=False)
-def studio_ui_alias() -> FileResponse:
-    """Alias for / — kept for bookmarked links to the Studio UI."""
-    return FileResponse(
-        _STATIC_DIR / "studio.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
-
-
-@app.get("/v2", include_in_schema=False)
-def studio_v2_ui() -> FileResponse:
-    """Serve the Studio v2 UI (monochrome redesign, approval preview)."""
+    """Serve the Studio UI."""
     return FileResponse(
         _STATIC_DIR / "studio-v2.html",
         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
     )
 
 
-@app.get("/login/v2", include_in_schema=False)
-def login_v2_page() -> FileResponse:
-    """Serve the redesigned login page (matches Studio v2 design)."""
-    return FileResponse(_STATIC_DIR / "login-v2.html")
+@app.get("/studio", include_in_schema=False)
+def studio_ui_alias() -> FileResponse:
+    """Alias for /."""
+    return FileResponse(
+        _STATIC_DIR / "studio-v2.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )
 
 
 @app.get("/legacy", include_in_schema=False)
@@ -202,7 +186,7 @@ def legacy_pipeline_ui() -> FileResponse:
 @app.get("/login", include_in_schema=False)
 def login_page() -> FileResponse:
     """Serve the login page."""
-    return FileResponse(_STATIC_DIR / "login.html")
+    return FileResponse(_STATIC_DIR / "login-v2.html")
 
 
 @app.get("/health")
