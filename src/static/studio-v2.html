@@ -1234,8 +1234,12 @@ async function deleteRun() {
   }
 
   // Remove from local run list and navigate back
-  const stored = getLocalRuns().filter(r => r.id !== id);
-  localStorage.setItem('cf_runs', JSON.stringify(stored));
+  if (DEMO) {
+    const idx = _demoRuns.findIndex(r => r.id === id);
+    if (idx >= 0) _demoRuns.splice(idx, 1);
+  } else {
+    localStorage.setItem('studio_runs', JSON.stringify(getLocalRuns().filter(r => r.id !== id)));
+  }
   showLanding();
 }
 
