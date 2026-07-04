@@ -153,7 +153,7 @@
 
     /* ── Landing (Runs page) ─────────────────────────────────────────── */
     .landing { flex: 1; overflow-y: auto; }
-    .landing-inner { max-width: 1200px; margin: 0; padding: 48px 40px 80px 40px; }
+    .landing-inner { max-width: 760px; margin: 0; padding: 64px 40px 80px 40px; }
     .landing-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 28px; }
     .landing-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
     .landing-count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
@@ -258,6 +258,7 @@
       transition: all 0.15s;
     }
     .stage-pill.active .step-marker { border-color: var(--ink); color: var(--ink); }
+    .stage-pill.active .step-marker.done { background: var(--ink); color: #fff; }
     .step-marker.done { background: var(--ink); border-color: var(--ink); color: #fff; }
     .step-marker.running {
       border-color: var(--accent); color: var(--accent);
@@ -273,7 +274,7 @@
 
     /* ── Stage panes ─────────────────────────────────────────────────── */
     .ws-body { flex: 1; }
-    .stage-pane { display: none; padding: 32px 40px 96px 40px; }
+    .stage-pane { display: none; padding: 56px 40px 96px 40px; }
     .stage-pane.active { display: block; animation: paneIn 0.25s cubic-bezier(0.2, 0.7, 0.3, 1); }
     @keyframes paneIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
@@ -287,6 +288,7 @@
       margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border2);
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     }
+    #sb-cta { border-top: none; padding-top: 0; margin-top: 16px; }
     .running-msg { font-size: 12px; color: var(--muted); font-family: var(--mono); }
 
     /* ── Cards / fields ──────────────────────────────────────────────── */
@@ -781,7 +783,7 @@
             <div class="muted" style="font-size:13px;">No video yet — acquire assets first.</div>
           </div>
           <div class="stage-cta" id="render-cta">
-            <button class="btn btn-primary" id="render-btn" onclick="renderVideo()">Render Video →</button>
+            <button class="btn btn-primary" id="render-btn" onclick="renderVideo()" disabled>Render Video →</button>
             <span id="render-stage-status" class="running-msg"></span>
           </div>
         </div>
@@ -1230,7 +1232,7 @@ async function loadRun(id) {
   resetMetadataPane();
   hideErr('script-error');
   renderRunList();
-  activateStage('script');
+  activateStage('settings');
 
   // Try to load script artifact
   try {
@@ -1623,16 +1625,16 @@ function renderStoryboard(data) {
   // The storyboard summary omits inter-scene silences; the audio duration is ground truth.
   const totalDur = state.stageData.voiceAlignment?.total_duration_s || summary.total_duration_s || 0;
   const durStr = totalDur >= 60
-    ? `${Math.floor(totalDur/60)}m ${Math.round(totalDur%60)}s`
-    : `${Math.round(totalDur)}s`;
+    ? `${Math.floor(totalDur/60)}m ${(totalDur%60).toFixed(1)}s`
+    : `${totalDur.toFixed(1)}s`;
 
   const container = document.getElementById('sb-content');
   container.innerHTML = `
     <div class="sb-summary">
       <div class="sb-stat"><strong>${scenes.length}</strong> scenes</div>
       <div class="sb-stat"><strong>${durStr}</strong> total</div>
-      <div class="sb-stat"><strong>${esc(global_.visual_style || '—')}</strong> style</div>
-      <div class="sb-stat"><strong>${esc(global_.aspect_ratio || '—')}</strong></div>
+      <div class="sb-stat"><strong id="sb-stat-acq">0</strong> / ${scenes.length} acquired</div>
+      <div class="sb-stat" id="sb-stat-fail-wrap" style="display:none;"><strong id="sb-stat-fail">0</strong> failed</div>
     </div>
     <div class="tbl-wrap">
       <table>
@@ -1684,7 +1686,7 @@ function buildSceneRow(s, nextScene, totalDur) {
   }
 
   // Visual badge from asset_tier (P9-S9) or clip_type fallback
-  let visCls = 'vis-still', visLabel = 'still·motion';
+  let visCls = 'vis-image', visLabel = 'image';
   if (s.asset_tier === 'still') { visCls = 'vis-image'; visLabel = 'image'; }
   else if (s.asset_tier === 'video') { visCls = 'vis-video'; visLabel = 'video'; }
   else if (!s.asset_tier) {
@@ -1828,6 +1830,18 @@ function _applyManifestToTable(data) {
     const pencilBtn = document.getElementById(`pencil-btn-${sid}`);
     if (pencilBtn) pencilBtn.disabled = false;
   });
+  // Update acquired/failed summary stats
+  const acquired = entries.filter(e => e.status === 'acquired').length;
+  const failed = entries.filter(e => e.status === 'failed' || e.status === 'error').length;
+  const acqEl = document.getElementById('sb-stat-acq');
+  if (acqEl) acqEl.textContent = acquired;
+  const failEl = document.getElementById('sb-stat-fail');
+  if (failEl) failEl.textContent = failed;
+  const failWrap = document.getElementById('sb-stat-fail-wrap');
+  if (failWrap) failWrap.style.display = failed > 0 ? '' : 'none';
+  // Enable render button once at least one asset is acquired
+  const renderBtn = document.getElementById('render-btn');
+  if (renderBtn && acquired > 0) renderBtn.disabled = false;
 }
 
 async function acquireAssets() {
