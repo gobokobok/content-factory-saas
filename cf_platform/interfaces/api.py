@@ -443,28 +443,86 @@ class StoryboardWorkerRequest(BaseModel):
 
 
 class StoryboardWorkerResponse(BaseModel):
-    """Response body for POST /platform/workers/storyboard."""
+    """202 response body for POST /platform/workers/storyboard (accepted — runs async)."""
 
-    artifact_key: str
-    scene_count: int
-    prompt_version: str
+    status: str = "accepted"
+    run_id: str
 
 
-@router.post("/workers/storyboard", response_model=StoryboardWorkerResponse)
+async def _run_storyboard_background(
+    run_id: str,
+    job_id: str,
+    state: StageState,
+    worker: Any,
+    storage: ArtifactStorage,
+) -> None:
+    """Background task: generates storyboard and updates storyboard/current_job.json."""
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+
+    job_key = f"runs/{run_id}/storyboard/current_job.json"
+    try:
+        output = await worker(state)
+        result_artifact = output.artifact
+        if not isinstance(result_artifact, VerifiedStoryboardArtifact):
+            raise RuntimeError(f"StoryboardWorker returned unexpected type: {type(result_artifact)}")
+
+        storyboard_lineage = LineageEnvelope(
+            run_id=run_id,
+            worker="storyboard_worker",
+            worker_version=STORYBOARD_WORKER_REGISTRATION.worker_version,
+            prompt_version=STORYBOARD_WORKER_REGISTRATION.prompt_version,
+            model=STORYBOARD_WORKER_REGISTRATION.model,
+            created_at=datetime.now(),
+        )
+        storyboard_record = await write_artifact(
+            storage,
+            result_artifact,
+            name="verified_storyboard",
+            stage="storyboard",
+            run_id=run_id,
+            user_id=_PLATFORM_USER_ID,
+            lineage=storyboard_lineage,
+        )
+
+        # Invalidate stale asset_manifest so Studio sees 0/0 counts after a re-generate.
+        old_manifest_key = await _latest_artifact_key(storage, run_id, "acquisition", "asset_manifest")
+        if old_manifest_key:
+            try:
+                await storage.put_json(old_manifest_key, {"run_id": run_id, "entries": []})
+            except Exception:
+                pass
+
+        await storage.put_json(job_key, {
+            "job_id": job_id,
+            "status": "complete",
+            "artifact_key": storyboard_record.r2_key,
+            "scene_count": result_artifact.scene_count,
+            "prompt_version": result_artifact.prompt_version,
+        })
+        _logger.info("StoryboardWorker background task complete for run %s (%d scenes)", run_id, result_artifact.scene_count)
+    except Exception as exc:
+        _logger.exception("StoryboardWorker background task failed for run %s: %s", run_id, exc)
+        try:
+            await storage.put_json(job_key, {"job_id": job_id, "status": "error", "error": str(exc)})
+        except Exception:
+            pass
+
+
+@router.post("/workers/storyboard", response_model=StoryboardWorkerResponse, status_code=202)
 async def storyboard_worker_endpoint(
     body: StoryboardWorkerRequest,
+    background_tasks: BackgroundTasks,
     storage: ArtifactStorage = Depends(get_artifact_storage),
     settings: PlatformSettings = Depends(get_platform_settings),
 ) -> StoryboardWorkerResponse:
-    """Generate a verified storyboard from a script text.
+    """Enqueue storyboard generation (returns 202 immediately).
 
-    Runs the full generate→review→patch internal cycle (prompt v0.12).
-    Designed for future step-by-step manual UI and standalone testing.
-
-    The script body is written as a temporary artifact at a known key so the
-    worker can read it via the standard ArtifactStorage interface. The resulting
-    VerifiedStoryboardArtifact is persisted to R2 and its key returned.
+    Writes the script artifact synchronously, resolves any existing voice_alignment,
+    then hands off the Claude generate→review→patch cycle to a background task.
+    Poll GET /platform/studio/runs/{run_id}/storyboard/status for progress.
     """
+    import uuid as _uuid_mod
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
@@ -494,7 +552,6 @@ async def storyboard_worker_endpoint(
         lineage=script_lineage,
     )
 
-    # Pick up voice alignment if the Voice stage has already run — gives accurate per-scene timing
     state_artifacts: dict[str, str] = {"script": script_record.r2_key}
     va_key = await _latest_artifact_key(storage, body.run_id, "voice", "voice_alignment")
     if va_key:
@@ -508,44 +565,15 @@ async def storyboard_worker_endpoint(
         inputs={"format_track": body.format_track},
         artifacts=state_artifacts,
     )
-    output = await worker(state)
-    result_artifact = output.artifact
-    if not isinstance(result_artifact, VerifiedStoryboardArtifact):
-        raise HTTPException(status_code=500, detail="StoryboardWorker returned unexpected artifact type")
 
-    storyboard_lineage = LineageEnvelope(
-        run_id=body.run_id,
-        worker="storyboard_worker",
-        worker_version=STORYBOARD_WORKER_REGISTRATION.worker_version,
-        prompt_version=STORYBOARD_WORKER_REGISTRATION.prompt_version,
-        model=STORYBOARD_WORKER_REGISTRATION.model,
-        created_at=datetime.now(),
+    job_id = str(_uuid_mod.uuid4())
+    await storage.put_json(
+        f"runs/{body.run_id}/storyboard/current_job.json",
+        {"job_id": job_id, "status": "running"},
     )
-    storyboard_record = await write_artifact(
-        storage,
-        result_artifact,
-        name="verified_storyboard",
-        stage="storyboard",
-        run_id=body.run_id,
-        user_id=_PLATFORM_USER_ID,
-        lineage=storyboard_lineage,
-    )
-
-    # Invalidate stale asset_manifest from a previous storyboard run, if any.
-    # Overwrites in place so the Studio sees 0/0 rather than stale acquired/failed counts.
-    old_manifest_key = await _latest_artifact_key(storage, body.run_id, "acquisition", "asset_manifest")
-    if old_manifest_key:
-        try:
-            await storage.put_json(old_manifest_key, {"run_id": body.run_id, "entries": []})
-            _logger.info("Invalidated stale asset_manifest for run %s", body.run_id)
-        except Exception:
-            _logger.warning("Could not invalidate asset_manifest for run %s", body.run_id)
-
-    return StoryboardWorkerResponse(
-        artifact_key=storyboard_record.r2_key,
-        scene_count=result_artifact.scene_count,
-        prompt_version=result_artifact.prompt_version,
-    )
+    background_tasks.add_task(_run_storyboard_background, body.run_id, job_id, state, worker, storage)
+    _logger.info("StoryboardWorker background task enqueued for run %s job %s", body.run_id, job_id)
+    return StoryboardWorkerResponse(status="accepted", run_id=body.run_id)
 
 
 class MetadataWorkerRequest(BaseModel):
@@ -1037,6 +1065,29 @@ async def studio_get_storyboard(
         raise HTTPException(status_code=404, detail="No storyboard artifact found for this run.")
     _, body = await read_artifact(storage, key)
     return body
+
+
+@router.get("/studio/runs/{run_id}/storyboard/status")
+async def studio_get_storyboard_status(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Poll storyboard generation progress. Returns {status: running|complete|error}."""
+    job_key = f"runs/{run_id}/storyboard/current_job.json"
+    try:
+        job = await storage.get_json(job_key)
+        if job:
+            if job.get("status") == "complete":
+                return {
+                    "status": "complete",
+                    "scene_count": job.get("scene_count", 0),
+                    "prompt_version": job.get("prompt_version", ""),
+                }
+            if job.get("status") == "error":
+                return {"status": "error", "error": job.get("error", "Storyboard generation failed")}
+    except Exception:
+        pass
+    return {"status": "running"}
 
 
 @router.get("/studio/runs/{run_id}/manifest")
