@@ -537,6 +537,7 @@ class VideoSettings(BaseModel):
     ] = "Realistic"
     subtitles: Literal["none", "TikTok", "Classic"] = "TikTok"
     audio: AudioSettings = Field(default_factory=AudioSettings)
+    subject: str = ""
 
 
 class VideoSettingsResponse(BaseModel):

@@ -721,8 +721,11 @@
           </label>
           <span style="font-size:13px;color:var(--ink-sub);vertical-align:3px;margin-left:10px;">Burn in captions</span>
 
+          <div class="field-label" style="margin-top:20px;">Run subject <span style="font-size:12px;font-weight:400;color:var(--ink-sub);">— used by auto-advance to generate the script (default 90s)</span></div>
+          <input class="gen-input" style="width:100%;box-sizing:border-box;" id="settings-subject" placeholder="e.g. Why starter homes disappeared from America" oninput="onSubjectInput()">
+
           <div class="stage-cta">
-            <button class="btn btn-primary" onclick="state.stageStatus.settings='done';renderStageTrack();activateStage('script');">Continue to Script →</button>
+            <button class="btn btn-primary" onclick="onSettingsContinue()">Continue to Script →</button>
           </div>
         </div>
       </div>
@@ -759,7 +762,7 @@
               </div>
               <div class="gen-label">Target duration</div>
               <div class="duration-row">
-                <input type="range" id="gen-duration" min="30" max="180" step="15" value="90" oninput="document.getElementById('gen-duration-val').textContent=this.value+'s'">
+                <input type="range" id="gen-duration" min="30" max="600" step="30" value="90" oninput="document.getElementById('gen-duration-val').textContent=this.value+'s'">
                 <span class="duration-val" id="gen-duration-val">90s</span>
               </div>
               <button class="btn btn-secondary btn-sm" id="gen-btn" onclick="generateScript()" disabled>Generate script</button>
@@ -988,7 +991,7 @@ function defaultStageData() {
   return { settings: null, script: null, voice: null, storyboard: null, render: null, metadata: null };
 }
 function defaultSettings() {
-  return { aspectRatio: 'portrait', style: 'realistic', captions: true, musicKey: null };
+  return { aspectRatio: 'portrait', style: 'realistic', captions: true, musicKey: null, subject: '' };
 }
 
 let state = {
@@ -1178,6 +1181,13 @@ function activateStage(stage) {
   if (state.runId) {
     history.replaceState(null, '', `#run/${state.runId}/${stage}` + (DEMO ? '?d' : ''));
   }
+  // Auto-generate script when auto-advance is on, subject is set, and script hasn't been generated yet
+  if (stage === 'script' && state.autoConfirm && state.settings.subject && state.stageStatus.script === 'idle') {
+    document.getElementById('gen-idea').value = state.settings.subject;
+    document.getElementById('generate-body').classList.add('open');
+    updateGenerateBtn();
+    setTimeout(generateScript, 300);
+  }
 }
 
 // ── Landing / workspace switch ────────────────────────────────────────────
@@ -1212,6 +1222,7 @@ function resetSettingsPane() {
   setStyle('realistic');
   document.getElementById('captions-toggle').checked = true;
   document.getElementById('music-status').innerHTML = '';
+  document.getElementById('settings-subject').value = '';
 }
 
 // ── Info panel ────────────────────────────────────────────────────────────
@@ -1313,6 +1324,25 @@ async function loadRun(id) {
   renderRunList();
   activateStage('settings');
 
+  // Load persisted settings (aspect ratio, subject, etc.)
+  try {
+    const r = await fetch(`/runs/${id}/settings`);
+    if (r.ok) {
+      const data = await r.json();
+      const s = data.settings || {};
+      const arMap = { '9:16': 'portrait', '16:9': 'landscape', '1:1': 'portrait' };
+      if (s.aspect_ratio) setAspectRatio(arMap[s.aspect_ratio] || 'portrait');
+      if (s.subtitles !== undefined) {
+        state.settings.captions = s.subtitles !== 'none';
+        document.getElementById('captions-toggle').checked = state.settings.captions;
+      }
+      if (s.subject) {
+        state.settings.subject = s.subject;
+        document.getElementById('settings-subject').value = s.subject;
+      }
+    }
+  } catch { /* ignore */ }
+
   // Try to load script artifact
   try {
     const r = await fetch(`/platform/studio/runs/${id}/script`);
@@ -1396,6 +1426,7 @@ function setAspectRatio(val) {
   document.getElementById('opt-aspect-portrait').classList.toggle('active', val === 'portrait');
   document.getElementById('opt-aspect-landscape').classList.toggle('active', val === 'landscape');
   document.getElementById('info-aspect').textContent = val === 'landscape' ? '16:9' : '9:16';
+  saveRunSettings();
 }
 
 function setStyle(val) {
@@ -1405,6 +1436,36 @@ function setStyle(val) {
 
 function onCaptionsToggle() {
   state.settings.captions = document.getElementById('captions-toggle').checked;
+  saveRunSettings();
+}
+
+function onSubjectInput() {
+  state.settings.subject = document.getElementById('settings-subject').value;
+}
+
+function onSettingsContinue() {
+  state.stageStatus.settings = 'done';
+  saveRunSettings();
+  renderStageTrack();
+  activateStage('script');
+}
+
+async function saveRunSettings() {
+  if (!state.runId || DEMO) return;
+  const arMap = { portrait: '9:16', landscape: '16:9' };
+  const body = {
+    aspect_ratio: arMap[state.settings.aspectRatio] || '9:16',
+    visual_style: 'Realistic',
+    subtitles: state.settings.captions ? 'TikTok' : 'none',
+    subject: state.settings.subject || '',
+  };
+  try {
+    await fetch(`/runs/${state.runId}/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch { /* ignore */ }
 }
 
 function onMusicDrop(event) {

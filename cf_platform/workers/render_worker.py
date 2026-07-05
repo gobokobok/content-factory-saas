@@ -279,14 +279,19 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
         if not ost_text:
             ost_text = scene.on_screen_text
         if ost_text:
+            import textwrap as _tw
+            # Wrap long text so it doesn't run off screen; FFmpeg renders newlines as line breaks.
+            lines = _tw.wrap(ost_text.upper(), width=32)
+            wrapped = "\n".join(lines) if lines else ost_text.upper()
             # Write text to a file so % and ' require no filter-chain escaping
             fname = f"ost_{ost_idx:02d}.txt"
             # printf %s prints the argument literally without format expansion
-            preamble.append(f'printf "%s" {shlex.quote(ost_text.upper())} > "$WORK/{fname}"')
+            preamble.append(f'printf "%s" {shlex.quote(wrapped)} > "$WORK/{fname}"')
             t_appear = scene_start + 0.3
             ost_enable = f"between(t,{t_appear:.3f},{scene_end:.3f})"
             alpha_expr = f"if(lt(t-{t_appear:.3f}\\,0.5)\\,(t-{t_appear:.3f})/0.5\\,1)"
             # NotoSans covers Unicode arrows/symbols; Poppins does not (P10-S1 Bug 5).
+            # text_h covers total multiline height so (h-text_h)/2 centres correctly.
             filters.append(
                 f"drawtext=textfile=$WORK/{fname}:expansion=none"
                 f":fontfile=/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"
@@ -536,11 +541,27 @@ def build_render_worker(
                         va.alignment_method, has_scene_timestamps,
                     )
                     if va.alignment_method == "deepgram_nova2" and has_scene_timestamps:
-                        # P9-S9 fast path: every scene carries scene_start_ms from
-                        # Deepgram timestamps.  Assign words and derive durations
-                        # directly — no heuristic cumulative-window drift.
+                        # P9-S9 fast path.  Prefer live boundaries derived from the
+                        # current VO's word_timestamps via start_word indices — this
+                        # keeps visual timing correct even if the VO was regenerated
+                        # after the storyboard was saved (stored scene_start_ms would
+                        # be stale and cause accumulating drift).
                         import bisect
-                        boundaries_ms = [s.scene_start_ms for s in storyboard.scenes]
+                        n_words = len(src_timestamps)
+                        has_start_words = (
+                            n_words > 0
+                            and all(s.start_word is not None for s in storyboard.scenes)
+                            and len({s.start_word for s in storyboard.scenes}) > 1
+                        )
+                        if has_start_words:
+                            boundaries_ms = [
+                                src_timestamps[max(0, min(s.start_word, n_words - 1))].start_ms
+                                for s in storyboard.scenes
+                            ]
+                            logger.info("RenderWorker: live start_word boundaries for %d scenes", len(storyboard.scenes))
+                        else:
+                            boundaries_ms = [s.scene_start_ms for s in storyboard.scenes]
+                            logger.info("RenderWorker: stored scene_start_ms boundaries for %d scenes", len(storyboard.scenes))
                         raw_scene_words = [[] for _ in storyboard.scenes]
                         for w in src_timestamps:
                             idx = bisect.bisect_right(boundaries_ms, w.start_ms) - 1
@@ -552,12 +573,9 @@ def build_render_worker(
                         n_scenes = len(storyboard.scenes)
                         for i, scene in enumerate(storyboard.scenes):
                             if i < n_scenes - 1:
-                                dur = (
-                                    storyboard.scenes[i + 1].scene_start_ms
-                                    - scene.scene_start_ms
-                                ) / 1000.0
+                                dur = (boundaries_ms[i + 1] - boundaries_ms[i]) / 1000.0
                             else:
-                                dur = va.total_duration_s - scene.scene_start_ms / 1000.0
+                                dur = va.total_duration_s - boundaries_ms[i] / 1000.0
                             adjusted.append(
                                 scene.model_copy(
                                     update={"duration_s": max(0.08, round(dur, 3))}
