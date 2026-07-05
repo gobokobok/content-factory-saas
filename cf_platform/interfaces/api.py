@@ -122,6 +122,17 @@ _worker_registry.register("storyboard_worker", STORYBOARD_WORKER_REGISTRATION)
 _worker_registry.register("acquisition_worker", ACQUISITION_WORKER_REGISTRATION)
 
 
+@router.get("/version")
+async def platform_version() -> dict:
+    """Return the deployed git commit and async-worker status for deploy verification."""
+    import subprocess
+    try:
+        commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
+    except Exception:
+        commit = "unknown"
+    return {"commit": commit, "storyboard_async": True, "voice_async": True}
+
+
 @router.get("/health")
 async def platform_health() -> dict:
     """Return the cf_platform subsystem health status, including a DB check (D048).

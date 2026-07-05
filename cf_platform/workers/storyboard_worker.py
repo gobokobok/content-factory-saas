@@ -999,7 +999,7 @@ async def _generate(
         system_prompt = _GENERATE_SYSTEM_PROMPT.replace(_FORMAT_LINE_SENTINEL, format_line)
         user_content = script
 
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=180.0, max_retries=1)
     message = await client.messages.create(
         model=_SONNET_MODEL,
         max_tokens=16000,
@@ -1058,7 +1058,7 @@ async def _review(
         f"STORYBOARD JSON:\n{storyboard_json}"
     )
 
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=60.0, max_retries=1)
     message = await client.messages.create(
         model=_HAIKU_MODEL,
         max_tokens=2048,
@@ -1084,7 +1084,7 @@ async def _synthesize_event_ost(
     For each gap (up to _MAX_EVENT_OST_CALLS) calls Haiku to generate a 2–5 word
     chapter title. Returns a patched Storyboard.
     """
-    client = anthropic.AsyncAnthropic(api_key=api_key)
+    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=30.0, max_retries=0)
     scenes = list(storyboard.scenes)
     calls_made = 0
 
