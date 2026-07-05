@@ -999,7 +999,8 @@ async def _generate(
         system_prompt = _GENERATE_SYSTEM_PROMPT.replace(_FORMAT_LINE_SENTINEL, format_line)
         user_content = script
 
-    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=180.0, max_retries=1)
+    # Background task — no Railway HTTP timeout; single attempt, generous wall-clock budget.
+    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=600.0, max_retries=0)
     message = await client.messages.create(
         model=_SONNET_MODEL,
         max_tokens=16000,
@@ -1058,7 +1059,7 @@ async def _review(
         f"STORYBOARD JSON:\n{storyboard_json}"
     )
 
-    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=60.0, max_retries=1)
+    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=120.0, max_retries=0)
     message = await client.messages.create(
         model=_HAIKU_MODEL,
         max_tokens=2048,
