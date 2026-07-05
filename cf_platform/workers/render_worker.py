@@ -614,8 +614,9 @@ def build_render_worker(
         )
         logger.info("RenderWorker: render_script.sh written → %s", script_key)
 
-        # Fall back to the shared music library if no track was uploaded for this run
-        await _copy_music_to_run(run_id, storage)
+        # Fall back to the shared music library only if operator selected music
+        if state.inputs.get("music_enabled", True):
+            await _copy_music_to_run(run_id, storage)
 
         # Download all scene assets to /tmp/{run_id}/
         await _download_assets(run_id, manifest, storage)

@@ -1531,7 +1531,15 @@ async function createStoryboard() {
   activateStage('storyboard');
 
   const start = Date.now();
+  document.getElementById('sb-content').innerHTML = `
+    <div class="render-running">
+      <span class="dot dot-running"></span>
+      <span id="sb-gen-timer">Generating storyboard… 0s</span>
+    </div>`;
+  document.getElementById('sb-cta').style.display = 'none';
   const timer = setInterval(() => {
+    const el = document.getElementById('sb-gen-timer');
+    if (el) el.textContent = `Generating storyboard… ${elapsed(start)}`;
     if (statusEl) statusEl.textContent = `Generating… ${elapsed(start)}`;
   }, 1000);
   if (statusEl) statusEl.textContent = 'Generating…';
@@ -2250,6 +2258,7 @@ async function renderVideo() {
         run_id: state.runId,
         format_track: state.settings.aspectRatio,
         captions: state.settings.captions,
+        music_enabled: !!state.settings.musicKey,
       }),
     });
     if (!r.ok) {

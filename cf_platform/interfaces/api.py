@@ -836,6 +836,7 @@ class RenderWorkerRequest(BaseModel):
     run_id: str
     format_track: str = "landscape"
     captions: bool = True
+    music_enabled: bool = True
 
 
 class RenderWorkerResponse(BaseModel):
@@ -950,7 +951,7 @@ async def render_worker_endpoint(
     state = StageState(
         run_id=body.run_id,
         user_id=_PLATFORM_USER_ID,
-        inputs={"format_track": body.format_track, "captions": body.captions},
+        inputs={"format_track": body.format_track, "captions": body.captions, "music_enabled": body.music_enabled},
         artifacts=artifacts,
     )
 
