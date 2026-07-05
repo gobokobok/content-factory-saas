@@ -531,6 +531,10 @@ def build_render_worker(
                     has_scene_timestamps = all(
                         s.scene_start_ms is not None for s in storyboard.scenes
                     )
+                    logger.info(
+                        "RenderWorker timing path: method=%s has_scene_timestamps=%s",
+                        va.alignment_method, has_scene_timestamps,
+                    )
                     if va.alignment_method == "deepgram_nova2" and has_scene_timestamps:
                         # P9-S9 fast path: every scene carries scene_start_ms from
                         # Deepgram timestamps.  Assign words and derive durations

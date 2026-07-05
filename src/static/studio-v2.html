@@ -1053,6 +1053,13 @@ function elapsed(start) {
   const s = Math.round((Date.now() - start) / 1000);
   return s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
 }
+function fmtMs(ms) {
+  if (ms == null) return '—';
+  const s = ms / 1000;
+  const m = Math.floor(s / 60);
+  const secs = (s % 60).toFixed(1).padStart(4, '0');
+  return m > 0 ? `${m}:${secs}` : `0:${secs}`;
+}
 function timeAgo(ts) {
   if (!ts) return '';
   const m = Math.round((Date.now() - ts) / 60000);
@@ -1701,9 +1708,8 @@ function renderStoryboard(data) {
   const summary = data?.storyboard?.summary || {};
   const global_ = data?.storyboard?.global || {};
 
-  // Prefer actual audio duration (voice_alignment) over storyboard word-span sum.
-  // The storyboard summary omits inter-scene silences; the audio duration is ground truth.
-  const totalDur = state.stageData.voiceAlignment?.total_duration_s || summary.total_duration_s || 0;
+  // Prefer actual VO duration over storyboard word-span sum (which omits inter-scene silences).
+  const totalDur = state.stageData.voice?.total_duration_s || summary.total_duration_s || 0;
   const durStr = totalDur >= 60
     ? `${Math.floor(totalDur/60)}m ${(totalDur%60).toFixed(1)}s`
     : `${totalDur.toFixed(1)}s`;
@@ -1721,6 +1727,7 @@ function renderStoryboard(data) {
         <thead>
           <tr>
             <th>#</th>
+            <th>Start</th>
             <th>Dur</th>
             <th>Voiceover</th>
             <th>Type</th>
@@ -1758,7 +1765,7 @@ function buildSceneRow(s, nextScene, totalDur) {
     // summary.total_duration_s is word-span sum only and can be < scene_start_ms,
     // producing a negative display duration. Fall back to scene_end_ms if totalDur
     // is unreliable (smaller than the scene's own start time).
-    const vaTotal = state.stageData.voiceAlignment?.total_duration_s;
+    const vaTotal = state.stageData.voice?.total_duration_s;
     const reliableTotal = vaTotal || (totalDur > s.scene_start_ms / 1000 ? totalDur : null);
     displayDur = reliableTotal
       ? reliableTotal - s.scene_start_ms / 1000
@@ -1786,6 +1793,7 @@ function buildSceneRow(s, nextScene, totalDur) {
 
   return `<tr data-scene="${sceneId}">
     <td class="mono narrow">${sceneId}</td>
+    <td class="mono narrow" style="color:var(--muted);">${fmtMs(s.scene_start_ms)}</td>
     <td class="mono narrow">${displayDur.toFixed(1)}s</td>
     <td class="wrap" style="max-width:220px;font-size:11px;color:var(--ink-sub);">${esc(s.voiceover_line || '')}</td>
     <td class="narrow"><span class="seg-badge ${segCls}">${esc(s.segment_type || 'B-roll')}</span></td>
