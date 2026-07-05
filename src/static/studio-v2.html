@@ -950,7 +950,11 @@ function demoRoute(url, opts) {
     const id = 'a1b2c3d4-demo-4e5f-8a9b-' + String(Date.now()).slice(-12).padStart(12, '0');
     return demoResponse({ run_id: id, script: DEMO_SCRIPT, iterations: 2 }, 200, 1600);
   }
-  if (u.includes('/platform/workers/voice'))       return demoResponse(DEMO_VOICE, 200, 2200);
+  if (u.includes('/platform/workers/voice'))       { _demoVoicePolls = 0; return demoResponse({ status: 'accepted', run_id: u.split('/').pop() }, 202, 400); }
+  if (u.includes('/voice/status')) {
+    _demoVoicePolls = (_demoVoicePolls || 0) + 1;
+    return demoResponse(_demoVoicePolls >= 2 ? { status: 'complete' } : { status: 'running' }, 200, 250);
+  }
   if (u.includes('/platform/workers/storyboard'))  return demoResponse({ scene_count: 6 }, 200, 2400);
   if (u.includes('/platform/workers/acquisition')) return demoResponse({ acquired: 6, failed: 0 }, 200, 2600);
   if (u.includes('/platform/workers/render'))      { _demoRenderPolls = 0; return demoResponse({ queued: true }, 202, 400); }
@@ -1666,6 +1670,10 @@ async function generateVO() {
   btn.disabled = true;
   skipBtn.disabled = true;
   state.stageStatus.voice = 'running';
+  // Invalidate downstream stages — re-generating VO makes previous storyboard and render stale
+  state.stageStatus.storyboard = 'idle';
+  state.stageStatus.render = 'idle';
+  state.stageStatus.metadata = 'idle';
   hideErr('script-error');
   renderStageTrack();
   activateStage('voice');
@@ -1683,13 +1691,14 @@ async function generateVO() {
   }, 1000);
 
   try {
+    // POST to start — returns 202 immediately; TTS runs as a background task
     const r = await fetch('/platform/workers/voice', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ run_id: state.runId, script }),
     });
-    clearInterval(timer);
     if (!r.ok) {
+      clearInterval(timer);
       const err = await r.json().catch(() => ({}));
       state.stageStatus.voice = 'error';
       showErr('voice-error', err.detail || `Voice error ${r.status}`);
@@ -1699,7 +1708,44 @@ async function generateVO() {
       btn.disabled = false; skipBtn.disabled = false;
       return;
     }
-    const data = await r.json();
+
+    // Poll /voice/status until complete or error (max ~10 min = 200 × 3s)
+    let polls = 0;
+    while (polls < 200) {
+      await new Promise(res => setTimeout(res, 3000));
+      polls++;
+      let statusData;
+      try {
+        const sr = await fetch(`/platform/studio/runs/${state.runId}/voice/status`);
+        statusData = sr.ok ? await sr.json() : { status: 'running' };
+      } catch { statusData = { status: 'running' }; }
+
+      if (statusData.status === 'error') {
+        clearInterval(timer);
+        state.stageStatus.voice = 'error';
+        showErr('voice-error', statusData.error || 'Voice generation failed');
+        document.getElementById('voice-content').innerHTML = '';
+        renderStageTrack();
+        activateStage('script');
+        btn.disabled = false; skipBtn.disabled = false;
+        return;
+      }
+      if (statusData.status === 'complete') break;
+    }
+
+    // Fetch the full voice artifact (presigned audio URL etc.)
+    const vr = await fetch(`/platform/studio/runs/${state.runId}/voice`);
+    clearInterval(timer);
+    if (!vr.ok) {
+      state.stageStatus.voice = 'error';
+      showErr('voice-error', `Voice artifact unavailable (${vr.status})`);
+      document.getElementById('voice-content').innerHTML = '';
+      renderStageTrack();
+      activateStage('script');
+      btn.disabled = false; skipBtn.disabled = false;
+      return;
+    }
+    const data = await vr.json();
     state.stageData.voice = data;
     state.stageStatus.voice = 'done';
     state.stageStatus.script = 'done';

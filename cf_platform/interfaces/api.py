@@ -637,29 +637,78 @@ class VoiceWorkerRequest(BaseModel):
 
 
 class VoiceWorkerResponse(BaseModel):
-    """Response body for POST /platform/workers/voice."""
+    """202 response body for POST /platform/workers/voice (accepted — runs async)."""
 
-    artifact_key: str
-    mp3_r2_key: str
-    mp3_url: Optional[str]
-    alignment_method: str
-    total_duration_s: float
-    word_count: int
+    status: str = "accepted"
+    run_id: str
 
 
-@router.post("/workers/voice", response_model=VoiceWorkerResponse)
+async def _run_voice_background(
+    run_id: str,
+    job_id: str,
+    state: StageState,
+    worker: Any,
+    storage: ArtifactStorage,
+) -> None:
+    """Background task: runs TTS + alignment and updates voice/current_job.json."""
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+
+    job_key = f"runs/{run_id}/voice/current_job.json"
+    try:
+        output = await worker(state)
+        result = output.artifact
+        if not isinstance(result, VoiceAlignmentArtifact):
+            raise RuntimeError(f"VoiceProductionWorker returned unexpected type: {type(result)}")
+
+        voice_lineage = LineageEnvelope(
+            run_id=run_id,
+            worker="voice_production",
+            worker_version=VOICE_PRODUCTION_REGISTRATION.worker_version,
+            prompt_version=VOICE_PRODUCTION_REGISTRATION.prompt_version,
+            model=VOICE_PRODUCTION_REGISTRATION.model,
+            created_at=datetime.now(),
+        )
+        await write_artifact(
+            storage,
+            result,
+            name="voice_alignment",
+            stage="voice",
+            run_id=run_id,
+            user_id=_PLATFORM_USER_ID,
+            lineage=voice_lineage,
+        )
+        await storage.put_json(job_key, {
+            "job_id": job_id,
+            "status": "complete",
+            "alignment_method": result.alignment_method,
+            "total_duration_s": result.total_duration_s,
+            "word_count": len(result.word_timestamps),
+        })
+        _logger.info("VoiceWorker background task complete for run %s", run_id)
+    except Exception as exc:
+        _logger.exception("VoiceWorker background task failed for run %s: %s", run_id, exc)
+        try:
+            await storage.put_json(job_key, {"job_id": job_id, "status": "error", "error": str(exc)})
+        except Exception:
+            pass
+
+
+@router.post("/workers/voice", response_model=VoiceWorkerResponse, status_code=202)
 async def voice_worker_endpoint(
     body: VoiceWorkerRequest,
+    background_tasks: BackgroundTasks,
     storage: ArtifactStorage = Depends(get_artifact_storage),
     settings: PlatformSettings = Depends(get_platform_settings),
 ) -> VoiceWorkerResponse:
-    """Generate TTS voiceover and Deepgram word-level timestamps for a script.
+    """Enqueue TTS + Deepgram alignment (returns 202 immediately).
 
-    Writes both a script artifact (so the subsequent storyboard step can read it)
-    and a voice_alignment artifact.  The storyboard worker will auto-detect the
-    voice_alignment and use Deepgram timestamps for accurate per-scene durations.
-    Falls back to proportional estimation if Gemini/Deepgram keys are absent.
+    Writes the script artifact synchronously, then hands off TTS and alignment to
+    a background task.  Poll GET /platform/studio/runs/{run_id}/voice/status for
+    progress; fetch GET /platform/studio/runs/{run_id}/voice for the full artifact
+    once complete.  This avoids Railway's HTTP timeout for long scripts.
     """
+    import uuid as _uuid_mod
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
@@ -701,44 +750,16 @@ async def voice_worker_endpoint(
         inputs={},
         artifacts={"script": script_record.r2_key},
     )
-    output = await worker(worker_state)
-    result = output.artifact
-    if not isinstance(result, VoiceAlignmentArtifact):
-        raise HTTPException(status_code=500, detail="VoiceProductionWorker returned unexpected artifact type")
 
-    voice_lineage = LineageEnvelope(
-        run_id=body.run_id,
-        worker="voice_production",
-        worker_version=VOICE_PRODUCTION_REGISTRATION.worker_version,
-        prompt_version=VOICE_PRODUCTION_REGISTRATION.prompt_version,
-        model=VOICE_PRODUCTION_REGISTRATION.model,
-        created_at=datetime.now(),
+    job_id = str(_uuid_mod.uuid4())
+    await storage.put_json(
+        f"runs/{body.run_id}/voice/current_job.json",
+        {"job_id": job_id, "status": "running"},
     )
-    voice_record = await write_artifact(
-        storage,
-        result,
-        name="voice_alignment",
-        stage="voice",
-        run_id=body.run_id,
-        user_id=_PLATFORM_USER_ID,
-        lineage=voice_lineage,
-    )
+    background_tasks.add_task(_run_voice_background, body.run_id, job_id, worker_state, worker, storage)
+    _logger.info("VoiceWorker background task enqueued for run %s job %s", body.run_id, job_id)
+    return VoiceWorkerResponse(status="accepted", run_id=body.run_id)
 
-    mp3_url: Optional[str] = None
-    if result.mp3_r2_key:
-        try:
-            mp3_url = await storage.generate_presigned_url(result.mp3_r2_key, expires_in=3600)
-        except Exception:
-            pass
-
-    return VoiceWorkerResponse(
-        artifact_key=voice_record.r2_key,
-        mp3_r2_key=result.mp3_r2_key,
-        mp3_url=mp3_url,
-        alignment_method=result.alignment_method,
-        total_duration_s=result.total_duration_s,
-        word_count=len(result.word_timestamps),
-    )
 
 
 class AcquisitionWorkerRequest(BaseModel):
@@ -1067,6 +1088,30 @@ async def studio_get_voice(
         "total_duration_s": body.get("total_duration_s", 0.0),
         "word_count": len(body.get("word_timestamps", [])),
     }
+
+
+@router.get("/studio/runs/{run_id}/voice/status")
+async def studio_get_voice_status(
+    run_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Poll voice generation progress. Returns {status: running|complete|error}."""
+    job_key = f"runs/{run_id}/voice/current_job.json"
+    try:
+        job = await storage.get_json(job_key)
+        if job:
+            if job.get("status") == "complete":
+                return {
+                    "status": "complete",
+                    "alignment_method": job.get("alignment_method", ""),
+                    "total_duration_s": job.get("total_duration_s", 0.0),
+                    "word_count": job.get("word_count", 0),
+                }
+            if job.get("status") == "error":
+                return {"status": "error", "error": job.get("error", "Voice generation failed")}
+    except Exception:
+        pass
+    return {"status": "running"}
 
 
 @router.get("/studio/runs/{run_id}/video")
