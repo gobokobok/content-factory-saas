@@ -1003,7 +1003,7 @@ async def _generate(
     client = anthropic.AsyncAnthropic(api_key=api_key, timeout=600.0, max_retries=0)
     message = await client.messages.create(
         model=_SONNET_MODEL,
-        max_tokens=16000,
+        max_tokens=32000,
         system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": user_content}],
     )
