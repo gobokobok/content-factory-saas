@@ -16,6 +16,7 @@ Steps:
 
 import json
 import logging
+import math
 import re
 import string
 from datetime import datetime, timezone
@@ -813,6 +814,79 @@ def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -
     return raw
 
 
+_MAX_SCENE_DURATION_S = 10.0
+
+
+def _split_long_scenes(
+    storyboard: "Storyboard",
+    words: list[VoiceWordTimestamp],
+    max_s: float = _MAX_SCENE_DURATION_S,
+) -> "Storyboard":
+    """Split any scene whose VO span exceeds max_s into equal-word-count sub-scenes.
+
+    Visual metadata (queries, segment_type, person fields, render_options) is
+    copied to every sub-scene. on_screen_text is kept only on the first sub-scene
+    so overlays don't repeat. _reify_scene is called on each sub-scene to derive
+    fresh timing, voiceover_line, asset_tier, clip_type, and motion_effect.
+    """
+    result: list = []
+    for scene in storyboard.scenes:
+        if (
+            scene.duration_s <= max_s
+            or scene.start_word is None
+            or scene.end_word is None
+            or scene.start_word >= scene.end_word
+        ):
+            result.append(scene)
+            continue
+
+        n_splits = math.ceil(scene.duration_s / max_s)
+        total_words = scene.end_word - scene.start_word + 1
+        words_per_split = math.ceil(total_words / n_splits)
+
+        base = scene.model_dump(by_alias=True, mode="json")
+        logger.info(
+            "StoryboardWorker: splitting scene %s (%.1fs) into %d sub-scenes",
+            scene.scene, scene.duration_s, n_splits,
+        )
+
+        for j in range(n_splits):
+            sub_start = scene.start_word + j * words_per_split
+            sub_end = min(scene.start_word + (j + 1) * words_per_split - 1, scene.end_word)
+
+            sub = dict(base)
+            sub["start_word"] = sub_start
+            sub["end_word"] = sub_end
+            # on_screen_text only on first sub-scene
+            if j > 0:
+                sub["on_screen_text"] = None
+                sub["on_screen_text_type"] = None
+                if sub.get("render_options") and isinstance(sub["render_options"], dict):
+                    sub["render_options"] = dict(sub["render_options"])
+                    sub["render_options"]["on_screen_text_overlay"] = None
+            if j > 0:
+                sub["scene"] = f"{scene.scene}_p{j + 1}"
+
+            # Clear reified fields so _reify_scene starts fresh
+            for field in ("voiceover_line", "duration_s", "scene_start_ms", "scene_end_ms",
+                          "asset_tier", "clip_type", "motion_effect"):
+                sub.pop(field, None)
+
+            _reify_scene(sub, words, len(result))
+            result.append(StoryboardScene.model_validate(sub))
+
+    total_dur = sum(s.duration_s for s in result)
+    clip_abbrs = {"hard_cut": "HC", "still_with_motion": "SM", "animated": "AN"}
+    rhythm_parts = [clip_abbrs.get(s.clip_type, "?") for s in result[:8]]
+    rhythm = " / ".join(rhythm_parts) + (" …" if len(result) > 8 else "")
+    new_summary = storyboard.summary.model_copy(update={
+        "total_scenes": len(result),
+        "total_duration_s": round(total_dur, 3),
+        "rhythm": rhythm,
+    })
+    return storyboard.model_copy(update={"scenes": result, "summary": new_summary})
+
+
 def _extract_json_object(text: str) -> dict:
     """Extract and parse a JSON object from a Claude response, stripping markdown fences."""
     cleaned = re.sub(r"^```(?:json)?\s*", "", text.strip(), flags=re.IGNORECASE)
@@ -1183,9 +1257,16 @@ def build_storyboard_worker(
         storyboard = await _synthesize_event_ost(storyboard, anthropic_api_key)
         storyboard = _apply_patches_and_render_options(storyboard, [])
 
-        # Step 4: Enforce hard duration caps — skip only for real Deepgram timestamps.
-        # Proportional fallback ("Estimated") timestamps are not ground truth; cap applies.
-        if not timestamps_are_real:
+        # Step 4: Enforce hard 10s scene cap.
+        # Real Deepgram timestamps → split long scenes so word boundaries stay accurate.
+        # Proportional fallback → clamp duration_s (boundaries are estimated anyway).
+        if timestamps_are_real and voice_timestamps:
+            normalized_words = _normalize_deepgram_words([w.model_dump() for w in voice_timestamps])
+            storyboard = _split_long_scenes(storyboard, normalized_words)
+            # Re-derive render_options for any new sub-scenes.
+            storyboard = _apply_patches_and_render_options(storyboard, [])
+            logger.info("StoryboardWorker: after split — %d scenes", len(storyboard.scenes))
+        else:
             _STILL_MAX_S = 5.0
             _VIDEO_MAX_S = 8.0
             capped = []
