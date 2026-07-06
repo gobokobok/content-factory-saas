@@ -727,15 +727,33 @@ def _normalize_deepgram_words(raw: list[dict]) -> list[VoiceWordTimestamp]:
     return [VoiceWordTimestamp(**item) for item in collapsed]
 
 
-def _format_indexed_timestamps(words: list[VoiceWordTimestamp]) -> str:
+_WORD_LIST_MAX_ENTRIES = 350
+
+
+def _format_indexed_timestamps(words: list[VoiceWordTimestamp]) -> tuple[str, int]:
     """Format indexed word list for the v0.13 generate prompt.
 
-    Produces lines like: [0]  "Companies"    (0.00s–0.41s)
+    For ≤350 words: full list with timestamps, one entry per word.
+    For >350 words: strided list (every Nth word, no timestamps).
+    Timestamps are stripped for large scripts because Python derives timing
+    from the full word array via _reify_scene — Claude only needs indices.
+
+    Returns (formatted_block, stride) where stride=1 means no striding.
     """
-    return "\n".join(
-        f'[{idx}]  "{w.word}"    ({w.start_ms / 1000:.2f}s–{w.end_ms / 1000:.2f}s)'
+    n = len(words)
+    if n <= _WORD_LIST_MAX_ENTRIES:
+        block = "\n".join(
+            f'[{idx}]  "{w.word}"    ({w.start_ms / 1000:.2f}s–{w.end_ms / 1000:.2f}s)'
+            for idx, w in enumerate(words)
+        )
+        return block, 1
+    stride = math.ceil(n / _WORD_LIST_MAX_ENTRIES)
+    block = "\n".join(
+        f'[{idx}]  "{w.word}"'
         for idx, w in enumerate(words)
+        if idx % stride == 0
     )
+    return block, stride
 
 
 def _assign_asset_tier(duration_s: float) -> Literal["still", "still_motion", "video"]:
@@ -1059,10 +1077,18 @@ async def _generate(
     if voice_timestamps:
         # v0.13 path — indexed timestamps; Claude only decides scene boundaries + visual metadata
         normalized_words = _normalize_deepgram_words([w.model_dump() for w in voice_timestamps])
-        ts_block = _format_indexed_timestamps(normalized_words)
+        ts_block, stride = _format_indexed_timestamps(normalized_words)
+        n_words = len(normalized_words)
         system_prompt = _GENERATE_SYSTEM_PROMPT_V013.replace(_FORMAT_LINE_SENTINEL, format_line)
+        if stride > 1:
+            stride_note = (
+                f"every {stride}th word shown — use any integer index 0–{n_words - 1} "
+                "for scene boundaries, not just the listed indices"
+            )
+        else:
+            stride_note = "use start_word/end_word indices"
         user_content = (
-            f"INDEXED WORD LIST ({len(normalized_words)} words — use start_word/end_word indices):\n"
+            f"INDEXED WORD LIST ({n_words} words — {stride_note}):\n"
             f"{ts_block}\n\n"
             f"VOICEOVER SCRIPT (for reference only — use word indices for boundaries):\n{script}"
         )
@@ -1115,6 +1141,23 @@ async def _generate(
         raise ValueError(f"StoryboardWorker: failed to parse generate response: {exc}") from exc
 
 
+_REVIEW_SCENE_KEYS = frozenset({
+    "scene", "voiceover_line", "segment_type", "person_name", "person_title",
+    "primary_stk", "context_stk", "concept_stk",
+    "on_screen_text", "on_screen_text_type", "sfx", "sfx_timing",
+})
+
+
+def _slim_for_review(storyboard: "Storyboard") -> str:
+    """Serialise only the fields the reviewer reads, dropping render_options, timing, etc."""
+    slim_scenes = []
+    for scene in storyboard.scenes:
+        raw = scene.model_dump(mode="json")
+        slim = {k: v for k, v in raw.items() if k in _REVIEW_SCENE_KEYS and v not in (None, "", [])}
+        slim_scenes.append(slim)
+    return json.dumps({"scenes": slim_scenes}, separators=(",", ":"))
+
+
 async def _review(
     script: str,
     storyboard: Storyboard,
@@ -1124,10 +1167,7 @@ async def _review(
 
     Returns (patches, coverage_ok, issues).
     """
-    storyboard_json = json.dumps(
-        storyboard.model_dump(by_alias=True, mode="json"),
-        indent=2,
-    )
+    storyboard_json = _slim_for_review(storyboard)
     user_content = (
         f"ORIGINAL SCRIPT:\n{script}\n\n"
         f"STORYBOARD JSON:\n{storyboard_json}"
@@ -1153,53 +1193,50 @@ async def _synthesize_event_ost(
     storyboard: Storyboard,
     api_key: str,
 ) -> Storyboard:
-    """Fill missing on_screen_text for Event scenes using a single Haiku call per gap.
+    """Fill missing on_screen_text for Event scenes in a single batched Haiku call.
 
-    Scans all scenes where segment_type == "Event" and on_screen_text is null or empty.
-    For each gap (up to _MAX_EVENT_OST_CALLS) calls Haiku to generate a 2–5 word
-    chapter title. Returns a patched Storyboard.
+    Collects all scenes where segment_type == "Event" and on_screen_text is absent
+    (up to _MAX_EVENT_OST_CALLS), sends them in one request, and applies results.
     """
+    gaps = [
+        (i, scene) for i, scene in enumerate(storyboard.scenes)
+        if scene.segment_type == "Event" and not scene.on_screen_text
+    ][:_MAX_EVENT_OST_CALLS]
+
+    if not gaps:
+        return storyboard
+
+    items = "\n".join(
+        f'{scene.scene}: "{scene.voiceover_line}"'
+        for _, scene in gaps
+    )
     client = anthropic.AsyncAnthropic(api_key=api_key, timeout=30.0, max_retries=0)
+    try:
+        message = await client.messages.create(
+            model=_HAIKU_MODEL,
+            max_tokens=256,
+            messages=[{
+                "role": "user",
+                "content": (
+                    "For each scene below write a 2–5 word chapter title (on-screen text overlay). "
+                    "Return ONLY valid JSON: {\"<scene_id>\": \"TITLE\", ...}. "
+                    "Uppercase. Max 30 chars each.\n\n" + items
+                ),
+            }],
+        )
+        ost_map: dict = json.loads(message.content[0].text.strip())
+    except Exception as exc:
+        logger.warning("StoryboardWorker: batched OST synthesis failed: %s", exc)
+        return storyboard
+
     scenes = list(storyboard.scenes)
-    calls_made = 0
+    for i, scene in gaps:
+        ost = str(ost_map.get(scene.scene, "")).strip().upper()[:30]
+        if ost:
+            logger.info("StoryboardWorker: Event scene %s OST synthesised: %r", scene.scene, ost)
+            scenes[i] = scene.model_copy(update={"on_screen_text": ost, "on_screen_text_type": "date"})
 
-    for i, scene in enumerate(scenes):
-        if calls_made >= _MAX_EVENT_OST_CALLS:
-            break
-        if scene.segment_type != "Event" or scene.on_screen_text:
-            continue
-        try:
-            message = await client.messages.create(
-                model=_HAIKU_MODEL,
-                max_tokens=64,
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        f"Given this voiceover line: \"{scene.voiceover_line}\", "
-                        "write a 2–5 word chapter title for an on-screen text overlay. "
-                        "Respond with only the title in UPPERCASE, maximum 30 characters."
-                    ),
-                }],
-            )
-            raw = message.content[0].text.strip().upper()[:30]
-            logger.warning(
-                "StoryboardWorker: Event scene %s had no OST — synthesised %r",
-                scene.scene, raw,
-            )
-            scenes[i] = scene.model_copy(update={
-                "on_screen_text": raw,
-                "on_screen_text_type": "date",  # broadest valid non-person OST type
-            })
-            calls_made += 1
-        except Exception as exc:
-            logger.warning(
-                "StoryboardWorker: failed to synthesise OST for Event scene %s: %s",
-                scene.scene, exc,
-            )
-
-    if calls_made:
-        storyboard = storyboard.model_copy(update={"scenes": scenes})
-    return storyboard
+    return storyboard.model_copy(update={"scenes": scenes})
 
 
 # ── Worker factory ────────────────────────────────────────────────────────────
