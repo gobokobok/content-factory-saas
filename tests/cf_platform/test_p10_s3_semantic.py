@@ -308,4 +308,4 @@ def test_storyboard_prompt_contains_domain_qualifier():
 
 def test_storyboard_prompt_version():
     from cf_platform.workers.storyboard_worker import STORYBOARD_PROMPT_VERSION
-    assert STORYBOARD_PROMPT_VERSION == "v0.15"
+    assert STORYBOARD_PROMPT_VERSION == "v0.16"

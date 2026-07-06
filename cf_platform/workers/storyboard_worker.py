@@ -45,7 +45,7 @@ from src.models import (
 
 logger = logging.getLogger(__name__)
 
-STORYBOARD_PROMPT_VERSION = "v0.15"
+STORYBOARD_PROMPT_VERSION = "v0.16"
 
 _SONNET_MODEL = "claude-sonnet-4-6"
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
@@ -383,14 +383,24 @@ Output ONLY a valid JSON object — no prose, no markdown fences, no extra keys.
 INDEXED WORD LIST — HOW TO USE
 ═══════════════════════════════════════
 
-The voiceover words are provided as a numbered list with timestamps.
+The voiceover words are provided as a numbered list. Punctuation is preserved —
+a period, question mark, or exclamation mark on a word marks the end of a sentence.
 For each scene set start_word and end_word to integer indices from this list.
 
 Rules:
-- Target 2–5 seconds per scene. Hard maximum: 7 seconds.
-- If a span would exceed 7 seconds, split it at the nearest clause boundary
-  (comma, semicolon, "and", "but", "because", "so", "which", topic shift, or list item).
-- Do NOT split mid-phrase or at arbitrary word counts.
+- Target 2–5 seconds per scene. Hard maximum: 7 seconds. When timestamps are not
+  shown, use the word budget given in the user message — count words per scene.
+- SENTENCE BOUNDARIES FIRST: strongly prefer ending a scene on a word that carries
+  sentence-final punctuation (. ? !). Split inside a sentence ONLY when the whole
+  sentence would exceed the budget — and then split at a clause boundary
+  (comma, semicolon, "and", "but", "because", "so", "which", or a list item).
+- NEVER end a scene mid-thought. A noun must never be separated from its adjective
+  or ordinal ("the third | generation" is forbidden — keep "the third generation"
+  together in one scene).
+- SECTION OPENERS START NEW SCENES: when the voiceover introduces a numbered section
+  ("lesson one", "step 3", "rule two", "habit 4"), that phrase MUST be the FIRST
+  words of a new scene — never the tail of the previous scene. Set that scene's
+  on_screen_text to the full label.
 - Scenes must be contiguous: scene[i].end_word + 1 == scene[i+1].start_word.
 - The first scene's start_word must be 0.
 - The last scene's end_word must equal (total words − 1).
@@ -690,13 +700,19 @@ def _format_voice_timestamps(words: list[VoiceWordTimestamp]) -> str:
 
 _TERMINAL_PUNCT = '.,!?;:"""'
 
-def _normalize_deepgram_words(raw: list[dict]) -> list[VoiceWordTimestamp]:
-    """Normalise Deepgram word list: strip terminal punctuation, collapse same-start_ms duplicates.
+def _normalize_deepgram_words_with_display(
+    raw: list[dict],
+) -> tuple[list[VoiceWordTimestamp], list[str]]:
+    """Normalise Deepgram word list and keep punctuated display forms in parallel.
 
-    Strips terminal punctuation (period, comma, etc.) but preserves apostrophes so that
-    contraction tokens like "'s" remain intact when merged. Contiguous tokens with
-    identical start_ms (Deepgram contraction splits) are merged into one word.
-    Returns a flat, clean, 0-indexed list.
+    Strips terminal punctuation (period, comma, etc.) from the canonical word but
+    preserves apostrophes so contraction tokens like "'s" remain intact when merged.
+    Contiguous tokens with identical start_ms (Deepgram contraction splits) are
+    merged into one word. The returned display list holds the ORIGINAL punctuated
+    text at the same indices — used in the generate prompt so Claude can see
+    sentence boundaries when choosing scene breaks.
+
+    Returns (normalized_words, display_words), both 0-indexed and same length.
     """
     stripped: list[dict] = []
     for item in raw:
@@ -706,6 +722,7 @@ def _normalize_deepgram_words(raw: list[dict]) -> list[VoiceWordTimestamp]:
             clean = word  # keep as-is when stripping empties the token (e.g. "—")
         stripped.append({
             "word": clean,
+            "display": word,
             "start_ms": int(item.get("start_ms", 0)),
             "end_ms": int(item.get("end_ms", 0)),
             "confidence": float(item.get("confidence", 1.0)),
@@ -717,6 +734,7 @@ def _normalize_deepgram_words(raw: list[dict]) -> list[VoiceWordTimestamp]:
             prev = collapsed[-1]
             collapsed[-1] = {
                 "word": prev["word"] + item["word"],
+                "display": prev["display"] + item["display"],
                 "start_ms": prev["start_ms"],
                 "end_ms": max(prev["end_ms"], item["end_ms"]),
                 "confidence": min(prev["confidence"], item["confidence"]),
@@ -724,35 +742,38 @@ def _normalize_deepgram_words(raw: list[dict]) -> list[VoiceWordTimestamp]:
         else:
             collapsed.append(item)
 
-    return [VoiceWordTimestamp(**item) for item in collapsed]
+    display = [item.pop("display") for item in collapsed]
+    return [VoiceWordTimestamp(**item) for item in collapsed], display
+
+
+def _normalize_deepgram_words(raw: list[dict]) -> list[VoiceWordTimestamp]:
+    """Normalise Deepgram word list (see _normalize_deepgram_words_with_display)."""
+    return _normalize_deepgram_words_with_display(raw)[0]
 
 
 _WORD_LIST_MAX_ENTRIES = 350
 
 
-def _format_indexed_timestamps(words: list[VoiceWordTimestamp]) -> tuple[str, int]:
+def _format_indexed_timestamps(
+    words: list[VoiceWordTimestamp],
+    display: Optional[list[str]] = None,
+) -> str:
     """Format indexed word list for the v0.13 generate prompt.
 
-    For ≤350 words: full list with timestamps so Claude sees exact timing.
-    For >350 words: full list without timestamps — Python owns timing via
-    _reify_scene; Claude only needs word indices for boundary decisions.
-    Striding was tried but caused mid-sentence splits because Claude
-    couldn't see words between anchor points.
-
-    Returns (formatted_block, stride=1).
+    Displays the punctuated token (display list) so Claude can see sentence
+    boundaries when choosing scene breaks. For ≤350 words, per-word timestamps
+    are included; for larger scripts they are dropped (Python owns timing via
+    _reify_scene) and scene length is governed by the word budget in the
+    user message instead.
     """
     n = len(words)
+    tokens = display if display is not None and len(display) == n else [w.word for w in words]
     if n <= _WORD_LIST_MAX_ENTRIES:
-        block = "\n".join(
-            f'[{idx}]  "{w.word}"    ({w.start_ms / 1000:.2f}s–{w.end_ms / 1000:.2f}s)'
-            for idx, w in enumerate(words)
+        return "\n".join(
+            f'[{idx}]  "{tok}"    ({w.start_ms / 1000:.2f}s–{w.end_ms / 1000:.2f}s)'
+            for idx, (w, tok) in enumerate(zip(words, tokens))
         )
-    else:
-        block = "\n".join(
-            f'[{idx}]  "{w.word}"'
-            for idx, w in enumerate(words)
-        )
-    return block, 1
+    return "\n".join(f'[{idx}]  "{tok}"' for idx, tok in enumerate(tokens))
 
 
 def _assign_asset_tier(duration_s: float) -> Literal["still", "still_motion", "video"]:
@@ -816,8 +837,8 @@ def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -
 
     if raw["duration_s"] >= 7.0:
         logger.warning(
-            "Scene %s has duration %.1fs ≥ 10s — consider splitting at a clause boundary",
-            raw.get("scene", "?"), raw["duration_s"],
+            "Scene %s has duration %.1fs ≥ 7s — will be split downstream if over %ss",
+            raw.get("scene", "?"), raw["duration_s"], _MAX_SCENE_DURATION_S,
         )
 
     tier = _assign_asset_tier(raw["duration_s"])
@@ -832,6 +853,24 @@ def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -
 
 
 _MAX_SCENE_DURATION_S = 10.0
+
+_DIGIT_WORDS = {
+    "0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
+    "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine", "10": "ten",
+}
+
+
+def _ost_overlap_score(ost_text: str, vo_line: str) -> int:
+    """Count content-token overlap between on-screen text and a VO line.
+
+    Digits are mapped to number words ("1" → "one") so labels like "Lesson 1"
+    match spoken VO like "lesson one".
+    """
+    def tokens(s: str) -> set[str]:
+        raw = re.findall(r"[a-z0-9']+", s.lower())
+        mapped = {_DIGIT_WORDS.get(t, t) for t in raw}
+        return {t for t in mapped if len(t) >= 3}
+    return len(tokens(ost_text) & tokens(vo_line))
 
 
 def _find_pause_split(
@@ -863,9 +902,8 @@ def _split_long_scenes(
 
     Split points are chosen at the largest speech pause near each ideal
     equal-duration boundary, preferring natural clause breaks over mechanical
-    midpoints. Visual metadata is copied to every sub-scene; on_screen_text
-    is cleared on sub-scenes (OST synthesis runs after splitting so it assigns
-    text to the correct sub-scene).
+    midpoints. Visual metadata is copied to every sub-scene; the parent's
+    on_screen_text is re-attached to the sub-scene whose VO best matches it.
     """
     result: list = []
     for scene in storyboard.scenes:
@@ -905,12 +943,11 @@ def _split_long_scenes(
         boundaries.append(scene.end_word)
 
         sub_starts = [scene.start_word] + [b + 1 for b in boundaries[:-1]]
+        subs: list[dict] = []
         for j, (sub_start, sub_end) in enumerate(zip(sub_starts, boundaries)):
             sub = dict(base)
             sub["start_word"] = sub_start
             sub["end_word"] = sub_end
-            # Clear OST on all sub-scenes — _synthesize_event_ost runs after
-            # splitting and will assign OST to the correct sub-scene.
             sub["on_screen_text"] = None
             sub["on_screen_text_type"] = None
             if sub.get("render_options") and isinstance(sub["render_options"], dict):
@@ -924,7 +961,22 @@ def _split_long_scenes(
                           "asset_tier", "clip_type", "motion_effect"):
                 sub.pop(field, None)
 
-            _reify_scene(sub, words, len(result))
+            _reify_scene(sub, words, len(result) + j)
+            subs.append(sub)
+
+        # Re-attach the parent's on_screen_text to the sub-scene whose VO actually
+        # contains it (token overlap; digits matched against number words). Falls
+        # back to the first sub-scene when nothing matches.
+        if scene.on_screen_text:
+            scores = [
+                _ost_overlap_score(scene.on_screen_text, sub.get("voiceover_line", ""))
+                for sub in subs
+            ]
+            best = max(range(len(subs)), key=lambda k: scores[k])
+            subs[best]["on_screen_text"] = scene.on_screen_text
+            subs[best]["on_screen_text_type"] = scene.on_screen_text_type
+
+        for sub in subs:
             result.append(StoryboardScene.model_validate(sub))
 
     total_dur = sum(s.duration_s for s in result)
@@ -1109,21 +1161,33 @@ async def _generate(
     format_line = _FORMAT_LINE_LANDSCAPE if format_track == "landscape" else _FORMAT_LINE_PORTRAIT
 
     if voice_timestamps:
-        # v0.13 path — indexed timestamps; Claude only decides scene boundaries + visual metadata
-        normalized_words = _normalize_deepgram_words([w.model_dump() for w in voice_timestamps])
-        ts_block, stride = _format_indexed_timestamps(normalized_words)
+        # v0.13 path — indexed word list with punctuation preserved so Claude can
+        # see sentence boundaries; Claude only decides scene boundaries + visual metadata
+        normalized_words, display_words = _normalize_deepgram_words_with_display(
+            [w.model_dump() for w in voice_timestamps]
+        )
+        ts_block = _format_indexed_timestamps(normalized_words, display_words)
         n_words = len(normalized_words)
         system_prompt = _GENERATE_SYSTEM_PROMPT_V013.replace(_FORMAT_LINE_SENTINEL, format_line)
-        if stride > 1:
-            stride_note = (
-                f"every {stride}th word shown — use any integer index 0–{n_words - 1} "
-                "for scene boundaries, not just the listed indices"
-            )
-        else:
-            stride_note = "use start_word/end_word indices"
+
+        # Convert the prompt's seconds targets into a word budget from the measured
+        # speech rate — for large scripts the list carries no timestamps, so word
+        # counts are the only length signal Claude can act on.
+        total_s = max(normalized_words[-1].end_ms / 1000.0, 1.0) if normalized_words else 1.0
+        wps = n_words / total_s
+        target_lo = max(3, round(2.0 * wps))
+        target_hi = max(target_lo + 4, round(5.0 * wps))
+        hard_max_words = max(target_hi + 4, round(7.0 * wps))
+        budget_note = (
+            f"Measured speech rate: {wps:.1f} words/sec. "
+            f"Scene length budget: aim {target_lo}–{target_hi} words per scene; "
+            f"HARD MAXIMUM {hard_max_words} words (≈7s). Count words per scene and stay under it."
+        )
         user_content = (
-            f"INDEXED WORD LIST ({n_words} words — {stride_note}):\n"
+            f"INDEXED WORD LIST ({n_words} words — use start_word/end_word indices; "
+            f"punctuation marks sentence boundaries):\n"
             f"{ts_block}\n\n"
+            f"{budget_note}\n\n"
             f"VOICEOVER SCRIPT (for reference only — use word indices for boundaries):\n{script}"
         )
     else:
@@ -1147,6 +1211,25 @@ async def _generate(
         data = _sanitize_storyboard_data(data)
 
         if normalized_words:
+            # Enforce contiguity deterministically: sort by start_word, pin the first
+            # scene to word 0 and the last to N-1, and close every gap/overlap so no
+            # word is dropped or duplicated regardless of what Claude returned.
+            scenes_list = sorted(
+                data.get("scenes", []),
+                key=lambda s: int(s.get("start_word", 0) or 0),
+            )
+            if scenes_list:
+                scenes_list[0]["start_word"] = 0
+                for i in range(len(scenes_list) - 1):
+                    scenes_list[i]["end_word"] = int(scenes_list[i + 1].get("start_word", 0)) - 1
+                scenes_list[-1]["end_word"] = len(normalized_words) - 1
+                # Drop degenerate scenes created by duplicate start_words
+                scenes_list = [
+                    s for s in scenes_list
+                    if int(s.get("end_word", 0)) >= int(s.get("start_word", 0))
+                ]
+                data["scenes"] = scenes_list
+
             # v0.13: reify each scene — fills voiceover_line, duration_s, clip_type, motion_effect
             for i, scene_dict in enumerate(data.get("scenes", [])):
                 _reify_scene(scene_dict, normalized_words, i)

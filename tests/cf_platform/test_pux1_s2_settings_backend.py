@@ -38,7 +38,13 @@ _VALID_ENV = {
 
 @pytest.mark.asyncio
 async def test_storyboard_endpoint_forwards_format_track():
-    """StoryboardWorkerRequest.format_track reaches build_storyboard_worker via state.inputs."""
+    """StoryboardWorkerRequest.format_track reaches build_storyboard_worker via state.inputs.
+
+    The endpoint is async (202 + background task) — the queued BackgroundTasks
+    must be executed for the worker to run.
+    """
+    from fastapi import BackgroundTasks
+
     from cf_platform.core.artifact_manager import InMemoryArtifactStorage
     from cf_platform.interfaces.api import StoryboardWorkerRequest, storyboard_worker_endpoint
 
@@ -52,18 +58,23 @@ async def test_storyboard_endpoint_forwards_format_track():
 
     class _FakeArtifact(BaseModel):
         scene_count: int = 1
-        prompt_version: str = "v0.15"
+        prompt_version: str = "v0.16"
 
     async def _fake_worker(state):
         captured_states.append(state)
         from cf_platform.core.schemas import WorkerOutput
         return WorkerOutput(artifact=_FakeArtifact())
 
+    background_tasks = BackgroundTasks()
     with patch("cf_platform.interfaces.api.build_storyboard_worker", return_value=_fake_worker), \
          patch("cf_platform.interfaces.api.VerifiedStoryboardArtifact", _FakeArtifact), \
          patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock, return_value=None):
-        await storyboard_worker_endpoint(body, storage=storage, settings=settings)
+        response = await storyboard_worker_endpoint(
+            body, background_tasks, storage=storage, settings=settings
+        )
+        await background_tasks()  # execute the queued background task
 
+    assert response.status == "accepted"
     assert captured_states[0].inputs["format_track"] == "landscape"
 
 

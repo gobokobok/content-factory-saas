@@ -283,7 +283,7 @@ async def test_bug4_event_without_ost_triggers_haiku_call():
 
     mock_response = MagicMock()
     mock_response.content = [MagicMock()]
-    mock_response.content[0].text = "Rate hike 2018"
+    mock_response.content[0].text = '{"1": "Rate hike 2018"}'
 
     mock_client = AsyncMock()
     mock_client.messages.create = AsyncMock(return_value=mock_response)
@@ -315,34 +315,50 @@ async def test_bug4_event_with_existing_ost_skipped():
 
 @pytest.mark.asyncio
 async def test_bug4_synthesis_cap_limits_calls(caplog):
-    """_synthesize_event_ost makes at most _MAX_EVENT_OST_CALLS Haiku calls."""
+    """_synthesize_event_ost sends ONE batched Haiku call covering at most
+    _MAX_EVENT_OST_CALLS gap scenes; scenes beyond the cap stay unfilled."""
+    import json as _json
+
     from cf_platform.workers.storyboard_worker import _MAX_EVENT_OST_CALLS, _synthesize_event_ost
 
     scenes = [_scene(str(i), segment_type="Event", duration_s=2.0) for i in range(_MAX_EVENT_OST_CALLS + 3)]
     sb = _storyboard(scenes)
 
     call_count = 0
+    batched_ids: list[str] = []
 
     async def fake_create(**kwargs):
         nonlocal call_count
         call_count += 1
+        prompt = kwargs["messages"][0]["content"]
+        # Every line like `<id>: "<vo>"` is one gap scene in the batch
+        import re as _re
+        ids = [
+            m.group(1)
+            for ln in prompt.splitlines()
+            if (m := _re.match(r'^(\d+): "', ln))
+        ]
+        batched_ids.extend(ids)
         resp = MagicMock()
         resp.content = [MagicMock()]
-        resp.content[0].text = f"Title {call_count}"
+        resp.content[0].text = _json.dumps({i: f"Title {i}" for i in ids})
         return resp
 
     mock_client = AsyncMock()
     mock_client.messages.create = fake_create
 
     with patch("cf_platform.workers.storyboard_worker.anthropic.AsyncAnthropic", return_value=mock_client):
-        await _synthesize_event_ost(sb, "fake-api-key")
+        result = await _synthesize_event_ost(sb, "fake-api-key")
 
-    assert call_count == _MAX_EVENT_OST_CALLS
+    assert call_count == 1
+    assert len(batched_ids) == _MAX_EVENT_OST_CALLS
+    filled = sum(1 for s in result.scenes if s.on_screen_text)
+    assert filled == _MAX_EVENT_OST_CALLS
 
 
 @pytest.mark.asyncio
 async def test_bug4_synthesis_logs_warning(caplog):
-    """_synthesize_event_ost logs a WARNING for each gap it fills."""
+    """_synthesize_event_ost logs each gap it fills."""
     from cf_platform.workers.storyboard_worker import _synthesize_event_ost
 
     scene = _scene("1", segment_type="Event", duration_s=3.0)
@@ -350,13 +366,13 @@ async def test_bug4_synthesis_logs_warning(caplog):
 
     mock_response = MagicMock()
     mock_response.content = [MagicMock()]
-    mock_response.content[0].text = "Crisis moment"
+    mock_response.content[0].text = '{"1": "Crisis moment"}'
 
     mock_client = AsyncMock()
     mock_client.messages.create = AsyncMock(return_value=mock_response)
 
     with patch("cf_platform.workers.storyboard_worker.anthropic.AsyncAnthropic", return_value=mock_client):
-        with caplog.at_level(logging.WARNING, logger="cf_platform.workers.storyboard_worker"):
+        with caplog.at_level(logging.INFO, logger="cf_platform.workers.storyboard_worker"):
             await _synthesize_event_ost(sb, "fake-api-key")
 
     assert any("synthesised" in r.message.lower() or "Event" in r.message for r in caplog.records)
