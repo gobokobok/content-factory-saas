@@ -1269,7 +1269,7 @@ def build_storyboard_worker(
                 _, va_body = await read_artifact(storage, state.artifacts["voice_alignment"])
                 va = VoiceAlignmentArtifact.model_validate(va_body)
                 voice_timestamps = va.word_timestamps
-                timestamps_are_real = va.alignment_method == "deepgram"
+                timestamps_are_real = va.alignment_method != "proportional_fallback"
             except Exception:
                 logger.warning("StoryboardWorker: could not read voice_alignment — using word-count durations")
 
