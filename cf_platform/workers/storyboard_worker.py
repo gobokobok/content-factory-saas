@@ -733,12 +733,13 @@ _WORD_LIST_MAX_ENTRIES = 350
 def _format_indexed_timestamps(words: list[VoiceWordTimestamp]) -> tuple[str, int]:
     """Format indexed word list for the v0.13 generate prompt.
 
-    For ≤350 words: full list with timestamps, one entry per word.
-    For >350 words: strided list (every Nth word, no timestamps).
-    Timestamps are stripped for large scripts because Python derives timing
-    from the full word array via _reify_scene — Claude only needs indices.
+    For ≤350 words: full list with timestamps so Claude sees exact timing.
+    For >350 words: full list without timestamps — Python owns timing via
+    _reify_scene; Claude only needs word indices for boundary decisions.
+    Striding was tried but caused mid-sentence splits because Claude
+    couldn't see words between anchor points.
 
-    Returns (formatted_block, stride) where stride=1 means no striding.
+    Returns (formatted_block, stride=1).
     """
     n = len(words)
     if n <= _WORD_LIST_MAX_ENTRIES:
@@ -746,14 +747,12 @@ def _format_indexed_timestamps(words: list[VoiceWordTimestamp]) -> tuple[str, in
             f'[{idx}]  "{w.word}"    ({w.start_ms / 1000:.2f}s–{w.end_ms / 1000:.2f}s)'
             for idx, w in enumerate(words)
         )
-        return block, 1
-    stride = math.ceil(n / _WORD_LIST_MAX_ENTRIES)
-    block = "\n".join(
-        f'[{idx}]  "{w.word}"'
-        for idx, w in enumerate(words)
-        if idx % stride == 0
-    )
-    return block, stride
+    else:
+        block = "\n".join(
+            f'[{idx}]  "{w.word}"'
+            for idx, w in enumerate(words)
+        )
+    return block, 1
 
 
 def _assign_asset_tier(duration_s: float) -> Literal["still", "still_motion", "video"]:
@@ -835,17 +834,38 @@ def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -
 _MAX_SCENE_DURATION_S = 10.0
 
 
+def _find_pause_split(
+    words: list[VoiceWordTimestamp],
+    ideal_end: int,
+    range_start: int,
+    range_end: int,
+) -> int:
+    """Return the word index within [range_start, range_end] that has the longest
+    gap to the next word — a natural speech pause, preferring clause/sentence breaks.
+    Falls back to ideal_end if no better candidate found.
+    """
+    best_idx = ideal_end
+    best_gap = -1
+    for i in range(max(range_start, 0), min(range_end, len(words) - 2) + 1):
+        gap = words[i + 1].start_ms - words[i].end_ms
+        if gap > best_gap:
+            best_gap = gap
+            best_idx = i
+    return best_idx
+
+
 def _split_long_scenes(
     storyboard: "Storyboard",
     words: list[VoiceWordTimestamp],
     max_s: float = _MAX_SCENE_DURATION_S,
 ) -> "Storyboard":
-    """Split any scene whose VO span exceeds max_s into equal-word-count sub-scenes.
+    """Split any scene whose VO span exceeds max_s into sub-scenes.
 
-    Visual metadata (queries, segment_type, person fields, render_options) is
-    copied to every sub-scene. on_screen_text is kept only on the first sub-scene
-    so overlays don't repeat. _reify_scene is called on each sub-scene to derive
-    fresh timing, voiceover_line, asset_tier, clip_type, and motion_effect.
+    Split points are chosen at the largest speech pause near each ideal
+    equal-duration boundary, preferring natural clause breaks over mechanical
+    midpoints. Visual metadata is copied to every sub-scene; on_screen_text
+    is cleared on sub-scenes (OST synthesis runs after splitting so it assigns
+    text to the correct sub-scene).
     """
     result: list = []
     for scene in storyboard.scenes:
@@ -861,6 +881,7 @@ def _split_long_scenes(
         n_splits = math.ceil(scene.duration_s / max_s)
         total_words = scene.end_word - scene.start_word + 1
         words_per_split = math.ceil(total_words / n_splits)
+        search_radius = max(2, words_per_split // 4)
 
         base = scene.model_dump(by_alias=True, mode="json")
         logger.info(
@@ -868,20 +889,33 @@ def _split_long_scenes(
             scene.scene, scene.duration_s, n_splits,
         )
 
-        for j in range(n_splits):
-            sub_start = scene.start_word + j * words_per_split
-            sub_end = min(scene.start_word + (j + 1) * words_per_split - 1, scene.end_word)
+        # Build split boundaries using pause-detection
+        boundaries: list[int] = []  # end indices for each sub-scene except the last
+        current_start = scene.start_word
+        for j in range(n_splits - 1):
+            ideal_end = current_start + words_per_split - 1
+            split_end = _find_pause_split(
+                words,
+                ideal_end=min(ideal_end, scene.end_word - 1),
+                range_start=max(current_start, ideal_end - search_radius),
+                range_end=min(scene.end_word - 1, ideal_end + search_radius),
+            )
+            boundaries.append(split_end)
+            current_start = split_end + 1
+        boundaries.append(scene.end_word)
 
+        sub_starts = [scene.start_word] + [b + 1 for b in boundaries[:-1]]
+        for j, (sub_start, sub_end) in enumerate(zip(sub_starts, boundaries)):
             sub = dict(base)
             sub["start_word"] = sub_start
             sub["end_word"] = sub_end
-            # on_screen_text only on first sub-scene
-            if j > 0:
-                sub["on_screen_text"] = None
-                sub["on_screen_text_type"] = None
-                if sub.get("render_options") and isinstance(sub["render_options"], dict):
-                    sub["render_options"] = dict(sub["render_options"])
-                    sub["render_options"]["on_screen_text_overlay"] = None
+            # Clear OST on all sub-scenes — _synthesize_event_ost runs after
+            # splitting and will assign OST to the correct sub-scene.
+            sub["on_screen_text"] = None
+            sub["on_screen_text_type"] = None
+            if sub.get("render_options") and isinstance(sub["render_options"], dict):
+                sub["render_options"] = dict(sub["render_options"])
+                sub["render_options"]["on_screen_text_overlay"] = None
             if j > 0:
                 sub["scene"] = f"{scene.scene}_p{j + 1}"
 
@@ -1288,20 +1322,12 @@ def build_storyboard_worker(
         # Step 3: Patch — apply corrections + compute render_options (deterministic)
         storyboard = _apply_patches_and_render_options(storyboard, patches)
 
-        # Step 3b: Synthesise OST for any Event scenes that still lack on_screen_text (Bug 4).
-        # Run AFTER the initial patch so we only fill genuine gaps, not ones the reviewer fixed.
-        # Re-apply render_options afterwards so the new OST text gets an enable_expr.
-        storyboard = await _synthesize_event_ost(storyboard, anthropic_api_key)
-        storyboard = _apply_patches_and_render_options(storyboard, [])
-
         # Step 4: Enforce hard 10s scene cap.
         # Real Deepgram timestamps → split long scenes so word boundaries stay accurate.
         # Proportional fallback → clamp duration_s (boundaries are estimated anyway).
         if timestamps_are_real and voice_timestamps:
             normalized_words = _normalize_deepgram_words([w.model_dump() for w in voice_timestamps])
             storyboard = _split_long_scenes(storyboard, normalized_words)
-            # Re-derive render_options for any new sub-scenes.
-            storyboard = _apply_patches_and_render_options(storyboard, [])
             logger.info("StoryboardWorker: after split — %d scenes", len(storyboard.scenes))
         else:
             _STILL_MAX_S = 5.0
@@ -1314,6 +1340,11 @@ def build_storyboard_worker(
                     scene = scene.model_copy(update={"duration_s": _VIDEO_MAX_S})
                 capped.append(scene)
             storyboard = storyboard.model_copy(update={"scenes": capped})
+
+        # Step 5: Synthesise OST — runs AFTER splitting so it assigns text to the
+        # correct sub-scene (the one whose VO actually contains the event/stat).
+        storyboard = await _synthesize_event_ost(storyboard, anthropic_api_key)
+        storyboard = _apply_patches_and_render_options(storyboard, [])
 
         artifact = VerifiedStoryboardArtifact(
             prompt_version=STORYBOARD_PROMPT_VERSION,
