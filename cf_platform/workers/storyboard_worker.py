@@ -45,7 +45,7 @@ from src.models import (
 
 logger = logging.getLogger(__name__)
 
-STORYBOARD_PROMPT_VERSION = "v0.16"
+STORYBOARD_PROMPT_VERSION = "v0.17"
 
 _SONNET_MODEL = "claude-sonnet-4-6"
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
@@ -55,13 +55,36 @@ STORYBOARD_WORKER_REGISTRATION = WorkerRegistration(
     prompt_version=STORYBOARD_PROMPT_VERSION,
     prompt="",
     model=_SONNET_MODEL,
-    sampling_params={"max_tokens": 16000},
+    sampling_params={"max_tokens": 32000},
 )
 
 # Format lines substituted into _GENERATE_SYSTEM_PROMPT per-run based on format_track.
 _FORMAT_LINE_SENTINEL = "Format: 16:9 horizontal. Voiceover only. Stock footage + Wikimedia Commons."
 _FORMAT_LINE_PORTRAIT = "Format: 9:16 vertical, 30–60 second YouTube Short. Voiceover only. Stock footage + Wikimedia Commons."
 _FORMAT_LINE_LANDSCAPE = "Format: 16:9 horizontal, 30–180 second YouTube video. Voiceover only. Stock footage + Wikimedia Commons."
+
+# Pacing lines — short-form Shorts need faster cuts than long-form video.
+# Exact word budgets (computed from this script's measured speech rate) are injected
+# per-request into the user message; these lines set the qualitative target in seconds.
+_PACING_LINE_SENTINEL = "PACING_TARGET_PLACEHOLDER"
+_PACING_LINE_PORTRAIT = (
+    "PACING TARGET (short-form 9:16): body scenes 1.5–3 seconds, hard maximum 5 seconds.\n"
+    "HOOK: the first ~4 seconds of narration must cut fast — target ~1 second per scene;\n"
+    "sub-second scenes are expected and encouraged here to hook the viewer."
+)
+_PACING_LINE_LANDSCAPE = (
+    "PACING TARGET (long-form 16:9): body scenes 3–6 seconds, hard maximum 8 seconds.\n"
+    "HOOK: the first ~4 seconds of narration must still cut fast — target ~1–1.5 seconds per scene."
+)
+
+# Seconds-based targets used to derive per-request word budgets in _generate().
+_HOOK_WINDOW_S = 4.0
+_HOOK_TARGET_S = 1.0
+_BODY_PACING_SECONDS: dict[str, tuple[float, float, float]] = {
+    # format_track -> (target_lo_s, target_hi_s, hard_max_s)
+    "portrait": (1.5, 3.0, 5.0),
+    "landscape": (3.0, 6.0, 8.0),
+}
 
 _GENERATE_SYSTEM_PROMPT = """\
 You are a production storyboard generator for a faceless, voiceover-driven YouTube channel.
@@ -78,9 +101,12 @@ SEGMENT TYPE
 
 Every scene has a segment_type. Use exactly one of:
 
-"Character" — the voiceover mentions a specific named real individual (scientist,
-  politician, researcher, historical figure). Use this even if the scene is about their
-  work or study — the visual should be their portrait, not generic B-roll.
+"Character" — the voiceover names a specific real individual (scientist, politician,
+  researcher, historical figure, athlete, celebrity). Use this even if the scene is
+  about their work or study, OR references them only in passing, comparison, or
+  hyperbole — the visual should be their portrait, not generic B-roll. A famous name
+  dropped for effect ("you don't need Ronaldo's contract") still triggers Character;
+  it does not need to be the scene's main subject.
   MUST set person_name and person_title.
   Acquisition: tries Wikipedia portrait first; falls back to Pexels+Pixabay on miss.
 
@@ -94,8 +120,10 @@ Every scene has a segment_type. Use exactly one of:
 Rules:
 - Never assign "Character" without setting person_name.
 - Never assign "Event" for abstract concepts (inflation, demand, equity) — use "B-roll".
-- FIRST mention of a named real person (scientist, researcher, politician) in the script
-  → MUST be "Character" with person_name set. This is their introduction scene; show their portrait.
+- FIRST mention of a named real person — including a passing name-drop, comparison, or
+  hyperbole, not just the scene's main subject — → MUST be "Character" with person_name
+  set. This is their introduction scene; show their portrait. Resolve an ambiguous
+  first name (e.g. "Ronaldo") to the most famous/contextually likely full name.
 - SUBSEQUENT mentions of the same person → use "B-roll" with contextual queries about
   their work (e.g. the study, the concept they're associated with). Do not show the
   same portrait twice.
@@ -108,6 +136,9 @@ Examples:
     → segment_type: "B-roll", primary_stk: "federal reserve interest rate mortgage"
   First mention: VO: "Kirk Erickson's 2011 study found aerobic exercise grew the hippocampus"
     → segment_type: "Character", person_name: "Kirk Erickson", person_title: "Neuroscientist, University of Pittsburgh"
+  Name-drop/comparison (still Character): VO: "you don't need Ronaldo's contract or abs
+  to make money off soccer"
+    → segment_type: "Character", person_name: "Cristiano Ronaldo", person_title: "Professional Footballer"
   First mention: VO: "Cotman and Berchtold's 2002 review established this link directly"
     → segment_type: "Character", person_name: "Carl Cotman", person_title: "Neuroscientist, UC Irvine"
   The London Blitz destroyed four million homes"
@@ -375,6 +406,8 @@ You are a production storyboard generator for a faceless, voiceover-driven YouTu
 
 Format: 16:9 horizontal. Voiceover only. Stock footage + Wikimedia Commons.
 
+PACING_TARGET_PLACEHOLDER
+
 Your job: divide the indexed voiceover word list into scenes. For each scene, output
 start_word and end_word integer indices (inclusive) and the visual/audio metadata.
 Output ONLY a valid JSON object — no prose, no markdown fences, no extra keys.
@@ -388,8 +421,9 @@ a period, question mark, or exclamation mark on a word marks the end of a senten
 For each scene set start_word and end_word to integer indices from this list.
 
 Rules:
-- Target 2–5 seconds per scene. Hard maximum: 7 seconds. When timestamps are not
-  shown, use the word budget given in the user message — count words per scene.
+- Follow the PACING TARGET above and the exact word budget given in the user
+  message (computed from this script's measured speech rate) — count words per
+  scene and stay within the hook/body targets given there.
 - SENTENCE BOUNDARIES FIRST: strongly prefer ending a scene on a word that carries
   sentence-final punctuation (. ? !). Split inside a sentence ONLY when the whole
   sentence would exceed the budget — and then split at a clause boundary
@@ -397,6 +431,16 @@ Rules:
 - NEVER end a scene mid-thought. A noun must never be separated from its adjective
   or ordinal ("the third | generation" is forbidden — keep "the third generation"
   together in one scene).
+- LIST ITEMS GET THEIR OWN SCENE: when the voiceover enumerates items — "first...
+  second... third", a comma-separated series of nouns/phrases, or numbered items
+  ("way 1", "reason two") — give EACH item its own scene, even if under 1 second
+  long. The intro/bridge phrase before the list is its own scene, never merged
+  into the first item. Rapid list cuts are intentional — do not merge list items
+  together to hit a target duration; going below the body word budget is correct
+  here.
+  Example: VO "here are three ways to cash in dropshipping affiliate marketing
+  and print on demand" → 4 scenes: "here are three ways to cash in" (intro),
+  "dropshipping", "affiliate marketing", "and print on demand".
 - SECTION OPENERS START NEW SCENES: when the voiceover introduces a numbered section
   ("lesson one", "step 3", "rule two", "habit 4"), that phrase MUST be the FIRST
   words of a new scene — never the tail of the previous scene. Set that scene's
@@ -412,9 +456,12 @@ SEGMENT TYPE
 
 Every scene has a segment_type. Use exactly one of:
 
-"Character" — the voiceover mentions a specific named real individual (scientist,
-  politician, researcher, historical figure). Use this even if the scene is about their
-  work or study — the visual should be their portrait, not generic B-roll.
+"Character" — the voiceover names a specific real individual (scientist, politician,
+  researcher, historical figure, athlete, celebrity). Use this even if the scene is
+  about their work or study, OR references them only in passing, comparison, or
+  hyperbole — the visual should be their portrait, not generic B-roll. A famous name
+  dropped for effect ("you don't need Ronaldo's contract") still triggers Character;
+  it does not need to be the scene's main subject.
   MUST set person_name and person_title.
   Acquisition: tries Wikipedia portrait first; falls back to Pexels+Pixabay on miss.
 
@@ -428,8 +475,10 @@ Every scene has a segment_type. Use exactly one of:
 Rules:
 - Never assign "Character" without setting person_name.
 - Never assign "Event" for abstract concepts (inflation, demand, equity) — use "B-roll".
-- FIRST mention of a named real person (scientist, researcher, politician) in the script
-  → MUST be "Character" with person_name set. This is their introduction scene; show their portrait.
+- FIRST mention of a named real person — including a passing name-drop, comparison, or
+  hyperbole, not just the scene's main subject — → MUST be "Character" with person_name
+  set. This is their introduction scene; show their portrait. Resolve an ambiguous
+  first name (e.g. "Ronaldo") to the most famous/contextually likely full name.
 - SUBSEQUENT mentions of the same person → use "B-roll" with contextual queries about
   their work (e.g. the study, the concept they're associated with). Do not show the
   same portrait twice.
@@ -442,6 +491,9 @@ Examples:
     → segment_type: "B-roll", primary_stk: "federal reserve interest rate mortgage"
   First mention: VO: "Kirk Erickson's 2011 study found aerobic exercise grew the hippocampus"
     → segment_type: "Character", person_name: "Kirk Erickson", person_title: "Neuroscientist, University of Pittsburgh"
+  Name-drop/comparison (still Character): VO: "you don't need Ronaldo's contract or abs
+  to make money off soccer"
+    → segment_type: "Character", person_name: "Cristiano Ronaldo", person_title: "Professional Footballer"
   First mention: VO: "Cotman and Berchtold's 2002 review established this link directly"
     → segment_type: "Character", person_name: "Carl Cotman", person_title: "Neuroscientist, UC Irvine"
   The London Blitz destroyed four million homes"
@@ -854,6 +906,13 @@ def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -
 
 _MAX_SCENE_DURATION_S = 10.0
 
+# Python-level hard backstop per format — tighter than the prompt's own target so a
+# format_track="portrait" run never ends up with 8-10s scenes if Claude ignores pacing.
+_MAX_SCENE_DURATION_BY_FORMAT: dict[str, float] = {
+    "portrait": 6.0,
+    "landscape": 10.0,
+}
+
 _DIGIT_WORDS = {
     "0": "zero", "1": "one", "2": "two", "3": "three", "4": "four",
     "5": "five", "6": "six", "7": "seven", "8": "eight", "9": "nine", "10": "ten",
@@ -1159,6 +1218,8 @@ async def _generate(
     word count and logs a WARNING).
     """
     format_line = _FORMAT_LINE_LANDSCAPE if format_track == "landscape" else _FORMAT_LINE_PORTRAIT
+    pacing_line = _PACING_LINE_LANDSCAPE if format_track == "landscape" else _PACING_LINE_PORTRAIT
+    lo_s, hi_s, hard_s = _BODY_PACING_SECONDS.get(format_track, _BODY_PACING_SECONDS["landscape"])
 
     if voice_timestamps:
         # v0.13 path — indexed word list with punctuation preserved so Claude can
@@ -1169,19 +1230,27 @@ async def _generate(
         ts_block = _format_indexed_timestamps(normalized_words, display_words)
         n_words = len(normalized_words)
         system_prompt = _GENERATE_SYSTEM_PROMPT_V013.replace(_FORMAT_LINE_SENTINEL, format_line)
+        system_prompt = system_prompt.replace(_PACING_LINE_SENTINEL, pacing_line)
 
         # Convert the prompt's seconds targets into a word budget from the measured
         # speech rate — for large scripts the list carries no timestamps, so word
-        # counts are the only length signal Claude can act on.
+        # counts are the only length signal Claude can act on. Two tiers: a fast
+        # hook window (first ~4s) and the format-conditional body target.
         total_s = max(normalized_words[-1].end_ms / 1000.0, 1.0) if normalized_words else 1.0
         wps = n_words / total_s
-        target_lo = max(3, round(2.0 * wps))
-        target_hi = max(target_lo + 4, round(5.0 * wps))
-        hard_max_words = max(target_hi + 4, round(7.0 * wps))
+        hook_words = max(2, round(_HOOK_WINDOW_S * wps))
+        hook_scene_words = max(1, round(_HOOK_TARGET_S * wps))
+        body_lo = max(2, round(lo_s * wps))
+        body_hi = max(body_lo + 2, round(hi_s * wps))
+        hard_max_words = max(body_hi + 2, round(hard_s * wps))
         budget_note = (
-            f"Measured speech rate: {wps:.1f} words/sec. "
-            f"Scene length budget: aim {target_lo}–{target_hi} words per scene; "
-            f"HARD MAXIMUM {hard_max_words} words (≈7s). Count words per scene and stay under it."
+            f"Measured speech rate: {wps:.1f} words/sec.\n"
+            f"HOOK — first ~{hook_words} words (~{_HOOK_WINDOW_S:.0f}s of narration): "
+            f"target ~{hook_scene_words} words per scene (~1s each); sub-{hook_scene_words}-word "
+            f"scenes are fine here. Cut fast to hook the viewer.\n"
+            f"BODY — after the hook: aim {body_lo}–{body_hi} words per scene; "
+            f"HARD MAXIMUM {hard_max_words} words. Count words per scene and stay under it.\n"
+            f"LIST ITEMS always get their own scene regardless of these targets, even 1–2 words."
         )
         user_content = (
             f"INDEXED WORD LIST ({n_words} words — use start_word/end_word indices; "
@@ -1405,12 +1474,13 @@ def build_storyboard_worker(
         # Step 3: Patch — apply corrections + compute render_options (deterministic)
         storyboard = _apply_patches_and_render_options(storyboard, patches)
 
-        # Step 4: Enforce hard 10s scene cap.
+        # Step 4: Enforce hard scene-duration cap (tighter for portrait Shorts).
         # Real Deepgram timestamps → split long scenes so word boundaries stay accurate.
         # Proportional fallback → clamp duration_s (boundaries are estimated anyway).
         if timestamps_are_real and voice_timestamps:
             normalized_words = _normalize_deepgram_words([w.model_dump() for w in voice_timestamps])
-            storyboard = _split_long_scenes(storyboard, normalized_words)
+            max_scene_s = _MAX_SCENE_DURATION_BY_FORMAT.get(format_track, _MAX_SCENE_DURATION_S)
+            storyboard = _split_long_scenes(storyboard, normalized_words, max_s=max_scene_s)
             logger.info("StoryboardWorker: after split — %d scenes", len(storyboard.scenes))
         else:
             _STILL_MAX_S = 5.0

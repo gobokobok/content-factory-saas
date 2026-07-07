@@ -50,6 +50,16 @@ _PUNCT_RE = re.compile(r"[^\w\s.%]")
 # ── Narration pace (words-per-second) used for proportional fallback ──────────
 
 _WORDS_PER_SECOND = 160 / 60
+_WORDS_PER_SECOND_SHORT = 175 / 60  # 9:16 Shorts narrate faster than 16:9 long-form
+
+# Gemini's native TTS models have no numeric speaking-rate parameter (SpeechConfig
+# only exposes language_code, voice_config, multi_speaker_voice_config) — pace is
+# controlled by a natural-language style instruction prefixed to the input text,
+# which the model follows without vocalizing the instruction itself.
+_SHORTS_PACE_INSTRUCTION = (
+    "Narrate the following energetically at a brisk, fast pace, about 170 to 180 "
+    "words per minute, like a YouTube Shorts voiceover: "
+)
 
 
 # ── Artifact schemas ──────────────────────────────────────────────────────────
@@ -205,9 +215,21 @@ def _proportional_fallback(text: str, total_duration_s: float) -> list[VoiceWord
     return result
 
 
-def _estimate_duration(script: str) -> float:
-    """Estimate narration duration from word count at standard narration pace."""
-    return max(1.0, len(script.split()) / _WORDS_PER_SECOND)
+def _estimate_duration(script: str, aspect_ratio: str = "16:9") -> float:
+    """Estimate narration duration from word count at standard narration pace.
+
+    9:16 Shorts use a faster proportional-fallback rate to match the TTS pace
+    instruction applied in _build_tts_input.
+    """
+    wps = _WORDS_PER_SECOND_SHORT if aspect_ratio == "9:16" else _WORDS_PER_SECOND
+    return max(1.0, len(script.split()) / wps)
+
+
+def _build_tts_input(script: str, aspect_ratio: str) -> str:
+    """Prefix the script with a pace-style instruction for 9:16 Shorts narration."""
+    if aspect_ratio == "9:16":
+        return _SHORTS_PACE_INSTRUCTION + script
+    return script
 
 
 # ── Worker factory ────────────────────────────────────────────────────────────
@@ -229,6 +251,10 @@ def build_voice_production_worker(
 
     Fault isolation (D048): missing keys or API failures degrade gracefully;
     the pipeline always continues with whatever timestamps are available.
+
+    state.inputs['aspect_ratio'] (default "16:9") selects narration pace: "9:16"
+    applies a fast-pace style instruction for Shorts (~170-180 wpm); other ratios
+    use Gemini's natural default pace.
     """
 
     async def voice_production(state: StageState) -> WorkerOutput:
@@ -239,16 +265,18 @@ def build_voice_production_worker(
 
         _, script_body = await read_artifact(storage, script_key)
         script_text: str = script_body["script"]
+        aspect_ratio: str = state.inputs.get("aspect_ratio", "16:9")
 
         mp3_r2_key = ""
         word_timestamps: list[VoiceWordTimestamp] = []
         alignment_method = "proportional_fallback"
-        total_duration_s = _estimate_duration(script_text)
+        total_duration_s = _estimate_duration(script_text, aspect_ratio)
 
         # ── Step 1: TTS ────────────────────────────────────────────────────
         if gemini_api_key and gemini_tts_voice:
             try:
-                wav_bytes = await _tts_generate(script_text, gemini_api_key, gemini_tts_voice)
+                tts_input = _build_tts_input(script_text, aspect_ratio)
+                wav_bytes = await _tts_generate(tts_input, gemini_api_key, gemini_tts_voice)
                 mp3_r2_key = f"runs/{state.run_id}/voiceover/generated.wav"
                 await storage.put_bytes(mp3_r2_key, wav_bytes, "audio/wav")
                 logger.info("TTS complete for run %s — %d bytes", state.run_id, len(wav_bytes))

@@ -777,6 +777,15 @@ async def voice_worker_endpoint(
         lineage=script_lineage,
     )
 
+    # Read the run's stored aspect ratio (set in Settings, before Voice runs) so
+    # voice_production can apply a faster narration pace for 9:16 Shorts.
+    aspect_ratio = "16:9"
+    try:
+        settings_data = await storage.get_json(f"runs/{body.run_id}/settings.json")
+        aspect_ratio = settings_data.get("aspect_ratio", "16:9")
+    except Exception:
+        pass
+
     worker = build_voice_production_worker(
         storage,
         gemini_api_key=settings.GEMINI_API_KEY,
@@ -786,7 +795,7 @@ async def voice_worker_endpoint(
     worker_state = StageState(
         run_id=body.run_id,
         user_id=_PLATFORM_USER_ID,
-        inputs={},
+        inputs={"aspect_ratio": aspect_ratio},
         artifacts={"script": script_record.r2_key},
     )
 

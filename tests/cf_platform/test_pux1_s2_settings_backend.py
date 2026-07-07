@@ -58,7 +58,7 @@ async def test_storyboard_endpoint_forwards_format_track():
 
     class _FakeArtifact(BaseModel):
         scene_count: int = 1
-        prompt_version: str = "v0.16"
+        prompt_version: str = "v0.17"
 
     async def _fake_worker(state):
         captured_states.append(state)

@@ -231,7 +231,7 @@ class TestReifyScene:
 
 
 def test_prompt_version_is_v013() -> None:
-    assert STORYBOARD_PROMPT_VERSION == "v0.16"
+    assert STORYBOARD_PROMPT_VERSION == "v0.17"
 
 
 def test_v013_prompt_has_no_duration_rules_table() -> None:
