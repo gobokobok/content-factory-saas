@@ -690,14 +690,14 @@ class TestTelegramWebhookAllowlist:
 
     def test_allowed_chat_id_gets_normal_reply(self):
         """A chat id present in TELEGRAM_ALLOWED_CHAT_IDS receives the usual reply."""
-        client = self._client_with_telegram_settings(TELEGRAM_ALLOWED_CHAT_IDS="968448961")
+        client = self._client_with_telegram_settings(TELEGRAM_ALLOWED_CHAT_IDS="111000111")
 
         with _stub_niche_to_ideas_workers(), patch(
             "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
         ) as mock_send:
             response = client.post(
                 "/platform/telegram/webhook",
-                json={"message": {"chat": {"id": 968448961}, "text": "/ideas starter homes"}},
+                json={"message": {"chat": {"id": 111000111}, "text": "/ideas starter homes"}},
                 headers={"X-Telegram-Bot-Api-Secret-Token": "test-secret"},
             )
 
@@ -707,7 +707,7 @@ class TestTelegramWebhookAllowlist:
 
     def test_disallowed_chat_id_gets_no_reply(self):
         """A chat id absent from TELEGRAM_ALLOWED_CHAT_IDS is acked with no reply sent."""
-        client = self._client_with_telegram_settings(TELEGRAM_ALLOWED_CHAT_IDS="968448961")
+        client = self._client_with_telegram_settings(TELEGRAM_ALLOWED_CHAT_IDS="111000111")
 
         with patch(
             "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock

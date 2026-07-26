@@ -98,30 +98,30 @@ class TestIsChatAllowed:
 
     def test_empty_allowlist_allows_any_chat(self):
         """An empty TELEGRAM_ALLOWED_CHAT_IDS means unrestricted access."""
-        assert is_chat_allowed(968448961, "") is True
+        assert is_chat_allowed(111000111, "") is True
         assert is_chat_allowed(123, "") is True
 
     def test_single_id_allows_matching_chat(self):
         """A single configured chat id is allowed."""
-        assert is_chat_allowed(968448961, "968448961") is True
+        assert is_chat_allowed(111000111, "111000111") is True
 
     def test_single_id_rejects_other_chat(self):
         """A chat id not in the allowlist is rejected."""
-        assert is_chat_allowed(123, "968448961") is False
+        assert is_chat_allowed(123, "111000111") is False
 
     def test_comma_separated_list_allows_any_listed_id(self):
         """Any chat id present in a comma-separated allowlist is allowed."""
-        assert is_chat_allowed(123, "968448961,123,456") is True
-        assert is_chat_allowed(456, "968448961,123,456") is True
+        assert is_chat_allowed(123, "111000111,123,456") is True
+        assert is_chat_allowed(456, "111000111,123,456") is True
 
     def test_comma_separated_list_rejects_unlisted_id(self):
         """A chat id absent from a comma-separated allowlist is rejected."""
-        assert is_chat_allowed(789, "968448961,123,456") is False
+        assert is_chat_allowed(789, "111000111,123,456") is False
 
     def test_whitespace_around_ids_is_ignored(self):
         """Whitespace around ids/commas in the allowlist is stripped before comparison."""
-        assert is_chat_allowed(968448961, " 968448961 , 123 ") is True
-        assert is_chat_allowed(123, " 968448961 , 123 ") is True
+        assert is_chat_allowed(111000111, " 111000111 , 123 ") is True
+        assert is_chat_allowed(123, " 111000111 , 123 ") is True
 
 
 class TestParseScriptCommand:

@@ -57,7 +57,7 @@ Hit `GET /health` on Railway DEV URL. Confirm 200 response with correct environm
 - `src/config.py` — `Settings` class (pydantic-settings) validates all 7 required ENV vars at startup: `ENVIRONMENT`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_DRIVE_ROOT_ID`, `ANTHROPIC_API_KEY`, `PEXELS_API_KEY`, `REPLICATE_API_TOKEN`, `FREESOUND_API_KEY`. Import and inject via `Depends(get_settings)` in all routes.
 - `src/main.py` — FastAPI app with lifespan startup hook. `GET /health` returns `{"status":"ok","environment":"<env>"}`. All future routes registered here via `app.include_router()`.
 - `tests/test_health.py` — 13 passing tests. Pattern for injecting settings in tests: `app.dependency_overrides[get_settings] = lambda: settings`; use `monkeypatch.delenv()` to isolate ENV vars.
-- Railway DEV live at `content-factory-dev-production.up.railway.app`. All 8 ENV vars set in Railway Variables tab.
+- Railway DEV live at `<railway-dev-url>`. All 8 ENV vars set in Railway Variables tab.
 - No new issues promoted to backlog.
 
 ---
@@ -148,7 +148,7 @@ Replace Google Drive + OAuth with Cloudflare R2 + static API token so storage in
 
 ### Smoke test
 ```bash
-curl -X POST https://content-factory-dev-production.up.railway.app/runs \
+curl -X POST https://<railway-dev-url>/runs \
   -H "Content-Type: application/json" \
   -d '{"slug": "test-affordability"}'
 ```
