@@ -6,6 +6,15 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
+def reset_login_rate_limiter():
+    """Clear the login rate limiter so failed attempts never leak between tests."""
+    from src.routes.auth import _RATE_LIMITER
+
+    _RATE_LIMITER.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def bypass_auth_middleware(request):
     """Bypass the auth middleware for all tests except test_auth.py.
 

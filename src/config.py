@@ -92,6 +92,12 @@ class Settings(BaseSettings):
     OPERATOR_PASSWORD: str
     SESSION_SECRET_KEY: str
 
+    # Login rate limiting: block an IP after LOGIN_MAX_ATTEMPTS failed
+    # attempts within LOGIN_ATTEMPT_WINDOW_SECONDS.  Defaults suit a
+    # single-operator tool; override via ENV if needed.
+    LOGIN_MAX_ATTEMPTS: int = 5
+    LOGIN_ATTEMPT_WINDOW_SECONDS: int = 900
+
     @field_validator("LOG_LEVEL")
     @classmethod
     def validate_log_level(cls, v: str) -> str:

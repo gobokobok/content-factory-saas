@@ -94,6 +94,76 @@ class TestLogin:
         assert AUTH_COOKIE_NAME not in res.cookies
 
 
+# ─── Login rate limiting ──────────────────────────────────────────────────────
+
+class TestLoginRateLimit:
+    def test_blocked_after_max_failed_attempts(self):
+        """The attempt after LOGIN_MAX_ATTEMPTS failures returns 429."""
+        client = _client()
+        for _ in range(_SETTINGS.LOGIN_MAX_ATTEMPTS):
+            res = client.post("/auth/login", json={"password": "wrong"})
+            assert res.status_code == 401
+        res = client.post("/auth/login", json={"password": "wrong"})
+        assert res.status_code == 429
+        assert res.json()["ok"] is False
+
+    def test_blocked_even_with_correct_password(self):
+        """Once blocked, even the correct password is rejected until the window passes."""
+        client = _client()
+        for _ in range(_SETTINGS.LOGIN_MAX_ATTEMPTS):
+            client.post("/auth/login", json={"password": "wrong"})
+        res = client.post("/auth/login", json={"password": "correct-horse-battery"})
+        assert res.status_code == 429
+        assert AUTH_COOKIE_NAME not in res.cookies
+
+    def test_successful_login_resets_counter(self):
+        """A successful login clears prior failures for that IP."""
+        client = _client()
+        for _ in range(_SETTINGS.LOGIN_MAX_ATTEMPTS - 1):
+            client.post("/auth/login", json={"password": "wrong"})
+        res = client.post("/auth/login", json={"password": "correct-horse-battery"})
+        assert res.status_code == 200
+        # Full budget of failures is available again.
+        for _ in range(_SETTINGS.LOGIN_MAX_ATTEMPTS - 1):
+            res = client.post("/auth/login", json={"password": "wrong"})
+            assert res.status_code == 401
+
+    def test_window_expiry_unblocks(self):
+        """Failures older than the window no longer count toward the block."""
+        from src.auth import LoginRateLimiter
+
+        limiter = LoginRateLimiter()
+        limiter.record_failure("1.2.3.4", window_seconds=900)
+        # Age the recorded failure past the window by rewriting its timestamp.
+        limiter._failures["1.2.3.4"] = [t - 901 for t in limiter._failures["1.2.3.4"]]
+        assert limiter.is_blocked("1.2.3.4", max_attempts=1, window_seconds=900) is False
+
+
+# ─── Constant-time password comparison ────────────────────────────────────────
+
+class TestPasswordsMatch:
+    def test_accepts_equal_passwords(self):
+        """passwords_match returns True for identical strings."""
+        from src.auth import passwords_match
+
+        assert passwords_match("swordfish", "swordfish") is True
+
+    def test_rejects_different_passwords(self):
+        """passwords_match returns False for different strings, including prefixes."""
+        from src.auth import passwords_match
+
+        assert passwords_match("swordfish", "swordfish2") is False
+        assert passwords_match("", "swordfish") is False
+        assert passwords_match("sword", "swordfish") is False
+
+    def test_handles_non_ascii(self):
+        """passwords_match compares non-ASCII passwords correctly."""
+        from src.auth import passwords_match
+
+        assert passwords_match("pärole-🔑", "pärole-🔑") is True
+        assert passwords_match("pärole", "parole") is False
+
+
 # ─── POST /auth/logout ────────────────────────────────────────────────────────
 
 class TestLogout:

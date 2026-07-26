@@ -37,6 +37,17 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 
 ---
 
+## Operator auth
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPERATOR_PASSWORD` | Yes | Password for the operator UI login (S5-S5). |
+| `SESSION_SECRET_KEY` | Yes | HMAC key that signs the session cookie. Any long random string. |
+| `LOGIN_MAX_ATTEMPTS` | No | Failed logins per IP before a 429 block. Default: `5`. |
+| `LOGIN_ATTEMPT_WINDOW_SECONDS` | No | Rate-limit window in seconds. Default: `900`. |
+
+---
+
 ## AI — Claude API
 
 | Variable | Required | Description |
