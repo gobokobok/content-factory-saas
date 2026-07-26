@@ -155,12 +155,12 @@ async def test_run_pipeline_and_reply_with_metadata_includes_title_in_reply() ->
     fake_run.run_id = _RUN_ID
 
     with (
-        patch("cf_platform.interfaces.api.build_full_pipeline_graph", return_value=MagicMock()),
-        patch("cf_platform.interfaces.api.run_graph", side_effect=fake_run_graph),
-        patch("cf_platform.interfaces.api.read_artifact", side_effect=fake_read_artifact),
-        patch("cf_platform.interfaces.api.create_run", new_callable=AsyncMock, return_value=fake_run),
-        patch("cf_platform.interfaces.api.transition_run", new_callable=AsyncMock, return_value=fake_run),
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook.build_full_pipeline_graph", return_value=MagicMock()),
+        patch("cf_platform.interfaces.routes.telegram_webhook.run_graph", side_effect=fake_run_graph),
+        patch("cf_platform.interfaces.routes.telegram_webhook.read_artifact", side_effect=fake_read_artifact),
+        patch("cf_platform.interfaces.routes.telegram_webhook.create_run", new_callable=AsyncMock, return_value=fake_run),
+        patch("cf_platform.interfaces.routes.telegram_webhook.transition_run", new_callable=AsyncMock, return_value=fake_run),
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock(side_effect=lambda cid, t: sent_messages.append(t))
@@ -204,11 +204,11 @@ async def test_run_pipeline_and_reply_without_metadata_sends_video_url_only() ->
     fake_run.run_id = _RUN_ID
 
     with (
-        patch("cf_platform.interfaces.api.build_full_pipeline_graph", return_value=MagicMock()),
-        patch("cf_platform.interfaces.api.run_graph", side_effect=fake_run_graph),
-        patch("cf_platform.interfaces.api.create_run", new_callable=AsyncMock, return_value=fake_run),
-        patch("cf_platform.interfaces.api.transition_run", new_callable=AsyncMock, return_value=fake_run),
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook.build_full_pipeline_graph", return_value=MagicMock()),
+        patch("cf_platform.interfaces.routes.telegram_webhook.run_graph", side_effect=fake_run_graph),
+        patch("cf_platform.interfaces.routes.telegram_webhook.create_run", new_callable=AsyncMock, return_value=fake_run),
+        patch("cf_platform.interfaces.routes.telegram_webhook.transition_run", new_callable=AsyncMock, return_value=fake_run),
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock(side_effect=lambda cid, t: sent_messages.append(t))
@@ -255,12 +255,12 @@ async def test_run_pipeline_and_reply_metadata_read_error_falls_back_to_video_on
     fake_run.run_id = _RUN_ID
 
     with (
-        patch("cf_platform.interfaces.api.build_full_pipeline_graph", return_value=MagicMock()),
-        patch("cf_platform.interfaces.api.run_graph", side_effect=fake_run_graph),
-        patch("cf_platform.interfaces.api.read_artifact", side_effect=failing_read_artifact),
-        patch("cf_platform.interfaces.api.create_run", new_callable=AsyncMock, return_value=fake_run),
-        patch("cf_platform.interfaces.api.transition_run", new_callable=AsyncMock, return_value=fake_run),
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook.build_full_pipeline_graph", return_value=MagicMock()),
+        patch("cf_platform.interfaces.routes.telegram_webhook.run_graph", side_effect=fake_run_graph),
+        patch("cf_platform.interfaces.routes.telegram_webhook.read_artifact", side_effect=failing_read_artifact),
+        patch("cf_platform.interfaces.routes.telegram_webhook.create_run", new_callable=AsyncMock, return_value=fake_run),
+        patch("cf_platform.interfaces.routes.telegram_webhook.transition_run", new_callable=AsyncMock, return_value=fake_run),
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock(side_effect=lambda cid, t: sent_messages.append(t))

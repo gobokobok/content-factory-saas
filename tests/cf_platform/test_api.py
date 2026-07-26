@@ -334,14 +334,14 @@ class TestRepositoryProviderSelection:
 
     def test_returns_in_memory_repos_when_pool_unset(self):
         """With no Postgres pool (DATABASE_URL unset), provider functions return the in-memory singletons."""
-        with patch("cf_platform.interfaces.api.get_pool", return_value=None):
+        with patch("cf_platform.interfaces.dependencies.get_pool", return_value=None):
             assert isinstance(get_run_repository(), InMemoryRunRepository)
             assert isinstance(get_execution_repository(), InMemoryExecutionRepository)
             assert isinstance(get_artifact_repository(), InMemoryArtifactRepository)
 
     def test_returns_postgres_repos_when_pool_set(self):
         """With a Postgres pool available (DATABASE_URL set), provider functions return Postgres-backed repos."""
-        with patch("cf_platform.interfaces.api.get_pool", return_value=MagicMock()):
+        with patch("cf_platform.interfaces.dependencies.get_pool", return_value=MagicMock()):
             assert isinstance(get_run_repository(), PostgresRunRepository)
             assert isinstance(get_execution_repository(), PostgresExecutionRepository)
             assert isinstance(get_artifact_repository(), PostgresArtifactRepository)
@@ -361,7 +361,7 @@ class TestGetGraphCheckpointer:
     async def test_returns_postgres_saver_when_database_url_set(self):
         """With DATABASE_URL set, get_graph_checkpointer returns an AsyncPostgresSaver."""
         with patch(
-            "cf_platform.interfaces.api.get_platform_settings",
+            "cf_platform.interfaces.dependencies.get_platform_settings",
             return_value=MagicMock(DATABASE_URL="postgresql://user:pass@localhost/db"),
         ):
             checkpointer = await get_graph_checkpointer()

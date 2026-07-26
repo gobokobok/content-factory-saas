@@ -280,8 +280,8 @@ class TestReacquireEndpoint:
         record = MagicMock()
         record.r2_key = "users/platform/runs/run1/acquisition/asset_manifest@v2"
 
-        with patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock) as mock_latest, \
-             patch("cf_platform.interfaces.api.read_artifact", new_callable=AsyncMock) as mock_read, \
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock) as mock_latest, \
+             patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock) as mock_read, \
              patch("cf_platform.core.artifact_manager.write_artifact", new_callable=AsyncMock, return_value=record), \
              patch("cf_platform.workers.acquisition_worker._acquire_single_scene", new_callable=AsyncMock) as mock_acq:
 
@@ -318,13 +318,13 @@ class TestReacquireEndpoint:
         assert r.status_code == 422
 
     def test_reacquire_scene_not_found_returns_404(self, client):
-        with patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock, return_value="sb_key"), \
-             patch("cf_platform.interfaces.api.read_artifact", new_callable=AsyncMock, return_value=("sb_key", _make_storyboard_artifact([_scene("2")]))):
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value="sb_key"), \
+             patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock, return_value=("sb_key", _make_storyboard_artifact([_scene("2")]))):
             r = client.post("/platform/studio/runs/run1/scenes/99/reacquire", json={"query": "query"})
             assert r.status_code == 404
 
     def test_reacquire_no_storyboard_returns_404(self, client):
-        with patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock, return_value=None):
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value=None):
             r = client.post("/platform/studio/runs/run1/scenes/1/reacquire", json={"query": "query"})
             assert r.status_code == 404
 
@@ -360,8 +360,8 @@ class TestUploadEndpoint:
         record = MagicMock()
         record.r2_key = "users/platform/runs/run1/acquisition/asset_manifest@v2"
 
-        with patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
-             patch("cf_platform.interfaces.api.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("1")]))), \
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
+             patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("1")]))), \
              patch("cf_platform.core.artifact_manager.write_artifact", new_callable=AsyncMock, return_value=record):
 
             r = client.post(
@@ -392,8 +392,8 @@ class TestUploadEndpoint:
         assert "large" in r.json()["detail"].lower()
 
     def test_upload_scene_not_in_manifest_returns_404(self, client):
-        with patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
-             patch("cf_platform.interfaces.api.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("1")]))):
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
+             patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("1")]))):
             r = client.post(
                 "/platform/studio/runs/run1/scenes/99/upload",
                 files={"file": ("test.jpg", b"data", "image/jpeg")},
@@ -401,7 +401,7 @@ class TestUploadEndpoint:
             assert r.status_code == 404
 
     def test_upload_no_manifest_returns_404(self, client):
-        with patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock, return_value=None):
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value=None):
             r = client.post(
                 "/platform/studio/runs/run1/scenes/1/upload",
                 files={"file": ("test.jpg", b"data", "image/jpeg")},
@@ -418,8 +418,8 @@ class TestUploadEndpoint:
 
         mock_storage.put_bytes.side_effect = capture_put
 
-        with patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
-             patch("cf_platform.interfaces.api.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("3")]))), \
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
+             patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("3")]))), \
              patch("cf_platform.core.artifact_manager.write_artifact", new_callable=AsyncMock, return_value=record):
 
             r = client.post(

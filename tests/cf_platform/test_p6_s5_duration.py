@@ -263,7 +263,7 @@ class TestTelegramScriptDurationFlag:
         with patch(
             "cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock
         ) as mock_send, patch(
-            "cf_platform.interfaces.api._run_script_and_reply", new_callable=AsyncMock
+            "cf_platform.interfaces.routes.telegram_webhook._run_script_and_reply", new_callable=AsyncMock
         ):
             response = client.post(
                 "/platform/telegram/webhook",
@@ -316,7 +316,7 @@ class TestTelegramScriptDurationFlag:
         _mock_reply = MagicMock()
 
         with patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock), patch(
-            "cf_platform.interfaces.api._run_script_and_reply", _mock_reply
+            "cf_platform.interfaces.routes.telegram_webhook._run_script_and_reply", _mock_reply
         ), patch(
             "starlette.background.BackgroundTasks.add_task", side_effect=_spy_add_task
         ):

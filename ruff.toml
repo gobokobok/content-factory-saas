@@ -11,5 +11,3 @@ select = ["E4", "E7", "E9", "F", "I", "UP"]
 [lint.per-file-ignores]
 # Tests may shadow fixtures; short names like `l` are fine in caption fixtures.
 "tests/*" = ["F811", "E741"]
-# Imports interleave with router setup; goes away when api.py splits into routers.
-"cf_platform/interfaces/api.py" = ["E402"]

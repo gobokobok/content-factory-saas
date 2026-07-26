@@ -543,7 +543,7 @@ def test_resume_endpoint_returns_202() -> None:
     mock_graph.ainvoke = AsyncMock(return_value={})
     client = _make_resume_client(mock_graph)
 
-    with patch("cf_platform.interfaces.api.build_full_pipeline_graph", return_value=mock_graph):
+    with patch("cf_platform.interfaces.routes.runs.build_full_pipeline_graph", return_value=mock_graph):
         response = client.post(
             f"/platform/runs/{_RUN_ID}/resume",
             json={"decision": "approve"},
@@ -562,7 +562,7 @@ def test_resume_endpoint_reject_returns_202() -> None:
     mock_graph.ainvoke = AsyncMock(return_value={})
     client = _make_resume_client(mock_graph)
 
-    with patch("cf_platform.interfaces.api.build_full_pipeline_graph", return_value=mock_graph):
+    with patch("cf_platform.interfaces.routes.runs.build_full_pipeline_graph", return_value=mock_graph):
         response = client.post(
             f"/platform/runs/{_RUN_ID}/resume",
             json={"decision": "reject"},

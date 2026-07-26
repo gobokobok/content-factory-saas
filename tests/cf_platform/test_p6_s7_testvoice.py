@@ -159,8 +159,8 @@ async def test_run_testvoice_happy_path_sends_presigned_url() -> None:
         sent_messages.append(text)
 
     with (
-        patch("cf_platform.interfaces.api.build_voice_production_worker") as mock_build,
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook.build_voice_production_worker") as mock_build,
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_worker = AsyncMock(return_value=MagicMock(artifact=fake_alignment))
         mock_build.return_value = mock_worker
@@ -194,7 +194,7 @@ async def test_run_testvoice_no_script_artifact_sends_error() -> None:
 
     sent_messages: list[str] = []
 
-    with patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls:
+    with patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls:
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock(side_effect=lambda cid, t: sent_messages.append(t))
         mock_client_cls.return_value = mock_client
@@ -231,8 +231,8 @@ async def test_run_testvoice_no_tts_key_sends_fallback_message() -> None:
     sent_messages: list[str] = []
 
     with (
-        patch("cf_platform.interfaces.api.build_voice_production_worker") as mock_build,
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook.build_voice_production_worker") as mock_build,
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_worker = AsyncMock(return_value=MagicMock(artifact=fake_alignment))
         mock_build.return_value = mock_worker
@@ -288,8 +288,8 @@ def test_testvoice_webhook_returns_ok_and_schedules_task() -> None:
         }
     }
     with (
-        patch("cf_platform.interfaces.api._run_testvoice_and_reply", AsyncMock()),
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook._run_testvoice_and_reply", AsyncMock()),
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_tg = MagicMock()
         mock_tg.send_message = AsyncMock()
@@ -317,7 +317,7 @@ def test_testvoice_webhook_no_run_id_sends_usage() -> None:
             "text": "/testvoice",
         }
     }
-    with patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls:
+    with patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls:
         mock_tg = MagicMock()
         mock_tg.send_message = AsyncMock()
         mock_client_cls.return_value = mock_tg

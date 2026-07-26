@@ -279,9 +279,9 @@ async def test_run_pick_happy_path_calls_produce_and_reply() -> None:
     sent_messages: list[str] = []
 
     with (
-        patch("cf_platform.interfaces.api.read_artifact", new_callable=AsyncMock, return_value=("key", ranked_body)),
-        patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock) as mock_produce,
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook.read_artifact", new_callable=AsyncMock, return_value=("key", ranked_body)),
+        patch("cf_platform.interfaces.routes.telegram_webhook._run_pipeline_and_reply", new_callable=AsyncMock) as mock_produce,
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock(side_effect=lambda cid, t: sent_messages.append(t))
@@ -324,9 +324,9 @@ async def test_run_pick_idea_number_two_picks_first_alternative() -> None:
     mock_settings.TELEGRAM_BOT_TOKEN = "tok"
 
     with (
-        patch("cf_platform.interfaces.api.read_artifact", new_callable=AsyncMock, return_value=("key", ranked_body)),
-        patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock) as mock_produce,
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook.read_artifact", new_callable=AsyncMock, return_value=("key", ranked_body)),
+        patch("cf_platform.interfaces.routes.telegram_webhook._run_pipeline_and_reply", new_callable=AsyncMock) as mock_produce,
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock()
@@ -364,7 +364,7 @@ async def test_run_pick_no_ranked_ideas_artifact_sends_error() -> None:
 
     sent_messages: list[str] = []
 
-    with patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls:
+    with patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls:
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock(side_effect=lambda cid, t: sent_messages.append(t))
         mock_client_cls.return_value = mock_client
@@ -404,8 +404,8 @@ async def test_run_pick_idea_number_out_of_range_sends_error() -> None:
     sent_messages: list[str] = []
 
     with (
-        patch("cf_platform.interfaces.api.read_artifact", new_callable=AsyncMock, return_value=("key", ranked_body)),
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook.read_artifact", new_callable=AsyncMock, return_value=("key", ranked_body)),
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_client = MagicMock()
         mock_client.send_message = AsyncMock(side_effect=lambda cid, t: sent_messages.append(t))
@@ -471,7 +471,7 @@ def test_pick_webhook_schedules_background_task() -> None:
     """/pick <run_id> <n> acks immediately and schedules _run_pick_and_reply."""
     client = _make_pick_client()
 
-    with patch("cf_platform.interfaces.api._run_pick_and_reply", new_callable=AsyncMock):
+    with patch("cf_platform.interfaces.routes.telegram_webhook._run_pick_and_reply", new_callable=AsyncMock):
         response = client.post(
             "/platform/telegram/webhook",
             json={"message": {"chat": {"id": 1}, "text": f"/pick {_RUN_ID} 2"}},
@@ -487,8 +487,8 @@ def test_pick_webhook_invalid_command_falls_through_to_unrecognized() -> None:
     client = _make_pick_client()
 
     with (
-        patch("cf_platform.interfaces.api._run_pick_and_reply", new_callable=AsyncMock),
-        patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
+        patch("cf_platform.interfaces.routes.telegram_webhook._run_pick_and_reply", new_callable=AsyncMock),
+        patch("cf_platform.interfaces.routes.telegram_webhook.TelegramClient") as mock_client_cls,
     ):
         mock_tc = MagicMock()
         mock_tc.send_message = AsyncMock()

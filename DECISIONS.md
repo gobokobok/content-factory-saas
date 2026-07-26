@@ -5,12 +5,21 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D069 — cf_platform/interfaces/api.py split into per-domain routers
+**Date:** 2026-07-26
+**Status:** ACTIVE
+**Decision:** The 2,417-line `cf_platform/interfaces/api.py` is split into `cf_platform/interfaces/dependencies.py` (shared FastAPI dependencies + process-local singleton state) and eight route modules under `cf_platform/interfaces/routes/` — `meta`, `echo`, `blocks`, `workers`, `studio`, `runs`, `pipeline`, `telegram_webhook` — each owning one domain of endpoints. `api.py` becomes a ~65-line composition root: it assembles the sub-routers into one `APIRouter` and re-exports the names older call sites still import directly from it.
+**Rationale:** A single 2,400-line file with 30+ routes was hard to navigate and review; splitting by domain (mirroring the pattern already used in `src/routes/`) makes each file's scope legible at a glance.
+**Consequence:** `unittest.mock.patch("cf_platform.interfaces.api.X")` only works when the *call site* resolves `X` through `api.py`'s own namespace — moving a function's definition and its call site together to a new module means test patches must target the new module (e.g. `cf_platform.interfaces.routes.telegram_webhook.build_full_pipeline_graph`), not `api.py`, even though `api.py` re-exports the same name for plain imports. All affected test patch targets were updated; full suite (2025 tests) verified green after the move.
+
+---
+
 ## D068 — ruff lint gate in CI
 **Date:** 2026-07-26
 **Status:** ACTIVE
 **Decision:** `ruff` (dev dependency) runs as a blocking CI step before tests. Config in `ruff.toml` with an explicit rule selection — correctness (`E4/E7/E9`, `F`), import hygiene (`I`), and Python 3.11 modernization (`UP`) — so behavior never drifts with ruff's changing defaults. Broader rule families (bugbear, security) may be adopted later as separate decisions.
 **Rationale:** The repo is now public; a visible, enforced lint bar signals code quality and catches real defects — the initial pass surfaced two latent `F821` undefined-name annotations and three dead-code assignments alongside ~750 mechanical fixes (import sorting, `Optional[X]` → `X | None`).
-**Consequence:** CI installs `requirements-dev.txt`; `cf_platform/interfaces/api.py` carries a temporary per-file `E402` ignore until it is split into routers.
+**Consequence:** CI installs `requirements-dev.txt`.
 
 ---
 

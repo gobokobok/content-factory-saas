@@ -66,9 +66,9 @@ async def test_storyboard_endpoint_forwards_format_track():
         return WorkerOutput(artifact=_FakeArtifact())
 
     background_tasks = BackgroundTasks()
-    with patch("cf_platform.interfaces.api.build_storyboard_worker", return_value=_fake_worker), \
-         patch("cf_platform.interfaces.api.VerifiedStoryboardArtifact", _FakeArtifact), \
-         patch("cf_platform.interfaces.api._latest_artifact_key", new_callable=AsyncMock, return_value=None):
+    with patch("cf_platform.interfaces.routes.workers.build_storyboard_worker", return_value=_fake_worker), \
+         patch("cf_platform.interfaces.routes.workers.VerifiedStoryboardArtifact", _FakeArtifact), \
+         patch("cf_platform.interfaces.routes.workers._latest_artifact_key", new_callable=AsyncMock, return_value=None):
         response = await storyboard_worker_endpoint(
             body, background_tasks, storage=storage, settings=settings
         )
@@ -116,7 +116,7 @@ async def test_render_endpoint_forwards_captions_false():
     body = RenderWorkerRequest(run_id="run1", format_track="portrait", captions=False)
     background_tasks = BackgroundTasks()
 
-    with patch("cf_platform.interfaces.api.build_render_worker", return_value=AsyncMock()):
+    with patch("cf_platform.interfaces.routes.workers.build_render_worker", return_value=AsyncMock()):
         await render_worker_endpoint(body, background_tasks, storage=storage, settings=settings)
 
     # The background task was scheduled with a StageState carrying captions=False.

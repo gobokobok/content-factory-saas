@@ -601,8 +601,8 @@ async def test_worker_writes_footage_summary_sidecar():
 
 
 def test_acquisition_worker_registered_in_worker_registry():
-    """AcquisitionWorker registration is present in the api module's worker registry."""
-    from cf_platform.interfaces import api as api_module
+    """AcquisitionWorker registration is present in the platform's worker registry."""
+    from cf_platform.interfaces.dependencies import get_worker_registry
 
-    registry = api_module._worker_registry
+    registry = get_worker_registry()
     assert "acquisition_worker" in registry._registrations

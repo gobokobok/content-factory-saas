@@ -284,10 +284,10 @@ def _stub_full_pipeline(video_r2_key: str = _STUB_VIDEO_R2_KEY):
         return state_copy
 
     with patch(
-        "cf_platform.interfaces.api.build_full_pipeline_graph",
+        "cf_platform.interfaces.routes.pipeline.build_full_pipeline_graph",
         return_value=MagicMock(),
     ) as mock_build, patch(
-        "cf_platform.interfaces.api.run_graph",
+        "cf_platform.interfaces.routes.pipeline.run_graph",
         side_effect=_fake_run_graph,
     ):
         yield mock_build
@@ -319,8 +319,8 @@ class TestProduceRoute:
             state_copy.artifacts["video"] = _STUB_VIDEO_R2_KEY
             return state_copy
 
-        with patch("cf_platform.interfaces.api.build_full_pipeline_graph", return_value=MagicMock()), \
-             patch("cf_platform.interfaces.api.run_graph", side_effect=_capture_run_graph):
+        with patch("cf_platform.interfaces.routes.pipeline.build_full_pipeline_graph", return_value=MagicMock()), \
+             patch("cf_platform.interfaces.routes.pipeline.run_graph", side_effect=_capture_run_graph):
             response = client.post(
                 "/platform/pipeline/produce",
                 json={"niche": _STUB_NICHE, "target_duration_seconds": 45},
@@ -338,8 +338,8 @@ class TestProduceRoute:
             state_copy.artifacts["video"] = _STUB_VIDEO_R2_KEY
             return state_copy
 
-        with patch("cf_platform.interfaces.api.build_full_pipeline_graph", return_value=MagicMock()), \
-             patch("cf_platform.interfaces.api.run_graph", side_effect=_capture_run_graph):
+        with patch("cf_platform.interfaces.routes.pipeline.build_full_pipeline_graph", return_value=MagicMock()), \
+             patch("cf_platform.interfaces.routes.pipeline.run_graph", side_effect=_capture_run_graph):
             client.post("/platform/pipeline/produce", json={"niche": _STUB_NICHE})
         assert captured_state[0].inputs.get("niche") == _STUB_NICHE
 
@@ -359,7 +359,7 @@ class TestTelegramWebhookRun:
 
     def test_run_command_sends_ack_and_schedules_background(self):
         client = _make_test_client()
-        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+        with patch("cf_platform.interfaces.routes.telegram_webhook._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock):
             response = client.post(
                 "/platform/telegram/webhook",
@@ -392,7 +392,7 @@ class TestTelegramWebhookRun:
         async def _fake_send(chat_id, text):
             sent_messages.append(text)
 
-        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+        with patch("cf_platform.interfaces.routes.telegram_webhook._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", side_effect=_fake_send):
             client.post(
                 "/platform/telegram/webhook",
@@ -404,7 +404,7 @@ class TestTelegramWebhookRun:
 
     def test_run_with_duration_flag_schedules_background(self):
         client = _make_test_client()
-        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+        with patch("cf_platform.interfaces.routes.telegram_webhook._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock):
             response = client.post(
                 "/platform/telegram/webhook",
@@ -421,7 +421,7 @@ class TestTelegramWebhookProduce:
 
     def test_produce_command_sends_ack_and_schedules_background(self):
         client = _make_test_client()
-        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+        with patch("cf_platform.interfaces.routes.telegram_webhook._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock):
             response = client.post(
                 "/platform/telegram/webhook",
@@ -454,7 +454,7 @@ class TestTelegramWebhookProduce:
         async def _fake_send(chat_id, text):
             sent_messages.append(text)
 
-        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+        with patch("cf_platform.interfaces.routes.telegram_webhook._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", side_effect=_fake_send):
             client.post(
                 "/platform/telegram/webhook",
@@ -466,7 +466,7 @@ class TestTelegramWebhookProduce:
 
     def test_produce_with_duration_flag_schedules_background(self):
         client = _make_test_client()
-        with patch("cf_platform.interfaces.api._run_pipeline_and_reply", new_callable=AsyncMock), \
+        with patch("cf_platform.interfaces.routes.telegram_webhook._run_pipeline_and_reply", new_callable=AsyncMock), \
              patch("cf_platform.interfaces.api.TelegramClient.send_message", new_callable=AsyncMock):
             response = client.post(
                 "/platform/telegram/webhook",
