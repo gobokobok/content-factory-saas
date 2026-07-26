@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -13,7 +12,6 @@ from src.exceptions import ManifestError, StorageError
 from src.main import app
 from src.manifest import build_manifest, clip_type_breakdown, patch_manifest_entry
 from src.models import AssetManifest, ManifestEntry
-
 
 # ── Fixtures & helpers ─────────────────────────────────────────────────────────
 
@@ -42,7 +40,7 @@ def _make_settings(**overrides) -> Settings:
 
 
 def _make_storyboard_data(
-    scenes: Optional[List[dict]] = None,
+    scenes: list[dict] | None = None,
 ) -> dict:
     """Return a minimal valid storyboard dict suitable for Storyboard.model_validate."""
     if scenes is None:

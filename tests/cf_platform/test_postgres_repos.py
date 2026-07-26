@@ -1,6 +1,6 @@
 """Tests for cf_platform/core/postgres_repos.py — Postgres-backed lineage repos (P2-S3, D048)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -35,7 +35,7 @@ def _mock_pool(fetchone=None, fetchall=None):
 
 def _run_record() -> RunRecord:
     """Build a sample RunRecord for tests."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return RunRecord(
         run_id="r1",
         user_id="operator",
@@ -50,7 +50,7 @@ def _run_record() -> RunRecord:
 
 def _artifact() -> Artifact:
     """Build a sample Artifact for tests."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return Artifact(
         name="echo",
         stage="echo",
@@ -72,7 +72,7 @@ def _artifact() -> Artifact:
 
 def _execution() -> WorkerExecution:
     """Build a sample WorkerExecution for tests."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return WorkerExecution(
         run_id="r1",
         worker="echo",

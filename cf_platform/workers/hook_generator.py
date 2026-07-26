@@ -8,8 +8,8 @@ Pure worker per D040/D056.
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import anthropic
 
@@ -63,7 +63,7 @@ def build_hook_generator_worker(
         _, bp_body = await read_artifact(storage, bp_key)
         blueprint = Blueprint.model_validate(bp_body)
 
-        lens: Optional[NarrativeLens] = None
+        lens: NarrativeLens | None = None
         lens_key = state.artifacts.get("narrative_lens")
         if lens_key:
             _, lens_body = await read_artifact(storage, lens_key)
@@ -90,14 +90,14 @@ def build_hook_generator_worker(
         hooks = [str(h) for h in raw_hooks]
         artifact = HookVariantsArtifact(
             hooks=hooks,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 
     return hook_generator
 
 
-def _build_user_message(blueprint: Blueprint, lens: Optional[NarrativeLens] = None) -> str:
+def _build_user_message(blueprint: Blueprint, lens: NarrativeLens | None = None) -> str:
     """Compose the Claude user message from the merged blueprint and optional narrative lens."""
     parts = [
         f"Hook angle: {blueprint.hook_angle}",

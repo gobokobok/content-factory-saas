@@ -8,7 +8,6 @@ from src.acquisition import _try_person_photo, acquire_scene
 from src.models import ManifestEntry
 from src.wikimedia_client import WikimediaAsset
 
-
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 def _make_person_entry(**kwargs) -> ManifestEntry:

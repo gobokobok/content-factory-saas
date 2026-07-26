@@ -1,6 +1,5 @@
 """Tests for src/acquisition.py and src/routes/assets.py."""
 
-from typing import List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -9,7 +8,6 @@ from fastapi.testclient import TestClient
 
 from src.acquisition import (
     MIN_ACQUIRED_FOR_COMPLETE,
-    _Candidate,
     _gather_candidates,
     _pexels_photo_candidates,
     _pexels_video_candidates,
@@ -21,8 +19,8 @@ from src.config import Settings, get_settings
 from src.exceptions import PexelsError, StorageError
 from src.main import app
 from src.models import AssetManifest, ManifestEntry
-from src.pixabay_client import PixabayClient, PixabayPhoto, PixabayVideo
-from src.wikimedia_client import WikimediaAsset, WikimediaClient
+from src.pixabay_client import PixabayPhoto, PixabayVideo
+from src.wikimedia_client import WikimediaAsset
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -60,7 +58,7 @@ def _entry(
     )
 
 
-def _manifest(entries: Optional[List[ManifestEntry]] = None) -> AssetManifest:
+def _manifest(entries: list[ManifestEntry] | None = None) -> AssetManifest:
     """Build an AssetManifest with one default entry if none supplied."""
     return AssetManifest(run_id=RUN_ID, entries=entries or [_entry()])
 
@@ -80,7 +78,7 @@ def _pexels_photo_result(w: int = 1920, h: int = 1080) -> dict:
     return {
         "width": w,
         "height": h,
-        "src": {"original": f"https://images.pexels.com/photos/1/photo.jpg"},
+        "src": {"original": "https://images.pexels.com/photos/1/photo.jpg"},
     }
 
 

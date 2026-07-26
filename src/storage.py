@@ -9,8 +9,7 @@ import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import boto3
 from botocore.config import Config
@@ -128,7 +127,7 @@ class R2Client:
         # CommonPrefixes contains entries like {"Prefix": "runs/{run_id}/"}
         prefixes = [p["Prefix"] for p in response.get("CommonPrefixes", [])]
 
-        def _fetch(prefix: str) -> Optional[dict]:
+        def _fetch(prefix: str) -> dict | None:
             """Fetch run_log.json for one run prefix; return None on failure."""
             run_id = prefix.rstrip("/").split("/")[-1]
             key = f"{prefix}run_log.json"
@@ -209,7 +208,7 @@ class R2Client:
         logger.info("Deleted %d keys for run: %s", len(keys), run_id)
         return len(keys)
 
-    def create_run_folder(self, run_id: str, project_name: Optional[str] = None) -> str:
+    def create_run_folder(self, run_id: str, project_name: str | None = None) -> str:
         """
         Initialise a run prefix in R2 by uploading run_log.json.
 
@@ -227,18 +226,18 @@ class R2Client:
         run_id: str,
         step: str,
         status: str,
-        output_url: Optional[str] = None,
-        error: Optional[str] = None,
-        input_tokens: Optional[int] = None,
-        output_tokens: Optional[int] = None,
-        cost_usd: Optional[float] = None,
+        output_url: str | None = None,
+        error: str | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        cost_usd: float | None = None,
     ) -> None:
         """Read, update, and re-upload run_log.json for the given step."""
         key = f"runs/{run_id}/run_log.json"
         data = self.get_json(key)
         data["steps"][step]["status"] = status
         if status == "complete":
-            data["steps"][step]["completed_at"] = datetime.now(timezone.utc).isoformat()
+            data["steps"][step]["completed_at"] = datetime.now(UTC).isoformat()
         if output_url is not None:
             data["steps"][step]["output_url"] = output_url
         if error is not None:
@@ -253,11 +252,11 @@ class R2Client:
         logger.info("run_log updated: run=%s step=%s status=%s", run_id, step, status)
 
 
-def _build_run_log(run_id: str, project_name: Optional[str] = None) -> RunLog:
+def _build_run_log(run_id: str, project_name: str | None = None) -> RunLog:
     """Construct a RunLog with all pipeline steps initialised to pending."""
     return RunLog(
         run_id=run_id,
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         project_name=project_name,
         steps={step: StepLog() for step in PIPELINE_STEPS},
     )

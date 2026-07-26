@@ -12,7 +12,7 @@ Covers:
 - build_topic_selector_worker returns a callable
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -33,7 +33,7 @@ def _lineage(run_id: str = "run-1") -> LineageEnvelope:
         worker_version="1.0.0",
         prompt_version="v1",
         model="claude-sonnet-4-6",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -62,7 +62,7 @@ async def _seed_scored_topics(
     """Write a ScoredTopicsArtifact to storage and return its r2_key."""
     artifact_body = ScoredTopicsArtifact(
         niche=niche,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         scored_topics=topics,
     )
     artifact = await write_artifact(

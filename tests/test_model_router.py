@@ -1,6 +1,5 @@
 """Tests for ModelRouter — src/utils/model_router.py."""
 
-from unittest.mock import MagicMock, patch
 
 import pytest
 

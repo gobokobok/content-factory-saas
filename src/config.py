@@ -1,8 +1,9 @@
 """Application configuration — all ENV vars loaded and validated at startup via pydantic-settings."""
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
 from typing import Literal
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):

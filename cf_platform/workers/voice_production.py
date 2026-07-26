@@ -19,11 +19,10 @@ scale.  ElevenLabs placeholder removed in P6-S7.
 
 import asyncio
 import base64
+import io
 import logging
 import re
 import wave
-import io
-from typing import Optional
 
 import httpx
 from pydantic import BaseModel

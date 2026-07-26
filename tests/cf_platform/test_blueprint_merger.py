@@ -13,11 +13,10 @@ Covers:
 - _merge is exported and testable as a pure function
 """
 
-from typing import Optional
 
 import pytest
 
-from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemoryArtifactStorage, write_artifact
+from cf_platform.core.artifact_manager import InMemoryArtifactStorage, write_artifact
 from cf_platform.core.idea_to_script_schemas import Blueprint, EvaluationArtifact, Section
 from cf_platform.core.schemas import LineageEnvelope, StageState
 from cf_platform.workers.blueprint_merger import (
@@ -39,8 +38,8 @@ _LINEAGE = LineageEnvelope(
 
 
 def _make_blueprint(
-    claims: Optional[list] = None,
-    required_evidence: Optional[list] = None,
+    claims: list | None = None,
+    required_evidence: list | None = None,
     alignment_notes: str = "Original notes",
 ) -> Blueprint:
     return Blueprint(
@@ -55,9 +54,9 @@ def _make_blueprint(
 
 
 def _make_evaluation(
-    corrections: Optional[list] = None,
+    corrections: list | None = None,
     alignment_notes: str = "",
-    evidence_additions: Optional[list] = None,
+    evidence_additions: list | None = None,
 ) -> EvaluationArtifact:
     return EvaluationArtifact(
         score=8.0,
@@ -131,8 +130,8 @@ def test_merge_structure_hook_angle_preserved():
 
 async def _run_merger(
     storage: InMemoryArtifactStorage,
-    blueprint: Optional[Blueprint],
-    evaluation: Optional[EvaluationArtifact],
+    blueprint: Blueprint | None,
+    evaluation: EvaluationArtifact | None,
 ):
     artifacts: dict[str, str] = {}
     if blueprint is not None:

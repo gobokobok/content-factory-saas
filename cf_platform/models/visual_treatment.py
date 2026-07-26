@@ -4,7 +4,7 @@ Produced by VisualDirectorWorker; consumed by AcquisitionWorker.
 R2 path: runs/{run_id}/visual_treatment@v1.json
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -83,7 +83,7 @@ class VisualTreatment(BaseModel):
     scenes: list[SceneVisualPlan] = Field(default_factory=list)
     diversity_plan: DiversityPlan = Field(default_factory=DiversityPlan)
     prompt_version: str = Field(default="v0.1")
-    diversity_score: Optional[float] = Field(
+    diversity_score: float | None = Field(
         default=None,
         description="unique_shot_types / total_scenes — computed post-validation.",
     )

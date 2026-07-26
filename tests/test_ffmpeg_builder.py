@@ -1,6 +1,5 @@
 """Tests for src/ffmpeg_builder.py and src/routes/ffmpeg_script.py."""
 
-from typing import Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -62,7 +61,7 @@ def _scene(
     duration_s: float = 3.0,
     sfx: str = "silence",
     sfx_timing: str = "scene_start",
-    motion_effect: Optional[str] = None,
+    motion_effect: str | None = None,
 ) -> StoryboardScene:
     return StoryboardScene(
         scene=scene_id,
@@ -94,7 +93,7 @@ def _storyboard(scenes: list[StoryboardScene]) -> Storyboard:
 def _entry(
     scene_id: str,
     clip_type: str = "hard_cut",
-    file_key: Optional[str] = None,
+    file_key: str | None = None,
     status: str = "acquired",
 ) -> ManifestEntry:
     if file_key is None:

@@ -13,8 +13,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -28,7 +27,7 @@ from cf_platform.workers.blueprint_generator import (
     build_blueprint_generator_worker,
 )
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 _LINEAGE = LineageEnvelope(
     run_id="run-001",
     worker="test",
@@ -75,9 +74,9 @@ def _mock_claude_response(text: str) -> MagicMock:
 
 async def _run_worker(
     storage: InMemoryArtifactStorage,
-    context: Optional[NormalizedContext],
+    context: NormalizedContext | None,
     claude_response_text: str,
-    inputs: Optional[dict] = None,
+    inputs: dict | None = None,
 ):
     artifacts: dict[str, str] = {}
     if context is not None:

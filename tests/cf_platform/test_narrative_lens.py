@@ -14,8 +14,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -29,7 +28,7 @@ from cf_platform.workers.narrative_lens import (
     build_narrative_lens_worker,
 )
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 _LINEAGE = LineageEnvelope(
     run_id="run-001",
     worker="test",
@@ -48,7 +47,7 @@ _LENS_RESPONSE = json.dumps({
 })
 
 
-def _make_blueprint(claims: Optional[list] = None) -> Blueprint:
+def _make_blueprint(claims: list | None = None) -> Blueprint:
     return Blueprint(
         hook_angle="Durable workwear is rational economics",
         structure=[Section(title="S1", key_points=["kp1"])],
@@ -60,7 +59,7 @@ def _make_blueprint(claims: Optional[list] = None) -> Blueprint:
     )
 
 
-def _make_evaluation(corrections: Optional[list] = None) -> EvaluationArtifact:
+def _make_evaluation(corrections: list | None = None) -> EvaluationArtifact:
     return EvaluationArtifact(
         score=8.5,
         factual_corrections=corrections or [],
@@ -79,8 +78,8 @@ def _make_mock_response(text: str) -> MagicMock:
 
 async def _run_worker(
     storage: InMemoryArtifactStorage,
-    blueprint: Optional[Blueprint],
-    evaluation: Optional[EvaluationArtifact],
+    blueprint: Blueprint | None,
+    evaluation: EvaluationArtifact | None,
     claude_response_text: str = _LENS_RESPONSE,
 ):
     artifacts: dict = {}

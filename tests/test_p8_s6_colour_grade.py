@@ -1,9 +1,6 @@
 """Tests for P8-S6: colour grading presets and blur-fill for landscape stills."""
 
 import logging
-from typing import Optional
-
-import pytest
 
 from src.ffmpeg_builder import (
     _COLOUR_GRADE_PRESETS,

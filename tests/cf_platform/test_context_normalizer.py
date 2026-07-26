@@ -19,7 +19,6 @@ Covers:
 
 import pytest
 
-from cf_platform.core.artifact_manager import InMemoryArtifactStorage
 from cf_platform.core.schemas import StageState
 from cf_platform.workers.context_normalizer import (
     CONTEXT_NORMALIZER_REGISTRATION,

@@ -1,6 +1,6 @@
 """Tests for cf_platform/orchestrator/full_pipeline.py (P6-S2, P9-S5)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -42,7 +42,7 @@ def _make_ranked_body(title: str = "Housing Crisis", niche: str = "american hous
     )
     artifact = RankedIdeasArtifact(
         niche=niche,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         selected=score,
         alternatives=[],
         mode="single",
@@ -57,7 +57,7 @@ def _make_script_body(script: str = "Housing prices are rising.") -> dict:
         niche="american housing",
         script=script,
         word_count=4,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
     return artifact.model_dump(mode="json")
 
@@ -69,7 +69,7 @@ def _make_render_artifact_body(video_key: str = "runs/run-test/output/final.mp4"
         video_key=video_key,
         scene_count=5,
         duration_s=45.0,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
     return artifact.model_dump(mode="json")
 

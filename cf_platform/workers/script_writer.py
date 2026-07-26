@@ -26,8 +26,8 @@ Pure worker per D040/D056.
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import anthropic
 from pydantic import BaseModel
@@ -93,17 +93,17 @@ class ScriptDraft(BaseModel):
 class ScriptDraftsArtifact(BaseModel):
     """Artifact body produced by the script writer worker."""
 
-    niche: Optional[str]
+    niche: str | None
     idea_title: str
-    idea_angle: Optional[str]
+    idea_angle: str | None
     drafts: list[ScriptDraft]
     generated_at: datetime
 
 
 def _build_user_message(
     idea_title: str,
-    niche: Optional[str],
-    angle: Optional[str],
+    niche: str | None,
+    angle: str | None,
     supporting_points: list[str],
     n: int,
 ) -> str:
@@ -144,8 +144,8 @@ def build_script_writer_worker(
             _, body = await read_artifact(storage, ranked_key)
             ranked_artifact = RankedIdeasArtifact.model_validate(body)
             idea_title: str = ranked_artifact.selected.title
-            niche: Optional[str] = ranked_artifact.niche
-            angle: Optional[str] = ranked_artifact.selected.angle
+            niche: str | None = ranked_artifact.niche
+            angle: str | None = ranked_artifact.selected.angle
         else:
             idea_title = state.inputs.get("idea_title")  # type: ignore[assignment]
             if not idea_title:
@@ -192,7 +192,7 @@ def build_script_writer_worker(
             idea_title=idea_title,
             idea_angle=angle,
             drafts=drafts,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

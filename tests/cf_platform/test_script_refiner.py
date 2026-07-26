@@ -16,7 +16,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -31,7 +31,7 @@ from cf_platform.workers.script_refiner import (
 )
 from cf_platform.workers.script_writer import ScriptDraft, ScriptDraftsArtifact
 
-_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=UTC)
 
 _IDEA_TITLE = "Why Starter Homes Vanished"
 

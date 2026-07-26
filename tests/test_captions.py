@@ -1,8 +1,6 @@
 """Tests for src/captions.py."""
 
-from typing import Optional
 
-import pytest
 
 from src.captions import (
     _chunk_text,
@@ -13,14 +11,13 @@ from src.captions import (
 )
 from src.models import StoryboardScene, VisualPrompts, WordTimestamp
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _scene(
     scene_id: str,
     duration_s: float = 3.0,
-    on_screen_text: Optional[str] = None,
+    on_screen_text: str | None = None,
     voiceover_line: str = "Test line.",
 ) -> StoryboardScene:
     return StoryboardScene(

@@ -10,7 +10,7 @@ Covers:
 - WorkerNotRegisteredError raised at build time if registry is empty
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -29,10 +29,9 @@ from cf_platform.workers.opportunity_scorer import ScoredTopicsArtifact, TopicSc
 from cf_platform.workers.topic_generator import CandidateTopic, CandidateTopicsArtifact
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
-
 # ── Fixtures & helpers ─────────────────────────────────────────────────
 
-_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=UTC)
 
 
 def _make_topic_score(title: str = "Test Topic", final_score: float = 8.0) -> TopicScore:

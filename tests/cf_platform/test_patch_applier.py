@@ -17,8 +17,7 @@ Covers:
 - build_patch_applier_worker returns a callable
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import pytest
 
@@ -31,7 +30,7 @@ from cf_platform.workers.patch_applier import (
     build_patch_applier_worker,
 )
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 _LINEAGE = LineageEnvelope(
     run_id="run-001",
     worker="test",
@@ -120,8 +119,8 @@ def _make_patches_artifact(patches: list[Patch]) -> PatchSetArtifact:
 
 async def _run_applier(
     storage: InMemoryArtifactStorage,
-    script_artifact: Optional[GeneratedScriptArtifact],
-    patch_artifact: Optional[PatchSetArtifact],
+    script_artifact: GeneratedScriptArtifact | None,
+    patch_artifact: PatchSetArtifact | None,
 ):
     artifacts: dict[str, str] = {}
     if script_artifact is not None:

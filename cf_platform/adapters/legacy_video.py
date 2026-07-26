@@ -25,6 +25,9 @@ from pydantic import BaseModel
 from cf_platform.core.schemas import TraceEvent
 from cf_platform.core.trace_repo import TraceEventRepository
 
+# ── Platform imports (D047 one-directional: src/ never imports cf_platform/) ──
+from cf_platform.workers.voice_production import VoiceAlignmentArtifact
+
 # ── src/ imports — ONLY this module may import from src/ (D047) ───────────────
 from src.acquisition import MIN_ACQUIRED_FOR_COMPLETE, run_acquisition
 from src.ffmpeg_builder import (
@@ -34,16 +37,14 @@ from src.ffmpeg_builder import (
     redistribute_scene_durations,
 )
 from src.manifest import build_manifest
-from src.models import AssetManifest, Storyboard, VideoSettings, WordTimestamp as SrcWordTimestamp
+from src.models import AssetManifest, Storyboard, VideoSettings
+from src.models import WordTimestamp as SrcWordTimestamp
 from src.pexels import PexelsClient
 from src.pixabay_client import PixabayClient
 from src.renderer import render_run
-from src.wikimedia_client import WikimediaClient
-from src.storyboard import generate_storyboard
 from src.storage import R2Client
-
-# ── Platform imports (D047 one-directional: src/ never imports cf_platform/) ──
-from cf_platform.workers.voice_production import VoiceAlignmentArtifact
+from src.storyboard import generate_storyboard
+from src.wikimedia_client import WikimediaClient
 
 if TYPE_CHECKING:
     from src.config import Settings
@@ -59,8 +60,8 @@ class VideoResult(BaseModel):
     r2_key: str
     legacy_run_id: str
     status: Literal["complete", "failed"]
-    error: Optional[str] = None
-    footage_summary: Optional[dict] = None
+    error: str | None = None
+    footage_summary: dict | None = None
 
 
 def _compute_footage_summary(manifest: "AssetManifest") -> dict:
@@ -104,7 +105,7 @@ class LegacyVideoAdapter(Protocol):
         script: str,
         trace_repo: TraceEventRepository,
         *,
-        voice_alignment: Optional[VoiceAlignmentArtifact] = None,
+        voice_alignment: VoiceAlignmentArtifact | None = None,
     ) -> VideoResult:
         """Run the full legacy render pipeline and return the video result.
 
@@ -150,7 +151,7 @@ class InProcessLegacyVideoAdapter:
         op: str,
         latency_ms: int,
         status: Literal["ok", "error"],
-        meta: Optional[dict] = None,
+        meta: dict | None = None,
     ) -> None:
         """Record one TraceEvent to the repo (non-fatal on failure)."""
         try:
@@ -174,7 +175,7 @@ class InProcessLegacyVideoAdapter:
         script: str,
         trace_repo: TraceEventRepository,
         *,
-        voice_alignment: Optional[VoiceAlignmentArtifact] = None,
+        voice_alignment: VoiceAlignmentArtifact | None = None,
     ) -> VideoResult:
         """Chain legacy steps and return the R2 key for the finished video.
 
@@ -201,7 +202,7 @@ class InProcessLegacyVideoAdapter:
             logger.info("No voice_alignment for run %s — rendering without voiceover", run_id)
 
         # ── 1b. Convert platform timestamps to src timestamps ─────────────
-        src_timestamps: Optional[list[SrcWordTimestamp]] = None
+        src_timestamps: list[SrcWordTimestamp] | None = None
         if voice_alignment and voice_alignment.word_timestamps:
             src_timestamps = [
                 SrcWordTimestamp(
@@ -257,7 +258,7 @@ class InProcessLegacyVideoAdapter:
             )
 
         # ── 4. Asset acquisition ──────────────────────────────────────────
-        footage_summary: Optional[dict] = None
+        footage_summary: dict | None = None
         t0 = time.monotonic()
         try:
             pexels = PexelsClient(api_key=s.PEXELS_API_KEY, per_page=s.PEXELS_PER_PAGE)

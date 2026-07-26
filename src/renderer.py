@@ -6,7 +6,6 @@ import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
 
 from src.exceptions import RenderError, StorageError
 from src.ffmpeg_builder import _local_path
@@ -154,7 +153,7 @@ def upload_output(run_id: str, storage: R2Client) -> str:
     Returns the R2 key for final.mp4. Raises RenderError if final.mp4 is absent.
     """
     output_dir = Path(f"/tmp/{run_id}/output")
-    output_key: Optional[str] = None
+    output_key: str | None = None
     for file_path in output_dir.iterdir():
         if not file_path.is_file():
             continue
@@ -213,7 +212,7 @@ def render_run(
 
     start = time.monotonic()
     exit_code = -1
-    output_key: Optional[str] = None
+    output_key: str | None = None
     ffmpeg_output = ""
 
     try:

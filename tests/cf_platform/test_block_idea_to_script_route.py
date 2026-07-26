@@ -22,9 +22,9 @@ Covers:
 """
 
 import uuid
+from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Generator, Optional
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -56,7 +56,7 @@ from cf_platform.workers.script_packager import ScriptArtifact
 from src.config import Settings, get_settings
 from src.main import app
 
-_NOW = datetime(2026, 6, 18, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, 12, 0, 0, tzinfo=UTC)
 _IDEA_TITLE = "Why Starter Homes Vanished"
 _SCRIPT_TEXT = (
     "In 1980, the average American could afford a home after 3 years of saving. "
@@ -88,7 +88,7 @@ _PLATFORM_SETTINGS_BASE = {
 
 def _make_script_artifact(
     script: str = _SCRIPT_TEXT,
-    overall_score: Optional[float] = 8.5,
+    overall_score: float | None = 8.5,
     status: str = "ok",
 ) -> ScriptArtifact:
     return ScriptArtifact(
@@ -332,7 +332,11 @@ class TestBuildIdeaToScriptGraph:
     def test_raises_for_empty_registry(self):
         from cf_platform.blocks.idea_to_script import build_idea_to_script_graph
         from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemoryArtifactStorage
-        from cf_platform.core.worker_registry import InMemoryExecutionRepository, WorkerNotRegisteredError, WorkerRegistry
+        from cf_platform.core.worker_registry import (
+            InMemoryExecutionRepository,
+            WorkerNotRegisteredError,
+            WorkerRegistry,
+        )
 
         with pytest.raises(WorkerNotRegisteredError):
             build_idea_to_script_graph(

@@ -1,22 +1,19 @@
 """Tests for src/footage_qa.py — QAResult, qa_score, pick_best."""
 
-from contextlib import contextmanager
-from typing import Optional
-from unittest.mock import MagicMock, patch
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from src.footage_qa import (
-    QAResult,
     _CLIP_PASS_THRESHOLD,
     _MIN_PHOTO_WIDTH,
     _MIN_VIDEO_HEIGHT,
     _MIN_VIDEO_WIDTH,
+    QAResult,
     pick_best,
     qa_score,
 )
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -24,7 +21,7 @@ from src.footage_qa import (
 def _candidate(
     width: int = 1920,
     height: int = 1080,
-    duration_seconds: Optional[float] = None,
+    duration_seconds: float | None = None,
     source: str = "pexels",
 ) -> SimpleNamespace:
     """Minimal candidate object matching the _Candidate interface."""
@@ -195,7 +192,7 @@ class TestPickBest:
         width: int = 1920,
         height: int = 1080,
         passed: bool = True,
-        clip_score: Optional[float] = None,
+        clip_score: float | None = None,
         source: str = "pexels",
     ) -> tuple:
         c = _candidate(width=width, height=height, source=source)

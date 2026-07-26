@@ -8,8 +8,8 @@ Covers:
   - _run_pipeline_and_reply: graceful when youtube_metadata read raises an exception
 """
 
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -30,14 +30,14 @@ _IDEA_TITLE = "Why Starter Homes Vanished"
 def _make_metadata(
     title: str = "Why Starter Homes Vanished in America",
     description: str = "Starter homes once made up 40% of the market. Now they're almost gone. #Housing #RealEstate",
-    tags: Optional[list] = None,
+    tags: list | None = None,
 ) -> YoutubeMetadataArtifact:
     """Build a YoutubeMetadataArtifact for tests."""
     return YoutubeMetadataArtifact(
         title=title,
         description=description,
         tags=tags or ["housing", "real estate", "starter homes"],
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
 
 
@@ -54,7 +54,7 @@ def _make_mock_settings() -> MagicMock:
 
 def _make_result_state(
     video_key: str = _VIDEO_KEY,
-    meta_key: Optional[str] = _META_KEY,
+    meta_key: str | None = _META_KEY,
 ) -> MagicMock:
     """Return a mock run_graph result with the given artifact keys."""
     state = MagicMock()

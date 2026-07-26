@@ -1,7 +1,7 @@
 """Tests for log summarizer — src/log_summarizer.py and src/pipeline.py."""
 
 import json
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 

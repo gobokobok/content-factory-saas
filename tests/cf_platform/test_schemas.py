@@ -1,6 +1,6 @@
 """Schema-validation tests for cf_platform/core/schemas.py (P0-S3). No runtime behavior."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Protocol
 
 import pytest
@@ -22,7 +22,7 @@ from cf_platform.core.schemas import (
 
 def _now() -> datetime:
     """Fixed timestamp for test fixtures."""
-    return datetime(2026, 6, 12, tzinfo=timezone.utc)
+    return datetime(2026, 6, 12, tzinfo=UTC)
 
 
 class _DummyArtifactBody(BaseModel):

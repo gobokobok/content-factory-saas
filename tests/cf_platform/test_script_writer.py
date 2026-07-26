@@ -13,7 +13,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -22,14 +22,13 @@ from cf_platform.core.artifact_manager import InMemoryArtifactStorage, write_art
 from cf_platform.core.schemas import LineageEnvelope, Signal, StageState
 from cf_platform.workers.discovery import SignalsArtifact
 from cf_platform.workers.opportunity_scorer import TopicScore
-from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from cf_platform.workers.script_writer import (
     SCRIPT_WRITER_REGISTRATION,
     ScriptDraft,
     ScriptDraftsArtifact,
     build_script_writer_worker,
 )
-
+from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
@@ -41,7 +40,7 @@ def _lineage(run_id: str = "run-1") -> LineageEnvelope:
         worker_version="1.0.0",
         prompt_version="v1",
         model="none",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -71,7 +70,7 @@ async def _seed_ranked_ideas(
 ) -> str:
     body = RankedIdeasArtifact(
         niche=niche,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         selected=_topic_score(),
         alternatives=[_topic_score("The 2024 Housing Squeeze", "Affordability by city")],
         mode="single",
@@ -96,7 +95,7 @@ async def _seed_discovery(
 ) -> str:
     body = SignalsArtifact(
         niche=niche,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         signals=[
             Signal(source="reddit", title="Why can't millennials afford homes?", score=9500.0),
             Signal(source="youtube", title="Housing crash 2024 explained", score=8200.0),

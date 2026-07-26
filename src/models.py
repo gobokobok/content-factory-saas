@@ -1,11 +1,9 @@
 """Pydantic schemas for all pipeline data structures."""
 
-import re
 from enum import Enum
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
 
 PIPELINE_STEPS = (
     "alignment",
@@ -18,7 +16,7 @@ PIPELINE_STEPS = (
 )
 
 
-class StepStatus(str, Enum):
+class StepStatus(str, Enum):  # noqa: UP042 — StrEnum changes str() output; run_log.json serialization relies on current behavior
     """Possible states for a single pipeline step in run_log.json."""
 
     pending = "pending"
@@ -30,12 +28,12 @@ class StepLog(BaseModel):
     """State record for one pipeline step."""
 
     status: StepStatus = StepStatus.pending
-    completed_at: Optional[str] = None
-    error: Optional[str] = None
-    output_url: Optional[str] = None
-    input_tokens: Optional[int] = None
-    output_tokens: Optional[int] = None
-    cost_usd: Optional[float] = None
+    completed_at: str | None = None
+    error: str | None = None
+    output_url: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    cost_usd: float | None = None
 
 
 class RunLog(BaseModel):
@@ -43,7 +41,7 @@ class RunLog(BaseModel):
 
     run_id: str
     created_at: str
-    project_name: Optional[str] = None
+    project_name: str | None = None
     steps: dict[str, StepLog]
 
 
@@ -77,7 +75,7 @@ class RunSummary(BaseModel):
 
     run_id: str
     created_at: str
-    project_name: Optional[str] = None
+    project_name: str | None = None
     steps: dict[str, str]
 
 
@@ -92,8 +90,8 @@ class ArtifactResponse(BaseModel):
 
     step: str
     content_type: str
-    content: Optional[Any] = None
-    url: Optional[str] = None
+    content: Any | None = None
+    url: str | None = None
 
 
 # ── Storyboard schemas ────────────────────────────────────────────────────────
@@ -116,7 +114,7 @@ class SemanticContext(BaseModel):
     domain_qualifier: str = ""
     avoid: list[str] = []
     visual_tags: list[str] = []
-    entity_type: Optional[Literal["person", "historic_event", "location", "organization"]] = None
+    entity_type: Literal["person", "historic_event", "location", "organization"] | None = None
 
 
 class VisualPrompts(BaseModel):
@@ -131,7 +129,7 @@ class LowerThirdSpec(BaseModel):
     """Specification for a lower-third name/title overlay on a Character scene."""
 
     name: str
-    title: Optional[str] = None
+    title: str | None = None
     # Shifts caption baseline up so subtitles don't overlap the lower-third band.
     caption_y_override: int = 1540
 
@@ -149,8 +147,8 @@ class SceneRenderOptions(BaseModel):
     """Render decisions computed by the storyboard reviewer and consumed by RenderWorker."""
 
     film_look: bool = False
-    lower_third: Optional[LowerThirdSpec] = None
-    on_screen_text_overlay: Optional[OnScreenTextOverlay] = None
+    lower_third: LowerThirdSpec | None = None
+    on_screen_text_overlay: OnScreenTextOverlay | None = None
 
 
 class StoryboardScene(BaseModel):
@@ -165,11 +163,11 @@ class StoryboardScene(BaseModel):
     context_stk: str = ""
     concept_stk: str = ""
     # v1 nested struct — kept Optional for backward compat with existing R2 storyboards.
-    visual_prompts: Optional[VisualPrompts] = None
-    motion_effect: Optional[str] = None
-    on_screen_text: Optional[str] = None
+    visual_prompts: VisualPrompts | None = None
+    motion_effect: str | None = None
+    on_screen_text: str | None = None
     # v2 text overlay type; paired with on_screen_text.
-    on_screen_text_type: Optional[Literal["stat", "date", "lower_third", "person", "label"]] = None
+    on_screen_text_type: Literal["stat", "date", "lower_third", "person", "label"] | None = None
     sfx: str = ""
     sfx_timing: str = ""
 
@@ -181,24 +179,24 @@ class StoryboardScene(BaseModel):
     # historical event; "B-roll" = everything else.
     segment_type: Literal["Character", "Event", "B-roll"] = "B-roll"
     # Render decisions written by the storyboard reviewer (P9-S2).
-    render_options: Optional[SceneRenderOptions] = None
+    render_options: SceneRenderOptions | None = None
     # Operator-set acquisition strategy — persisted in storyboard so it survives
     # before the manifest exists.  None means "derive from clip_type at manifest build".
-    asset_mode: Optional[Literal["stock", "ai_generated"]] = None
+    asset_mode: Literal["stock", "ai_generated"] | None = None
     # Deprecated alias — segment_type=Event is the v2 signal. Kept for R2 backward compat.
     historic: bool = False
     # Set by the storyboard prompt (v0.10) when scene depicts a named real person.
     # Routes acquisition to wikimedia_client.fetch_person_photo first (P8-S3).
-    person_name: Optional[str] = None
-    person_title: Optional[str] = None
+    person_name: str | None = None
+    person_title: str | None = None
     # v0.13 timestamp-first fields — Claude outputs word indices; Python derives these (P9-S9).
-    start_word: Optional[int] = None
-    end_word: Optional[int] = None
-    scene_start_ms: Optional[int] = None
-    scene_end_ms: Optional[int] = None
-    asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
+    start_word: int | None = None
+    end_word: int | None = None
+    scene_start_ms: int | None = None
+    scene_end_ms: int | None = None
+    asset_tier: Literal["still", "still_motion", "video"] | None = None
     # Semantic enrichment (P10-S3) — per-scene domain-qualified acquisition signals.
-    semantic_context: Optional[SemanticContext] = None
+    semantic_context: SemanticContext | None = None
 
     @model_validator(mode="after")
     def _backfill_flat_queries_from_visual_prompts(self) -> "StoryboardScene":
@@ -236,7 +234,7 @@ class Storyboard(BaseModel):
     scenes: list[StoryboardScene]
     summary: StoryboardSummary
     # Semantic enrichment (P10-S3) — top-level domain context for the full video.
-    global_context: Optional[GlobalContext] = None
+    global_context: GlobalContext | None = None
 
 
 # ── Asset manifest schemas ─────────────────────────────────────────────────────
@@ -248,9 +246,9 @@ class ManifestEntry(BaseModel):
     scene_id: str
     clip_type: Literal["hard_cut", "still_with_motion", "animated"]
     # v1 query fields — Optional for backward compat; populated by build_manifest (legacy path).
-    primary_query: Optional[str] = None
-    fallback_query: Optional[str] = None
-    ai_generate_prompt: Optional[str] = None
+    primary_query: str | None = None
+    fallback_query: str | None = None
+    ai_generate_prompt: str | None = None
     # v2 flat query fields (P9-S1) — used by native AcquisitionWorker (P9-S3).
     segment_type: str = "B-roll"
     primary_stk: str = ""
@@ -259,29 +257,29 @@ class ManifestEntry(BaseModel):
     # Deprecated alias — segment_type=Event is the v2 signal. Kept for R2 backward compat.
     historic: bool = False
     status: str = "pending"
-    source: Optional[str] = None
-    file_key: Optional[str] = None
-    asset_mode: Optional[Literal["stock", "ai_generated"]] = None
+    source: str | None = None
+    file_key: str | None = None
+    asset_mode: Literal["stock", "ai_generated"] | None = None
     # Wikimedia CC/public-domain attribution text to store alongside the asset.
-    attribution: Optional[str] = None
+    attribution: str | None = None
     # Propagated from StoryboardScene (v0.10) — set when scene depicts a named individual.
     # Acquisition routes to wikimedia_client.fetch_person_photo first (P8-S3).
-    person_name: Optional[str] = None
-    person_title: Optional[str] = None
+    person_name: str | None = None
+    person_title: str | None = None
     # Scene duration propagated from StoryboardScene — used for video duration QA (P8-S4).
     duration_s: float = 0.0
     # QA gate results written by acquisition (P8-S4).
-    qa_passed: Optional[bool] = None
-    qa_resolution_ok: Optional[bool] = None
-    qa_duration_ok: Optional[bool] = None
-    qa_clip_score: Optional[float] = None
+    qa_passed: bool | None = None
+    qa_resolution_ok: bool | None = None
+    qa_duration_ok: bool | None = None
+    qa_clip_score: float | None = None
     fallback_used: bool = False
     # Asset tier propagated from StoryboardScene (P9-S9) — guides image-first vs video-first routing.
-    asset_tier: Optional[Literal["still", "still_motion", "video"]] = None
+    asset_tier: Literal["still", "still_motion", "video"] | None = None
     # Set to True when acquisition skipped a duplicate source URL (P10-S1 deduplication).
     duplicate_avoided: bool = False
     # Semantic enrichment propagated from StoryboardScene (P10-S3).
-    semantic_context: Optional[SemanticContext] = None
+    semantic_context: SemanticContext | None = None
 
 
 class AssetManifest(BaseModel):
@@ -358,8 +356,8 @@ class AcquisitionStatusResponse(BaseModel):
     acquired: int = 0
     failed: int = 0
     sources: dict[str, int] = {}
-    manifest_key: Optional[str] = None
-    error: Optional[str] = None
+    manifest_key: str | None = None
+    error: str | None = None
 
 
 class AssetLinkResponse(BaseModel):
@@ -388,8 +386,8 @@ class DraftResponse(BaseModel):
     status: str
     project_name: str
     script: str
-    vo_filename: Optional[str] = None
-    music_filename: Optional[str] = None
+    vo_filename: str | None = None
+    music_filename: str | None = None
 
 
 class StoryboardResponse(BaseModel):
@@ -443,8 +441,8 @@ class RenderStatusResponse(BaseModel):
 
     status: str  # "running" | "complete" | "failed"
     progress_pct: int
-    output_key: Optional[str] = None
-    error: Optional[str] = None
+    output_key: str | None = None
+    error: str | None = None
 
 
 class WordTimestamp(BaseModel):

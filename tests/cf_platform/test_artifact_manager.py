@@ -1,6 +1,6 @@
 """Tests for cf_platform/core/artifact_manager.py (P1-S3)."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -28,7 +28,7 @@ def _lineage(run_id: str = "run-1") -> LineageEnvelope:
         worker_version="v1",
         prompt_version="v1",
         model="claude-haiku-4-5-20251001",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 

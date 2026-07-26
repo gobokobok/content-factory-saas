@@ -8,12 +8,12 @@ Covers:
   - build_voice_production_worker: integration — TTS, alignment, fallback paths
 """
 
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cf_platform.core.schemas import StageState
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.voice_production import (
     VoiceAlignmentArtifact,
@@ -23,7 +23,6 @@ from cf_platform.workers.voice_production import (
     _proportional_fallback,
     build_voice_production_worker,
 )
-from cf_platform.core.schemas import StageState
 
 # ── Shared fixtures ────────────────────────────────────────────────────────────
 
@@ -36,7 +35,7 @@ _SCRIPT_KEY = "r2://script@v1.json"
 def _make_script_body(script: str = _SCRIPT) -> dict:
     return ScriptArtifact(
         idea_title="Housing Crisis", niche="american housing", script=script,
-        word_count=len(script.split()), generated_at=datetime.now(timezone.utc),
+        word_count=len(script.split()), generated_at=datetime.now(UTC),
     ).model_dump(mode="json")
 
 

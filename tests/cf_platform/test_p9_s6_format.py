@@ -9,15 +9,13 @@ Covers:
   - StoryboardWorker prompt header: portrait → 9:16 vertical, landscape → 16:9 horizontal
 """
 
-import pytest
 
+from cf_platform.core.schemas import PipelineState
 from cf_platform.interfaces.telegram import (
     parse_pick_command,
     parse_produce_args,
     parse_run_args,
 )
-from cf_platform.core.schemas import PipelineState
-
 
 # ── parse_run_args --format flag ─────────────────────────────────────────────
 

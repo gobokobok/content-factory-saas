@@ -13,7 +13,7 @@ Prompt ported and simplified from src/metadata_generator.py (D047 — no import 
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import anthropic
 from pydantic import BaseModel
@@ -125,7 +125,7 @@ def build_youtube_metadata_worker(
             title=title,
             description=description,
             tags=tags,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

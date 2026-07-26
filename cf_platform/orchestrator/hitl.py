@@ -13,7 +13,6 @@ Usage (P6-S4 will wire this into /produce):
 
 import asyncio
 import logging
-from typing import Optional
 
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import Command
@@ -25,7 +24,7 @@ async def auto_approve_after_timeout(
     run_id: str,
     timeout_seconds: int,
     graph: CompiledStateGraph,
-    thread_id: Optional[str] = None,
+    thread_id: str | None = None,
 ) -> None:
     """Sleep for `timeout_seconds` then auto-approve the interrupted pipeline run.
 

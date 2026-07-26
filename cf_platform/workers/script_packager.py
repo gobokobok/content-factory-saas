@@ -10,8 +10,8 @@ No LLM call — pure deterministic selection (model="none").
 Pure worker per D040/D056.
 """
 
-from datetime import datetime, timezone
-from typing import Literal, Optional
+from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -39,11 +39,11 @@ class ScriptArtifact(BaseModel):
     """Terminal artifact of the idea→script block — the selected, quality-approved script."""
 
     idea_title: str
-    niche: Optional[str]
+    niche: str | None
     script: str
     word_count: int = 0
-    overall_score: Optional[float] = None  # not computed in Blueprint IR pipeline (P5-S6)
-    draft_number: Optional[int] = None  # not applicable in Blueprint IR pipeline
+    overall_score: float | None = None  # not computed in Blueprint IR pipeline (P5-S6)
+    draft_number: int | None = None  # not applicable in Blueprint IR pipeline
     status: Literal["ok", "manual_review"] = "ok"
     length_ok: bool = True  # False when word_count is >20% over or under target_words (P6-S5)
     generated_at: datetime
@@ -96,7 +96,7 @@ def build_script_packager_worker(storage: ArtifactStorage) -> WorkerNode:
             draft_number=None,
             status="manual_review" if is_manual_review else "ok",
             length_ok=length_ok,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

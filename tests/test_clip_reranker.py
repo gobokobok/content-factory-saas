@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import io
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from typing import Optional
-from unittest.mock import MagicMock, patch, Mock
 
 import src.clip_reranker as cr
 from src.clip_reranker import (
@@ -16,7 +16,6 @@ from src.clip_reranker import (
     load_model,
 )
 from src.exceptions import CLIPError
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -30,8 +29,8 @@ def reset_reranker():
 
 
 def _make_mock_model(
-    text_emb: Optional[np.ndarray] = None,
-    img_embs: Optional[np.ndarray] = None,
+    text_emb: np.ndarray | None = None,
+    img_embs: np.ndarray | None = None,
 ) -> MagicMock:
     """Return a mock SentenceTransformer that returns given embeddings."""
     model = MagicMock()
@@ -47,7 +46,7 @@ def _make_mock_model(
 
 def _make_reranker_with_thumbnails(
     model: MagicMock,
-    thumbnail_bytes: Optional[bytes] = None,
+    thumbnail_bytes: bytes | None = None,
 ) -> CLIPReranker:
     """Return a CLIPReranker whose session returns a fake thumbnail image."""
     from PIL import Image

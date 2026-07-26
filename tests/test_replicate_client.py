@@ -1,12 +1,12 @@
 """Tests for src/replicate_client.py — Replicate/Flux image generation client."""
 
-from unittest.mock import MagicMock, Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from src.exceptions import ReplicateError
 from src.models import ManifestEntry, ReplicateAcquireResult
-from src.replicate_client import ReplicateClient, _STYLE_MODIFIERS
+from src.replicate_client import _STYLE_MODIFIERS, ReplicateClient
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -383,7 +383,7 @@ class TestVisualStyleModifier:
             mock_client.predictions.create.return_value = pred
             client = ReplicateClient(FAKE_TOKEN, FAKE_MODEL, poll_interval_seconds=0)
 
-        entry = _make_entry(ai_generate_prompt=self.BASE_PROMPT)
+        _make_entry(ai_generate_prompt=self.BASE_PROMPT)
         with patch("src.replicate_client.requests.get") as mock_get:
             mock_get.return_value = Mock(status_code=200, content=FAKE_IMAGE_BYTES)
             client.acquire_for_entry(_make_entry(ai_generate_prompt=self.BASE_PROMPT), "run-id", _make_storage(), visual_style=visual_style)

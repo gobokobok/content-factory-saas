@@ -17,12 +17,13 @@ never sees its own r2_key.
 """
 
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+from pydantic import BaseModel
 
 from cf_platform.core.schemas import Signal, SourceAdapter, StageState, TraceEvent, WorkerNode, WorkerOutput
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.core.worker_registry import WorkerRegistration
-from pydantic import BaseModel
 
 
 class SignalsArtifact(BaseModel):
@@ -80,7 +81,7 @@ def build_discovery_worker(
             )
             all_signals.extend(signals)
 
-        artifact = SignalsArtifact(niche=niche, generated_at=datetime.now(timezone.utc), signals=all_signals)
+        artifact = SignalsArtifact(niche=niche, generated_at=datetime.now(UTC), signals=all_signals)
         return WorkerOutput(artifact=artifact)
 
     return discovery_worker

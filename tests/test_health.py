@@ -1,13 +1,12 @@
 """Tests for GET /health and startup ENV validation."""
 
+
 import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
-from unittest.mock import patch
 
-from src.main import app
 from src.config import Settings
-
+from src.main import app
 
 VALID_ENV = {
     "ENVIRONMENT": "dev",

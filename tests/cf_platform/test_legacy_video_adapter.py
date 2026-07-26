@@ -1,17 +1,14 @@
 """Tests for cf_platform/adapters/legacy_video.py — LegacyVideoAdapter (P6-S1, D047)."""
 
-from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from cf_platform.adapters.legacy_video import (
     InProcessLegacyVideoAdapter,
-    LegacyVideoAdapter,
     VideoResult,
 )
 from cf_platform.core.trace_repo import InMemoryTraceEventRepository
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -64,7 +61,7 @@ def _make_manifest_mock() -> MagicMock:
     return manifest
 
 
-def _make_adapter(settings: Optional[MagicMock] = None) -> InProcessLegacyVideoAdapter:
+def _make_adapter(settings: MagicMock | None = None) -> InProcessLegacyVideoAdapter:
     """Construct adapter with the given (or default) settings mock."""
     return InProcessLegacyVideoAdapter(settings=settings or _make_settings())
 

@@ -69,7 +69,7 @@ class CLIPReranker:
         self._model = model
         self._session = requests.Session()
 
-    def _fetch_thumbnail(self, url: str) -> Optional[Image.Image]:
+    def _fetch_thumbnail(self, url: str) -> Image.Image | None:
         """Download thumbnail and return a PIL Image, or None on any failure."""
         try:
             resp = self._session.get(url, timeout=_THUMBNAIL_TIMEOUT)

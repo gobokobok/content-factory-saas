@@ -11,7 +11,6 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional
 
 # Allow imports from the project root when run as a script.
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -39,7 +38,7 @@ def init_voiceover_folder(client: R2Client, run_id: str) -> None:
     create_prefix(client, f"runs/{run_id}/voiceover/.keep")
 
 
-def print_upload_instructions(run_id: Optional[str], bucket: str) -> None:
+def print_upload_instructions(run_id: str | None, bucket: str) -> None:
     """Print the R2 paths where the operator should upload files."""
     print()
     print("Upload your files to the following R2 paths:")

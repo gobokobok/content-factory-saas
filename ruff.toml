@@ -1,0 +1,15 @@
+# Lint configuration (D068). Explicit select so CI behavior never drifts
+# with ruff's changing defaults. Scope: correctness (E/F), import hygiene
+# (I), and Python 3.11 modernization (UP). Broader families (B, SIM, S)
+# can be adopted later as separate decisions.
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+[lint.per-file-ignores]
+# Tests may shadow fixtures; short names like `l` are fine in caption fixtures.
+"tests/*" = ["F811", "E741"]
+# Imports interleave with router setup; goes away when api.py splits into routers.
+"cf_platform/interfaces/api.py" = ["E402"]

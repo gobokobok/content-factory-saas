@@ -7,7 +7,6 @@ platform route must keep working when the database is unavailable.
 """
 
 import logging
-from typing import Optional
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -17,11 +16,11 @@ from psycopg_pool import AsyncConnectionPool
 
 logger = logging.getLogger(__name__)
 
-_pool: Optional[AsyncConnectionPool] = None
-_checkpoint_pool: Optional[AsyncConnectionPool] = None
+_pool: AsyncConnectionPool | None = None
+_checkpoint_pool: AsyncConnectionPool | None = None
 
 
-def get_pool(database_url: str) -> Optional[AsyncConnectionPool]:
+def get_pool(database_url: str) -> AsyncConnectionPool | None:
     """Return the process-local AsyncConnectionPool for database_url, or None if unset.
 
     The pool is created with open=False so an unreachable database does not raise

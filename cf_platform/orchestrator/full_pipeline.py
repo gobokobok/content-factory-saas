@@ -25,7 +25,7 @@ Canonical spec: docs/v2_platform_plan.md §5 · PipelineState contract.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -33,7 +33,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 
-from cf_platform.adapters.legacy_video import InProcessLegacyVideoAdapter, LegacyVideoAdapter
+from cf_platform.adapters.legacy_video import LegacyVideoAdapter
 from cf_platform.blocks.idea_to_script import build_idea_to_script_graph
 from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph
 from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage, read_artifact
@@ -54,11 +54,11 @@ from cf_platform.workers.storyboard_worker import (
     STORYBOARD_WORKER_REGISTRATION,
     build_storyboard_worker,
 )
+from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from cf_platform.workers.visual_director_worker import (
     VISUAL_DIRECTOR_REGISTRATION,
     build_visual_director_worker,
 )
-from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from cf_platform.workers.voice_production import (
     VOICE_PRODUCTION_REGISTRATION,
     build_voice_production_worker,
@@ -80,8 +80,8 @@ def build_full_pipeline_graph(
     adapters: list[tuple[str, SourceAdapter]],
     trace_repo: TraceEventRepository,
     anthropic_api_key: str,
-    legacy_adapter: Optional[LegacyVideoAdapter] = None,  # DEPRECATED — no longer used (P9-S5)
-    checkpointer: Optional[BaseCheckpointSaver] = None,
+    legacy_adapter: LegacyVideoAdapter | None = None,  # DEPRECATED — no longer used (P9-S5)
+    checkpointer: BaseCheckpointSaver | None = None,
     gemini_api_key: str = "",
     gemini_tts_voice: str = "",
     deepgram_api_key: str = "",

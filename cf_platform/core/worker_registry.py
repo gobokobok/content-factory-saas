@@ -11,8 +11,9 @@ indexed by `worker@prompt_version` so older versions remain retrievable for repl
 """
 
 import time
-from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, Optional, Protocol
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
+from typing import Any, Protocol
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -113,7 +114,7 @@ def wrap(
     storage: ArtifactStorage,
     executions: ExecutionRepository,
     artifact_repo: ArtifactRepository,
-    control_channel: Optional[str] = None,
+    control_channel: str | None = None,
 ) -> Callable[[StageState], Awaitable[dict[str, Any]]]:
     """Wrap a pure WorkerNode into a LangGraph node function with full observability.
 
@@ -134,10 +135,10 @@ def wrap(
     registration = registry.resolve(worker)
 
     async def _node_fn(state: Any) -> dict[str, Any]:
-        started_at = datetime.now(timezone.utc)
+        started_at = datetime.now(UTC)
         start_perf = time.perf_counter()
         output = await node(state)
-        finished_at = datetime.now(timezone.utc)
+        finished_at = datetime.now(UTC)
         latency_ms = int((time.perf_counter() - start_perf) * 1000)
 
         lineage = LineageEnvelope(
@@ -190,7 +191,7 @@ def build_observed_node_graph(
     storage: ArtifactStorage,
     executions: ExecutionRepository,
     artifact_repo: ArtifactRepository,
-    checkpointer: Optional[BaseCheckpointSaver] = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Compile a 1-node StateGraph (START -> node_name -> END) wrapping `node` via wrap().
 

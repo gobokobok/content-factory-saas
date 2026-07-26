@@ -9,8 +9,8 @@ index, not application state).
 """
 
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Literal, Optional, Protocol
+from datetime import UTC, datetime
+from typing import Any, Literal, Protocol
 
 from cf_platform.core.schemas import RunRecord
 
@@ -79,7 +79,7 @@ async def create_run(
     repository: RunRepository,
 ) -> RunRecord:
     """Mint a new RunRecord with status 'created', persist it via repository, and return it."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     run = RunRecord(
         run_id=str(uuid.uuid4()),
         user_id=user_id,
@@ -97,7 +97,7 @@ async def transition_run(
     run_id: str,
     new_status: RunStatus,
     repository: RunRepository,
-    error: Optional[str] = None,
+    error: str | None = None,
 ) -> RunRecord:
     """Transition the run identified by run_id to new_status and persist the change.
 
@@ -113,7 +113,7 @@ async def transition_run(
         update={
             "status": new_status,
             "error": error,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         }
     )
     return await repository.save(updated)

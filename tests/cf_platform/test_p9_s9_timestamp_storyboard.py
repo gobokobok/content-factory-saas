@@ -3,11 +3,11 @@
 import pytest
 
 from cf_platform.workers.storyboard_worker import (
-    STORYBOARD_PROMPT_VERSION,
     _GENERATE_SYSTEM_PROMPT,
     _GENERATE_SYSTEM_PROMPT_V013,
-    _assign_asset_tier,
+    STORYBOARD_PROMPT_VERSION,
     _asset_tier_to_clip_type,
+    _assign_asset_tier,
     _derive_motion_effect,
     _format_indexed_timestamps,
     _normalize_deepgram_words,
@@ -15,7 +15,6 @@ from cf_platform.workers.storyboard_worker import (
 )
 from cf_platform.workers.voice_production import VoiceWordTimestamp
 from src.models import ManifestEntry, StoryboardScene
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -242,7 +241,6 @@ def test_v013_prompt_has_no_duration_rules_table() -> None:
 def test_v013_prompt_has_no_voiceover_line_in_output_schema() -> None:
     """v0.13 output schema must not ask Claude for voiceover_line or duration_s."""
     # The example output object in the prompt should not have voiceover_line
-    import json
     # Find the JSON example in the prompt (between ```-less braces after OUTPUT FORMAT)
     prompt = _GENERATE_SYSTEM_PROMPT_V013
     # Simple heuristic: look for "voiceover_line" in the prompt at all

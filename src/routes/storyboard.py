@@ -1,17 +1,16 @@
 """Route handlers for /runs/{run_id}/storyboard endpoints."""
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from src import pipeline
 from src.config import Settings, get_settings
 from src.exceptions import (
+    StorageError,
     StoryboardAPIError,
     StoryboardParseError,
     StoryboardValidationError,
-    StorageError,
 )
 from src.models import (
     StoryboardPatchRequest,
@@ -20,8 +19,8 @@ from src.models import (
     StoryboardResponse,
     WordTimestamp,
 )
-from src.storyboard import generate_storyboard, patch_scene_field
 from src.storage import R2Client
+from src.storyboard import generate_storyboard, patch_scene_field
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,7 @@ async def create_storyboard(
     )
 
     # Load alignment timestamps if available (VO-first flow)
-    word_timestamps: Optional[list[WordTimestamp]] = None
+    word_timestamps: list[WordTimestamp] | None = None
     alignment_key = f"runs/{run_id}/alignment.json"
     try:
         alignment_data = storage.get_json(alignment_key)

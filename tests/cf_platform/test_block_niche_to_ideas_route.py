@@ -9,8 +9,7 @@ Covers:
 
 import uuid
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -28,7 +27,7 @@ from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from src.config import Settings, get_settings
 from src.main import app
 
-_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=UTC)
 
 _VALID_ENV = {
     "ENVIRONMENT": "dev",
@@ -72,7 +71,7 @@ def _make_topic(title: str = "Test Topic", final_score: float = 8.0) -> TopicSco
 def _make_ranked_ideas(
     niche: str = "starter homes",
     selected_title: str = "Why Starter Homes Vanished",
-    alternatives: Optional[List[TopicScore]] = None,
+    alternatives: list[TopicScore] | None = None,
 ) -> RankedIdeasArtifact:
     """Return a RankedIdeasArtifact fixture."""
     return RankedIdeasArtifact(

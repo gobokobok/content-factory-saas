@@ -7,8 +7,7 @@ no variants, no loop. This is the only LLM call that produces script text.
 Pure worker per D040/D056.
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import anthropic
 
@@ -96,7 +95,7 @@ def build_script_generator_worker(
         _, hook_body = await read_artifact(storage, hook_key)
         hook_artifact = SelectedHookArtifact.model_validate(hook_body)
 
-        lens: Optional[NarrativeLens] = None
+        lens: NarrativeLens | None = None
         lens_key = state.artifacts.get("narrative_lens")
         if lens_key:
             _, lens_body = await read_artifact(storage, lens_key)
@@ -104,7 +103,7 @@ def build_script_generator_worker(
 
         target_duration: int = int(getattr(state, "target_duration_seconds", 60))
         target_words = round(target_duration * _WORDS_PER_SECOND)
-        niche: Optional[str] = state.inputs.get("niche")
+        niche: str | None = state.inputs.get("niche")
         idea_title: str = state.inputs.get("idea_title", "Unknown idea")
 
         user_message = _build_user_message(
@@ -137,7 +136,7 @@ def build_script_generator_worker(
             script=script_text,
             word_count=word_count,
             target_duration_seconds=target_duration,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 
@@ -146,12 +145,12 @@ def build_script_generator_worker(
 
 def _build_user_message(
     idea_title: str,
-    niche: Optional[str],
+    niche: str | None,
     blueprint: Blueprint,
     hook: str,
     target_words: int,
     target_duration: int,
-    lens: Optional[NarrativeLens] = None,
+    lens: NarrativeLens | None = None,
 ) -> str:
     """Compose the Claude user message from the blueprint, hook, and optional narrative lens."""
     max_words = round(target_words * 1.10)

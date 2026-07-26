@@ -16,11 +16,10 @@ Pure worker per D040/D056.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import anthropic
-from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.llm_utils import strip_markdown_fences
@@ -182,7 +181,7 @@ def build_script_refiner_worker(
             idea_title=drafts_artifact.idea_title,
             idea_angle=drafts_artifact.idea_angle,
             drafts=drafts,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact, control="continue")
 

@@ -14,7 +14,7 @@ Pure worker per D040/D056: takes StageState, returns WorkerOutput. All IO is
 injected via the `build_topic_selector_worker` factory.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
@@ -79,7 +79,7 @@ def build_topic_selector_worker(storage: ArtifactStorage) -> WorkerNode:
 
         artifact = RankedIdeasArtifact(
             niche=scored_artifact.niche,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             selected=sorted_topics[0],
             alternatives=sorted_topics[1:],
             mode=mode,

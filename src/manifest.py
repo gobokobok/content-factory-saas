@@ -82,7 +82,6 @@ def patch_manifest_entry(
     if field not in _PATCHABLE_MANIFEST_FIELDS:
         raise ValueError(f"Field '{field}' is not patchable. Allowed: {_PATCHABLE_MANIFEST_FIELDS}")
 
-    from src.exceptions import StorageError  # local import avoids circular dependency
 
     manifest_key = f"runs/{run_id}/asset_manifest.json"
     manifest_data = storage.get_json(manifest_key)

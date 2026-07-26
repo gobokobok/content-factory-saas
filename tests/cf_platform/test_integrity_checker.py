@@ -13,8 +13,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -32,7 +31,7 @@ from cf_platform.workers.integrity_checker import (
     build_integrity_checker_worker,
 )
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 _LINEAGE = LineageEnvelope(
     run_id="run-001", worker="test", worker_version="1.0.0", prompt_version="v1",
     model="none", created_at=_NOW,
@@ -73,8 +72,8 @@ def _mock_response(text: str) -> MagicMock:
 
 async def _run_worker(
     storage: InMemoryArtifactStorage,
-    generated_script: Optional[GeneratedScriptArtifact],
-    blueprint: Optional[Blueprint],
+    generated_script: GeneratedScriptArtifact | None,
+    blueprint: Blueprint | None,
     claude_text: str,
 ):
     artifacts: dict[str, str] = {}

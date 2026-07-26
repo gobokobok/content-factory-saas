@@ -15,21 +15,20 @@ Covers:
 - build_script_packager_worker returns a callable
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import pytest
 
 from cf_platform.core.artifact_manager import InMemoryArtifactStorage, write_artifact
 from cf_platform.core.idea_to_script_schemas import GeneratedScriptArtifact
-from cf_platform.core.schemas import IdeaToScriptState, LineageEnvelope, StageState
+from cf_platform.core.schemas import IdeaToScriptState, LineageEnvelope
 from cf_platform.workers.script_packager import (
     SCRIPT_PACKAGER_REGISTRATION,
     ScriptArtifact,
     build_script_packager_worker,
 )
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 _LINEAGE = LineageEnvelope(
     run_id="run-001",
     worker="test",
@@ -43,7 +42,7 @@ _NICHE = "US housing"
 _SCRIPT = "In 1980 the average family could save for a home in 3 years. Today it takes 12."
 
 
-def _make_generated_script(niche: Optional[str] = _NICHE, script: str = _SCRIPT) -> GeneratedScriptArtifact:
+def _make_generated_script(niche: str | None = _NICHE, script: str = _SCRIPT) -> GeneratedScriptArtifact:
     return GeneratedScriptArtifact(
         idea_title=_IDEA_TITLE,
         niche=niche,
@@ -56,7 +55,7 @@ def _make_generated_script(niche: Optional[str] = _NICHE, script: str = _SCRIPT)
 
 async def _run_packager(
     storage: InMemoryArtifactStorage,
-    generated_script: Optional[GeneratedScriptArtifact],
+    generated_script: GeneratedScriptArtifact | None,
     *,
     integrity_loops: int = 0,
     integrity_verdict: str = "continue",

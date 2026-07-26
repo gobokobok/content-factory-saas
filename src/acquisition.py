@@ -22,8 +22,7 @@ the total acquired count is zero — i.e. no scene in the run has an asset at al
 import asyncio
 import logging
 import os
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
 import httpx
@@ -56,9 +55,9 @@ class _Candidate:
     source: str          # "pexels" | "pixabay" | "wikimedia"
     content_type: str
     ext: str
-    attribution: Optional[str] = None   # CC/public-domain credit text (Wikimedia only)
+    attribution: str | None = None   # CC/public-domain credit text (Wikimedia only)
     priority: int = 0                   # Higher = tried first (1 for Wikimedia in historic scenes)
-    duration_seconds: Optional[float] = None  # Video duration for duration QA (P8-S4)
+    duration_seconds: float | None = None  # Video duration for duration QA (P8-S4)
     from_fallback: bool = False          # True when sourced from entry.fallback_query (P8-S4)
 
 
@@ -199,8 +198,8 @@ async def _wikimedia_photo_candidates(
 def _build_search_tasks(
     entry: ManifestEntry,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
-    wikimedia: Optional[WikimediaClient],
+    pixabay: PixabayClient | None,
+    wikimedia: WikimediaClient | None,
     is_video: bool,
     query: str,
     from_fallback: bool,
@@ -230,8 +229,8 @@ def _build_search_tasks(
 async def _gather_candidates(
     entry: ManifestEntry,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
-    wikimedia: Optional[WikimediaClient],
+    pixabay: PixabayClient | None,
+    wikimedia: WikimediaClient | None,
     is_video: bool,
 ) -> list[_Candidate]:
     """Search all sources concurrently and return a merged, deduplicated candidate list.
@@ -369,11 +368,11 @@ async def acquire_scene(
     entry: ManifestEntry,
     run_id: str,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
+    pixabay: PixabayClient | None,
     storage: R2Client,
-    wikimedia: Optional[WikimediaClient] = None,
-    used_urls: Optional[set] = None,
-    used_urls_lock: Optional[asyncio.Lock] = None,
+    wikimedia: WikimediaClient | None = None,
+    used_urls: set | None = None,
+    used_urls_lock: asyncio.Lock | None = None,
 ) -> bool:
     """Acquire the best asset for one manifest entry from the merged source pool.
 
@@ -556,9 +555,9 @@ async def run_acquisition(
     run_id: str,
     manifest: AssetManifest,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
+    pixabay: PixabayClient | None,
     storage: R2Client,
-    wikimedia: Optional[WikimediaClient] = None,
+    wikimedia: WikimediaClient | None = None,
     batch_size: int = 20,
 ) -> dict:
     """Run the full acquisition loop over all pending manifest entries in parallel batches.

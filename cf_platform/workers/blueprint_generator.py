@@ -8,7 +8,6 @@ Pure worker per D040/D056.
 """
 
 import json
-from typing import Optional
 
 import anthropic
 
@@ -104,7 +103,7 @@ def build_blueprint_generator_worker(
         _, ctx_body = await read_artifact(storage, ctx_key)
         ctx = NormalizedContext.model_validate(ctx_body)
 
-        niche: Optional[str] = state.inputs.get("niche")
+        niche: str | None = state.inputs.get("niche")
         idea_title: str = state.inputs.get("idea_title", "Unknown idea")
         target_duration: int = int(getattr(state, "target_duration_seconds", 60))
         target_words: int = round(target_duration * _WORDS_PER_SECOND)
@@ -151,7 +150,7 @@ def build_blueprint_generator_worker(
 
 def _build_user_message(
     idea_title: str,
-    niche: Optional[str],
+    niche: str | None,
     ctx: NormalizedContext,
     target_words: int,
 ) -> str:

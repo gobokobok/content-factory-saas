@@ -10,7 +10,6 @@ from src.config import Settings, get_settings
 from src.exceptions import StorageError
 from src.main import app
 
-
 VALID_ENV = {
     "ENVIRONMENT": "dev",
     "R2_ACCOUNT_ID": "fake-account-id",

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from src.auth import AUTH_COOKIE_NAME, sign_cookie, verify_cookie
+from src.auth import AUTH_COOKIE_NAME, sign_cookie
 from src.config import Settings, get_settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])

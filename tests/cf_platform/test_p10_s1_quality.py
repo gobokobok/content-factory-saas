@@ -10,7 +10,6 @@ Five production-quality bugs fixed in this story:
 
 import asyncio
 import logging
-from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -40,7 +39,6 @@ from src.models import (
     StoryboardSummary,
 )
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -48,10 +46,10 @@ def _scene(
     scene_id: str = "1",
     segment_type: str = "B-roll",
     duration_s: float = 3.0,
-    on_screen_text: Optional[str] = None,
-    on_screen_text_type: Optional[str] = None,
-    person_name: Optional[str] = None,
-    render_options: Optional[SceneRenderOptions] = None,
+    on_screen_text: str | None = None,
+    on_screen_text_type: str | None = None,
+    person_name: str | None = None,
+    render_options: SceneRenderOptions | None = None,
 ) -> StoryboardScene:
     return StoryboardScene(
         scene=scene_id,
@@ -177,7 +175,7 @@ def test_bug1_render_script_no_lower_third_drawtext():
 # ── Bug 2: segment_type normalisation ────────────────────────────────────────
 
 
-def _raw_scene(segment_type: str, person_name: Optional[str] = None) -> dict:
+def _raw_scene(segment_type: str, person_name: str | None = None) -> dict:
     return {
         "scene": "1",
         "clip_type": "still_with_motion",
@@ -246,7 +244,6 @@ async def test_bug3_duplicate_url_skipped_and_flag_set():
 @pytest.mark.asyncio
 async def test_bug3_accepted_url_added_to_used_set():
     """A successfully acquired URL is added to used_source_urls for future deduplication."""
-    from cf_platform.workers.acquisition_worker import qa_score
     from cf_platform.workers.acquisition_worker import QAResult
 
     storage = InMemoryArtifactStorage()

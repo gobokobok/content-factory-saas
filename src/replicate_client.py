@@ -16,7 +16,6 @@ extension, so inferring it would be unreliable.
 
 import logging
 import time
-from typing import Optional
 
 import replicate
 import requests

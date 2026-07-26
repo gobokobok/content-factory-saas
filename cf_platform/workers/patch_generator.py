@@ -10,7 +10,7 @@ Pure worker per D040/D056.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import anthropic
@@ -106,7 +106,7 @@ def build_patch_generator_worker(
         ]
 
         if not actionable:
-            artifact = PatchSetArtifact(patches=[], generated_at=datetime.now(timezone.utc))
+            artifact = PatchSetArtifact(patches=[], generated_at=datetime.now(UTC))
             return WorkerOutput(artifact=artifact)
 
         user_message = _build_user_message(script_artifact.script, actionable)
@@ -130,7 +130,7 @@ def build_patch_generator_worker(
 
         artifact = PatchSetArtifact(
             patches=patches,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

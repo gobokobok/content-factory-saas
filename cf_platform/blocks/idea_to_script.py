@@ -30,7 +30,7 @@ a pure non-worker that returns {"integrity_loops": 1}.
 Canonical spec: docs/v2_platform_plan.md §5 · D058/D059/D060.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -57,10 +57,6 @@ from cf_platform.workers.hook_generator import (
     HOOK_GENERATOR_REGISTRATION,
     build_hook_generator_worker,
 )
-from cf_platform.workers.narrative_lens import (
-    NARRATIVE_LENS_REGISTRATION,
-    build_narrative_lens_worker,
-)
 from cf_platform.workers.hook_selector import (
     HOOK_SELECTOR_REGISTRATION,
     build_hook_selector_worker,
@@ -68,6 +64,10 @@ from cf_platform.workers.hook_selector import (
 from cf_platform.workers.integrity_checker import (
     INTEGRITY_CHECKER_REGISTRATION,
     build_integrity_checker_worker,
+)
+from cf_platform.workers.narrative_lens import (
+    NARRATIVE_LENS_REGISTRATION,
+    build_narrative_lens_worker,
 )
 from cf_platform.workers.patch_applier import (
     PATCH_APPLIER_REGISTRATION,
@@ -148,7 +148,7 @@ def build_idea_to_script_graph(
     executions: ExecutionRepository,
     artifact_repo: ArtifactRepository,
     anthropic_api_key: str,
-    checkpointer: Optional[BaseCheckpointSaver] = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Compile the full idea→script Blueprint IR StateGraph over IdeaToScriptState (P5-S6/P5-S7).
 

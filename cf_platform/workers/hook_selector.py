@@ -7,7 +7,7 @@ Pure worker per D040/D056.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import anthropic
 
@@ -86,7 +86,7 @@ def build_hook_selector_worker(
 
         artifact = SelectedHookArtifact(
             hook=selected,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

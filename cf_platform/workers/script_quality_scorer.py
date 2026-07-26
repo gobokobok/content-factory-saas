@@ -22,8 +22,8 @@ Pure worker per D040/D056.
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import anthropic
 from pydantic import BaseModel
@@ -97,13 +97,13 @@ class ScriptDraftScore(BaseModel):
 
     draft_number: int
     hook_strength: float
-    hook_coaching: Optional[str] = None
+    hook_coaching: str | None = None
     data_quality: float
-    data_coaching: Optional[str] = None
+    data_coaching: str | None = None
     narrative_flow: float
-    narrative_coaching: Optional[str] = None
+    narrative_coaching: str | None = None
     virality_potential: float
-    virality_coaching: Optional[str] = None
+    virality_coaching: str | None = None
     overall_score: float
 
 
@@ -189,7 +189,7 @@ def build_script_quality_scorer_worker(
             scored_drafts=scored_drafts,
             best_draft_number=best.draft_number,
             best_score=best.overall_score,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact, control=control)
 

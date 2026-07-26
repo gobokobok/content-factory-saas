@@ -7,15 +7,14 @@ Covers:
 - GET /platform/studio/runs/{run_id}/metadata — present, absent (404)
 """
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch
+from datetime import UTC, datetime
+from unittest.mock import patch
 
 import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from cf_platform.core.artifact_manager import InMemoryArtifactStorage
-from cf_platform.interfaces.api import get_artifact_storage, get_platform_settings
+from cf_platform.interfaces.api import get_artifact_storage
 from src.config import Settings, get_settings
 from src.main import app
 
@@ -61,7 +60,7 @@ class TestMetadataWorkerEndpoint:
                 niche="housing economics",
                 script="Rents rose again this year.",
                 word_count=5,
-                generated_at=datetime.now(timezone.utc),
+                generated_at=datetime.now(UTC),
             ).model_dump(mode="json"),
         )
 
@@ -72,7 +71,7 @@ class TestMetadataWorkerEndpoint:
             title="Why Rents Keep Rising",
             description="A look at the data behind rising rents.",
             tags=["housing", "rent"],
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
 
         async def _fake_worker(state):

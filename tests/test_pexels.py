@@ -1,19 +1,19 @@
 """Tests for src/pexels.py — Pexels API client."""
 
-import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
+import pytest
+
+from src.exceptions import PexelsError
+from src.models import ManifestEntry
 from src.pexels import (
     PexelsClient,
-    _pick_best_video_file,
-    _pick_best_photo,
-    _ext_from_url,
     _content_type_from_ext,
     _ext_from_content_type,
+    _ext_from_url,
+    _pick_best_photo,
+    _pick_best_video_file,
 )
-from src.models import ManifestEntry, PexelsAcquireResult
-from src.exceptions import PexelsError
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

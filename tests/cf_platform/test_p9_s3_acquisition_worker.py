@@ -17,29 +17,27 @@ Coverage:
 """
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import InMemoryArtifactStorage
 from cf_platform.core.schemas import StageState
 from cf_platform.workers.acquisition_worker import (
     ACQUISITION_WORKER_REGISTRATION,
     AssetManifestArtifact,
-    _Candidate,
     _acquire_broll,
     _acquire_character,
     _acquire_event,
+    _Candidate,
     _compute_footage_summary,
     _try_candidates,
     build_acquisition_worker,
 )
 from src.footage_qa import QAResult
 from src.models import AssetManifest, ManifestEntry
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -51,7 +49,7 @@ def _make_entry(
     primary_stk: str = "housing market",
     context_stk: str = "house",
     concept_stk: str = "housing",
-    person_name: Optional[str] = None,
+    person_name: str | None = None,
     duration_s: float = 3.0,
 ) -> ManifestEntry:
     return ManifestEntry(
@@ -73,7 +71,7 @@ def _make_candidate(
     source: str = "pexels",
     content_type: str = "image/jpeg",
     ext: str = ".jpg",
-    duration_seconds: Optional[float] = None,
+    duration_seconds: float | None = None,
 ) -> _Candidate:
     return _Candidate(
         url=url,
@@ -308,7 +306,7 @@ async def test_acquire_event_wikimedia_searched_first():
         with patch("cf_platform.workers.acquisition_worker._try_candidates", new_callable=AsyncMock) as mock_try:
             mock_try.return_value = True
             mock_wikimedia = MagicMock()
-            result = await _acquire_event(entry, queries, "run1", storage, MagicMock(), MagicMock(), mock_wikimedia)
+            await _acquire_event(entry, queries, "run1", storage, MagicMock(), MagicMock(), mock_wikimedia)
 
     # Wikimedia calls must precede Pexels+Pixabay calls
     wikimedia_indices = [i for i, c in enumerate(call_order) if c.startswith("wikimedia")]
@@ -326,7 +324,6 @@ async def test_acquire_event_pexels_pixabay_fallback_on_wikimedia_miss():
 
     mock_wikimedia = MagicMock()
 
-    call_count = {"wikimedia": 0, "pexels_pixabay": 0}
 
     with (
         patch("cf_platform.workers.acquisition_worker._wikimedia_photo_candidates", new_callable=AsyncMock) as mock_wm,
@@ -341,7 +338,7 @@ async def test_acquire_event_pexels_pixabay_fallback_on_wikimedia_miss():
         mock_try.return_value = False
         mock_best.return_value = True
 
-        result = await _acquire_event(entry, queries, "run1", storage, MagicMock(), MagicMock(), mock_wikimedia)
+        await _acquire_event(entry, queries, "run1", storage, MagicMock(), MagicMock(), mock_wikimedia)
 
     # Wikimedia was searched (3 tiers) and Pexels was also tried (asyncio.to_thread called)
     assert mock_wm.call_count == 3  # one per query tier
@@ -358,7 +355,6 @@ async def test_acquire_broll_concurrent_pexels_pixabay():
     entry = _make_entry(segment_type="B-roll", clip_type="still_with_motion")
     queries = ["housing market graph", "housing", "economy"]
 
-    search_calls: list[str] = []
 
     with (
         patch("cf_platform.workers.acquisition_worker.asyncio.to_thread", new_callable=AsyncMock) as mock_thread,
@@ -369,7 +365,7 @@ async def test_acquire_broll_concurrent_pexels_pixabay():
         mock_pix.return_value = []
         mock_try.return_value = True  # accept on first tier
 
-        result = await _acquire_broll(entry, queries, False, "run1", storage, MagicMock(), MagicMock())
+        await _acquire_broll(entry, queries, False, "run1", storage, MagicMock(), MagicMock())
 
     # Both pexels (via to_thread) and pixabay searched on the first tier
     assert mock_thread.call_count >= 1
@@ -420,7 +416,7 @@ async def test_acquire_broll_no_pixabay_when_key_absent():
         mock_pix.return_value = []
         mock_try.return_value = True
 
-        result = await _acquire_broll(entry, queries, False, "run1", storage, MagicMock(), pixabay=None)
+        await _acquire_broll(entry, queries, False, "run1", storage, MagicMock(), pixabay=None)
 
     # Pixabay candidate helper never called
     mock_pix.assert_not_called()
@@ -474,7 +470,7 @@ def _make_verified_storyboard_artifact() -> dict:
             ],
             "summary": {"total_scenes": 2, "total_duration_s": 5.5, "rhythm": "SM / SM"},
         },
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -487,11 +483,10 @@ async def test_worker_returns_asset_manifest_artifact():
     sb_data = _make_verified_storyboard_artifact()
     sb_key = "users/operator/runs/run42/storyboard/verified_storyboard@v1.json"
     from cf_platform.core.schemas import LineageEnvelope
-    from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact
 
     lineage = LineageEnvelope(
         run_id="run42", worker="storyboard_worker", worker_version="1.0.0",
-        prompt_version="v0.12", model="claude-sonnet-4-6", created_at=datetime.now(timezone.utc),
+        prompt_version="v0.12", model="claude-sonnet-4-6", created_at=datetime.now(UTC),
     )
     from cf_platform.core.schemas import Artifact
     artifact_record = Artifact(
@@ -538,7 +533,7 @@ async def test_worker_marks_failed_scenes():
     from cf_platform.core.schemas import Artifact, LineageEnvelope
     lineage = LineageEnvelope(
         run_id="run99", worker="storyboard_worker", worker_version="1.0.0",
-        prompt_version="v0.12", model="claude-sonnet-4-6", created_at=datetime.now(timezone.utc),
+        prompt_version="v0.12", model="claude-sonnet-4-6", created_at=datetime.now(UTC),
     )
     artifact_record = Artifact(
         name="verified_storyboard", stage="storyboard", version=1, run_id="run99",
@@ -578,7 +573,7 @@ async def test_worker_writes_footage_summary_sidecar():
     from cf_platform.core.schemas import Artifact, LineageEnvelope
     lineage = LineageEnvelope(
         run_id="run77", worker="storyboard_worker", worker_version="1.0.0",
-        prompt_version="v0.12", model="claude-sonnet-4-6", created_at=datetime.now(timezone.utc),
+        prompt_version="v0.12", model="claude-sonnet-4-6", created_at=datetime.now(UTC),
     )
     artifact_record = Artifact(
         name="verified_storyboard", stage="storyboard", version=1, run_id="run77",

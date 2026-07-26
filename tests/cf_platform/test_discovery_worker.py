@@ -4,7 +4,6 @@ Covers AC #2 (one signals artifact + one trace event per source) and AC #3
 (one failing source does not fail the worker, others still aggregate).
 """
 
-from typing import Optional
 
 import pytest
 
@@ -16,7 +15,7 @@ from cf_platform.workers.discovery import SignalsArtifact, build_discovery_worke
 class _StubAdapter:
     """SourceAdapter stub returning a fixed list of Signals or raising."""
 
-    def __init__(self, signals: Optional[list[Signal]] = None, error: Optional[Exception] = None) -> None:
+    def __init__(self, signals: list[Signal] | None = None, error: Exception | None = None) -> None:
         self._signals = signals or []
         self._error = error
 

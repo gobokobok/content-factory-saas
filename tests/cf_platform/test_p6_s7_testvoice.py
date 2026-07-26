@@ -10,7 +10,7 @@ Covers:
   - GEMINI_API_KEY / GEMINI_TTS_VOICE in PlatformSettings
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -18,7 +18,6 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from cf_platform.core.schemas import StageState
 from cf_platform.interfaces.api import (
     get_artifact_repository,
     get_artifact_storage,
@@ -36,8 +35,8 @@ from cf_platform.interfaces.telegram import (
     format_unrecognized_command,
     parse_testvoice_command,
 )
-from cf_platform.workers.voice_production import VoiceAlignmentArtifact, VoiceWordTimestamp
 from cf_platform.workers.script_packager import ScriptArtifact
+from cf_platform.workers.voice_production import VoiceAlignmentArtifact, VoiceWordTimestamp
 
 _RUN_ID = "run-p6s7-test"
 _USER_ID = "operator"
@@ -121,7 +120,7 @@ def _make_script_artifact_body() -> dict:
         niche="american housing",
         script="Housing prices are soaring.",
         word_count=4,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     ).model_dump(mode="json")
 
 
@@ -289,7 +288,7 @@ def test_testvoice_webhook_returns_ok_and_schedules_task() -> None:
         }
     }
     with (
-        patch("cf_platform.interfaces.api._run_testvoice_and_reply", AsyncMock()) as mock_task,
+        patch("cf_platform.interfaces.api._run_testvoice_and_reply", AsyncMock()),
         patch("cf_platform.interfaces.api.TelegramClient") as mock_client_cls,
     ):
         mock_tg = MagicMock()

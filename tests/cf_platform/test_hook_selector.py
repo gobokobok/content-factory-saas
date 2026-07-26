@@ -12,8 +12,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -31,7 +30,7 @@ from cf_platform.workers.hook_selector import (
     build_hook_selector_worker,
 )
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 _LINEAGE = LineageEnvelope(
     run_id="run-001",
     worker="test",
@@ -60,7 +59,7 @@ def _make_blueprint() -> Blueprint:
     )
 
 
-def _make_hook_variants(hooks: Optional[list] = None) -> HookVariantsArtifact:
+def _make_hook_variants(hooks: list | None = None) -> HookVariantsArtifact:
     return HookVariantsArtifact(hooks=hooks or _HOOKS, generated_at=_NOW)
 
 
@@ -72,8 +71,8 @@ def _make_mock_response(text: str) -> MagicMock:
 
 async def _run_worker(
     storage: InMemoryArtifactStorage,
-    hook_variants: Optional[HookVariantsArtifact],
-    blueprint: Optional[Blueprint],
+    hook_variants: HookVariantsArtifact | None,
+    blueprint: Blueprint | None,
     claude_response_text: str = json.dumps({"hook": _HOOKS[1]}),
 ):
     artifacts: dict = {}

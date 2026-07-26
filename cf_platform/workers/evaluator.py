@@ -9,7 +9,6 @@ Pure worker per D040/D056.
 """
 
 import json
-from typing import Optional
 
 import anthropic
 
@@ -98,7 +97,7 @@ def build_evaluator_worker(
         _, ctx_body = await read_artifact(storage, ctx_key)
         ctx = NormalizedContext.model_validate(ctx_body)
 
-        niche: Optional[str] = state.inputs.get("niche")
+        niche: str | None = state.inputs.get("niche")
         user_message = _build_user_message(niche, blueprint, ctx)
 
         client = anthropic.AsyncAnthropic(api_key=anthropic_api_key, timeout=90.0)
@@ -131,7 +130,7 @@ def build_evaluator_worker(
 
 
 def _build_user_message(
-    niche: Optional[str],
+    niche: str | None,
     blueprint: Blueprint,
     ctx: NormalizedContext,
 ) -> str:

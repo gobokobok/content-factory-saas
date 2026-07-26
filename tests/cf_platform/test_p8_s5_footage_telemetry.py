@@ -1,6 +1,5 @@
 """Tests for P8-S5: footage_summary computation, formatting, and Telegram reply wiring."""
 
-from typing import Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -9,7 +8,6 @@ from cf_platform.adapters.legacy_video import VideoResult, _compute_footage_summ
 from cf_platform.interfaces.telegram import format_footage_summary, format_produce_reply
 from src.models import AssetManifest, ManifestEntry
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -17,7 +15,7 @@ def _make_entry(
     scene_id: str,
     status: str = "acquired",
     source: str = "pexels",
-    qa_passed: Optional[bool] = True,
+    qa_passed: bool | None = True,
 ) -> ManifestEntry:
     """Build a minimal ManifestEntry for testing."""
     return ManifestEntry(
@@ -184,8 +182,9 @@ class TestFormatProduceReplyWithSummary:
 
     def test_summary_before_metadata_block(self) -> None:
         """Coverage line appears before the YouTube metadata block."""
-        from cf_platform.workers.youtube_metadata import YoutubeMetadataArtifact
         from datetime import datetime
+
+        from cf_platform.workers.youtube_metadata import YoutubeMetadataArtifact
 
         meta = YoutubeMetadataArtifact(
             title="Test Title",

@@ -11,7 +11,7 @@ D049 rules enforced here:
 
 import logging
 import re
-from typing import TYPE_CHECKING, Optional, Tuple
+from typing import TYPE_CHECKING, Optional
 
 import httpx
 
@@ -28,7 +28,7 @@ _TELEGRAM_API_BASE = "https://api.telegram.org"
 _TOP_SIGNALS_COUNT = 5
 
 
-def parse_ideas_command(text: str) -> Optional[str]:
+def parse_ideas_command(text: str) -> str | None:
     """Parse a `/ideas <niche>` command.
 
     Returns the niche text (possibly empty if no niche was given), or None if
@@ -94,7 +94,7 @@ def format_ideas_usage() -> str:
     return "Usage: /ideas <niche> — e.g. /ideas starter homes"
 
 
-def parse_script_command(text: str) -> Optional[str]:
+def parse_script_command(text: str) -> str | None:
     """Parse a `/script <idea_title>` command.
 
     Returns the idea title text (possibly empty if no title was given), or None if
@@ -110,7 +110,7 @@ _DURATION_FLAG_RE = re.compile(r"\s*--duration\s+(\d+)\s*$")
 _DEFAULT_DURATION_SECONDS = 60
 
 
-def parse_script_duration_args(args: str) -> Tuple[str, int]:
+def parse_script_duration_args(args: str) -> tuple[str, int]:
     """Split `args` (text after `/script`) into (idea_title, target_duration_seconds).
 
     Extracts a trailing `--duration <seconds>` flag. Defaults to 60 s when the
@@ -209,7 +209,7 @@ def _parse_duration_flag(args: str) -> tuple[str, int]:
 # ── /run <niche> — full niche-to-video pipeline ───────────────────────────────
 
 
-def parse_run_command(text: str) -> Optional[str]:
+def parse_run_command(text: str) -> str | None:
     """Parse a `/run <niche>` command (was /produce in P6-S4; renamed in P7-S1).
 
     Returns the args text (possibly empty if no niche was given), or None if
@@ -268,7 +268,7 @@ def format_run_reply(niche: str, run_id: str, video_url: str) -> str:
 # ── /produce <idea title> — named-idea pipeline (skips discovery) ─────────────
 
 
-def parse_produce_command(text: str) -> Optional[str]:
+def parse_produce_command(text: str) -> str | None:
     """Parse a `/produce <idea title>` command (P7-S1).
 
     Starts production from a named idea title, skipping the niche→ideas discovery
@@ -355,7 +355,7 @@ def format_produce_reply(
     run_id: str,
     video_url: str,
     metadata: Optional["YoutubeMetadataArtifact"] = None,
-    footage_summary: Optional[dict] = None,
+    footage_summary: dict | None = None,
 ) -> str:
     """Format the finished video reply after a /produce pipeline completes (D049, P7-S1/S3).
 
@@ -395,7 +395,7 @@ def format_script_approval_request(run_id: str, script_preview: str) -> str:
     )
 
 
-def parse_hitl_decision(text: str) -> Optional[tuple[str, str]]:
+def parse_hitl_decision(text: str) -> tuple[str, str] | None:
     """Parse an `/approve <run_id>` or `/reject <run_id>` Telegram command.
 
     Returns (decision, run_id) where decision is "approve" or "reject".
@@ -421,7 +421,7 @@ def format_hitl_rejected(run_id: str) -> str:
     return f"Run {run_id} rejected — pipeline cancelled."
 
 
-def parse_testvoice_command(text: str) -> Optional[str]:
+def parse_testvoice_command(text: str) -> str | None:
     """Parse a `/testvoice <run_id>` command.
 
     Returns the run_id text (possibly empty if absent), or None if `text` is
@@ -453,7 +453,7 @@ def format_testvoice_reply(run_id: str, mp3_url: str) -> str:
     )
 
 
-def parse_pick_command(text: str) -> Optional[tuple[str, int, int, str]]:
+def parse_pick_command(text: str) -> tuple[str, int, int, str] | None:
     """Parse a `/pick <run_id> <n> [--duration <seconds>] [--format portrait|landscape]` command (P7-S1, P9-S6).
 
     Returns (run_id, n, target_duration_seconds, format_track) where n is the 1-based

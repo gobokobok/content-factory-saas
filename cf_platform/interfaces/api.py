@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
 _logger = logging.getLogger(__name__)
 
@@ -11,6 +11,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.types import Command
 from pydantic import BaseModel
 
+from cf_platform.blocks.idea_to_script import build_idea_to_script_graph, register_idea_to_script_workers
+from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph, register_niche_to_ideas_workers
 from cf_platform.core.artifact_manager import (
     ArtifactRepository,
     ArtifactStorage,
@@ -34,9 +36,7 @@ from cf_platform.core.run_manager import (
     create_run,
     transition_run,
 )
-from cf_platform.blocks.idea_to_script import build_idea_to_script_graph, register_idea_to_script_workers
-from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph, register_niche_to_ideas_workers
-from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, SourceAdapter, StageState
+from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, PipelineState, SourceAdapter, StageState
 from cf_platform.core.trace_repo import InMemoryTraceEventRepository, TraceEventRepository
 from cf_platform.core.worker_registry import (
     ExecutionRepository,
@@ -46,16 +46,13 @@ from cf_platform.core.worker_registry import (
 )
 from cf_platform.interfaces.telegram import (
     TelegramClient,
-    format_footage_summary,
     format_ideas_running,
     format_ideas_usage,
     format_pick_running,
-    format_pick_usage,
     format_produce_reply,
     format_produce_running,
     format_produce_usage,
     format_ranked_ideas,
-    format_run_reply,
     format_run_running,
     format_run_usage,
     format_script_reply,
@@ -64,7 +61,6 @@ from cf_platform.interfaces.telegram import (
     format_testvoice_reply,
     format_testvoice_running,
     format_unrecognized_command,
-    format_youtube_metadata_block,
     is_chat_allowed,
     parse_ideas_command,
     parse_pick_command,
@@ -77,30 +73,33 @@ from cf_platform.interfaces.telegram import (
     parse_testvoice_command,
 )
 from cf_platform.orchestrator.full_pipeline import build_full_pipeline_graph
-from cf_platform.core.schemas import PipelineState
-from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.sources.google_trends import GoogleTrendsAdapter
 from cf_platform.sources.reddit import RedditAdapter
 from cf_platform.sources.youtube import YouTubeAdapter
-from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
-from cf_platform.workers.opportunity_scorer import TopicScore
 from cf_platform.workers.acquisition_worker import (
     ACQUISITION_WORKER_REGISTRATION,
     AssetManifestArtifact,
     build_acquisition_worker,
 )
+from cf_platform.workers.echo import ECHO_REGISTRATION, echo_worker
+from cf_platform.workers.opportunity_scorer import TopicScore
 from cf_platform.workers.render_worker import (
     RENDER_WORKER_REGISTRATION,
     RenderArtifact,
     build_render_worker,
 )
+from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.storyboard_worker import (
     STORYBOARD_WORKER_REGISTRATION,
     VerifiedStoryboardArtifact,
     build_storyboard_worker,
 )
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
-from cf_platform.workers.voice_production import VOICE_PRODUCTION_REGISTRATION, VoiceAlignmentArtifact, build_voice_production_worker
+from cf_platform.workers.voice_production import (
+    VOICE_PRODUCTION_REGISTRATION,
+    VoiceAlignmentArtifact,
+    build_voice_production_worker,
+)
 from cf_platform.workers.youtube_metadata import YoutubeMetadataArtifact
 
 router = APIRouter()
@@ -282,8 +281,8 @@ class NicheToIdeasRequest(BaseModel):
     """Request body for POST /platform/blocks/niche-to-ideas."""
 
     niche: str
-    audience: Optional[str] = None
-    mode: Optional[str] = "single"
+    audience: str | None = None
+    mode: str | None = "single"
 
 
 class NicheToIdeasResponse(BaseModel):
@@ -362,10 +361,10 @@ class IdeaToScriptRequest(BaseModel):
     """Request body for POST /platform/blocks/idea-to-script."""
 
     idea_title: str
-    niche: Optional[str] = None
-    angle: Optional[str] = None
-    supporting_points: Optional[list[str]] = None
-    max_iterations: Optional[int] = None
+    niche: str | None = None
+    angle: str | None = None
+    supporting_points: list[str] | None = None
+    max_iterations: int | None = None
     target_duration_seconds: int = 60
 
 
@@ -534,6 +533,7 @@ async def storyboard_worker_endpoint(
     Poll GET /platform/studio/runs/{run_id}/storyboard/status for progress.
     """
     import uuid as _uuid_mod
+
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
@@ -748,6 +748,7 @@ async def voice_worker_endpoint(
     once complete.  This avoids Railway's HTTP timeout for long scripts.
     """
     import uuid as _uuid_mod
+
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
@@ -1041,7 +1042,7 @@ async def render_worker_endpoint(
 # ── Studio read/patch endpoints ───────────────────────────────────────────────
 
 
-async def _latest_artifact_key(storage: ArtifactStorage, run_id: str, stage: str, name: str) -> Optional[str]:
+async def _latest_artifact_key(storage: ArtifactStorage, run_id: str, stage: str, name: str) -> str | None:
     """Return the R2 key for the latest version of an artifact, or None if absent."""
     prefix = f"users/{_PLATFORM_USER_ID}/runs/{run_id}/{stage}/{name}@v"
     keys = await storage.list_keys(prefix)
@@ -1125,7 +1126,7 @@ async def studio_get_manifest(
         raise HTTPException(status_code=404, detail="No asset manifest found for this run.")
     _, body = await read_artifact(storage, key)
     for entry in body.get("manifest", {}).get("entries", []):
-        file_key: Optional[str] = entry.get("file_key")
+        file_key: str | None = entry.get("file_key")
         if file_key:
             try:
                 entry["asset_url"] = await storage.generate_presigned_url(file_key, expires_in=3600)
@@ -1144,7 +1145,7 @@ async def studio_get_voice(
     if not key:
         raise HTTPException(status_code=404, detail="No voice artifact found for this run.")
     _, body = await read_artifact(storage, key)
-    mp3_url: Optional[str] = None
+    mp3_url: str | None = None
     mp3_r2_key: str = body.get("mp3_r2_key", "")
     if mp3_r2_key:
         try:
@@ -1247,11 +1248,11 @@ async def studio_get_render_status(
 class ScenePatchRequest(BaseModel):
     """Fields that can be patched on a single storyboard scene via the Studio UI."""
 
-    on_screen_text: Optional[str] = None
-    on_screen_text_type: Optional[str] = None
-    primary_stk: Optional[str] = None
-    context_stk: Optional[str] = None
-    concept_stk: Optional[str] = None
+    on_screen_text: str | None = None
+    on_screen_text_type: str | None = None
+    primary_stk: str | None = None
+    context_stk: str | None = None
+    concept_stk: str | None = None
     clear_on_screen_text: bool = False
 
 
@@ -1268,9 +1269,13 @@ async def studio_patch_scene(
     Recomputes render_options for all scenes (cumulative timing must stay coherent)
     using the same _patch_storyboard logic as the StoryboardWorker's internal cycle.
     """
-    from cf_platform.workers.storyboard_worker import _apply_patches_and_render_options, _sanitize_storyboard_data, VerifiedStoryboardArtifact
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
+    from cf_platform.workers.storyboard_worker import (
+        VerifiedStoryboardArtifact,
+        _apply_patches_and_render_options,
+        _sanitize_storyboard_data,
+    )
     from src.models import Storyboard
 
     key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
@@ -1351,12 +1356,13 @@ async def studio_reacquire_scene(
     and returns the updated entry with a 1-hour presigned preview URL.
     """
     import time
+
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope, TraceEvent
     from cf_platform.workers.acquisition_worker import (
-        _acquire_single_scene,
         ACQUISITION_WORKER_REGISTRATION,
         AssetManifestArtifact,
+        _acquire_single_scene,
         _compute_footage_summary,
     )
     from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
@@ -1409,7 +1415,7 @@ async def studio_reacquire_scene(
     entry.primary_stk = body.query.strip()
 
     pexels = PexelsClient(api_key=settings.PEXELS_API_KEY)
-    pixabay: Optional[PixabayClient] = PixabayClient(api_key=settings.PIXABAY_API_KEY) if settings.PIXABAY_API_KEY else None
+    pixabay: PixabayClient | None = PixabayClient(api_key=settings.PIXABAY_API_KEY) if settings.PIXABAY_API_KEY else None
     wikimedia = WikimediaClient()
 
     t0 = time.monotonic()
@@ -1457,7 +1463,7 @@ async def studio_reacquire_scene(
         },
     ))
 
-    preview_url: Optional[str] = None
+    preview_url: str | None = None
     if entry.file_key:
         try:
             preview_url = await storage.generate_presigned_url(entry.file_key, expires_in=3600)
@@ -1489,6 +1495,7 @@ async def studio_upload_scene_asset(
     operator_asset_override TraceEvent. Returns the updated entry with a presigned URL.
     """
     import time
+
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope, TraceEvent
     from cf_platform.workers.acquisition_worker import (
@@ -1496,7 +1503,7 @@ async def studio_upload_scene_asset(
         AssetManifestArtifact,
         _compute_footage_summary,
     )
-    from src.models import AssetManifest, ManifestEntry
+    from src.models import AssetManifest
 
     _ALLOWED_MIME_TYPES = {
         "video/mp4", "video/webm",
@@ -1634,7 +1641,7 @@ class RunSummary(BaseModel):
     block: str
     status: str
     inputs: dict[str, Any]
-    error: Optional[str] = None
+    error: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -1796,13 +1803,13 @@ class TelegramMessage(BaseModel):
     """Minimal Telegram `message` object — chat + optional text (D049)."""
 
     chat: TelegramChat
-    text: Optional[str] = None
+    text: str | None = None
 
 
 class TelegramUpdate(BaseModel):
     """Minimal Telegram `Update` object — only the `message` field is consumed (D049)."""
 
-    message: Optional[TelegramMessage] = None
+    message: TelegramMessage | None = None
 
 
 async def _run_ideas_and_reply(
@@ -1937,7 +1944,7 @@ async def _run_pipeline_and_reply(
     trace_events: TraceEventRepository,
     checkpointer: BaseCheckpointSaver,
     niche: str = "",
-    idea_title: Optional[str] = None,
+    idea_title: str | None = None,
     target_duration_seconds: int = 60,
     format_track: str = "portrait",
     command_name: str = "pipeline",
@@ -1997,7 +2004,7 @@ async def _run_pipeline_and_reply(
         video_url = await storage.generate_presigned_url(video_r2_key, expires_in=_VIDEO_URL_EXPIRY)
 
         # Read youtube_metadata artifact when present; absent or failed → reply without it.
-        metadata: Optional[YoutubeMetadataArtifact] = None
+        metadata: YoutubeMetadataArtifact | None = None
         meta_key = result.artifacts.get("youtube_metadata")
         if meta_key:
             try:
@@ -2013,7 +2020,7 @@ async def _run_pipeline_and_reply(
         # Read footage_summary side-car written by the legacy adapter (P8-S5).
         # Written to R2 as runs/{run_id}/footage_summary.json; absent in tests and
         # non-acquisition environments — graceful fallback to None (no coverage line).
-        footage_summary: Optional[dict] = None
+        footage_summary: dict | None = None
         try:
             footage_summary = await storage.get_json(f"runs/{run.run_id}/footage_summary.json")
         except Exception:  # noqa: BLE001
@@ -2171,7 +2178,7 @@ class ProduceRequest(BaseModel):
 
     niche: str
     target_duration_seconds: int = 60
-    idea_title: Optional[str] = None
+    idea_title: str | None = None
 
 
 class ProduceResponse(BaseModel):

@@ -1,7 +1,6 @@
 """Asset acquisition route — POST /runs/{run_id}/assets (202 + background task)."""
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
@@ -13,7 +12,6 @@ from src.models import (
     AcquisitionAcceptedResponse,
     AcquisitionStatusResponse,
     AssetManifest,
-    VideoSettings,
 )
 from src.pexels import PexelsClient
 from src.pixabay_client import PixabayClient
@@ -35,7 +33,7 @@ async def _background_acquire(
     manifest: AssetManifest,
     manifest_key: str,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
+    pixabay: PixabayClient | None,
     wikimedia: WikimediaClient,
     storage: R2Client,
     batch_size: int,
@@ -127,14 +125,6 @@ async def acquire_assets(
         )
 
     manifest = AssetManifest(**manifest_data)
-
-    settings_key = f"runs/{run_id}/settings.json"
-    try:
-        settings_data = storage.get_json(settings_key)
-        video_settings = VideoSettings.model_validate(settings_data)
-    except StorageError:
-        video_settings = VideoSettings()
-        logger.debug("No settings.json for run=%s — using defaults for asset acquisition", run_id)
 
     pexels = PexelsClient(
         api_key=settings.PEXELS_API_KEY,

@@ -9,10 +9,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from src.acquisition import _Candidate, acquire_scene
-from src.footage_qa import QAResult
+from src.acquisition import acquire_scene
 from src.models import ManifestEntry
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

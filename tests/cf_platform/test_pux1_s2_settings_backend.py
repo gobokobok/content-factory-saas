@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from cf_platform.interfaces.api import get_artifact_storage, get_platform_settings
+from cf_platform.interfaces.api import get_artifact_storage
 from src.config import Settings, get_settings
 from src.main import app
 
@@ -98,9 +98,10 @@ def test_render_worker_request_captions_default_true():
 @pytest.mark.asyncio
 async def test_render_endpoint_forwards_captions_false():
     """RenderWorkerRequest.captions=False reaches the worker via state.inputs."""
+    from fastapi import BackgroundTasks
+
     from cf_platform.core.artifact_manager import InMemoryArtifactStorage
     from cf_platform.interfaces.api import RenderWorkerRequest, render_worker_endpoint
-    from fastapi import BackgroundTasks
 
     storage = InMemoryArtifactStorage()
     await storage.put_json(
@@ -127,7 +128,14 @@ async def test_render_endpoint_forwards_captions_false():
 def test_build_render_script_captions_false_forces_no_subtitles():
     """captions=False overrides VideoSettings default and disables burned-in subtitles."""
     from cf_platform.workers.render_worker import _build_render_script
-    from src.models import AssetManifest, ManifestEntry, Storyboard, StoryboardGlobal, StoryboardScene, StoryboardSummary
+    from src.models import (
+        AssetManifest,
+        ManifestEntry,
+        Storyboard,
+        StoryboardGlobal,
+        StoryboardScene,
+        StoryboardSummary,
+    )
 
     scene = StoryboardScene(
         scene="1", clip_type="still_with_motion", duration_s=3.0,

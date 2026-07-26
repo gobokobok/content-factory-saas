@@ -5,8 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from src.wikimedia_client import WikimediaAsset, WikimediaClient, _strip_html
-
+from src.wikimedia_client import WikimediaClient, _strip_html
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

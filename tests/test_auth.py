@@ -1,6 +1,5 @@
 """Tests for auth helpers, auth routes, and the auth middleware."""
 
-import pytest
 from fastapi.testclient import TestClient
 
 from src.auth import AUTH_COOKIE_NAME, sign_cookie, verify_cookie

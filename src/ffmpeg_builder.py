@@ -2,16 +2,22 @@
 
 import json
 import logging
-import re
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from src.alignment import proportional_fallback
-from src.captions import build_ass, build_captions_ass, build_word_synced_captions_ass
+from src.captions import build_captions_ass, build_word_synced_captions_ass
 from src.exceptions import FFmpegBuildError
-from src.models import AudioSettings, AssetManifest, ManifestEntry, Storyboard, StoryboardScene, VideoSettings, WordTimestamp
+from src.models import (
+    AssetManifest,
+    AudioSettings,
+    ManifestEntry,
+    Storyboard,
+    StoryboardScene,
+    VideoSettings,
+    WordTimestamp,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +44,7 @@ _COLOUR_GRADE_PRESETS: dict[str, str] = {
 }
 
 
-def _get_color_grade_filter(preset: str) -> Optional[str]:
+def _get_color_grade_filter(preset: str) -> str | None:
     """Return the FFmpeg filter string for the given preset, or None for 'neutral'.
 
     Unknown presets log a warning and fall back to neutral (no filter).
@@ -214,7 +220,7 @@ def compute_scene_durations_from_alignment(
     Alignment-derived durations are floored at _MIN_ALIGNED_DURATION_S (≈ 0.08 s).
     """
     n = len(scenes)
-    first_start_ms: list[Optional[int]] = [
+    first_start_ms: list[int | None] = [
         (scene_words[i][0].start_ms if i < len(scene_words) and scene_words[i] else None)
         for i in range(n)
     ]
@@ -223,7 +229,7 @@ def compute_scene_durations_from_alignment(
     # Used both to derive the gap-based duration for matched scenes and to identify
     # unmatched scenes whose gap has already been "covered" by a preceding matched
     # scene's look-ahead (so they must not add extra time to the cumulative sum).
-    next_matched_idx: list[Optional[int]] = [None] * n
+    next_matched_idx: list[int | None] = [None] * n
     for i in range(n):
         for j in range(i + 1, n):
             if first_start_ms[j] is not None:
@@ -298,11 +304,11 @@ def fill_caption_gaps(
     word. Returns a new scene_words list; does not mutate the input.
     """
     n = len(scenes)
-    first_start_ms: list[Optional[int]] = [
+    first_start_ms: list[int | None] = [
         scene_words[i][0].start_ms if i < len(scene_words) and scene_words[i] else None
         for i in range(n)
     ]
-    next_matched_idx: list[Optional[int]] = [None] * n
+    next_matched_idx: list[int | None] = [None] * n
     for i in range(n):
         for j in range(i + 1, n):
             if first_start_ms[j] is not None:
@@ -341,9 +347,9 @@ def build_ffmpeg_script(
     run_id: str,
     storyboard: Storyboard,
     manifest: AssetManifest,
-    scene_words: Optional[list[list[WordTimestamp]]] = None,
-    audio: Optional[AudioSettings] = None,
-    video_settings: Optional[VideoSettings] = None,
+    scene_words: list[list[WordTimestamp]] | None = None,
+    audio: AudioSettings | None = None,
+    video_settings: VideoSettings | None = None,
     color_grade_preset: str = "neutral",
     blur_fill_enabled: bool = True,
 ) -> str:
@@ -427,7 +433,7 @@ def build_ffmpeg_script(
 
 def _header(run_id: str, n_scenes: int, total_s: float) -> str:
     """Generate the comment header block with run metadata."""
-    generated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    generated_at = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     return (
         "#!/bin/bash\n"
         "# ============================================================\n"
@@ -917,7 +923,7 @@ def _local_path(run_id: str, file_key: str) -> str:
 
 def _zoompan_filter(
     clip_type: str,
-    motion_effect: Optional[str],
+    motion_effect: str | None,
     frames: int,
     out_w: int = _OUT_W,
     out_h: int = _OUT_H,

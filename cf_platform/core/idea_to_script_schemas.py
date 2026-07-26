@@ -5,10 +5,9 @@ Domain-specific schemas kept separate from the core platform contracts in schema
 """
 
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel
-
 
 # ── Input schemas ──────────────────────────────────────────────────────
 
@@ -20,7 +19,7 @@ class Signal(BaseModel):
     content: str
     signal_type: str = "general"
     weight: float = 1.0
-    url: Optional[str] = None
+    url: str | None = None
 
 
 class DirectionContext(BaseModel):
@@ -28,7 +27,7 @@ class DirectionContext(BaseModel):
 
     angle: str
     narrative_bias: str
-    hook_direction: Optional[str] = None
+    hook_direction: str | None = None
     do_not_focus_on: list[str] = []
 
 
@@ -37,7 +36,7 @@ class IdeaToScriptInput(BaseModel):
 
     idea_title: str
     signals: list[Signal] = []
-    direction_context: Optional[DirectionContext] = None
+    direction_context: DirectionContext | None = None
 
 
 # ── Intermediate IR schemas ─────────────────────────────────────────────
@@ -110,7 +109,7 @@ class GeneratedScriptArtifact(BaseModel):
     """Artifact body from script_generation (and apply_patch after repair)."""
 
     idea_title: str
-    niche: Optional[str]
+    niche: str | None
     script: str
     word_count: int
     target_duration_seconds: int
@@ -124,7 +123,7 @@ class IntegrityIssue(BaseModel):
     """One identified hallucination, inconsistency, or structure violation."""
 
     description: str
-    span: Optional[str] = None  # verbatim text excerpt containing the issue
+    span: str | None = None  # verbatim text excerpt containing the issue
     severity: Literal["low", "medium", "high"] = "medium"
 
 
@@ -144,7 +143,7 @@ class Patch(BaseModel):
 
     operation: Literal["replace", "insert", "delete"]
     target: str
-    replacement: Optional[str] = None
+    replacement: str | None = None
 
 
 class PatchSetArtifact(BaseModel):

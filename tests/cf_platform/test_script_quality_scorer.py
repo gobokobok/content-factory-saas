@@ -15,22 +15,20 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from cf_platform.core.artifact_manager import InMemoryArtifactStorage, write_artifact
 from cf_platform.core.schemas import LineageEnvelope, StageState
-from cf_platform.workers.script_writer import ScriptDraft, ScriptDraftsArtifact
 from cf_platform.workers.script_quality_scorer import (
     SCRIPT_QUALITY_SCORER_REGISTRATION,
     ScriptDraftScore,
     ScriptScoresArtifact,
     build_script_quality_scorer_worker,
 )
-
+from cf_platform.workers.script_writer import ScriptDraft, ScriptDraftsArtifact
 
 # ── helpers ────────────────────────────────────────────────────────────────
 
@@ -42,13 +40,13 @@ def _lineage(run_id: str = "run-1") -> LineageEnvelope:
         worker_version="1.1.0",
         prompt_version="v2",
         model="claude-haiku-4-5",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
 def _scores_json(
     n: int = 3,
-    overall_scores: Optional[List[float]] = None,
+    overall_scores: list[float] | None = None,
     include_coaching: bool = True,
 ) -> str:
     """Build a mock JSON response for n drafts. overall_scores overrides per-draft."""
@@ -91,7 +89,7 @@ async def _seed_script_drafts(
             )
             for i in range(n_drafts)
         ],
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
     artifact = await write_artifact(
         storage,

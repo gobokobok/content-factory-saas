@@ -11,7 +11,7 @@ Covers:
   - /pick webhook branch: schedules background task
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -26,8 +26,8 @@ from cf_platform.interfaces.telegram import (
     format_unrecognized_command,
     parse_pick_command,
 )
-from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from cf_platform.workers.opportunity_scorer import TopicScore
+from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
 _RUN_ID = "run-p7s1-test"
 
@@ -54,7 +54,7 @@ def _make_ranked_ideas(n_alternatives: int = 4) -> RankedIdeasArtifact:
     """Return a RankedIdeasArtifact with a selected idea and n_alternatives alternatives."""
     return RankedIdeasArtifact(
         niche="american housing economics",
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         selected=_make_topic_score("Why Starter Homes Vanished", 9.0),
         alternatives=[_make_topic_score(f"Alt Idea {i}", 8.0 - i * 0.5) for i in range(n_alternatives)],
         mode="top_n",
@@ -218,12 +218,12 @@ def test_pipeline_state_idea_title_can_be_set() -> None:
 
 def test_full_pipeline_graph_compiles_with_idea_title_routing() -> None:
     """build_full_pipeline_graph compiles successfully (tests the conditional START edge)."""
-    from cf_platform.orchestrator.full_pipeline import build_full_pipeline_graph
-    from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemoryArtifactStorage
-    from cf_platform.core.worker_registry import InMemoryExecutionRepository, WorkerRegistry
-    from cf_platform.core.trace_repo import InMemoryTraceEventRepository
-    from cf_platform.blocks.niche_to_ideas import register_niche_to_ideas_workers
     from cf_platform.blocks.idea_to_script import register_idea_to_script_workers
+    from cf_platform.blocks.niche_to_ideas import register_niche_to_ideas_workers
+    from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemoryArtifactStorage
+    from cf_platform.core.trace_repo import InMemoryTraceEventRepository
+    from cf_platform.core.worker_registry import InMemoryExecutionRepository, WorkerRegistry
+    from cf_platform.orchestrator.full_pipeline import build_full_pipeline_graph
 
     registry = WorkerRegistry()
     register_niche_to_ideas_workers(registry)

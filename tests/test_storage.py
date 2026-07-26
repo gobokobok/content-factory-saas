@@ -2,16 +2,13 @@
 
 import io
 import json
-from datetime import date
 from unittest.mock import MagicMock, patch
 
 import pytest
-from botocore.config import Config
 
 from src.exceptions import StorageError
 from src.models import PIPELINE_STEPS, StepStatus
 from src.storage import R2Client, _build_run_log
-
 
 FAKE_ACCOUNT_ID = "fake-account-id"
 FAKE_ACCESS_KEY = "fake-access-key"

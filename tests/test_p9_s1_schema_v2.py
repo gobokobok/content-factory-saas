@@ -1,6 +1,7 @@
 """Tests for P9-S1: Storyboard schema v2 — new models and field extensions."""
 
 import json
+
 import pytest
 from pydantic import ValidationError
 
@@ -10,9 +11,7 @@ from src.models import (
     OnScreenTextOverlay,
     SceneRenderOptions,
     StoryboardScene,
-    VisualPrompts,
 )
-
 
 # ── LowerThirdSpec ─────────────────────────────────────────────────────────────
 

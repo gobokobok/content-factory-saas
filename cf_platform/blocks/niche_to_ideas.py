@@ -13,7 +13,6 @@ artifact to R2, records the lineage row in Postgres, and records a WorkerExecuti
 Canonical spec: docs/v2_platform_plan.md §5.
 """
 
-from typing import Optional
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -51,7 +50,7 @@ def build_niche_to_ideas_graph(
     adapters: list[tuple[str, SourceAdapter]],
     trace_repo: TraceEventRepository,
     anthropic_api_key: str,
-    checkpointer: Optional[BaseCheckpointSaver] = None,
+    checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
     """Compile the niche→ideas StateGraph over NicheToIdeasState.
 

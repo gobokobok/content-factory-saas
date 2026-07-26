@@ -23,7 +23,6 @@ Photo (still_with_motion / animated scenes):
 import logging
 import os
 import time
-from typing import Optional
 from urllib.parse import urlparse
 
 import requests
@@ -48,7 +47,7 @@ _BACKOFF_BASE = 1.0  # seconds; doubles each retry: 1s, 2s, 4s
 # ── Asset-selection helpers ───────────────────────────────────────────────────
 
 
-def _pick_best_video_file(video: dict) -> Optional[dict]:
+def _pick_best_video_file(video: dict) -> dict | None:
     """Pick the best video file capped at 720p from a Pexels video object.
 
     Skips the video entirely when its duration exceeds MAX_CLIP_DURATION — we
@@ -67,7 +66,7 @@ def _pick_best_video_file(video: dict) -> Optional[dict]:
     return max(candidates, key=lambda f: (f["height"], f["width"]))
 
 
-def _pick_best_photo(photos: list[dict]) -> Optional[dict]:
+def _pick_best_photo(photos: list[dict]) -> dict | None:
     """Pick the photo closest to 1920×1080 without going under on either dimension.
 
     Requires width >= 1920 AND height >= 1080. Among qualifying photos,
@@ -84,7 +83,7 @@ def _pick_best_photo(photos: list[dict]) -> Optional[dict]:
     return min(candidates, key=lambda p: p["width"] * p["height"] - target_area)
 
 
-def _pick_first_qualifying_photo(photos: list[dict]) -> Optional[dict]:
+def _pick_first_qualifying_photo(photos: list[dict]) -> dict | None:
     """Return the first photo meeting 1920×1080 minimum dimensions.
 
     Used after CLIP reranking so the ordering already encodes relevance — we
@@ -202,7 +201,7 @@ class PexelsClient:
         scene_id: str,
         run_id: str,
         storage: R2Client,
-    ) -> Optional[PexelsAcquireResult]:
+    ) -> PexelsAcquireResult | None:
         """Search and download a video clip from Pexels.
 
         When CLIP reranking is enabled, reorders results by visual-semantic
@@ -245,7 +244,7 @@ class PexelsClient:
         scene_id: str,
         run_id: str,
         storage: R2Client,
-    ) -> Optional[PexelsAcquireResult]:
+    ) -> PexelsAcquireResult | None:
         """Search and download a photo from Pexels.
 
         When CLIP reranking is enabled, reorders results by visual-semantic
@@ -287,7 +286,7 @@ class PexelsClient:
         entry: ManifestEntry,
         run_id: str,
         storage: R2Client,
-    ) -> Optional[PexelsAcquireResult]:
+    ) -> PexelsAcquireResult | None:
         """Acquire the best Pexels asset for one manifest entry.
 
         Tries primary_query then fallback_query. hard_cut → Videos API /

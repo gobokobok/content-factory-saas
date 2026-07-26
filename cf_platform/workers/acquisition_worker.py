@@ -13,8 +13,8 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -27,7 +27,7 @@ from cf_platform.models.visual_treatment import SceneVisualPlan, VisualTreatment
 from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
 from src.exceptions import PexelsError
 from src.footage_qa import QAResult, pick_best, qa_score
-from src.models import AssetManifest, GlobalContext, ManifestEntry, SemanticContext, Storyboard
+from src.models import AssetManifest, GlobalContext, ManifestEntry, Storyboard
 from src.pexels import PexelsClient, _pick_best_video_file
 from src.pixabay_client import PixabayClient
 from src.wikimedia_client import WikimediaClient
@@ -74,7 +74,7 @@ class EntityResolution:
     fallback_query: str         # generic fallback if preferred sources fail
 
 
-def resolve_entity(entry: ManifestEntry, global_context: Optional[GlobalContext] = None) -> EntityResolution:
+def resolve_entity(entry: ManifestEntry, global_context: GlobalContext | None = None) -> EntityResolution:
     """Deterministic routing: classify the scene entity type and return preferred sources.
 
     Reads segment_type, person_name, and semantic_context.entity_type from the manifest
@@ -127,8 +127,8 @@ def resolve_entity(entry: ManifestEntry, global_context: Optional[GlobalContext]
 
 def _build_treatment_queries(
     entry: ManifestEntry,
-    scene_plan: Optional[SceneVisualPlan],
-    global_context: Optional[GlobalContext] = None,
+    scene_plan: SceneVisualPlan | None,
+    global_context: GlobalContext | None = None,
 ) -> list[str]:
     """Build query list with visual_treatment search_terms as the leading tier.
 
@@ -156,7 +156,7 @@ def _build_treatment_queries(
 
 def _build_enriched_queries(
     entry: ManifestEntry,
-    global_context: Optional[GlobalContext] = None,
+    global_context: GlobalContext | None = None,
 ) -> list[str]:
     """Build domain-enriched search queries for a scene.
 
@@ -197,11 +197,11 @@ class _Candidate:
     source: str           # "pexels" | "pixabay" | "wikimedia"
     content_type: str
     ext: str
-    attribution: Optional[str] = None
-    duration_seconds: Optional[float] = None
+    attribution: str | None = None
+    duration_seconds: float | None = None
     # Provider-specific asset ID — used for dedup so different resolution URLs
     # of the same photo/video are treated as the same asset.
-    source_id: Optional[str] = None
+    source_id: str | None = None
 
     def resolution_score(self) -> int:
         """Return pixel area — higher is preferred."""
@@ -366,8 +366,8 @@ async def _try_candidates(
     run_id: str,
     storage: ArtifactStorage,
     collected: list[tuple["_Candidate", bytes, QAResult]],
-    used_source_urls: Optional[set[str]] = None,
-    dup_lock: Optional[asyncio.Lock] = None,
+    used_source_urls: set[str] | None = None,
+    dup_lock: asyncio.Lock | None = None,
 ) -> bool:
     """Try each candidate in descending resolution order; accept on first QA pass.
 
@@ -497,10 +497,10 @@ async def _acquire_character(
     run_id: str,
     storage: ArtifactStorage,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
+    pixabay: PixabayClient | None,
     wikimedia: WikimediaClient,
-    used_source_urls: Optional[set[str]] = None,
-    dup_lock: Optional[asyncio.Lock] = None,
+    used_source_urls: set[str] | None = None,
+    dup_lock: asyncio.Lock | None = None,
 ) -> bool:
     """Character scene: Wikipedia portrait first; generic Pexels+Pixabay fallback.
 
@@ -608,10 +608,10 @@ async def _acquire_event(
     run_id: str,
     storage: ArtifactStorage,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
+    pixabay: PixabayClient | None,
     wikimedia: WikimediaClient,
-    used_source_urls: Optional[set[str]] = None,
-    dup_lock: Optional[asyncio.Lock] = None,
+    used_source_urls: set[str] | None = None,
+    dup_lock: asyncio.Lock | None = None,
 ) -> bool:
     """Event scene: Wikimedia Commons (three tiers) → Pexels+Pixabay fallback (three tiers)."""
     if used_source_urls is None:
@@ -656,9 +656,9 @@ async def _acquire_broll(
     run_id: str,
     storage: ArtifactStorage,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
-    used_source_urls: Optional[set[str]] = None,
-    dup_lock: Optional[asyncio.Lock] = None,
+    pixabay: PixabayClient | None,
+    used_source_urls: set[str] | None = None,
+    dup_lock: asyncio.Lock | None = None,
 ) -> bool:
     """B-roll scene: Pexels+Pixabay concurrent merge+rank, three-tier cascade."""
     if used_source_urls is None:
@@ -695,11 +695,11 @@ async def _acquire_single_scene(
     scene: Any,
     entry: ManifestEntry,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
+    pixabay: PixabayClient | None,
     wikimedia: WikimediaClient,
     storage: ArtifactStorage,
     run_id: str,
-    used_file_keys: Optional[set[str]] = None,
+    used_file_keys: set[str] | None = None,
 ) -> ManifestEntry:
     """Acquire one scene's asset and return the updated ManifestEntry.
 
@@ -752,12 +752,12 @@ async def _acquire_scene(
     run_id: str,
     storage: ArtifactStorage,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
+    pixabay: PixabayClient | None,
     wikimedia: WikimediaClient,
-    used_source_urls: Optional[set[str]] = None,
-    dup_lock: Optional[asyncio.Lock] = None,
-    global_context: Optional[GlobalContext] = None,
-    scene_plan: Optional[SceneVisualPlan] = None,
+    used_source_urls: set[str] | None = None,
+    dup_lock: asyncio.Lock | None = None,
+    global_context: GlobalContext | None = None,
+    scene_plan: SceneVisualPlan | None = None,
 ) -> None:
     """Route scene acquisition by segment_type; mutates entry in-place on success.
 
@@ -816,7 +816,7 @@ async def _visual_dedup_pass(
     run_id: str,
     storage: ArtifactStorage,
     pexels: PexelsClient,
-    pixabay: Optional[PixabayClient],
+    pixabay: PixabayClient | None,
     wikimedia: WikimediaClient,
     used_source_urls: set[str],
     dup_lock: asyncio.Lock,
@@ -860,7 +860,7 @@ async def _visual_dedup_pass(
                     continue
                 # Find the next unused visual_tag (skip the one already used).
                 current_q = entries[k].primary_stk.lower()
-                next_tag: Optional[str] = None
+                next_tag: str | None = None
                 for tag in sc.visual_tags:
                     if tag.lower() not in current_q:
                         next_tag = tag
@@ -877,7 +877,6 @@ async def _visual_dedup_pass(
                 entries[k].primary_stk = next_tag
                 entries[k].context_stk = sc.visual_tags[1] if len(sc.visual_tags) > 1 else entries[k].context_stk
 
-                storyboard_scene = scenes[k] if k < len(scenes) else None
                 await _acquire_scene(
                     entries[k], run_id, storage, pexels, pixabay, wikimedia,
                     used_source_urls, dup_lock,
@@ -959,7 +958,7 @@ def build_acquisition_worker(
 
         # Optionally read visual_treatment; absent on runs without a VisualDirectorWorker.
         scene_plans: dict[int, SceneVisualPlan] = {}
-        diversity_score: Optional[float] = None
+        diversity_score: float | None = None
         vt_key = state.artifacts.get("visual_treatment")
         if vt_key:
             try:
@@ -998,7 +997,7 @@ def build_acquisition_worker(
 
         # Build source clients
         pexels = PexelsClient(api_key=pexels_api_key)
-        pixabay: Optional[PixabayClient] = PixabayClient(api_key=pixabay_api_key) if pixabay_api_key else None
+        pixabay: PixabayClient | None = PixabayClient(api_key=pixabay_api_key) if pixabay_api_key else None
         wikimedia = WikimediaClient()
 
         # Shared deduplication state across all scenes in this run (P10-S1 Bug 3).
@@ -1050,7 +1049,7 @@ def build_acquisition_worker(
             failed=failed,
             footage_summary=footage_summary,
             manifest=manifest.model_dump(mode="json"),
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

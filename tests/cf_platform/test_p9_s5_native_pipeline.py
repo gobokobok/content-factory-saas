@@ -11,7 +11,7 @@ Covers:
 - InProcessLegacyVideoAdapter importable (D047 src/ isolation preserved)
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -47,7 +47,7 @@ def _make_render_body(video_key: str = "runs/test/output/final.mp4") -> dict:
         video_key=video_key,
         scene_count=3,
         duration_s=30.0,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     ).model_dump(mode="json")
 
 

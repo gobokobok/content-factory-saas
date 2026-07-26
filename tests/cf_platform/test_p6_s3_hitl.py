@@ -8,8 +8,7 @@ Covers:
   - POST /platform/runs/{run_id}/resume REST endpoint
 """
 
-import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -23,7 +22,6 @@ from cf_platform.core.schemas import (
     PipelineState,
     StageState,
 )
-from cf_platform.workers.render_worker import RenderArtifact
 from cf_platform.interfaces.api import (
     get_artifact_repository,
     get_artifact_storage,
@@ -44,6 +42,7 @@ from cf_platform.interfaces.telegram import (
 from cf_platform.orchestrator.full_pipeline import build_full_pipeline_graph
 from cf_platform.orchestrator.hitl import auto_approve_after_timeout
 from cf_platform.workers.opportunity_scorer import TopicScore
+from cf_platform.workers.render_worker import RenderArtifact
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
 
@@ -61,7 +60,7 @@ def _make_ranked_body(title: str = "Housing Crisis") -> dict:
         evergreen_potential=9.0, monetization_relevance=8.0, final_score=8.5,
     )
     return RankedIdeasArtifact(
-        niche="american housing", generated_at=datetime.now(timezone.utc),
+        niche="american housing", generated_at=datetime.now(UTC),
         selected=score, alternatives=[], mode="single",
     ).model_dump(mode="json")
 
@@ -69,7 +68,7 @@ def _make_ranked_body(title: str = "Housing Crisis") -> dict:
 def _make_script_body(script: str = "Housing prices are rising.") -> dict:
     return ScriptArtifact(
         idea_title="Housing Crisis", niche="american housing", script=script,
-        word_count=4, generated_at=datetime.now(timezone.utc),
+        word_count=4, generated_at=datetime.now(UTC),
     ).model_dump(mode="json")
 
 
@@ -126,7 +125,7 @@ def _make_render_artifact_body(video_key: str = "runs/test/output/final.mp4") ->
         video_key=video_key,
         scene_count=3,
         duration_s=30.0,
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     ).model_dump(mode="json")
 
 
@@ -213,7 +212,6 @@ async def test_hitl_interrupt_called_with_run_id_and_script_key() -> None:
     """Gate node calls interrupt() with type, run_id, and script_r2_key."""
     ranked_r2 = "r2://ranked@v1.json"
     script_r2 = "r2://my-script@v1.json"
-    video_r2 = "r2://video.mp4"
 
     captured: list[Any] = []
 

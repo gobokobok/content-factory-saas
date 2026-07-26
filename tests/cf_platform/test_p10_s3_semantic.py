@@ -6,14 +6,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cf_platform.workers.acquisition_worker import (
-    EntityResolution,
-    _DEDUP_CLUSTER_THRESHOLD,
     _build_enriched_queries,
     _visual_dedup_pass,
     resolve_entity,
 )
 from src.models import GlobalContext, ManifestEntry, SemanticContext, Storyboard
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 

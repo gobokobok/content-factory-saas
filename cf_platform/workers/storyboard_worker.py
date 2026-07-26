@@ -18,9 +18,8 @@ import json
 import logging
 import math
 import re
-import string
-from datetime import datetime, timezone
-from typing import Literal, Optional
+from datetime import UTC, datetime
+from typing import Literal
 
 import anthropic
 from pydantic import BaseModel
@@ -31,16 +30,10 @@ from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.voice_production import VoiceAlignmentArtifact, VoiceWordTimestamp
 from src.models import (
-    GlobalContext,
-    LowerThirdSpec,
     OnScreenTextOverlay,
     SceneRenderOptions,
-    SemanticContext,
     Storyboard,
-    StoryboardGlobal,
     StoryboardScene,
-    StoryboardSummary,
-    VisualPrompts,
 )
 
 logger = logging.getLogger(__name__)
@@ -808,7 +801,7 @@ _WORD_LIST_MAX_ENTRIES = 350
 
 def _format_indexed_timestamps(
     words: list[VoiceWordTimestamp],
-    display: Optional[list[str]] = None,
+    display: list[str] | None = None,
 ) -> str:
     """Format indexed word list for the v0.13 generate prompt.
 
@@ -850,7 +843,7 @@ def _asset_tier_to_clip_type(tier: str) -> Literal["hard_cut", "still_with_motio
     return "still_with_motion"
 
 
-def _derive_motion_effect(tier: str, scene_index: int) -> Optional[str]:
+def _derive_motion_effect(tier: str, scene_index: int) -> str | None:
     """Derive motion_effect deterministically from asset_tier and scene index.
 
     still        → scale
@@ -1503,7 +1496,7 @@ def build_storyboard_worker(
             prompt_version=STORYBOARD_PROMPT_VERSION,
             scene_count=len(storyboard.scenes),
             storyboard=storyboard.model_dump(by_alias=True, mode="json"),
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

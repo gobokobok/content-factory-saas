@@ -11,7 +11,7 @@ on every `fetch()` call. No token caching in v1; acceptable at Discovery's call
 volume, revisit if this adapter is called frequently.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -81,7 +81,7 @@ class RedditAdapter:
 
 def _to_signal(post: dict[str, Any]) -> Signal:
     """Normalize a Reddit post payload into a Signal."""
-    permalink: Optional[str] = post.get("permalink")
+    permalink: str | None = post.get("permalink")
     return Signal(
         source="reddit",
         title=post.get("title", ""),

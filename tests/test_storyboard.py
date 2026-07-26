@@ -6,15 +6,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 from src.config import Settings, get_settings
-from src.exceptions import StoryboardAPIError, StoryboardParseError, StoryboardValidationError, StorageError
+from src.exceptions import StorageError, StoryboardAPIError, StoryboardParseError, StoryboardValidationError
 from src.main import app
-from src.models import ValidationResult, WordTimestamp
 from src.models import (
     Storyboard,
     StoryboardGlobal,
     StoryboardScene,
     StoryboardSummary,
+    ValidationResult,
     VisualPrompts,
+    WordTimestamp,
 )
 from src.storyboard import (
     _merge_storyboard_chunks,

@@ -6,7 +6,7 @@ The wrap() control_channel tests are retained here since they test infrastructur
 not the old graph topology.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -14,13 +14,13 @@ from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemo
 from cf_platform.core.schemas import StageState, WorkerOutput
 from cf_platform.core.worker_registry import (
     InMemoryExecutionRepository,
-    WorkerRegistry,
     WorkerRegistration,
+    WorkerRegistry,
     wrap,
 )
 from cf_platform.workers.script_writer import ScriptDraft, ScriptDraftsArtifact
 
-_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=UTC)
 
 
 # ── wrap() control_channel tests (infrastructure, not graph-topology) ──

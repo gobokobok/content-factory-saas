@@ -11,8 +11,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -34,7 +33,7 @@ def _lineage(run_id: str = "run-1") -> LineageEnvelope:
         worker_version="1.0.0",
         prompt_version="v1",
         model="claude-sonnet-4-6",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -42,7 +41,7 @@ async def _seed_candidate_topics(
     storage: InMemoryArtifactStorage,
     run_id: str = "run-1",
     user_id: str = "user-1",
-    topics: Optional[list[CandidateTopic]] = None,
+    topics: list[CandidateTopic] | None = None,
 ) -> str:
     """Write a CandidateTopicsArtifact to storage and return its r2_key."""
     if topics is None:
@@ -58,7 +57,7 @@ async def _seed_candidate_topics(
         ]
     body = CandidateTopicsArtifact(
         niche="starter homes",
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         topics=topics,
     )
     artifact = await write_artifact(
@@ -98,7 +97,7 @@ def _mock_anthropic_client(content_blocks: list[MagicMock]) -> MagicMock:
     return mock_client
 
 
-def _scored_topics_json(topics: Optional[list[dict]] = None) -> str:
+def _scored_topics_json(topics: list[dict] | None = None) -> str:
     if topics is None:
         topics = [
             {

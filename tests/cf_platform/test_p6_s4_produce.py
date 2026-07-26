@@ -1,18 +1,15 @@
 """Tests for P6-S4 / P7-S1: /run and /produce Telegram commands + REST endpoint + presigned URL."""
 
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Any
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from cf_platform.core.artifact_manager import InMemoryArtifactRepository, InMemoryArtifactStorage
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.run_manager import InMemoryRunRepository
-from cf_platform.core.schemas import PipelineState, WorkerOutput
 from cf_platform.core.worker_registry import InMemoryExecutionRepository
 from cf_platform.interfaces.api import (
     get_artifact_repository,
@@ -36,7 +33,6 @@ from cf_platform.interfaces.telegram import (
     parse_run_command,
 )
 from cf_platform.workers.opportunity_scorer import TopicScore
-from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from src.config import Settings, get_settings
 from src.main import app
 
@@ -56,7 +52,7 @@ _VALID_SRC_ENV = {
 
 # ── helpers ────────────────────────────────────────────────────────────────────
 
-_NOW = datetime(2026, 6, 18, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, 12, 0, 0, tzinfo=UTC)
 
 _STUB_TOPIC = TopicScore(
     title="Housing Affordability",

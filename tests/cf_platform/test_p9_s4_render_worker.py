@@ -13,22 +13,19 @@ Coverage:
 - no segment_type import in render_worker module
 """
 
-import asyncio
 import inspect
-import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Optional
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from cf_platform.core.artifact_manager import InMemoryArtifactStorage
 from cf_platform.core.schemas import Artifact, LineageEnvelope, StageState
 from cf_platform.workers.render_worker import (
+    _FILM_LOOK_FILTER,
     RENDER_WORKER_REGISTRATION,
     RenderArtifact,
-    _FILM_LOOK_FILTER,
     _build_captions_with_y_override,
     _build_render_script,
     _film_look_section,
@@ -45,7 +42,6 @@ from src.models import (
     StoryboardScene,
 )
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -53,12 +49,12 @@ def _scene(
     scene_id: str = "1",
     duration_s: float = 3.0,
     film_look: bool = False,
-    lower_third: Optional[LowerThirdSpec] = None,
-    on_screen_text_overlay: Optional[OnScreenTextOverlay] = None,
+    lower_third: LowerThirdSpec | None = None,
+    on_screen_text_overlay: OnScreenTextOverlay | None = None,
     voiceover_line: str = "Housing prices rose sharply.",
     sfx: str = "silence",
 ) -> StoryboardScene:
-    render_options: Optional[SceneRenderOptions] = None
+    render_options: SceneRenderOptions | None = None
     if film_look or lower_third or on_screen_text_overlay:
         render_options = SceneRenderOptions(
             film_look=film_look,
@@ -120,11 +116,11 @@ def _storyboard_artifact_envelope(storyboard: Storyboard, run_id: str = "run-tes
         prompt_version="v0.12",
         scene_count=len(storyboard.scenes),
         storyboard=storyboard.model_dump(by_alias=True, mode="json"),
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
     lineage = LineageEnvelope(
         run_id=run_id, worker="storyboard_worker", worker_version="1.0.0",
-        prompt_version="v0.12", model="claude-sonnet-4-6", created_at=datetime.now(timezone.utc),
+        prompt_version="v0.12", model="claude-sonnet-4-6", created_at=datetime.now(UTC),
     )
     art = Artifact(
         name="verified_storyboard", stage="storyboard", version=1,
@@ -143,11 +139,11 @@ def _manifest_artifact_envelope(manifest: AssetManifest, run_id: str = "run-test
         failed=0,
         footage_summary={},
         manifest=manifest.model_dump(mode="json"),
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
     lineage = LineageEnvelope(
         run_id=run_id, worker="acquisition_worker", worker_version="1.0.0",
-        prompt_version="none", model="none", created_at=datetime.now(timezone.utc),
+        prompt_version="none", model="none", created_at=datetime.now(UTC),
     )
     art = Artifact(
         name="asset_manifest", stage="acquisition", version=1,

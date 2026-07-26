@@ -14,7 +14,7 @@ injected via the `build_opportunity_scorer_worker` factory.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import anthropic
@@ -178,7 +178,7 @@ def build_opportunity_scorer_worker(
         scored_topics = [TopicScore.model_validate(s) for s in raw_scores]
         artifact = ScoredTopicsArtifact(
             niche=topics_artifact.niche,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             scored_topics=scored_topics,
         )
         return WorkerOutput(artifact=artifact)

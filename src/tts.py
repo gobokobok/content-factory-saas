@@ -9,7 +9,6 @@ import asyncio
 import logging
 import re
 import subprocess
-from typing import Optional
 
 import httpx
 
@@ -64,8 +63,8 @@ async def _call_elevenlabs(
     text: str,
     api_key: str,
     voice_id: str,
-    previous_text: Optional[str],
-    next_text: Optional[str],
+    previous_text: str | None,
+    next_text: str | None,
     timeout: float = 60.0,
 ) -> bytes:
     """Call ElevenLabs streaming TTS for one chunk and return raw PCM bytes.

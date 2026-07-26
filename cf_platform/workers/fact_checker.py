@@ -27,7 +27,7 @@ Pure worker per D040/D056.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 import anthropic
@@ -186,7 +186,7 @@ def build_fact_checker_worker(
 
         # Claude emits multiple text blocks interleaved with web_search blocks.
         # The last block is often a prose comment; scan in reverse for the JSON block.
-        json_str: Optional[str] = None
+        json_str: str | None = None
         for block in reversed(text_blocks):
             candidate = strip_markdown_fences(block.text)
             try:
@@ -230,7 +230,7 @@ def build_fact_checker_worker(
             verified_count=verified_count,
             refuted_count=refuted_count,
             unverifiable_count=unverifiable_count,
-            checked_at=datetime.now(timezone.utc),
+            checked_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact, control=control)
 

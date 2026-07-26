@@ -16,11 +16,9 @@ Covers:
 - E2E graph run: manual_review path reached when loops exhausted
 """
 
-import json
 import operator
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Annotated
+from datetime import UTC, datetime
 from unittest.mock import patch
 
 import pytest
@@ -50,7 +48,7 @@ from cf_platform.core.schemas import IdeaToScriptState, WorkerOutput
 from cf_platform.core.worker_registry import InMemoryExecutionRepository, WorkerNotRegisteredError, WorkerRegistry
 from cf_platform.workers.script_packager import ScriptArtifact
 
-_NOW = datetime(2026, 6, 18, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, 12, 0, 0, tzinfo=UTC)
 _IDEA_TITLE = "Why Starter Homes Vanished"
 _SCRIPT_TEXT = "In 1980 homes were affordable. Today they are not."
 

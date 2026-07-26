@@ -18,8 +18,7 @@ Internal steps:
 import json
 import logging
 import re
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import anthropic
 from pydantic import BaseModel
@@ -311,7 +310,7 @@ def _parse_treatment(raw: dict, scene_count: int) -> VisualTreatment:
 async def _call_visual_director(
     client: anthropic.AsyncAnthropic,
     storyboard: Storyboard,
-    violation_feedback: Optional[str] = None,
+    violation_feedback: str | None = None,
 ) -> dict:
     """Call Claude Sonnet to generate (or re-generate) the visual treatment.
 
@@ -366,8 +365,8 @@ def build_visual_director_worker(
         logger.info("VisualDirectorWorker run=%s scenes=%d", run_id, scene_count)
 
         # ── 2. Call Visual Director (with retry on diversity violation) ───────
-        violation_feedback: Optional[str] = None
-        treatment: Optional[VisualTreatment] = None
+        violation_feedback: str | None = None
+        treatment: VisualTreatment | None = None
 
         for attempt in range(_MAX_DIVERSITY_RETRIES + 1):
             try:
@@ -407,7 +406,7 @@ def build_visual_director_worker(
             prompt_version=VISUAL_DIRECTOR_PROMPT_VERSION,
             scene_count=scene_count,
             visual_treatment=treatment.model_dump(),
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

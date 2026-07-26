@@ -6,7 +6,7 @@ Clean module; no src/ imports — directly importable by P9 AcquisitionWorker.
 """
 
 import logging
-from typing import Literal, Optional
+from typing import Literal
 
 import httpx
 from pydantic import BaseModel
@@ -51,7 +51,7 @@ class WikimediaClient:
         self,
         query: str,
         media_type: Literal["photo", "video"] = "photo",
-        limit: Optional[int] = None,
+        limit: int | None = None,
     ) -> list[WikimediaAsset]:
         """Search Wikimedia Commons for photos or videos matching query.
 
@@ -127,7 +127,7 @@ class WikimediaClient:
             )
         return results
 
-    async def fetch_person_photo(self, person_name: str) -> Optional[WikimediaAsset]:
+    async def fetch_person_photo(self, person_name: str) -> WikimediaAsset | None:
         """Fetch the lead portrait image for a named person from Wikipedia.
 
         Requests both 'original' and 'thumbnail' (1000px) in one API call.

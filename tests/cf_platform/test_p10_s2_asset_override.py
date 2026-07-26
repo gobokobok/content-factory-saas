@@ -7,20 +7,19 @@ Covers:
 - Existing AcquisitionWorker batch loop still passes (smoke via import)
 """
 
-import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from cf_platform.core.artifact_manager import InMemoryArtifactStorage
+from cf_platform.core.trace_repo import InMemoryTraceEventRepository
 from cf_platform.interfaces.api import (
     get_artifact_storage,
     get_platform_settings,
     get_trace_event_repository,
 )
-from cf_platform.core.trace_repo import InMemoryTraceEventRepository
 from src.config import Settings, get_settings
 from src.main import app
 
@@ -61,7 +60,7 @@ def _make_storyboard_artifact(scenes: list[dict]) -> dict:
                 "rhythm": "steady",
             },
         },
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 
@@ -73,7 +72,7 @@ def _make_manifest_artifact(entries: list[dict]) -> dict:
         "failed": sum(1 for e in entries if e.get("status") != "acquired"),
         "footage_summary": {},
         "manifest": {"run_id": "test-run", "entries": entries},
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
     }
 
 

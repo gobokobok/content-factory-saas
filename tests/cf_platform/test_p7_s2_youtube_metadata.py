@@ -1,11 +1,12 @@
 """Tests for cf_platform/workers/youtube_metadata.py (P7-S2)."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from cf_platform.core.schemas import StageState
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.youtube_metadata import (
     YOUTUBE_METADATA_REGISTRATION,
@@ -13,7 +14,6 @@ from cf_platform.workers.youtube_metadata import (
     _extract_json,
     build_youtube_metadata_worker,
 )
-from cf_platform.core.schemas import StageState
 
 _RUN_ID = "run-p7s2-test"
 _USER_ID = "operator"
@@ -31,7 +31,7 @@ def _make_script_body(
         niche=niche,
         script=script,
         word_count=len(script.split()),
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     ).model_dump(mode="json")
 
 

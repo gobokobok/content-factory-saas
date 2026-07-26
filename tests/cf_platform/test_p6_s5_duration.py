@@ -9,8 +9,7 @@ Covers:
 - Telegram /script title --duration N: ack uses parsed title (no flag text); duration flows in
 """
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 import pytest
 
@@ -22,7 +21,7 @@ from cf_platform.workers.script_packager import ScriptArtifact, build_script_pac
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 _LINEAGE = LineageEnvelope(
     run_id="run-dur",
     worker="test",
@@ -212,7 +211,6 @@ class TestTelegramScriptDurationFlag:
 
     def _client(self):
         """Return a TestClient with the minimal settings needed to process a /script command."""
-        from unittest.mock import AsyncMock, patch
 
         from fastapi.testclient import TestClient
 
@@ -243,10 +241,8 @@ class TestTelegramScriptDurationFlag:
 
         from fastapi.testclient import TestClient
 
-        from cf_platform.core.artifact_manager import InMemoryArtifactStorage
         from cf_platform.core.config import PlatformSettings
         from cf_platform.interfaces.api import (
-            get_artifact_storage,
             get_graph_checkpointer,
             get_platform_settings,
         )
@@ -309,11 +305,9 @@ class TestTelegramScriptDurationFlag:
 
         captured: dict = {}
 
-        real_add_task = None
 
         def _spy_add_task(func, **kwargs):
             """Capture the kwargs passed when _run_script_and_reply is scheduled."""
-            from cf_platform.interfaces.api import _run_script_and_reply as _orig
 
             if func is _mock_reply or func.__name__ == "_run_script_and_reply":
                 captured.update(kwargs)

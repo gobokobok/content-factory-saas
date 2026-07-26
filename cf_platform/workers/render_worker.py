@@ -10,9 +10,8 @@ import logging
 import shlex
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel
 
@@ -61,7 +60,7 @@ class RenderArtifact(BaseModel):
 # ── Render-script helpers ─────────────────────────────────────────────────────
 
 
-def _film_look_section(storyboard) -> Optional[str]:
+def _film_look_section(storyboard) -> str | None:
     """In-place sepia commands for scenes with render_options.film_look=True.
 
     Runs BEFORE the concat step so only the affected clips carry the filter.
@@ -106,7 +105,7 @@ def _build_captions_with_y_override(
 
     _CHUNK_SIZE = 5
 
-    margin_overrides: list[Optional[int]] = []
+    margin_overrides: list[int | None] = []
     for scene in storyboard_scenes:
         if (
             scene.render_options
@@ -269,7 +268,6 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
         opts = scene.render_options
         scene_start = t_offset
         scene_end = t_offset + scene.duration_s
-        enable = f"between(t,{scene_start:.3f},{scene_end:.3f})"
 
         # Prefer storyboard overlay; fall back to scene.on_screen_text for stale storyboards.
         # lower_third overlays removed in P10-S1 — person name now appears as OST via on_screen_text.
@@ -310,7 +308,7 @@ def _build_render_script(
     run_id: str,
     storyboard,
     manifest,
-    scene_words: Optional[list],
+    scene_words: list | None,
     color_grade_preset: str,
     blur_fill_enabled: bool,
     format_track: str = "portrait",
@@ -516,7 +514,7 @@ def build_render_worker(
         manifest = AssetManifest.model_validate(mf_art.manifest)
 
         # Read voice alignment (optional)
-        scene_words: Optional[list] = None
+        scene_words: list | None = None
         if "voice_alignment" in state.artifacts:
             try:
                 _, va_body = await read_artifact(
@@ -692,7 +690,7 @@ def build_render_worker(
                 video_key=video_key,
                 scene_count=len(storyboard.scenes),
                 duration_s=storyboard.summary.total_duration_s,
-                generated_at=datetime.now(timezone.utc),
+                generated_at=datetime.now(UTC),
             )
         )
 

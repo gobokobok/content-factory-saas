@@ -2,8 +2,7 @@
 
 import sys
 from contextlib import contextmanager
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -37,7 +36,7 @@ from cf_platform.workers.topic_selector import RankedIdeasArtifact
 from src.config import Settings, get_settings
 from src.main import _mount_platform_router, _run_platform_migrations, _setup_platform_checkpointer, app
 
-_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 17, 12, 0, 0, tzinfo=UTC)
 
 _STUB_TOPIC = TopicScore(
     title="Why Starter Homes Vanished",
@@ -61,9 +60,16 @@ _STUB_IDEA_TITLE = "Why Starter Homes Vanished"
 def _stub_idea_to_script_workers():
     """Patch all 11 Blueprint IR builder factories with deterministic stubs (no Claude calls)."""
     from cf_platform.core.idea_to_script_schemas import (
-        Blueprint, EvaluationArtifact, GeneratedScriptArtifact,
-        HookVariantsArtifact, IntegrityReport, NarrativeLens, NormalizedContext,
-        PatchSetArtifact, Section, SelectedHookArtifact,
+        Blueprint,
+        EvaluationArtifact,
+        GeneratedScriptArtifact,
+        HookVariantsArtifact,
+        IntegrityReport,
+        NarrativeLens,
+        NormalizedContext,
+        PatchSetArtifact,
+        Section,
+        SelectedHookArtifact,
     )
     from cf_platform.workers.script_packager import ScriptArtifact
 
@@ -440,7 +446,7 @@ class TestObservabilityRoutes:
         """GET /platform/runs/{run_id} returns status, artifacts (R2 keys), and per-worker cost/latency/version."""
         run = await create_run("operator", "echo", {"text": "hello"}, self.runs)
         run = await transition_run(run.run_id, "running", self.runs)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         lineage = LineageEnvelope(
             run_id=run.run_id,
             worker="echo",
@@ -512,7 +518,7 @@ class TestObservabilityRoutes:
 class TestTelegramWebhookRoute:
     """POST /platform/telegram/webhook (P3-S1, D049) — trigger-only, secret-validated."""
 
-    def _client_with_telegram_settings(self, signals: Optional[list[Signal]] = None, **overrides) -> TestClient:
+    def _client_with_telegram_settings(self, signals: list[Signal] | None = None, **overrides) -> TestClient:
         """Return a TestClient with PlatformSettings overridden for telegram tests.
 
         Also overrides get_discovery_adapters (stub adapters returning `signals`,

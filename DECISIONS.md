@@ -5,6 +5,24 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D068 — ruff lint gate in CI
+**Date:** 2026-07-26
+**Status:** ACTIVE
+**Decision:** `ruff` (dev dependency) runs as a blocking CI step before tests. Config in `ruff.toml` with an explicit rule selection — correctness (`E4/E7/E9`, `F`), import hygiene (`I`), and Python 3.11 modernization (`UP`) — so behavior never drifts with ruff's changing defaults. Broader rule families (bugbear, security) may be adopted later as separate decisions.
+**Rationale:** The repo is now public; a visible, enforced lint bar signals code quality and catches real defects — the initial pass surfaced two latent `F821` undefined-name annotations and three dead-code assignments alongside ~750 mechanical fixes (import sorting, `Optional[X]` → `X | None`).
+**Consequence:** CI installs `requirements-dev.txt`; `cf_platform/interfaces/api.py` carries a temporary per-file `E402` ignore until it is split into routers.
+
+---
+
+## D067 — Runtime/dev dependency split with major-version caps
+**Date:** 2026-07-26
+**Status:** ACTIVE
+**Decision:** `requirements.txt` holds runtime dependencies only, each with a `>=` floor and a `<next-major` cap. Test and lint tools move to `requirements-dev.txt` (which includes `-r requirements.txt`). CI installs the dev file; the Docker image installs runtime only.
+**Rationale:** Uncapped `>=` floors let PROD images silently absorb breaking major upgrades on rebuild; pytest and lint tools have no business in the production image.
+**Consequence:** Adding a runtime dependency still requires a DECISIONS.md entry (existing rule); bumping a major-version cap is a deliberate, reviewable change rather than an accident of rebuild timing.
+
+---
+
 ## D066 — Studio becomes the default operator UI; legacy pipeline UI moves to /legacy
 **Date:** 2026-07-03
 **Status:** ACTIVE

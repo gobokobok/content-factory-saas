@@ -9,9 +9,9 @@ from src.exceptions import StoryboardValidationError
 from src.models import Storyboard, ValidationResult
 from src.storyboard import _parse_storyboard_response
 from src.validators.storyboard_validator import (
-    VALIDATOR_MODEL,
     _INPUT_COST_PER_TOKEN,
     _OUTPUT_COST_PER_TOKEN,
+    VALIDATOR_MODEL,
     validate_storyboard,
 )
 

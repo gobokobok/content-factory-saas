@@ -2,7 +2,7 @@
 
 import subprocess
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -693,7 +693,7 @@ class TestRenderRoute:
     def test_manifest_not_found_returns_404(self, client):
         with patch("src.routes.render.R2Client") as MockR2:
             MockR2.return_value.get_json.side_effect = StorageError("no such key")
-            resp = client.post(f"/runs/missing-run/render")
+            resp = client.post("/runs/missing-run/render")
 
         assert resp.status_code == 404
         assert "missing-run" in resp.json()["detail"]

@@ -6,11 +6,11 @@ state is a message bus, refs + control only — no `state_delta`).
 """
 
 import operator
+from collections.abc import Awaitable, Callable
 from datetime import datetime
-from typing import Annotated, Any, Awaitable, Callable, Literal, Optional, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import BaseModel
-
 
 # ── Lineage & artifacts ────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ class RunRecord(BaseModel):
     block: str
     status: Literal["created", "running", "complete", "failed"]
     inputs: dict[str, Any]
-    error: Optional[str] = None
+    error: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -70,7 +70,7 @@ class WorkerExecution(BaseModel):
     cost_usd: float = 0.0
     latency_ms: int = 0
     status: Literal["ok", "error"]
-    artifact_r2_key: Optional[str] = None
+    artifact_r2_key: str | None = None
     started_at: datetime
     finished_at: datetime
 
@@ -128,7 +128,7 @@ class TraceEvent(BaseModel):
     source: str
     op: str
     latency_ms: int
-    cost_usd: Optional[float] = None
+    cost_usd: float | None = None
     status: Literal["ok", "error"]
     meta: dict[str, Any] = {}
 
@@ -141,7 +141,7 @@ class Signal(BaseModel):
 
     source: str
     title: str
-    url: Optional[str] = None
+    url: str | None = None
     score: float = 0.0
     meta: dict[str, Any] = {}
 
@@ -225,5 +225,5 @@ class PipelineState(StageState):
 
     hitl: bool = False
     target_duration_seconds: int = 60
-    idea_title: Optional[str] = None
+    idea_title: str | None = None
     format_track: Literal["portrait", "landscape"] = "portrait"

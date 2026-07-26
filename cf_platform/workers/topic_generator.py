@@ -12,7 +12,7 @@ hidden state.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import anthropic
@@ -129,7 +129,7 @@ def build_topic_generator_worker(
         topics = [CandidateTopic.model_validate(t) for t in raw_topics]
         artifact = CandidateTopicsArtifact(
             niche=signals_artifact.niche,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
             topics=topics,
         )
         return WorkerOutput(artifact=artifact)

@@ -14,8 +14,7 @@ Covers:
 """
 
 import operator
-from datetime import datetime, timezone
-from typing import Annotated
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -33,7 +32,7 @@ from cf_platform.core.idea_to_script_schemas import (
 )
 from cf_platform.core.schemas import IdeaToScriptState
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 
 
 class TestSignal:

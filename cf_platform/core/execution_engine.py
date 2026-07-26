@@ -10,7 +10,7 @@ Pure execution only — no lineage, no artifact persistence (that's Layer B, P1-
 worker's artifact body, not a real r2_key; the observability wrapper replaces it.
 """
 
-from typing import Any, Optional, TypeVar
+from typing import Any, TypeVar
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import MemorySaver
@@ -23,7 +23,7 @@ StateT = TypeVar("StateT", bound=StageState)
 
 
 def build_single_node_graph(
-    node_name: str, worker: WorkerNode, checkpointer: Optional[BaseCheckpointSaver] = None
+    node_name: str, worker: WorkerNode, checkpointer: BaseCheckpointSaver | None = None
 ) -> CompiledStateGraph:
     """Compile a 1-node StateGraph (START -> node_name -> END) wrapping `worker`.
 

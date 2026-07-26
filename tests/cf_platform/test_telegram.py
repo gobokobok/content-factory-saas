@@ -1,5 +1,6 @@
 """Tests for cf_platform/interfaces/telegram.py (P3-S1, D049)."""
 
+from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -152,7 +153,7 @@ class TestScriptFormatters:
     """format_script_*() helpers for the /script command (D049, P5-S5)."""
 
     def _make_artifact(self, script: str = "Test script text.") -> object:
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from cf_platform.workers.script_packager import ScriptArtifact
 
@@ -162,7 +163,7 @@ class TestScriptFormatters:
             script=script,
             draft_number=1,
             overall_score=8.5,
-            generated_at=datetime(2026, 6, 18, 12, 0, 0, tzinfo=timezone.utc),
+            generated_at=datetime(2026, 6, 18, 12, 0, 0, tzinfo=UTC),
         )
 
     def test_format_script_reply_contains_title(self):

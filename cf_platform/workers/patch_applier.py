@@ -8,7 +8,7 @@ version of `generated_script` (e.g. @v2), so the original is preserved.
 Pure worker per D040/D056.
 """
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.idea_to_script_schemas import (
@@ -72,7 +72,7 @@ def build_patch_applier_worker(storage: ArtifactStorage) -> WorkerNode:
             script=patched_script,
             word_count=word_count,
             target_duration_seconds=script_artifact.target_duration_seconds,
-            generated_at=datetime.now(timezone.utc),
+            generated_at=datetime.now(UTC),
         )
         return WorkerOutput(artifact=artifact)
 

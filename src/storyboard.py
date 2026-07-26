@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import re
-from typing import Optional
 
 import anthropic
 
@@ -335,7 +334,7 @@ def _split_into_units(text: str, max_words: int) -> list[str]:
     if len(text.split()) <= max_words:
         return [text]
 
-    lines = [l.strip() for l in text.split("\n") if l.strip()]
+    lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
     if len(lines) > 1:
         units: list[str] = []
         for line in lines:
@@ -471,7 +470,7 @@ def _merge_storyboard_chunks(storyboards: list[Storyboard]) -> Storyboard:
 async def generate_storyboard(
     script: str,
     settings: Settings,
-    word_timestamps: Optional[list[WordTimestamp]] = None,
+    word_timestamps: list[WordTimestamp] | None = None,
 ) -> tuple[Storyboard, ValidationResult]:
     """
     Call Claude API with v0.10 prompt, parse, then validate with Haiku.
@@ -528,7 +527,7 @@ async def _call_claude_api(
     script: str,
     api_key: str,
     model: str,
-    word_timestamps: Optional[list[WordTimestamp]] = None,
+    word_timestamps: list[WordTimestamp] | None = None,
 ) -> tuple[str, int, int]:
     """Call Claude API with the v0.10 system prompt.
 
@@ -629,7 +628,7 @@ def _parse_storyboard_response(text: str) -> Storyboard:
     return Storyboard(global_=global_, scenes=scenes, summary=summary)
 
 
-def _get_field(text: str, field: str, required: bool = True) -> Optional[str]:
+def _get_field(text: str, field: str, required: bool = True) -> str | None:
     """
     Extract a single-line field value from a storyboard block.
 
@@ -821,7 +820,7 @@ def _parse_scene(block: str, index: int = 0) -> StoryboardScene:
     )
 
 
-def _parse_summary(block: str, scenes: Optional[list] = None) -> StoryboardSummary:
+def _parse_summary(block: str, scenes: list | None = None) -> StoryboardSummary:
     """
     Parse the SUMMARY section into a StoryboardSummary model.
 
@@ -854,7 +853,7 @@ def patch_scene_field(
     scene_id: str,
     field: str,
     value: str,
-    storage: "R2Client",  # type: ignore[name-defined]  # imported at call site to avoid circular
+    storage: "R2Client",  # noqa: F821 — imported at call site to avoid circular import
 ) -> Storyboard:
     """
     Update a single editable field on one storyboard scene and write back to R2.

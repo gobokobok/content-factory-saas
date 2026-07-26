@@ -7,7 +7,7 @@ Importable by P9 AcquisitionWorker with no changes.
 import io
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 try:
     from PIL import Image
@@ -32,15 +32,15 @@ class QAResult:
     passed: bool
     resolution_ok: bool
     duration_ok: bool
-    clip_score: Optional[float]
+    clip_score: float | None
     clip_enabled: bool
 
 
 def qa_score(
     candidate: Any,
     entry: Any,
-    image_data: Optional[bytes] = None,
-    clip_reranker: Optional[Any] = None,
+    image_data: bytes | None = None,
+    clip_reranker: Any | None = None,
 ) -> QAResult:
     """Score a candidate against the scene requirements.
 
@@ -76,7 +76,7 @@ def qa_score(
 
     # CLIP scoring
     clip_enabled = clip_reranker is not None
-    clip_score: Optional[float] = None
+    clip_score: float | None = None
     clip_ok = True
 
     if clip_enabled and image_data:

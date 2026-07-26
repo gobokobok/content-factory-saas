@@ -1,7 +1,7 @@
 """Tests for P9-S2 StoryboardWorker — generate→review→patch internal cycle."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -18,7 +18,6 @@ from cf_platform.workers.storyboard_worker import (
     build_storyboard_worker,
 )
 from src.models import Storyboard
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -128,7 +127,7 @@ async def _write_script_artifact(storage, run_id: str, script_text: str) -> str:
         script=script_text,
         word_count=len(script_text.split()),
         status="ok",
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
     )
     lineage = LineageEnvelope(
         run_id=run_id,
@@ -136,7 +135,7 @@ async def _write_script_artifact(storage, run_id: str, script_text: str) -> str:
         worker_version="2.0.0",
         prompt_version="v2",
         model="none",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
     artifact = await write_artifact(
         storage,

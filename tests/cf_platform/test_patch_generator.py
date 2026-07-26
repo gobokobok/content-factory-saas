@@ -13,8 +13,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -24,7 +23,6 @@ from cf_platform.core.idea_to_script_schemas import (
     GeneratedScriptArtifact,
     IntegrityIssue,
     IntegrityReport,
-    Patch,
     PatchSetArtifact,
 )
 from cf_platform.core.schemas import LineageEnvelope, StageState
@@ -33,7 +31,7 @@ from cf_platform.workers.patch_generator import (
     build_patch_generator_worker,
 )
 
-_NOW = datetime(2026, 6, 18, tzinfo=timezone.utc)
+_NOW = datetime(2026, 6, 18, tzinfo=UTC)
 _LINEAGE = LineageEnvelope(
     run_id="run-001", worker="test", worker_version="1.0.0", prompt_version="v1",
     model="none", created_at=_NOW,
@@ -63,8 +61,8 @@ def _mock_response(text: str) -> MagicMock:
 
 async def _run_worker(
     storage: InMemoryArtifactStorage,
-    script: Optional[GeneratedScriptArtifact],
-    report: Optional[IntegrityReport],
+    script: GeneratedScriptArtifact | None,
+    report: IntegrityReport | None,
     claude_text: str,
 ):
     artifacts: dict[str, str] = {}

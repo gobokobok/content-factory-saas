@@ -8,8 +8,7 @@ Covers:
 """
 
 import json
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -31,7 +30,7 @@ def _lineage(run_id: str = "run-1") -> LineageEnvelope:
         worker_version="1.0.0",
         prompt_version="v1",
         model="none",
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -39,12 +38,12 @@ async def _seed_signals(
     storage: InMemoryArtifactStorage,
     run_id: str = "run-1",
     user_id: str = "user-1",
-    signals: Optional[list[Signal]] = None,
+    signals: list[Signal] | None = None,
 ) -> str:
     """Write a SignalsArtifact to storage and return its r2_key."""
     body = SignalsArtifact(
         niche="starter homes",
-        generated_at=datetime.now(timezone.utc),
+        generated_at=datetime.now(UTC),
         signals=signals
         if signals is not None
         else [

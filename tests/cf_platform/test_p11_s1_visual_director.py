@@ -1,14 +1,13 @@
 """Tests for P11-S1 — VisualDirectorWorker and related helpers."""
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from cf_platform.models.visual_treatment import (
     SHOT_TYPE_VOCABULARY,
-    DiversityPlan,
     SceneVisualPlan,
     VisualTreatment,
 )
@@ -21,7 +20,6 @@ from cf_platform.workers.visual_director_worker import (
     _parse_treatment,
     build_visual_director_worker,
 )
-
 
 # ── VisualTreatment model tests ───────────────────────────────────────────────
 
@@ -243,8 +241,8 @@ class TestBuildVisualDirectorWorker:
             "artifact_type": "verified_storyboard",
             "worker_version": "1.1.0",
             "prompt_version": "v0.15",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
+            "generated_at": datetime.now(UTC).isoformat(),
             "run_id": "test-run-001",
             "scene_count": n_scenes,
             "storyboard": {
@@ -395,7 +393,7 @@ class TestAcquisitionWorkerTreatmentPreference:
     """Tests for _build_treatment_queries and acquisition_worker visual_treatment integration."""
 
     def _make_entry(self, primary_stk: str = "economy", visual_tags=None) -> MagicMock:
-        from src.models import ManifestEntry, SemanticContext
+        from src.models import SemanticContext
         sc = SemanticContext(
             primary_concept="economy",
             domain_qualifier="economic",

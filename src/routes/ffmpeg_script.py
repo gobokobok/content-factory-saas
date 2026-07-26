@@ -3,7 +3,6 @@
 import logging
 import tempfile
 from pathlib import Path
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -62,7 +61,7 @@ def generate_ffmpeg_script(
     # (inter-phrase pauses are preserved) and use word-level captions.
     alignment_key = f"runs/{run_id}/alignment.json"
     has_alignment = False
-    scene_words: Optional[list[list[WordTimestamp]]] = None
+    scene_words: list[list[WordTimestamp]] | None = None
     try:
         alignment_data = storage.get_json(alignment_key)
         has_alignment = True
