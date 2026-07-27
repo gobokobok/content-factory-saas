@@ -30,6 +30,61 @@ flowchart LR
 
 Every artifact (script, storyboard, asset manifest, render) is written to **Cloudflare R2** and indexed in **Postgres**, so any step can be inspected, retried, or resumed. The operator drives the pipeline from a zero-framework HTML/JS **Studio UI** or via a **Telegram bot** interface.
 
+## Studio walkthrough
+
+A run steps through six stages, each producing a versioned artifact before the next stage unlocks.
+
+<table>
+<tr>
+<td width="50%">
+
+**1 · Settings** — aspect ratio, style, background music, and caption burn-in are locked in before any generation starts, since they affect every downstream stage.
+
+<img src="docs/screenshots/01-settings.png" alt="Studio Settings stage">
+
+</td>
+<td width="50%">
+
+**2 · Script** — paste a voiceover script directly, or generate one from an idea/title with a target duration; the editor shows a live word count.
+
+<img src="docs/screenshots/02-script.png" alt="Studio Script stage">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**3 · Voice** — TTS generates the voiceover, then Deepgram Nova-2 produces word-level timestamps the storyboard stage will cut scenes against.
+
+<img src="docs/screenshots/03-voice.png" alt="Studio Voice stage">
+
+</td>
+<td width="50%">
+
+**4 · Storyboard** — the scene-by-scene plan: type (B-roll/Character/Event), visual query, motion, on-screen text, and acquired asset preview, all editable inline.
+
+<img src="docs/screenshots/04-storyboard.png" alt="Studio Storyboard stage">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**5 · Video** — FFmpeg assembles scenes, voiceover, captions, and music into the final MP4, previewable and downloadable in-browser.
+
+<img src="docs/screenshots/05-video.png" alt="Studio Video stage">
+
+</td>
+<td width="50%">
+
+**6 · Metadata** — Claude drafts a suggested YouTube title, description, tags, and pinned comment from the finished script.
+
+<img src="docs/screenshots/06-metadata.png" alt="Studio Metadata stage">
+
+</td>
+</tr>
+</table>
+
 ## Highlights
 
 - **LangGraph orchestration with durable checkpoints** — workers are pure, stateless graph nodes; state carries only artifact references and typed control signals. Loop bounds and routing live on graph edges, never inside workers. Every execution records `worker_version + prompt_version + model + sampling params` for full reproducibility.

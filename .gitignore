@@ -49,3 +49,4 @@ htmlcov/
 *.jpeg
 *.png
 *.gif
+!docs/screenshots/*.png
