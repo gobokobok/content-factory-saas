@@ -1969,16 +1969,12 @@ async function saveOst(sceneId) {
     return;
   }
   // Always send type alongside text so _apply_patches_and_render_options generates the overlay.
-  // If the type dropdown is still unset, default to 'stat' (most common overlay type).
-  const typeEl = document.getElementById(`osttype-${sceneId}`);
-  const currentType = typeEl?.value || null;
-  await patchScene(sceneId, { on_screen_text: val, on_screen_text_type: currentType || 'stat' });
-}
-
-async function saveOstType(sceneId, val) {
-  // Re-send the current text too so both fields are patched atomically.
-  const currentText = state.stageData.storyboard?.storyboard?.scenes?.find(s => s.scene === sceneId)?.on_screen_text || null;
-  await patchScene(sceneId, { on_screen_text: currentText, on_screen_text_type: val || null });
+  // Preserve the scene's existing type (e.g. "date", "label") rather than forcing "stat" —
+  // there's no per-scene type selector in the UI, so the last-fetched storyboard data is
+  // the only source of truth for what Claude originally assigned.
+  const scene = state.stageData.storyboard?.storyboard?.scenes?.find(s => s.scene === sceneId);
+  const currentType = scene?.on_screen_text_type || 'stat';
+  await patchScene(sceneId, { on_screen_text: val, on_screen_text_type: currentType });
 }
 
 // Inline editing — primary stock query
