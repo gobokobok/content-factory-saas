@@ -1960,14 +1960,19 @@ async function saveOst(sceneId) {
   const cell = document.getElementById(`ost-${sceneId}`);
   cell.classList.remove('editing');
   cell.innerHTML = val ? `<span>${esc(val)}</span>` : '<span class="muted">—</span>';
+  if (!val) {
+    // Explicit nulls for on_screen_text/on_screen_text_type are indistinguishable from
+    // "field omitted" to the backend's `is not None` checks (ScenePatchRequest in
+    // studio.py), which turns a clear into an empty, rejected patch. clear_on_screen_text
+    // is the dedicated signal for this case.
+    await patchScene(sceneId, { clear_on_screen_text: true });
+    return;
+  }
   // Always send type alongside text so _apply_patches_and_render_options generates the overlay.
   // If the type dropdown is still unset, default to 'stat' (most common overlay type).
   const typeEl = document.getElementById(`osttype-${sceneId}`);
   const currentType = typeEl?.value || null;
-  const fields = { on_screen_text: val || null };
-  if (val) fields.on_screen_text_type = currentType || 'stat';
-  else fields.on_screen_text_type = null;
-  await patchScene(sceneId, fields);
+  await patchScene(sceneId, { on_screen_text: val, on_screen_text_type: currentType || 'stat' });
 }
 
 async function saveOstType(sceneId, val) {
@@ -2014,6 +2019,7 @@ async function patchScene(sceneId, fields) {
     // Refresh local storyboard data
     const sbR = await fetch(`/platform/studio/runs/${state.runId}/storyboard`);
     if (sbR.ok) state.stageData.storyboard = await sbR.json();
+    hideErr('sb-error');
   } catch (e) {
     showErr('sb-error', `Patch error: ${e.message}`);
   }
