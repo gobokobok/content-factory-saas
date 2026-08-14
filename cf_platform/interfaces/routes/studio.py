@@ -420,21 +420,29 @@ async def studio_reacquire_scene(
         run_id=run_id, user_id=PLATFORM_USER_ID, lineage=lineage,
     )
 
-    # Emit operator override trace event
-    await trace_events.record(TraceEvent(
-        run_id=run_id,
-        worker="studio_reacquire",
-        source="operator",
-        op="operator_asset_override",
-        latency_ms=latency_ms,
-        status="ok" if entry.status == "acquired" else "error",
-        meta={
-            "scene_n": scene_n,
-            "reason": "reacquire",
-            "original_query": original_query,
-            "override_query": body.query.strip(),
-        },
-    ))
+    # Emit operator override trace event. Best-effort: Studio run_ids are generated
+    # client-side and never inserted into the Postgres `runs` table (Studio bypasses the
+    # legacy block-execution path that's the only place PostgresRunRepository writes a
+    # `runs` row), so this insert always trips trace_events' FK-on-run_id constraint for
+    # a Studio run. That must never turn an already-successful manifest update into a
+    # 500 for the operator — trace events are observability, not the deliverable.
+    try:
+        await trace_events.record(TraceEvent(
+            run_id=run_id,
+            worker="studio_reacquire",
+            source="operator",
+            op="operator_asset_override",
+            latency_ms=latency_ms,
+            status="ok" if entry.status == "acquired" else "error",
+            meta={
+                "scene_n": scene_n,
+                "reason": "reacquire",
+                "original_query": original_query,
+                "override_query": body.query.strip(),
+            },
+        ))
+    except Exception:
+        _logger.warning("studio_reacquire: trace_events.record failed for run %s scene %s", run_id, scene_n, exc_info=True)
 
     preview_url: str | None = None
     if entry.file_key:
@@ -547,15 +555,22 @@ async def studio_upload_scene_asset(
     )
     latency_ms = int((time.monotonic() - t0) * 1000)
 
-    await trace_events.record(TraceEvent(
-        run_id=run_id,
-        worker="studio_upload",
-        source="operator",
-        op="operator_asset_override",
-        latency_ms=latency_ms,
-        status="ok",
-        meta={"scene_n": scene_n, "reason": "upload", "r2_key": r2_key},
-    ))
+    # Best-effort: see the identical comment in studio_reacquire_scene above — Studio
+    # run_ids are never inserted into Postgres `runs`, so this always trips trace_events'
+    # FK constraint for a Studio run. Must not turn an already-successful upload into a
+    # 500 for the operator.
+    try:
+        await trace_events.record(TraceEvent(
+            run_id=run_id,
+            worker="studio_upload",
+            source="operator",
+            op="operator_asset_override",
+            latency_ms=latency_ms,
+            status="ok",
+            meta={"scene_n": scene_n, "reason": "upload", "r2_key": r2_key},
+        ))
+    except Exception:
+        _logger.warning("studio_upload_scene_asset: trace_events.record failed for run %s scene %s", run_id, scene_n, exc_info=True)
 
     try:
         preview_url = await storage.generate_presigned_url(r2_key, expires_in=3600)

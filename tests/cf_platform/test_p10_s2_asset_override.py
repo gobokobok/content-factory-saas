@@ -328,6 +328,60 @@ class TestReacquireEndpoint:
             r = client.post("/platform/studio/runs/run1/scenes/1/reacquire", json={"query": "query"})
             assert r.status_code == 404
 
+    def test_reacquire_survives_trace_event_failure(self, mock_storage):
+        """Regression: a trace_events.record() failure (e.g. Postgres FK violation because
+        Studio run_ids are never inserted into `runs`) must not turn an already-successful
+        manifest update into a 500 for the operator.
+        """
+        failing_trace_repo = MagicMock()
+        failing_trace_repo.record = AsyncMock(side_effect=RuntimeError("FK violation on trace_events.run_id"))
+        platform_settings = MagicMock()
+        platform_settings.PEXELS_API_KEY = "fake-pexels"
+        platform_settings.PIXABAY_API_KEY = ""
+        app.dependency_overrides[get_settings] = lambda: Settings.model_validate(_VALID_ENV)
+        app.dependency_overrides[get_artifact_storage] = lambda: mock_storage
+        app.dependency_overrides[get_platform_settings] = lambda: platform_settings
+        app.dependency_overrides[get_trace_event_repository] = lambda: failing_trace_repo
+        try:
+            client = TestClient(app, raise_server_exceptions=True)
+            record = MagicMock()
+            record.r2_key = "users/platform/runs/run1/acquisition/asset_manifest@v2"
+
+            with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock) as mock_latest, \
+                 patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock) as mock_read, \
+                 patch("cf_platform.core.artifact_manager.write_artifact", new_callable=AsyncMock, return_value=record), \
+                 patch("cf_platform.workers.acquisition_worker._acquire_single_scene", new_callable=AsyncMock) as mock_acq:
+
+                mock_latest.side_effect = [
+                    "users/platform/runs/run1/storyboard/verified_storyboard@v1",
+                    "users/platform/runs/run1/acquisition/asset_manifest@v1",
+                ]
+                mock_read.side_effect = [
+                    ("sb_key", _make_storyboard_artifact([_scene("1")])),
+                    ("mf_key", _make_manifest_artifact([_entry("1")])),
+                ]
+
+                async def acq_side_effect(scene, entry, *args, **kwargs):
+                    entry.status = "acquired"
+                    entry.file_key = "runs/run1/images/scene_01_new.jpg"
+                    entry.source = "pixabay"
+                    return entry
+
+                mock_acq.side_effect = acq_side_effect
+
+                r = client.post(
+                    "/platform/studio/runs/run1/scenes/1/reacquire",
+                    json={"query": "neurons synapse"},
+                )
+                assert r.status_code == 200
+                assert r.json()["source"] == "pixabay"
+                failing_trace_repo.record.assert_called_once()
+        finally:
+            app.dependency_overrides.pop(get_settings, None)
+            app.dependency_overrides.pop(get_artifact_storage, None)
+            app.dependency_overrides.pop(get_platform_settings, None)
+            app.dependency_overrides.pop(get_trace_event_repository, None)
+
 
 # ── Upload endpoint tests ─────────────────────────────────────────────────────
 
@@ -407,6 +461,40 @@ class TestUploadEndpoint:
                 files={"file": ("test.jpg", b"data", "image/jpeg")},
             )
             assert r.status_code == 404
+
+    def test_upload_survives_trace_event_failure(self, mock_storage):
+        """Regression: a trace_events.record() failure (e.g. Postgres FK violation because
+        Studio run_ids are never inserted into `runs`) must not turn an already-successful
+        upload + manifest update into a 500 for the operator.
+        """
+        failing_trace_repo = MagicMock()
+        failing_trace_repo.record = AsyncMock(side_effect=RuntimeError("FK violation on trace_events.run_id"))
+        app.dependency_overrides[get_settings] = lambda: Settings.model_validate(_VALID_ENV)
+        app.dependency_overrides[get_artifact_storage] = lambda: mock_storage
+        app.dependency_overrides[get_platform_settings] = lambda: MagicMock(PEXELS_API_KEY="k", PIXABAY_API_KEY="")
+        app.dependency_overrides[get_trace_event_repository] = lambda: failing_trace_repo
+        try:
+            client = TestClient(app, raise_server_exceptions=True)
+            record = MagicMock()
+            record.r2_key = "users/platform/runs/run1/acquisition/asset_manifest@v2"
+
+            with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
+                 patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("1")]))), \
+                 patch("cf_platform.core.artifact_manager.write_artifact", new_callable=AsyncMock, return_value=record):
+
+                r = client.post(
+                    "/platform/studio/runs/run1/scenes/1/upload",
+                    files={"file": ("clip.mp4", b"fake video data", "video/mp4")},
+                )
+                assert r.status_code == 200
+                data = r.json()
+                assert data["file_key"].endswith(".mp4")
+                failing_trace_repo.record.assert_called_once()
+        finally:
+            app.dependency_overrides.pop(get_settings, None)
+            app.dependency_overrides.pop(get_artifact_storage, None)
+            app.dependency_overrides.pop(get_platform_settings, None)
+            app.dependency_overrides.pop(get_trace_event_repository, None)
 
     def test_upload_mp4_uses_video_folder(self, client, mock_storage):
         record = MagicMock()
