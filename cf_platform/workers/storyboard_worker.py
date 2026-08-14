@@ -1136,8 +1136,14 @@ def _apply_patches_and_render_options(
                 enable_expr=enable_expr,
             )
 
-        if render_kwargs:
-            scene = scene.model_copy(update={"render_options": SceneRenderOptions(**render_kwargs)})
+        # Always overwrite render_options — never leave the prior value in place. Previously
+        # this only fired `if render_kwargs:`, so a scene whose on_screen_text/type was just
+        # cleared (leaving render_kwargs == {}) kept its *stale* render_options object —
+        # RenderWorker._collect_overlay_filters() prefers render_options.on_screen_text_overlay
+        # over scene.on_screen_text, so the old text kept getting burned into the video even
+        # though the field itself had correctly been cleared. None (not an empty
+        # SceneRenderOptions) represents "no render decisions" for scenes with neither.
+        scene = scene.model_copy(update={"render_options": SceneRenderOptions(**render_kwargs) if render_kwargs else None})
 
         cumulative_t += scene.duration_s
         patched_scenes.append(scene)

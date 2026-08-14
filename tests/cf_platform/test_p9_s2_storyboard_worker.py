@@ -330,6 +330,35 @@ def test_patches_applied_before_render_options():
     assert scene.on_screen_text == "Jerome Powell"
 
 
+def test_clearing_on_screen_text_clears_stale_render_options():
+    """Clearing on_screen_text/type via patch must clear render_options too.
+
+    Regression test: _apply_patches_and_render_options used to only overwrite
+    render_options `if render_kwargs:`, so a scene whose text was just cleared
+    (render_kwargs == {}) kept its *stale* render_options.on_screen_text_overlay
+    from before the clear. RenderWorker prefers that stale overlay over the
+    (correctly cleared) scene.on_screen_text field, so the old text kept
+    getting burned into the video even though the operator had cleared it.
+    """
+    storyboard = _load_storyboard(_make_storyboard_json(
+        duration_s=3.0,
+        on_screen_text="38% decline",
+        on_screen_text_type="stat",
+    ))
+    # Sanity check: scene starts with a live overlay before the clear.
+    pre = _apply_patches_and_render_options(storyboard, [])
+    assert pre.scenes[0].render_options.on_screen_text_overlay is not None
+
+    clear_patches = [
+        {"scene_id": "1", "field": "on_screen_text", "value": None},
+        {"scene_id": "1", "field": "on_screen_text_type", "value": None},
+    ]
+    result = _apply_patches_and_render_options(storyboard, clear_patches)
+    scene = result.scenes[0]
+    assert scene.on_screen_text is None
+    assert scene.render_options is None
+
+
 def test_unknown_patch_field_ignored():
     """Patches targeting disallowed fields are silently ignored."""
     storyboard = _load_storyboard(_make_storyboard_json())
