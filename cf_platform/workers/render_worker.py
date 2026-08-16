@@ -19,7 +19,7 @@ from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.acquisition_worker import AssetManifestArtifact
-from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact
+from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
 from cf_platform.workers.voice_production import VoiceAlignmentArtifact
 
 logger = logging.getLogger(__name__)
@@ -506,7 +506,7 @@ def build_render_worker(
         # Read verified storyboard
         _, sb_body = await read_artifact(storage, state.artifacts["verified_storyboard"])
         sb_art = VerifiedStoryboardArtifact.model_validate(sb_body)
-        storyboard = Storyboard.model_validate(sb_art.storyboard)
+        storyboard = Storyboard.model_validate(_sanitize_storyboard_data(sb_art.storyboard))
 
         # Read asset manifest
         _, mf_body = await read_artifact(storage, state.artifacts["asset_manifest"])

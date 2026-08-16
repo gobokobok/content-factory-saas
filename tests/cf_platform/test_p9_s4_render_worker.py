@@ -375,6 +375,52 @@ async def test_render_script_persisted_before_subprocess():
 
 
 @pytest.mark.asyncio
+async def test_render_survives_stale_invalid_on_screen_text_type():
+    """A stored storyboard with an out-of-enum on_screen_text_type (e.g. a legacy/stale
+    value like "descriptor") must not raise a pydantic ValidationError on render — it
+    should be sanitised the same way every other Storyboard.model_validate call site
+    sanitises it (see _sanitize_storyboard_data)."""
+    run_id = "run-stale-ost"
+    storage = InMemoryArtifactStorage()
+    sb = _storyboard([_scene("1")])
+    mf = _manifest(["1"], run_id=run_id)
+
+    sb_key = f"users/operator/runs/{run_id}/storyboard/verified_storyboard@v1.json"
+    mf_key = f"users/operator/runs/{run_id}/acquisition/asset_manifest@v1.json"
+
+    envelope = _storyboard_artifact_envelope(sb, run_id)
+    # Corrupt the raw stored dict with an invalid on_screen_text_type, bypassing the
+    # Storyboard pydantic model entirely — mirrors how this value ends up on disk.
+    envelope["body"]["storyboard"]["scenes"][0]["on_screen_text"] = "Some label"
+    envelope["body"]["storyboard"]["scenes"][0]["on_screen_text_type"] = "descriptor"
+
+    await storage.put_json(sb_key, envelope)
+    await storage.put_json(mf_key, _manifest_artifact_envelope(mf, run_id))
+    await storage.put_bytes(f"runs/{run_id}/images/1.jpg", b"X", content_type="image/jpeg")
+
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = "Done"
+    mock_result.stderr = ""
+
+    def fake_subprocess_run(*args, **kwargs):
+        out = Path(f"/tmp/{run_id}/output/final.mp4")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"FAKE_MP4")
+        return mock_result
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=fake_subprocess_run)):
+        worker = build_render_worker(storage, ffmpeg_timeout_seconds=60)
+        state = StageState(
+            run_id=run_id, user_id="operator", inputs={},
+            artifacts={"verified_storyboard": sb_key, "asset_manifest": mf_key},
+        )
+        output = await worker(state)
+
+    assert isinstance(output.artifact, RenderArtifact)
+
+
+@pytest.mark.asyncio
 async def test_ffmpeg_failure_raises_runtime_error():
     """Non-zero FFmpeg exit code raises RuntimeError."""
     run_id = "run-fail"
