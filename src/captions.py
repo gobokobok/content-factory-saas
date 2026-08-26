@@ -30,8 +30,8 @@ _CAPTIONS_ASS_HEADER = (
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    "Style: VoiceCaption,Poppins,147,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-    "1,0,0,0,100,100,0,0,1,8,1,2,10,10,350,1\n"
+    "Style: VoiceCaption,Titillium Web SemiBold,145,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "0,0,0,0,100,100,0,0,1,6,1,2,110,110,350,1\n"
     "\n"
     "[Events]\n"
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
@@ -48,8 +48,8 @@ _CAPTIONS_ASS_HEADER_CLASSIC = (
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    "Style: VoiceCaption,Poppins,102,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-    "0,0,0,0,100,100,0,0,1,3,1,2,10,10,180,1\n"
+    "Style: VoiceCaption,Titillium Web SemiBold,100,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "0,0,0,0,100,100,0,0,1,2,1,2,110,110,180,1\n"
     "\n"
     "[Events]\n"
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
@@ -120,7 +120,8 @@ def build_word_synced_captions_ass(
     boundaries.  For each word in a chunk one Dialogue event is emitted spanning
     that word's start_ms → end_ms.  The active word is highlighted in yellow via
     an ASS inline colour override; surrounding words remain white.
-    subtitle_style selects 'TikTok' (default, bold 92pt) or 'Classic' (64pt).
+    subtitle_style selects 'TikTok' (default, 145pt Titillium Web SemiBold) or
+    'Classic' (100pt).
     """
     events: list[str] = []
 
@@ -178,7 +179,8 @@ def build_captions_ass(
     of time. Timing is derived by accumulating duration_s values in order.
     Text is displayed as-is (natural sentence case, no quote stripping).
     Scenes with an empty voiceover_line produce no Dialogue event.
-    subtitle_style selects 'TikTok' (default, bold 92pt) or 'Classic' (64pt).
+    subtitle_style selects 'TikTok' (default, 145pt Titillium Web SemiBold) or
+    'Classic' (100pt).
     """
     events: list[str] = []
     offset = 0.0

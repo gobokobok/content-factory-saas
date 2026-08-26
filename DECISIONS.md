@@ -5,6 +5,21 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D070 — Titillium Web SemiBold as voiceover caption font (replaces Poppins); caption size/margin/pace tuning
+**Date:** 2026-08-26
+**Status:** ACTIVE
+**Decision:** Voiceover captions (`VoiceCaption` ASS style, `src/captions.py`) switch from Poppins Bold to **Titillium Web SemiBold**, bundled as `assets/fonts/TitilliumWeb-SemiBold.ttf` (not available via apt, same pattern as D035). `Bold=0` in both style headers — the SemiBold weight comes from the bundled static font face, not the ASS Bold flag, since Titillium Web's SemiBold is a distinct family from its Regular/Bold instances. Alongside the font swap, three related caption/pacing adjustments for the 9:16 Shorts pipeline:
+- **Caption size:** TikTok style 147pt → 145pt; Classic style 102pt → 100pt. Outline (border) width scaled down to match: TikTok 8 → 6, Classic 3 → 2.
+- **Caption margins:** `MarginL`/`MarginR` 10px → 110px on both styles (PlayResX is 1080, so 110px ≈ 10.2% each side). Captions were overflowing the screen left/right because the old 10px margin (<1% of width) gave libass almost no safe area to wrap chunk text within.
+- **TTS pace:** Gemini TTS has no numeric speaking-rate parameter — pace is steered via the natural-language `_SHORTS_PACE_INSTRUCTION` prefix in `cf_platform/workers/voice_production.py`. Target lowered from "170 to 180 wpm" to "165 to 170 wpm" (operator feedback: narration was too fast). `_WORDS_PER_SECOND_SHORT` (used for proportional-fallback timestamp estimation when Gemini/Deepgram are unavailable) updated from 175/60 to 167.5/60 to stay consistent with the new target.
+**Rationale:** Operator-requested brand/legibility refresh for the Shorts pipeline — smaller, tighter captions in the target typeface, fixed on-screen instead of clipping at the edges, and a narration pace that reads as natural rather than rushed.
+**Font source:** `assets/fonts/TitilliumWeb-SemiBold.ttf` downloaded from Google Fonts (`fonts.gstatic.com`, Titillium Web v19, weight 600) and installed at Docker build time via `COPY` + `fc-cache`, identical to the existing Poppins-Bold.ttf pattern.
+**Fallback:** If `Titillium Web SemiBold` fails to resolve on Railway (font-cache miss), libass falls back to Arial/DejaVu Sans Bold — captions remain legible but lose the brand typeface. Revert `Fontname` in `_CAPTIONS_ASS_HEADER*` (src/captions.py) to `Poppins` + `Bold=1` if needed.
+**No new Python dependencies.**
+**Implemented by:** operator chat request, 2026-08-26.
+
+---
+
 ## D069 — cf_platform/interfaces/api.py split into per-domain routers
 **Date:** 2026-07-26
 **Status:** ACTIVE

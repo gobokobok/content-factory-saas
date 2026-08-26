@@ -204,14 +204,15 @@ class TestBuildCaptionsAss:
 
     def test_voicecaption_style_present(self):
         result = build_captions_ass([_scene("01")])
-        assert "Style: VoiceCaption,Poppins,147" in result
+        assert "Style: VoiceCaption,Titillium Web SemiBold,145" in result
 
-    def test_voicecaption_bold_field_is_1(self):
+    def test_voicecaption_bold_field_is_0(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        # Bold=1 requests the Bold weight of Poppins from fontconfig
-        assert fields[7] == "1"
+        # Titillium Web SemiBold is bundled as a distinct static weight — Bold
+        # stays 0 even for the (heavier) TikTok style; see D070.
+        assert fields[7] == "0"
 
     def test_alignment_is_bottom_center(self):
         result = build_captions_ass([_scene("01")])
@@ -229,17 +230,27 @@ class TestBuildCaptionsAss:
         fields = style_line.split(",")
         assert fields[-2] == "350"  # MarginV
 
-    def test_voicecaption_outline_is_8(self):
+    def test_voicecaption_outline_is_6(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        assert fields[16] == "8"  # Outline field
+        assert fields[16] == "6"  # Outline field
 
     def test_voicecaption_shadow_is_1(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
         assert fields[17] == "1"  # Shadow field
+
+    def test_voicecaption_margins_are_at_least_10_percent_of_play_res_x(self):
+        # PlayResX is 1080 — MarginL/MarginR must each be >=10% (108px) so
+        # captions never bleed off-screen at either edge.
+        result = build_captions_ass([_scene("01")])
+        style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
+        fields = style_line.split(",")
+        margin_l, margin_r = int(fields[19]), int(fields[20])
+        assert margin_l >= 108
+        assert margin_r >= 108
 
     def test_voiceover_line_appears_verbatim(self):
         result = build_captions_ass([_scene("01", voiceover_line="Housing costs have tripled.")])
@@ -504,23 +515,22 @@ class TestBuildWordSyncedCaptionsAss:
 class TestSubtitleStyleVariants:
     """Verify TikTok vs Classic ASS header differences."""
 
-    def test_tiktok_style_has_147pt_font(self):
-        """Default TikTok style uses 147pt Poppins Bold."""
+    def test_tiktok_style_has_145pt_font(self):
+        """Default TikTok style uses 145pt Titillium Web SemiBold."""
         result = build_captions_ass([_scene("01")])
-        assert "Poppins,147" in result
+        assert "Titillium Web SemiBold,145" in result
 
-    def test_tiktok_style_is_bold(self):
-        """TikTok style has Bold=1."""
+    def test_tiktok_style_is_not_bold(self):
+        """TikTok style has Bold=0 — SemiBold weight comes from the bundled font, not the Bold flag."""
         result = build_captions_ass([_scene("01")])
-        # Bold field is '1' in the VoiceCaption style line
         style_line = next(l for l in result.splitlines() if l.startswith("Style: VoiceCaption"))
         fields = style_line.split(",")
-        assert fields[7] == "1"  # Bold field
+        assert fields[7] == "0"  # Bold field
 
-    def test_classic_style_has_102pt_font(self):
-        """Classic style uses 102pt Poppins (not bold 147pt)."""
+    def test_classic_style_has_100pt_font(self):
+        """Classic style uses 100pt Titillium Web SemiBold (smaller than TikTok's 145pt)."""
         result = build_captions_ass([_scene("01")], subtitle_style="Classic")
-        assert "Poppins,102" in result
+        assert "Titillium Web SemiBold,100" in result
 
     def test_classic_style_not_bold(self):
         """Classic style has Bold=0."""
@@ -530,11 +540,11 @@ class TestSubtitleStyleVariants:
         assert fields[7] == "0"  # Bold field
 
     def test_classic_style_smaller_outline(self):
-        """Classic style has Outline=3 (vs TikTok's 8)."""
+        """Classic style has Outline=2 (vs TikTok's 6)."""
         result = build_captions_ass([_scene("01")], subtitle_style="Classic")
         style_line = next(l for l in result.splitlines() if l.startswith("Style: VoiceCaption"))
         fields = style_line.split(",")
-        assert fields[16] == "3"  # Outline field
+        assert fields[16] == "2"  # Outline field
 
     def test_classic_style_smaller_marginv(self):
         """Classic style has MarginV=180 (vs TikTok's 350)."""
@@ -543,19 +553,27 @@ class TestSubtitleStyleVariants:
         fields = style_line.split(",")
         assert fields[21] == "180"  # MarginV field
 
-    def test_word_synced_tiktok_uses_147pt(self):
-        """Word-synced captions with TikTok style use 147pt header."""
+    def test_classic_style_margins_are_at_least_10_percent_of_play_res_x(self):
+        result = build_captions_ass([_scene("01")], subtitle_style="Classic")
+        style_line = next(l for l in result.splitlines() if l.startswith("Style: VoiceCaption"))
+        fields = style_line.split(",")
+        margin_l, margin_r = int(fields[19]), int(fields[20])
+        assert margin_l >= 108
+        assert margin_r >= 108
+
+    def test_word_synced_tiktok_uses_145pt(self):
+        """Word-synced captions with TikTok style use 145pt header."""
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], subtitle_style="TikTok")
-        assert "Poppins,147" in result
+        assert "Titillium Web SemiBold,145" in result
 
-    def test_word_synced_classic_uses_102pt(self):
-        """Word-synced captions with Classic style use 102pt header."""
+    def test_word_synced_classic_uses_100pt(self):
+        """Word-synced captions with Classic style use 100pt header."""
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], subtitle_style="Classic")
-        assert "Poppins,102" in result
+        assert "Titillium Web SemiBold,100" in result
 
     def test_unknown_style_falls_back_to_tiktok(self):
         """An unrecognised style name falls back to TikTok header."""
         result = build_captions_ass([_scene("01")], subtitle_style="Unknown")
-        assert "Poppins,147" in result
+        assert "Titillium Web SemiBold,145" in result

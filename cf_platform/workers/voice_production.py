@@ -49,14 +49,14 @@ _PUNCT_RE = re.compile(r"[^\w\s.%]")
 # ── Narration pace (words-per-second) used for proportional fallback ──────────
 
 _WORDS_PER_SECOND = 160 / 60
-_WORDS_PER_SECOND_SHORT = 175 / 60  # 9:16 Shorts narrate faster than 16:9 long-form
+_WORDS_PER_SECOND_SHORT = 167.5 / 60  # 9:16 Shorts target 165-170 wpm (was 170-180 — too fast)
 
 # Gemini's native TTS models have no numeric speaking-rate parameter (SpeechConfig
 # only exposes language_code, voice_config, multi_speaker_voice_config) — pace is
 # controlled by a natural-language style instruction prefixed to the input text,
 # which the model follows without vocalizing the instruction itself.
 _SHORTS_PACE_INSTRUCTION = (
-    "Narrate the following energetically at a brisk, fast pace, about 170 to 180 "
+    "Narrate the following energetically at a brisk pace, about 165 to 170 "
     "words per minute, like a YouTube Shorts voiceover: "
 )
 
@@ -252,7 +252,7 @@ def build_voice_production_worker(
     the pipeline always continues with whatever timestamps are available.
 
     state.inputs['aspect_ratio'] (default "16:9") selects narration pace: "9:16"
-    applies a fast-pace style instruction for Shorts (~170-180 wpm); other ratios
+    applies a fast-pace style instruction for Shorts (~165-170 wpm); other ratios
     use Gemini's natural default pace.
     """
 
