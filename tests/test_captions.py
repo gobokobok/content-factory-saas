@@ -204,7 +204,7 @@ class TestBuildCaptionsAss:
 
     def test_voicecaption_style_present(self):
         result = build_captions_ass([_scene("01")])
-        assert "Style: VoiceCaption,Titillium Web SemiBold,145" in result
+        assert "Style: VoiceCaption,Titillium Web SemiBold,108" in result
 
     def test_voicecaption_bold_field_is_0(self):
         result = build_captions_ass([_scene("01")])
@@ -224,17 +224,18 @@ class TestBuildCaptionsAss:
         # [18]=Alignment, [19]=MarginL, [20]=MarginR, [21]=MarginV, [22]=Encoding
         assert fields[18] == "2"  # 2 = bottom-center
 
-    def test_margin_v_is_350(self):
+    def test_margin_v_is_576(self):
+        # 576/1920 = 30% up from the bottom edge.
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        assert fields[-2] == "350"  # MarginV
+        assert fields[-2] == "576"  # MarginV
 
-    def test_voicecaption_outline_is_6(self):
+    def test_voicecaption_outline_is_4(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        assert fields[16] == "6"  # Outline field
+        assert fields[16] == "4"  # Outline field
 
     def test_voicecaption_shadow_is_1(self):
         result = build_captions_ass([_scene("01")])
@@ -515,10 +516,10 @@ class TestBuildWordSyncedCaptionsAss:
 class TestSubtitleStyleVariants:
     """Verify TikTok vs Classic ASS header differences."""
 
-    def test_tiktok_style_has_145pt_font(self):
-        """Default TikTok style uses 145pt Titillium Web SemiBold."""
+    def test_tiktok_style_has_108pt_font(self):
+        """Default TikTok style uses 108pt Titillium Web SemiBold."""
         result = build_captions_ass([_scene("01")])
-        assert "Titillium Web SemiBold,145" in result
+        assert "Titillium Web SemiBold,108" in result
 
     def test_tiktok_style_is_not_bold(self):
         """TikTok style has Bold=0 — SemiBold weight comes from the bundled font, not the Bold flag."""
@@ -527,10 +528,10 @@ class TestSubtitleStyleVariants:
         fields = style_line.split(",")
         assert fields[7] == "0"  # Bold field
 
-    def test_classic_style_has_100pt_font(self):
-        """Classic style uses 100pt Titillium Web SemiBold (smaller than TikTok's 145pt)."""
+    def test_classic_style_has_75pt_font(self):
+        """Classic style uses 75pt Titillium Web SemiBold (smaller than TikTok's 108pt)."""
         result = build_captions_ass([_scene("01")], subtitle_style="Classic")
-        assert "Titillium Web SemiBold,100" in result
+        assert "Titillium Web SemiBold,75" in result
 
     def test_classic_style_not_bold(self):
         """Classic style has Bold=0."""
@@ -561,19 +562,62 @@ class TestSubtitleStyleVariants:
         assert margin_l >= 108
         assert margin_r >= 108
 
-    def test_word_synced_tiktok_uses_145pt(self):
-        """Word-synced captions with TikTok style use 145pt header."""
+    def test_word_synced_tiktok_uses_108pt(self):
+        """Word-synced captions with TikTok style use 108pt header."""
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], subtitle_style="TikTok")
-        assert "Titillium Web SemiBold,145" in result
+        assert "Titillium Web SemiBold,108" in result
 
-    def test_word_synced_classic_uses_100pt(self):
-        """Word-synced captions with Classic style use 100pt header."""
+    def test_word_synced_classic_uses_75pt(self):
+        """Word-synced captions with Classic style use 75pt header."""
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], subtitle_style="Classic")
-        assert "Titillium Web SemiBold,100" in result
+        assert "Titillium Web SemiBold,75" in result
 
     def test_unknown_style_falls_back_to_tiktok(self):
         """An unrecognised style name falls back to TikTok header."""
         result = build_captions_ass([_scene("01")], subtitle_style="Unknown")
-        assert "Titillium Web SemiBold,145" in result
+        assert "Titillium Web SemiBold,108" in result
+
+
+class TestAspectRatioScopesShortsStyling:
+    """D071: the D070 restyle (Titillium Web SemiBold, 108pt, 30%-from-bottom,
+    10% margins) must apply to 9:16 only — every other aspect_ratio keeps the
+    original pre-D070 Poppins styling untouched."""
+
+    def test_default_aspect_ratio_is_9_16_shorts_styling(self):
+        result = build_captions_ass([_scene("01")])
+        assert "Titillium Web SemiBold,108" in result
+
+    def test_explicit_9_16_uses_shorts_styling(self):
+        result = build_captions_ass([_scene("01")], aspect_ratio="9:16")
+        assert "Titillium Web SemiBold,108" in result
+
+    def test_16_9_keeps_legacy_poppins_147pt(self):
+        result = build_captions_ass([_scene("01")], aspect_ratio="16:9")
+        assert "Style: VoiceCaption,Poppins,147" in result
+        assert "Titillium Web SemiBold" not in result
+
+    def test_16_9_keeps_legacy_margins(self):
+        # Pre-D070 MarginL/MarginR were 10px — 16:9 renders must not pick up
+        # the 9:16-only 110px fix.
+        result = build_captions_ass([_scene("01")], aspect_ratio="16:9")
+        style_line = next(l for l in result.splitlines() if l.startswith("Style: VoiceCaption"))
+        fields = style_line.split(",")
+        assert fields[19] == "10"  # MarginL
+        assert fields[20] == "10"  # MarginR
+        assert fields[21] == "350"  # MarginV (unchanged from 30%-from-bottom fix)
+
+    def test_16_9_classic_keeps_legacy_poppins_102pt(self):
+        result = build_captions_ass([_scene("01")], subtitle_style="Classic", aspect_ratio="16:9")
+        assert "Style: VoiceCaption,Poppins,102" in result
+
+    def test_1_1_also_falls_back_to_legacy(self):
+        # Any non-"9:16" value is treated as "not Shorts", not just "16:9".
+        result = build_captions_ass([_scene("01")], aspect_ratio="1:1")
+        assert "Style: VoiceCaption,Poppins,147" in result
+
+    def test_word_synced_16_9_keeps_legacy_styling(self):
+        words = [_word("test", 0, 500)]
+        result = build_word_synced_captions_ass([words], aspect_ratio="16:9")
+        assert "Style: VoiceCaption,Poppins,147" in result

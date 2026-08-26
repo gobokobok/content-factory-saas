@@ -5,6 +5,24 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D071 — D070 follow-up: scope caption restyle to 9:16 only; size/position/line-spacing correction; TTS pause fix
+**Date:** 2026-08-26
+**Status:** ACTIVE
+**Decision:** Second operator feedback pass on D070, same session. Two categories of change:
+1. **Scope the D070 restyle to `aspect_ratio == "9:16"` only.** D070 changed the shared `_CAPTIONS_ASS_HEADER`/`_CAPTIONS_ASS_HEADER_CLASSIC` constants unconditionally, but `subtitles` and `aspect_ratio` are independent `VideoSettings` — a 16:9 (`landscape`) render with TikTok/Classic captions enabled would have silently picked up the Shorts restyle too. `_captions_header()`, `build_captions_ass()`, and `build_word_synced_captions_ass()` now take an `aspect_ratio` parameter; any value other than `"9:16"` returns new `_CAPTIONS_ASS_HEADER_LEGACY`/`_CAPTIONS_ASS_HEADER_CLASSIC_LEGACY` constants — an exact copy of the original pre-D070 Poppins styling (147pt/102pt, Outline 8/3, Margin 10/10, MarginV 350/180, Bold 1/0). Threaded through both call sites: `src/ffmpeg_builder.py::build_ffmpeg_script` (from `video_settings.aspect_ratio`) and `cf_platform/workers/render_worker.py::_build_render_script` (derived from `format_track`: `"landscape"` → `"16:9"`, else `"9:16"`).
+2. **9:16 caption tuning**, based on watching an actual render:
+   - **Size:** TikTok 145pt → **108pt** (explicit operator value); Classic scaled proportionally to **75pt** (kept at the same ~0.69 ratio to TikTok as before D070/D071). Outline scaled to match: TikTok 6→**4**.
+   - **Vertical position:** MarginV 350→**576** (576/1920 = 30% up from the bottom edge, vs. the ~18% the old value produced — operator wanted 30%).
+   - **Line spacing:** ASS/libass has no style-level line-spacing property — the gap between wrapped lines is entirely a function of the font's own vertical metrics (hhea ascent+descent+lineGap / OS-2 typo metrics). `assets/fonts/TitilliumWeb-SemiBold.ttf` was re-saved with those metrics scaled to 70% of stock (1521→1065 units in a 1000-unit em) via a one-off `fontTools` script — glyph outlines are untouched, only the line-to-line advance shrinks. Verified safe against clipping: the actual basic-ASCII caption charset only spans -232..719 units (951 total), well inside the new -272..793 (1065 total) box; the font's stock metrics were sized for rare accented Baltic/Vietnamese glyphs (e.g. `Ģ`, `Ằ`) that never appear in English captions.
+**Rationale:** Operator watched an actual 9:16 render and reported: captions overlapping wrap-line spacing looked too large, size still too big at 145pt, and position sat lower than intended (~20% instead of the requested 30% from the bottom). Also flagged that touching 16:9 output was explicitly out of scope for this round of caption work — 16:9 is an actively used `format_track` (`landscape`), not a dead code path.
+**TTS pace fix (same root cause across both operator reports):** the `_SHORTS_PACE_INSTRUCTION` wording ("energetically... brisk pace") in `cf_platform/workers/voice_production.py` was overriding the numeric wpm target — Gemini ran sentences and list items together with no breathing room, producing audio that was *shorter* than expected even after D070 lowered the target number from 170-180 to 165-170 wpm. Reworded to lead with an explicit pause requirement ("Take a brief, natural pause after each sentence and after each list item — do not run straight from one sentence or item into the next") and dropped the "energetically"/"brisk" framing entirely. `_WORDS_PER_SECOND_SHORT` (proportional-fallback estimate) unchanged at 167.5/60.
+**Caveat:** Gemini TTS has no numeric speaking-rate parameter — this remains a best-effort natural-language instruction, not a guaranteed rate or pause length. Re-check actual rendered pacing after this change.
+**No new dependencies.** The font metric edit was a one-off local step (via `fontTools`, run ad hoc, not added to `requirements.txt` or `requirements-dev.txt`) to produce the committed `assets/fonts/TitilliumWeb-SemiBold.ttf` binary — same category as using an image editor to produce a PNG asset. Nothing at runtime imports `fontTools`; libass just loads the resulting TTF like any other bundled font.
+**Implemented by:** operator chat request, 2026-08-26 (same day as D070).
+**See:** D070.
+
+---
+
 ## D070 — Titillium Web SemiBold as voiceover caption font (replaces Poppins); caption size/margin/pace tuning
 **Date:** 2026-08-26
 **Status:** ACTIVE

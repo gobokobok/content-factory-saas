@@ -397,9 +397,13 @@ def build_ffmpeg_script(
     # intentionally unwired — kept for future rewiring when revisited.
     if subtitles != "none":
         if scene_words:
-            captions_ass_content = build_word_synced_captions_ass(scene_words, subtitle_style=subtitle_style)
+            captions_ass_content = build_word_synced_captions_ass(
+                scene_words, subtitle_style=subtitle_style, aspect_ratio=video_settings.aspect_ratio
+            )
         else:
-            captions_ass_content = build_captions_ass(storyboard.scenes, subtitle_style=subtitle_style)
+            captions_ass_content = build_captions_ass(
+                storyboard.scenes, subtitle_style=subtitle_style, aspect_ratio=video_settings.aspect_ratio
+            )
 
     parts = [
         _header(run_id, n_scenes, total_s),

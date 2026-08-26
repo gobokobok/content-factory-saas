@@ -92,6 +92,7 @@ def _build_captions_with_y_override(
     storyboard_scenes: list,
     subtitle_style: str,
     play_res_y: int = _PLAY_RES_Y,
+    aspect_ratio: str = "9:16",
 ) -> str:
     """Word-synced ASS captions with per-scene MarginV for lower_third scenes.
 
@@ -100,6 +101,10 @@ def _build_captions_with_y_override(
     MarginV = _PLAY_RES_Y - caption_y_override so the caption baseline shifts
     up to clear the lower-third band.  0 in all other events means "use style
     default", which is the normal TikTok/Classic bottom position.
+
+    aspect_ratio restricts the D070/D071 Shorts caption styling to '9:16' —
+    landscape (16:9) renders fall back to the original Poppins styling
+    unchanged (see src.captions._captions_header).
     """
     from src.captions import _captions_header, format_ass_time
 
@@ -145,7 +150,7 @@ def _build_captions_with_y_override(
                     f"VoiceCaption,,0,0,{margin_v},,{text}"
                 )
 
-    header = _captions_header(subtitle_style)
+    header = _captions_header(subtitle_style, aspect_ratio)
     if events:
         return header + "\n".join(events) + "\n"
     return header
@@ -375,13 +380,16 @@ def _build_render_script(
     # full video duration. A chained -vf filter handles all three in one pass.
     post_vf: list[str] = []
 
+    caption_aspect_ratio = "16:9" if format_track == "landscape" else "9:16"
     if subtitles != "none":
         if scene_words:
             ass_content = _build_captions_with_y_override(
-                scene_words, storyboard.scenes, subtitles, play_res_y=out_h
+                scene_words, storyboard.scenes, subtitles, play_res_y=out_h, aspect_ratio=caption_aspect_ratio
             )
         else:
-            ass_content = build_captions_ass(storyboard.scenes, subtitle_style=subtitles)
+            ass_content = build_captions_ass(
+                storyboard.scenes, subtitle_style=subtitles, aspect_ratio=caption_aspect_ratio
+            )
         parts.append(_write_voiceover_captions_ass(ass_content))
         post_vf.append("ass=$WORK/voiceover_captions.ass")
 

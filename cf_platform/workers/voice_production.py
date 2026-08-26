@@ -55,9 +55,17 @@ _WORDS_PER_SECOND_SHORT = 167.5 / 60  # 9:16 Shorts target 165-170 wpm (was 170-
 # only exposes language_code, voice_config, multi_speaker_voice_config) — pace is
 # controlled by a natural-language style instruction prefixed to the input text,
 # which the model follows without vocalizing the instruction itself.
+#
+# "energetically"/"brisk" wording (pre-2026-08-26) made Gemini run sentences and
+# list items together with no breathing room, which reads as *faster* than the
+# wpm number regardless of the target — operator feedback confirmed duration
+# dropped further, not just "too fast" overall. The instruction now leads with
+# an explicit pause requirement instead of an energy/speed adjective.
 _SHORTS_PACE_INSTRUCTION = (
-    "Narrate the following energetically at a brisk pace, about 165 to 170 "
-    "words per minute, like a YouTube Shorts voiceover: "
+    "Narrate the following like a natural, unhurried YouTube Shorts voiceover at "
+    "roughly 165 to 170 words per minute. Take a brief, natural pause after each "
+    "sentence and after each list item — do not run straight from one sentence or "
+    "item into the next: "
 )
 
 

@@ -20,6 +20,11 @@ _ASS_HEADER = (
 )
 
 
+# 9:16 Shorts caption styles (D070, D071). PlayResY=1920 -> MarginV=576 is 30%
+# up from the bottom edge. Line-to-line spacing when a chunk wraps to 2 lines is
+# controlled by TitilliumWeb-SemiBold.ttf's own tightened vertical metrics
+# (~30% tighter than the font's stock line-height), not by an ASS style field —
+# ASS/libass has no native line-spacing property (D071).
 _CAPTIONS_ASS_HEADER = (
     "[Script Info]\n"
     "ScriptType: v4.00+\n"
@@ -30,14 +35,16 @@ _CAPTIONS_ASS_HEADER = (
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    "Style: VoiceCaption,Titillium Web SemiBold,145,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-    "0,0,0,0,100,100,0,0,1,6,1,2,110,110,350,1\n"
+    "Style: VoiceCaption,Titillium Web SemiBold,108,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "0,0,0,0,100,100,0,0,1,4,1,2,110,110,576,1\n"
     "\n"
     "[Events]\n"
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
 )
 
-# Classic subtitle style — smaller, clean, traditional appearance.
+# Classic subtitle style — smaller, clean, traditional appearance. Kept at its
+# original (lower, closer-to-edge) vertical position; only font/size/margin
+# follow the TikTok style's D070/D071 changes.
 _CAPTIONS_ASS_HEADER_CLASSIC = (
     "[Script Info]\n"
     "ScriptType: v4.00+\n"
@@ -48,16 +55,60 @@ _CAPTIONS_ASS_HEADER_CLASSIC = (
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    "Style: VoiceCaption,Titillium Web SemiBold,100,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "Style: VoiceCaption,Titillium Web SemiBold,75,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
     "0,0,0,0,100,100,0,0,1,2,1,2,110,110,180,1\n"
     "\n"
     "[Events]\n"
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
 )
 
+# Pre-D070 styles, unchanged. Used for every aspect ratio other than 9:16 so
+# landscape/other-format renders are never affected by the Shorts-only caption
+# styling requested in D070/D071 (see D071).
+_CAPTIONS_ASS_HEADER_LEGACY = (
+    "[Script Info]\n"
+    "ScriptType: v4.00+\n"
+    "PlayResX: 1080\n"
+    "PlayResY: 1920\n"
+    "\n"
+    "[V4+ Styles]\n"
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
+    " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
+    " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+    "Style: VoiceCaption,Poppins,147,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "1,0,0,0,100,100,0,0,1,8,1,2,10,10,350,1\n"
+    "\n"
+    "[Events]\n"
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+)
 
-def _captions_header(subtitle_style: str) -> str:
-    """Return the ASS header for the given subtitle style ('TikTok' or 'Classic')."""
+_CAPTIONS_ASS_HEADER_CLASSIC_LEGACY = (
+    "[Script Info]\n"
+    "ScriptType: v4.00+\n"
+    "PlayResX: 1080\n"
+    "PlayResY: 1920\n"
+    "\n"
+    "[V4+ Styles]\n"
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
+    " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
+    " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+    "Style: VoiceCaption,Poppins,102,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "0,0,0,0,100,100,0,0,1,3,1,2,10,10,180,1\n"
+    "\n"
+    "[Events]\n"
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+)
+
+
+def _captions_header(subtitle_style: str, aspect_ratio: str = "9:16") -> str:
+    """Return the ASS header for the given subtitle style ('TikTok' or 'Classic').
+
+    aspect_ratio gates the D070/D071 Shorts-only restyle: any value other than
+    '9:16' returns the original pre-D070 Poppins headers untouched, so
+    landscape/other-format renders are never affected by Shorts caption tuning.
+    """
+    if aspect_ratio != "9:16":
+        return _CAPTIONS_ASS_HEADER_CLASSIC_LEGACY if subtitle_style == "Classic" else _CAPTIONS_ASS_HEADER_LEGACY
     if subtitle_style == "Classic":
         return _CAPTIONS_ASS_HEADER_CLASSIC
     return _CAPTIONS_ASS_HEADER
@@ -111,6 +162,7 @@ def build_word_synced_captions_ass(
     scene_words: list[list[WordTimestamp]],
     chunk_size: int = 5,
     subtitle_style: str = "TikTok",
+    aspect_ratio: str = "9:16",
 ) -> str:
     """
     Build ASS captions with word-level sync from Deepgram timestamps.
@@ -120,8 +172,10 @@ def build_word_synced_captions_ass(
     boundaries.  For each word in a chunk one Dialogue event is emitted spanning
     that word's start_ms → end_ms.  The active word is highlighted in yellow via
     an ASS inline colour override; surrounding words remain white.
-    subtitle_style selects 'TikTok' (default, 145pt Titillium Web SemiBold) or
-    'Classic' (100pt).
+    subtitle_style selects 'TikTok' (default, 108pt Titillium Web SemiBold) or
+    'Classic' (75pt).  aspect_ratio restricts the D070/D071 Shorts styling to
+    '9:16' — any other value falls back to the original Poppins styling
+    unchanged (see _captions_header).
     """
     events: list[str] = []
 
@@ -152,7 +206,7 @@ def build_word_synced_captions_ass(
                     f"VoiceCaption,,0,0,0,,{text}"
                 )
 
-    header = _captions_header(subtitle_style)
+    header = _captions_header(subtitle_style, aspect_ratio)
     if events:
         return header + "\n".join(events) + "\n"
     return header
@@ -170,6 +224,7 @@ def _chunk_text(text: str, chunk_size: int = 5) -> list[str]:
 def build_captions_ass(
     scenes: list[StoryboardScene],
     subtitle_style: str = "TikTok",
+    aspect_ratio: str = "9:16",
 ) -> str:
     """
     Generate an ASS subtitle file for voiceover captions.
@@ -179,8 +234,10 @@ def build_captions_ass(
     of time. Timing is derived by accumulating duration_s values in order.
     Text is displayed as-is (natural sentence case, no quote stripping).
     Scenes with an empty voiceover_line produce no Dialogue event.
-    subtitle_style selects 'TikTok' (default, 145pt Titillium Web SemiBold) or
-    'Classic' (100pt).
+    subtitle_style selects 'TikTok' (default, 108pt Titillium Web SemiBold) or
+    'Classic' (75pt).  aspect_ratio restricts the D070/D071 Shorts styling to
+    '9:16' — any other value falls back to the original Poppins styling
+    unchanged (see _captions_header).
     """
     events: list[str] = []
     offset = 0.0
@@ -201,7 +258,7 @@ def build_captions_ass(
                 f"VoiceCaption,,0,0,0,,{chunk}"
             )
 
-    header = _captions_header(subtitle_style)
+    header = _captions_header(subtitle_style, aspect_ratio)
     if events:
         return header + "\n".join(events) + "\n"
     return header

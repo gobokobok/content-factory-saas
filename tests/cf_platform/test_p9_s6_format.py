@@ -220,6 +220,40 @@ class TestRenderWorkerResolution:
         assert w == 1920
         assert h == 1080
 
+    def test_portrait_captions_use_shorts_titillium_style(self):
+        # D071: portrait (9:16) renders get the Shorts-only caption restyle.
+        from cf_platform.workers.render_worker import _build_render_script
+        storyboard = self._make_minimal_storyboard()
+        manifest = self._make_minimal_manifest(storyboard)
+        script = _build_render_script(
+            run_id="test-run",
+            storyboard=storyboard,
+            manifest=manifest,
+            scene_words=None,
+            color_grade_preset="neutral",
+            blur_fill_enabled=True,
+            format_track="portrait",
+        )
+        assert "Titillium Web SemiBold,108" in script
+
+    def test_landscape_captions_keep_legacy_poppins_style(self):
+        # D071: landscape (16:9) renders must NOT pick up the Shorts-only
+        # caption restyle — they keep the original Poppins styling.
+        from cf_platform.workers.render_worker import _build_render_script
+        storyboard = self._make_minimal_storyboard()
+        manifest = self._make_minimal_manifest(storyboard)
+        script = _build_render_script(
+            run_id="test-run",
+            storyboard=storyboard,
+            manifest=manifest,
+            scene_words=None,
+            color_grade_preset="neutral",
+            blur_fill_enabled=False,
+            format_track="landscape",
+        )
+        assert "Style: VoiceCaption,Poppins,147" in script
+        assert "Titillium Web SemiBold" not in script
+
 
 # ── StoryboardWorker prompt header ───────────────────────────────────────────
 

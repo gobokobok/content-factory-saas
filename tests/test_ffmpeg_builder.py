@@ -1736,3 +1736,21 @@ class TestSubtitlesSetting:
         mf = _manifest([_entry("01", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
         assert "__VCAP_EOF__" in script
+
+    def test_9_16_captions_use_shorts_titillium_style(self):
+        """D071: aspect_ratio='9:16' gets the Shorts-only caption restyle."""
+        vs = VideoSettings(subtitles="TikTok", aspect_ratio="9:16")
+        sb = _storyboard([_scene("01", "hard_cut")])
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
+        assert "Titillium Web SemiBold,108" in script
+
+    def test_16_9_captions_keep_legacy_poppins_style(self):
+        """D071: aspect_ratio='16:9' must NOT pick up the Shorts-only caption
+        restyle — it keeps the original Poppins styling untouched."""
+        vs = VideoSettings(subtitles="TikTok", aspect_ratio="16:9")
+        sb = _storyboard([_scene("01", "hard_cut")])
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
+        assert "Style: VoiceCaption,Poppins,147" in script
+        assert "Titillium Web SemiBold" not in script
