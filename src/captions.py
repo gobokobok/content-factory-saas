@@ -20,11 +20,11 @@ _ASS_HEADER = (
 )
 
 
-# 9:16 Shorts caption styles (D070, D071). PlayResY=1920 -> MarginV=576 is 30%
-# up from the bottom edge. Line-to-line spacing when a chunk wraps to 2 lines is
-# controlled by TitilliumWeb-SemiBold.ttf's own tightened vertical metrics
-# (~30% tighter than the font's stock line-height), not by an ASS style field —
-# ASS/libass has no native line-spacing property (D071).
+# 9:16 Shorts caption styles (D070, D071, D072). PlayResY=1920 -> MarginV=576
+# is 30% up from the bottom edge. Line-to-line spacing when a chunk wraps to 2
+# lines is controlled by TitilliumWeb-SemiBold.ttf's own tightened vertical
+# metrics (~30% tighter than the font's stock line-height), not by an ASS
+# style field — ASS/libass has no native line-spacing property (D071).
 _CAPTIONS_ASS_HEADER = (
     "[Script Info]\n"
     "ScriptType: v4.00+\n"
@@ -35,8 +35,8 @@ _CAPTIONS_ASS_HEADER = (
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    "Style: VoiceCaption,Titillium Web SemiBold,108,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-    "0,0,0,0,100,100,0,0,1,4,1,2,110,110,576,1\n"
+    "Style: VoiceCaption,Titillium Web SemiBold,80,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "0,0,0,0,100,100,0,0,1,3,1,2,110,110,576,1\n"
     "\n"
     "[Events]\n"
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
@@ -44,7 +44,7 @@ _CAPTIONS_ASS_HEADER = (
 
 # Classic subtitle style — smaller, clean, traditional appearance. Kept at its
 # original (lower, closer-to-edge) vertical position; only font/size/margin
-# follow the TikTok style's D070/D071 changes.
+# follow the TikTok style's D070/D071/D072 changes.
 _CAPTIONS_ASS_HEADER_CLASSIC = (
     "[Script Info]\n"
     "ScriptType: v4.00+\n"
@@ -55,7 +55,7 @@ _CAPTIONS_ASS_HEADER_CLASSIC = (
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    "Style: VoiceCaption,Titillium Web SemiBold,75,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "Style: VoiceCaption,Titillium Web SemiBold,56,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
     "0,0,0,0,100,100,0,0,1,2,1,2,110,110,180,1\n"
     "\n"
     "[Events]\n"
@@ -172,8 +172,8 @@ def build_word_synced_captions_ass(
     boundaries.  For each word in a chunk one Dialogue event is emitted spanning
     that word's start_ms → end_ms.  The active word is highlighted in yellow via
     an ASS inline colour override; surrounding words remain white.
-    subtitle_style selects 'TikTok' (default, 108pt Titillium Web SemiBold) or
-    'Classic' (75pt).  aspect_ratio restricts the D070/D071 Shorts styling to
+    subtitle_style selects 'TikTok' (default, 80pt Titillium Web SemiBold) or
+    'Classic' (56pt).  aspect_ratio restricts the D070/D071/D072 Shorts styling to
     '9:16' — any other value falls back to the original Poppins styling
     unchanged (see _captions_header).
     """
@@ -234,8 +234,8 @@ def build_captions_ass(
     of time. Timing is derived by accumulating duration_s values in order.
     Text is displayed as-is (natural sentence case, no quote stripping).
     Scenes with an empty voiceover_line produce no Dialogue event.
-    subtitle_style selects 'TikTok' (default, 108pt Titillium Web SemiBold) or
-    'Classic' (75pt).  aspect_ratio restricts the D070/D071 Shorts styling to
+    subtitle_style selects 'TikTok' (default, 80pt Titillium Web SemiBold) or
+    'Classic' (56pt).  aspect_ratio restricts the D070/D071/D072 Shorts styling to
     '9:16' — any other value falls back to the original Poppins styling
     unchanged (see _captions_header).
     """

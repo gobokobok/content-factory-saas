@@ -234,7 +234,7 @@ class TestRenderWorkerResolution:
             blur_fill_enabled=True,
             format_track="portrait",
         )
-        assert "Titillium Web SemiBold,108" in script
+        assert "Titillium Web SemiBold,80" in script
 
     def test_landscape_captions_keep_legacy_poppins_style(self):
         # D071: landscape (16:9) renders must NOT pick up the Shorts-only

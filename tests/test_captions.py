@@ -204,7 +204,7 @@ class TestBuildCaptionsAss:
 
     def test_voicecaption_style_present(self):
         result = build_captions_ass([_scene("01")])
-        assert "Style: VoiceCaption,Titillium Web SemiBold,108" in result
+        assert "Style: VoiceCaption,Titillium Web SemiBold,80" in result
 
     def test_voicecaption_bold_field_is_0(self):
         result = build_captions_ass([_scene("01")])
@@ -231,11 +231,11 @@ class TestBuildCaptionsAss:
         fields = style_line.split(",")
         assert fields[-2] == "576"  # MarginV
 
-    def test_voicecaption_outline_is_4(self):
+    def test_voicecaption_outline_is_3(self):
         result = build_captions_ass([_scene("01")])
         style_line = [l for l in result.splitlines() if l.startswith("Style:")][0]
         fields = style_line.split(",")
-        assert fields[16] == "4"  # Outline field
+        assert fields[16] == "3"  # Outline field
 
     def test_voicecaption_shadow_is_1(self):
         result = build_captions_ass([_scene("01")])
@@ -516,10 +516,10 @@ class TestBuildWordSyncedCaptionsAss:
 class TestSubtitleStyleVariants:
     """Verify TikTok vs Classic ASS header differences."""
 
-    def test_tiktok_style_has_108pt_font(self):
-        """Default TikTok style uses 108pt Titillium Web SemiBold."""
+    def test_tiktok_style_has_80pt_font(self):
+        """Default TikTok style uses 80pt Titillium Web SemiBold."""
         result = build_captions_ass([_scene("01")])
-        assert "Titillium Web SemiBold,108" in result
+        assert "Titillium Web SemiBold,80" in result
 
     def test_tiktok_style_is_not_bold(self):
         """TikTok style has Bold=0 — SemiBold weight comes from the bundled font, not the Bold flag."""
@@ -528,10 +528,10 @@ class TestSubtitleStyleVariants:
         fields = style_line.split(",")
         assert fields[7] == "0"  # Bold field
 
-    def test_classic_style_has_75pt_font(self):
-        """Classic style uses 75pt Titillium Web SemiBold (smaller than TikTok's 108pt)."""
+    def test_classic_style_has_56pt_font(self):
+        """Classic style uses 56pt Titillium Web SemiBold (smaller than TikTok's 80pt)."""
         result = build_captions_ass([_scene("01")], subtitle_style="Classic")
-        assert "Titillium Web SemiBold,75" in result
+        assert "Titillium Web SemiBold,56" in result
 
     def test_classic_style_not_bold(self):
         """Classic style has Bold=0."""
@@ -562,36 +562,36 @@ class TestSubtitleStyleVariants:
         assert margin_l >= 108
         assert margin_r >= 108
 
-    def test_word_synced_tiktok_uses_108pt(self):
-        """Word-synced captions with TikTok style use 108pt header."""
+    def test_word_synced_tiktok_uses_80pt(self):
+        """Word-synced captions with TikTok style use 80pt header."""
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], subtitle_style="TikTok")
-        assert "Titillium Web SemiBold,108" in result
+        assert "Titillium Web SemiBold,80" in result
 
-    def test_word_synced_classic_uses_75pt(self):
-        """Word-synced captions with Classic style use 75pt header."""
+    def test_word_synced_classic_uses_56pt(self):
+        """Word-synced captions with Classic style use 56pt header."""
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], subtitle_style="Classic")
-        assert "Titillium Web SemiBold,75" in result
+        assert "Titillium Web SemiBold,56" in result
 
     def test_unknown_style_falls_back_to_tiktok(self):
         """An unrecognised style name falls back to TikTok header."""
         result = build_captions_ass([_scene("01")], subtitle_style="Unknown")
-        assert "Titillium Web SemiBold,108" in result
+        assert "Titillium Web SemiBold,80" in result
 
 
 class TestAspectRatioScopesShortsStyling:
-    """D071: the D070 restyle (Titillium Web SemiBold, 108pt, 30%-from-bottom,
+    """D071/D072: the D070 restyle (Titillium Web SemiBold, 80pt, 30%-from-bottom,
     10% margins) must apply to 9:16 only — every other aspect_ratio keeps the
     original pre-D070 Poppins styling untouched."""
 
     def test_default_aspect_ratio_is_9_16_shorts_styling(self):
         result = build_captions_ass([_scene("01")])
-        assert "Titillium Web SemiBold,108" in result
+        assert "Titillium Web SemiBold,80" in result
 
     def test_explicit_9_16_uses_shorts_styling(self):
         result = build_captions_ass([_scene("01")], aspect_ratio="9:16")
-        assert "Titillium Web SemiBold,108" in result
+        assert "Titillium Web SemiBold,80" in result
 
     def test_16_9_keeps_legacy_poppins_147pt(self):
         result = build_captions_ass([_scene("01")], aspect_ratio="16:9")

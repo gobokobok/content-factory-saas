@@ -5,6 +5,22 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D072 — D071 follow-up: caption size 108pt → 80pt, verified against a real render
+**Date:** 2026-08-26
+**Status:** ACTIVE
+**Decision:** Cut TikTok caption size 108pt → **80pt** (Classic 75pt → **56pt**, same ~0.694 ratio), Outline scaled to match (TikTok 4→**3**; Classic left at 2 — already thin).
+**Context — this took two rounds to pin down, worth recording:** operator reported 108pt looked "unchanged" from the pre-D071 145pt render. Before touching the number again, verified end-to-end against the operator's actual R2 data (not a guess):
+- Pulled the real `render_script.sh` for the operator's own just-rendered run straight from the `content-factory-dev` R2 bucket (matched to their screenshots by caption text) — confirmed the burned-in style line was exactly `Titillium Web SemiBold,108,...,110,110,576,1`. The correct value was reaching production.
+- Replayed the Dockerfile's exact font-install steps in a container and confirmed `fc-match "Titillium Web SemiBold"` resolves to the bundled font, no silent fallback substitution.
+- Rendered the same style line through real ffmpeg+libass (Debian bookworm, matching the Dockerfile base) at both 108pt and the prior 145pt and screenshotted the output — 108pt is genuinely, visibly smaller; the size change was real and correctly deployed.
+- Conclusion: not a bug — 108pt was being honored, it just didn't read as meaningfully smaller by eye. Two likely contributors: (a) captions here are natural-case, bold, high-outline TikTok-style text — a visually "loud" treatment where a ~25% point-size cut is easy to underestimate at a glance; (b) `build_word_synced_captions_ass` chunks reset at scene boundaries, so a nominal 5-word chunk often renders as 2-3 word fragments — short, wide-spaced fragments read as prominent regardless of point size, which likely amplified the "still looks big" impression.
+**Rationale for the further cut:** rather than keep guessing, asked the operator for a concrete target; they chose ~25% smaller (matching the magnitude of the 145→108 cut), landing on 80pt.
+**No new dependencies.**
+**Implemented by:** operator chat request, 2026-08-26 (same day as D070/D071).
+**See:** D070, D071.
+
+---
+
 ## D071 — D070 follow-up: scope caption restyle to 9:16 only; size/position/line-spacing correction; TTS pause fix
 **Date:** 2026-08-26
 **Status:** ACTIVE

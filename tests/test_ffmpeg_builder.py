@@ -1743,7 +1743,7 @@ class TestSubtitlesSetting:
         sb = _storyboard([_scene("01", "hard_cut")])
         mf = _manifest([_entry("01", "hard_cut")])
         script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=vs)
-        assert "Titillium Web SemiBold,108" in script
+        assert "Titillium Web SemiBold,80" in script
 
     def test_16_9_captions_keep_legacy_poppins_style(self):
         """D071: aspect_ratio='16:9' must NOT pick up the Shorts-only caption
