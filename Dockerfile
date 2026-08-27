@@ -4,10 +4,15 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-open-sans fonts-montserrat fonts-noto \
     && rm -rf /var/lib/apt/lists/*
 
-# Poppins Bold and Titillium Web SemiBold are not available via apt — bundled
-# in assets/fonts/ (see D035, D070)
+# Poppins Bold, Titillium Web SemiBold, and Montserrat Bold are bundled in
+# assets/fonts/ rather than resolved via fontconfig (see D035, D070, D075).
+# Montserrat Bold is also the OST drawtext font (D074) — bundling it (instead
+# of relying on the fonts-montserrat apt package still installed above, now
+# otherwise unused) means render_worker.py's Python-side text-wrap width
+# measurement (D075) reads the exact same font bytes ffmpeg renders with.
 COPY assets/fonts/Poppins-Bold.ttf /usr/local/share/fonts/Poppins-Bold.ttf
 COPY assets/fonts/TitilliumWeb-SemiBold.ttf /usr/local/share/fonts/TitilliumWeb-SemiBold.ttf
+COPY assets/fonts/Montserrat-Bold.ttf /usr/local/share/fonts/Montserrat-Bold.ttf
 RUN fc-cache -f /usr/local/share/fonts
 
 WORKDIR /app

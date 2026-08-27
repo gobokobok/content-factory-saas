@@ -5,6 +5,22 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D075 — D074 follow-up: real word-wrap, box flush-left, 30%-from-top, colours reversed
+**Date:** 2026-08-27
+**Status:** ACTIVE
+**Decision:** Fixes from watching a real D074 render — a scene with "Lost: a supercomputer" (21 chars) ran off the right edge of the frame:
+1. **Word-wrap bug (root cause):** D074's `textwrap.wrap(..., width=22)` was a **character-count** guess, not a pixel measurement — for a bold/caps-heavy Montserrat render at fontsize 90, real glyph widths run ~53-60px/char, so a 21-char line is ~1200px wide, well past the frame. Replaced with `_wrap_ost_text()`, a greedy word-wrap that measures actual glyph widths via `PIL.ImageFont.getlength()` against the **bundled** Montserrat Bold file (see #2) — the same bytes ffmpeg's `drawtext` renders with, so wrapping matches the real render exactly. Falls back to a calibrated (not guessed) average-char-width estimate (0.68×fontsize/char, from real measurements ranging 0.53-0.67) only when that font file isn't reachable, e.g. running outside the Docker image.
+2. **Montserrat Bold is now bundled**, not resolved via the `fonts-montserrat` apt package: `assets/fonts/Montserrat-Bold.ttf` (downloaded from Google Fonts, SIL OFL — same licensing lineage as D070's Titillium Web), `COPY`'d to `/usr/local/share/fonts/Montserrat-Bold.ttf` in the Dockerfile alongside the other bundled fonts. This is *why* #1 works reliably: the Python-side wrap measurement reads the exact same font file `drawtext`'s `fontfile=` points at, guaranteeing consistency, and makes the wrap function testable without Docker (the asset ships in the repo checkout). The apt `fonts-montserrat` package is now unused for this purpose (left installed — harmless, not cleaned up here).
+3. **Box flush to the left edge:** `_OST_TARGET_X` (resting x) changed from a flat 60px to `_OST_BOX_PAD` (18, == `boxborderw`) — since the box extends `boxborderw` px beyond the text on each side, resting `x == boxborderw` makes the box's own left edge land exactly at 0, no gap.
+4. **Vertical position:** `y=(h-text_h)/2` (vertical-center) → `y='0.30*h+18'` — box top sits at 30% down from the top edge (the +18 offsets for `boxborderw` so the *box* edge, not the text glyph origin, lands at that fraction).
+5. **Colours reversed:** `boxcolor=black@0.55`/`fontcolor=white` → `boxcolor=white@0.55`/`fontcolor=black`, per explicit request.
+**Not implemented (deferred, unchanged from D074):** the reference design's left-to-right opacity gradient on the box — still a flat single-colour box. A true gradient needs a generated/composited image layer and a `filter_complex` restructure of this single-pass `-vf` chain (currently `ffmpeg -i video -vf "drawtext=...,drawtext=..." out`); that's a bigger, separate piece of work than the flush-left fix above.
+**No new dependencies** — `PIL.ImageFont` uses the already-present Pillow (D032).
+**Implemented by:** operator chat request, 2026-08-27 (same day as D074), verified with a unit test that measures real Montserrat Bold glyph widths against the bundled asset for several representative overlay strings, asserting no wrapped line exceeds the available frame width.
+**See:** D074.
+
+---
+
 ## D074 — On-screen text overlay: bigger, Montserrat Bold (Futura substitute), slide-in from left
 **Date:** 2026-08-27
 **Status:** ACTIVE

@@ -388,20 +388,48 @@ def test_bug5_noto_font_path_in_overlay_section():
     assert "Poppins" not in section
 
 
-def test_ost_slides_in_from_left_not_centered():
-    """D074: OST x-position animates in from off-screen-left, not a static centered x.
+def test_ost_slides_in_from_left_flush_no_gap():
+    """D074/D075: OST x-position animates in from off-screen-left to a flush-left rest.
 
     Was `x=max(40,(w-text_w)/2)` (static, centered). Now an `if(lt(t-...` ramp
-    from -text_w to the fixed left margin — assert the old centered expression
-    is gone and the new ramp toward the resting margin is present.
+    from -text_w to _OST_TARGET_X (== _OST_BOX_PAD, so the BOX's left edge —
+    not just the text — lands at x=0 with no gap, per D075).
     """
+    from cf_platform.workers.render_worker import _OST_BOX_PAD, _OST_TARGET_X
+
+    assert _OST_TARGET_X == _OST_BOX_PAD  # box left edge flush to screen edge at rest
+
     scene = _scene("1", on_screen_text="Rate hike 2018", on_screen_text_type="stat", duration_s=3.0)
     sb = _storyboard([scene])
     _, filters = _collect_overlay_filters(sb)
     filter_block = "\n".join(filters)
     assert "x=max(40" not in filter_block  # old centered expression is gone
     assert "-(text_w)" in filter_block  # slides in from fully off-screen-left
-    assert ",60)" in filter_block  # resting left margin (_OST_TARGET_X)
+    assert f",{_OST_TARGET_X})" in filter_block  # resting position
+
+
+def test_ost_box_top_at_30_percent_from_top():
+    """D075: box top sits at 30% down from the top edge (was vertical-center)."""
+    from cf_platform.workers.render_worker import _OST_BOX_PAD, _OST_TOP_FRACTION
+
+    scene = _scene("1", on_screen_text="Rate hike 2018", on_screen_text_type="stat", duration_s=3.0)
+    sb = _storyboard([scene])
+    _, filters = _collect_overlay_filters(sb)
+    filter_block = "\n".join(filters)
+    assert f"y='{_OST_TOP_FRACTION}*h+{_OST_BOX_PAD}'" in filter_block
+    assert "(h-text_h)/2" not in filter_block  # old vertical-center is gone
+
+
+def test_ost_box_is_white_text_is_black():
+    """D075: box/text colours reversed — white@0.55 box, black text (was black box, white text)."""
+    scene = _scene("1", on_screen_text="Rate hike 2018", on_screen_text_type="stat", duration_s=3.0)
+    sb = _storyboard([scene])
+    _, filters = _collect_overlay_filters(sb)
+    filter_block = "\n".join(filters)
+    assert "boxcolor=white@0.55" in filter_block
+    assert "fontcolor=black" in filter_block
+    assert "boxcolor=black" not in filter_block
+    assert "fontcolor=white" not in filter_block
 
 
 def test_bug5_montserrat_font_path_in_collect_overlay_filters():
@@ -410,15 +438,79 @@ def test_bug5_montserrat_font_path_in_collect_overlay_filters():
     Montserrat replaced NotoSans as the OST font: bigger (fontsize 90, was 60)
     and — like NotoSans — verified to cover the Unicode arrow glyphs Poppins
     lacks (P10-S1 Bug 5), so switching away from NotoSans didn't reintroduce it.
+    Bundled directly (D075) rather than resolved via apt, at
+    /usr/local/share/fonts/ alongside the other bundled fonts.
     """
     scene = _scene("1", on_screen_text="Rate hike 2018", on_screen_text_type="stat", duration_s=3.0)
     scene_with_ost = scene.model_copy(update={"on_screen_text": "Rate hike 2018"})
     sb = _storyboard([scene_with_ost])
     _, filters = _collect_overlay_filters(sb)
     filter_block = "\n".join(filters)
-    assert "Montserrat-Bold.ttf" in filter_block
+    assert "fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf" in filter_block
     assert "fontsize=90" in filter_block
     assert "Poppins" not in filter_block
+
+
+# ── D075: word-wrapped OST text never overflows the frame ────────────────────
+
+
+class TestWrapOstText:
+    """_wrap_ost_text uses real glyph widths so lines never run off the frame.
+
+    The pre-D075 naive char-count wrap (width=22) let "LOST: A SUPERCOMPUTER"
+    (21 chars) stay on one line and run off the right edge of a real render.
+    """
+
+    def test_short_text_stays_on_one_line(self):
+        from cf_platform.workers.render_worker import _wrap_ost_text
+
+        assert _wrap_ost_text("RATE HIKE", 900) == ["RATE HIKE"]
+
+    def test_empty_text_returns_empty_list(self):
+        from cf_platform.workers.render_worker import _wrap_ost_text
+
+        assert _wrap_ost_text("", 900) == []
+
+    def test_long_text_wraps_to_multiple_lines(self):
+        from cf_platform.workers.render_worker import _wrap_ost_text
+
+        lines = _wrap_ost_text("LOST: A SUPERCOMPUTER", 500)
+        assert len(lines) > 1
+
+    def test_no_line_exceeds_max_width_with_real_font(self):
+        # Uses the bundled Montserrat Bold asset directly (present in the repo
+        # checkout regardless of Docker), so this exercises the real PIL
+        # measurement path, not the fallback.
+        from PIL import ImageFont
+
+        from cf_platform.workers.render_worker import _OST_FONTSIZE, _wrap_ost_text
+
+        font = ImageFont.truetype("assets/fonts/Montserrat-Bold.ttf", _OST_FONTSIZE)
+        max_width = 900.0
+        for text in [
+            "LOST: A SUPERCOMPUTER",
+            "MCLAREN JUST LOST A SUPERCOMPUTER",
+            "UP TO $100,000",
+            "HOUSING PRICES DOUBLED IN A DECADE",
+        ]:
+            for line in _wrap_ost_text(text, max_width):
+                assert font.getlength(line) <= max_width, f"{line!r} overflows {max_width}px"
+
+    def test_reassembled_lines_preserve_all_words(self):
+        from cf_platform.workers.render_worker import _wrap_ost_text
+
+        text = "MCLAREN JUST LOST A SUPERCOMPUTER"
+        lines = _wrap_ost_text(text, 500)
+        assert " ".join(lines) == text
+
+    def test_fallback_heuristic_used_when_font_unavailable(self, monkeypatch):
+        """Simulate the font file being missing — falls back to the char-width estimate."""
+        import cf_platform.workers.render_worker as rw
+
+        monkeypatch.setattr(rw, "_OST_FONTFILE", "/nonexistent/font.ttf")
+        lines = rw._wrap_ost_text("A REASONABLY LONG PIECE OF TEXT HERE", 300)
+        assert len(lines) > 1
+        assert "".join(lines).replace(" ", "") == "AREASONABLYLONGPIECEOFTEXTHERE"
 
 
 def test_bug5_montserrat_font_in_render_script():

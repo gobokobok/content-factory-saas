@@ -261,10 +261,63 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
     return section, new_source
 
 
-_OST_FONTFILE = "/usr/share/fonts/truetype/montserrat/Montserrat-Bold.ttf"
+_OST_FONTFILE = "/usr/local/share/fonts/Montserrat-Bold.ttf"
 _OST_FONTSIZE = 90
 _OST_SLIDE_IN_S = 0.4  # seconds to slide from off-screen-left to resting position
-_OST_TARGET_X = 60  # resting left margin, px (D074 — was centered)
+_OST_BOX_PAD = 18  # boxborderw — also used to compute the flush-left resting x (D075)
+_OST_TARGET_X = _OST_BOX_PAD  # resting x so the BOX's left edge lands at 0, no gap (D075)
+_OST_RIGHT_MARGIN = 60  # px kept clear on the right so the box never touches that edge
+_OST_FRAME_W = 1080  # matches src.ffmpeg_builder's 9:16 output width
+_OST_TOP_FRACTION = 0.30  # box top sits 30% down from the top edge (D075)
+# Conservative avg-px-per-char fallback for _wrap_ost_text when the bundled
+# font can't be loaded (e.g. running outside the repo checkout). Calibrated
+# against real Montserrat Bold uppercase measurements at fontsize 90, which
+# ranged ~53-60px/char — 0.68 (61px at size 90) rounds up from the worst case.
+_OST_FALLBACK_CHAR_WIDTH_RATIO = 0.68
+
+
+def _ost_max_text_width_px() -> float:
+    """Max pixel width available for OST text before it must wrap (D075)."""
+    return _OST_FRAME_W - _OST_TARGET_X - _OST_BOX_PAD - _OST_RIGHT_MARGIN
+
+
+def _wrap_ost_text(text: str, max_width_px: float, fontsize: int = _OST_FONTSIZE) -> list[str]:
+    """Greedy word-wrap so no OST line overflows the frame (D075).
+
+    Measures real glyph advance widths via the bundled Montserrat Bold font —
+    the same file ffmpeg's drawtext renders with — so the wrap matches the
+    actual render. A naive char-count wrap (the pre-D075 approach) badly
+    underestimated width for this bold/caps-heavy font and let lines run off
+    the right edge of the frame. Falls back to a conservative average-char-
+    width estimate if the font file isn't present locally (e.g. running
+    outside the Docker image, in tests/dev); production always has the exact
+    measurement, since the same asset is bundled into the image (D074/D075).
+    """
+    words = text.split()
+    if not words:
+        return []
+
+    try:
+        from PIL import ImageFont
+
+        measure = ImageFont.truetype(_OST_FONTFILE, fontsize).getlength
+    except Exception:
+        char_w = fontsize * _OST_FALLBACK_CHAR_WIDTH_RATIO
+
+        def measure(s: str) -> float:
+            return len(s) * char_w
+
+    lines: list[str] = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if measure(candidate) <= max_width_px:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
 
 
 def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
@@ -275,17 +328,29 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
     Lower-third names/titles still use text= (they are operator-controlled
     and unlikely to contain problematic characters).
 
-    D074: text slides in from off-screen-left to a fixed left margin (was
-    centered + fade). Montserrat Bold (fontsize 90, was NotoSans 60) — Futura
-    Bold was requested but is a commercial Bauer Types/Monotype font with no
-    free-license source to bundle; Montserrat is the closest open (SIL OFL)
-    geometric-sans substitute and was already installed via apt. Verified it
-    covers the Unicode arrow glyphs NotoSans was chosen for (P10-S1 Bug 5).
+    D074/D075: text slides in from off-screen-left to a resting position whose
+    box sits flush against the left edge (was centered + fade, then a fixed
+    60px margin that still left a gap). Box top sits _OST_TOP_FRACTION (30%)
+    down from the top (was vertical-center). Box is white@0.55 / text is black
+    (was reversed — black box / white text). Montserrat Bold (fontsize 90, was
+    NotoSans 60) — Futura Bold was requested but is a commercial Bauer
+    Types/Monotype font with no free-license source to bundle; Montserrat is
+    the closest open (SIL OFL) geometric-sans substitute, now bundled directly
+    (D075) rather than resolved via the fonts-montserrat apt package, so the
+    Python-side wrap measurement below reads the exact bytes ffmpeg renders
+    with. Verified it covers the Unicode arrow glyphs NotoSans was chosen for
+    (P10-S1 Bug 5).
+
+    Not implemented: the reference design's left-to-right opacity gradient on
+    the box. drawtext's box=1 is a single flat colour+alpha — a true gradient
+    needs a separate generated/composited image layer and a filter_complex
+    restructure of this single-pass -vf chain, deferred as its own follow-up.
     """
     preamble: list[str] = []
     filters: list[str] = []
     t_offset = 0.0
     ost_idx = 0
+    max_width_px = _ost_max_text_width_px()
     for scene in storyboard.scenes:
         opts = scene.render_options
         scene_start = t_offset
@@ -299,10 +364,8 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
         if not ost_text:
             ost_text = scene.on_screen_text
         if ost_text:
-            import textwrap as _tw
             # Wrap long text so it doesn't run off screen; FFmpeg renders newlines as line breaks.
-            # Narrower than before (32->22 chars) since fontsize grew 60->90 (D074).
-            lines = _tw.wrap(ost_text.upper(), width=22)
+            lines = _wrap_ost_text(ost_text.upper(), max_width_px)
             wrapped = "\n".join(lines) if lines else ost_text.upper()
             # Write text to a file so % and ' require no filter-chain escaping
             fname = f"ost_{ost_idx:02d}.txt"
@@ -318,13 +381,15 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
                 f"-(text_w)+((text_w)+{_OST_TARGET_X})*(t-{t_appear:.3f})/{_OST_SLIDE_IN_S}\\,"
                 f"{_OST_TARGET_X})"
             )
-            # text_h covers total multiline height so (h-text_h)/2 centres vertically.
+            # Box top sits at _OST_TOP_FRACTION*h; text_y is offset by the box
+            # padding so the BOX edge (not the text glyph origin) lands there.
+            y_expr = f"{_OST_TOP_FRACTION}*h+{_OST_BOX_PAD}"
             filters.append(
                 f"drawtext=textfile=$WORK/{fname}:expansion=none"
                 f":fontfile={_OST_FONTFILE}"
-                f":fontsize={_OST_FONTSIZE}:fontcolor=white"
-                f":box=1:boxcolor=black@0.55:boxborderw=18"
-                f":x='{x_expr}':y=(h-text_h)/2"
+                f":fontsize={_OST_FONTSIZE}:fontcolor=black"
+                f":box=1:boxcolor=white@0.55:boxborderw={_OST_BOX_PAD}"
+                f":x='{x_expr}':y='{y_expr}'"
                 f":enable='{ost_enable}'"
             )
             ost_idx += 1
