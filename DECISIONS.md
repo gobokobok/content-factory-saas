@@ -5,6 +5,19 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D078 — D076 follow-up: manual sfx-library uploads (automated Freesound picks rejected)
+**Date:** 2026-08-27
+**Status:** ACTIVE
+**Decision:** Added `scripts/upload_sfx.py` — a local CLI that transcodes an arbitrary local audio file (via ffmpeg subprocess, any format ffmpeg reads) and uploads it to `sfx-library/{key}.mp3` in R2, replacing/adding one curated key without touching the rest of the library or any code path.
+**Rationale:** Operator reviewed all 8 automated Freesound picks from D076's seeding script and rejected every one ("weird sounds, or too long with extra sounds") — the rating/download-count heuristic is not a reliable proxy for whether a clip actually sounds right for a punchy Shorts SFX. Operator will source replacement clips manually online. No architecture change was needed: `sfx-library/` was already a flat R2 prefix (mirroring `music-library/`), and `list_available_sfx()` already just cross-references whatever files are actually present against the manifest — a manually uploaded file at the right key works immediately with zero deploy, exactly like a `scripts/seed_sfx_library.py` pick did. This tool only removes the friction of needing direct R2 console/CLI access to do that upload, and guarantees a clean MP3 regardless of the downloaded file's original format.
+**Verified:** ran the script against a real ffmpeg-generated test tone (WAV → MP3, 88KB → 25KB, confirmed valid MP3 container + correct duration via `ffprobe` against the actual uploaded R2 object), then deleted the test key.
+**No new dependency** — same `src.config.Settings` + `src.storage.R2Client` pattern as `scripts/seed_sfx_library.py`/`scripts/init_r2_structure.py`; ffmpeg is already a project-wide runtime dependency (Dockerfile `apt-get install ffmpeg`).
+**Not done:** no in-Studio upload UI (would mirror the existing per-run music dropzone, but scoped to the shared library instead) — CLI is sufficient for now; flagged as a possible future follow-up if manual sourcing becomes a frequent workflow.
+**Implemented by:** operator chat request, 2026-08-27 (same day as D076/D077).
+**See:** D076.
+
+---
+
 ## D077 — CD waits for the Railway build; /platform/version reads a build stamp, not git
 
 **Context.** Releasing v0.22.0 exposed two gaps in the deploy path at once.
