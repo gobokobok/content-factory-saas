@@ -567,6 +567,66 @@ async def _copy_music_to_run(run_id: str, storage: ArtifactStorage) -> None:
     logger.info("Copied music %s → %s", music_key, dest_key)
 
 
+async def _copy_sfx_to_run(run_id: str, storage: ArtifactStorage, sfx_key: str) -> None:
+    """Copy one named SFX file from sfx-library/{sfx_key}.mp3 to runs/{run_id}/sfx/{sfx_key}.mp3.
+
+    Idempotent — skips if the destination already exists in this run. Mirrors
+    _copy_music_to_run. Logs and returns (never raises) if the library file is
+    missing — _audio_section's [ -f ... ] check (src/ffmpeg_builder.py) already
+    tolerates a missing SFX file at render time, so this never blocks a render.
+    """
+    dest_key = f"runs/{run_id}/sfx/{sfx_key}.mp3"
+    if dest_key in await storage.list_keys(dest_key):
+        logger.info("Run %s already has sfx/%s.mp3 — skipping sfx-library copy", run_id, sfx_key)
+        return
+    source_key = f"sfx-library/{sfx_key}.mp3"
+    try:
+        data = await storage.get_bytes(source_key)
+    except Exception:
+        logger.warning(
+            "SFX library file %s not found — scene renders without this SFX", source_key
+        )
+        return
+    await storage.put_bytes(dest_key, data, content_type="audio/mpeg")
+    logger.info("Copied %s → %s", source_key, dest_key)
+
+
+async def list_available_sfx(storage: ArtifactStorage) -> list[dict[str, str]]:
+    """Return [{key, display_name}] for curated SFX keys with a file in sfx-library/.
+
+    Cross-references cf_platform.core.sfx_library.SFX_LIBRARY against what's
+    actually present in R2, so the Studio picker never offers a choice with no
+    backing file (e.g. before scripts/seed_sfx_library.py has been run, or for
+    a manifest entry the seeding script skipped).
+    """
+    from cf_platform.core.sfx_library import SFX_LIBRARY
+
+    present = {
+        k.removeprefix("sfx-library/").removesuffix(".mp3")
+        for k in await storage.list_keys("sfx-library/")
+        if k.endswith(".mp3")
+    }
+    return [{"key": e.key, "display_name": e.display_name} for e in SFX_LIBRARY if e.key in present]
+
+
+async def _copy_all_scene_sfx_to_run(run_id: str, storyboard, storage: ArtifactStorage) -> None:
+    """Copy every distinct curated SFX a scene uses into the run before render.
+
+    Runs unconditionally for every render (unlike music, no operator toggle) —
+    covers both an AI-suggested SFX the operator never touched in Studio and one
+    they picked or changed via the SFX dropdown, uniformly, in one place (D076).
+    A scene whose sfx value isn't a recognised curated key (e.g. stale free-text
+    from before this feature) is silently skipped — that scene simply renders
+    without SFX, same as it always has.
+    """
+    keys = {s.sfx for s in storyboard.scenes if s.sfx and s.sfx.lower() != "silence"}
+    if not keys:
+        return
+    available = {o["key"] for o in await list_available_sfx(storage)}
+    for key in keys & available:
+        await _copy_sfx_to_run(run_id, storage, key)
+
+
 # ── Worker factory ────────────────────────────────────────────────────────────
 
 
@@ -734,6 +794,10 @@ def build_render_worker(
         # Fall back to the shared music library only if operator selected music
         if state.inputs.get("music_enabled", True):
             await _copy_music_to_run(run_id, storage)
+
+        # Copy every scene's chosen curated SFX into the run (D076) — unconditional,
+        # covers AI-suggested and operator-picked SFX alike.
+        await _copy_all_scene_sfx_to_run(run_id, storyboard, storage)
 
         # Download all scene assets to /tmp/{run_id}/
         await _download_assets(run_id, manifest, storage)

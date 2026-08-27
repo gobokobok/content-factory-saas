@@ -856,7 +856,7 @@ def _audio_section(
     offset_s = 0.0
     for scene in storyboard.scenes:
         if scene.sfx and scene.sfx.lower() != "silence":
-            delay_ms = _parse_sfx_delay_ms(scene.sfx_timing, scene.duration_s, offset_s)
+            delay_ms = max(0, int((offset_s + _sfx_delay_within_scene_s(scene)) * 1000))
             sfx_entries.append((scene.sfx, delay_ms))
         offset_s += scene.duration_s
 
@@ -977,12 +977,36 @@ def _zoompan_filter(
     return f"zoompan=z='1+0.1*on/{frames}':x='{cx}':y='{cy}'{suffix}"
 
 
+# OST appear-delay (0.3s) + slide-in duration (0.4s) from
+# cf_platform/workers/render_worker.py's _OST_SLIDE_IN_S (D074/D075). Duplicated
+# here as a literal, not imported — src/ never imports cf_platform/ (D047). Keep
+# in sync manually if the OST slide-in timing ever changes.
+_SFX_OST_SYNC_OFFSET_S = 0.7
+
+
+def _sfx_delay_within_scene_s(scene: StoryboardScene) -> float:
+    """Within-scene SFX delay, in seconds, per the automatic-timing rule (D076).
+
+    A scene with on-screen text: the SFX is timed to land as the OST slide-in
+    finishes (_SFX_OST_SYNC_OFFSET_S into the scene). No on-screen text: SFX
+    plays at the moment the scene starts (0.0s). This replaces manual timing —
+    scene.sfx_timing is not consulted; see _parse_sfx_delay_ms below, which is
+    kept (still tested, still correct) but is no longer called from
+    _audio_section.
+    """
+    return _SFX_OST_SYNC_OFFSET_S if scene.on_screen_text else 0.0
+
+
 def _parse_sfx_delay_ms(sfx_timing: str, duration_s: float, scene_offset_s: float) -> int:
     """
     Return the adelay value in milliseconds for an SFX placed within a scene.
 
     Recognised sfx_timing values: "scene_start", "mid", "end", "<float>s".
     Unrecognised values default to scene_start.
+
+    Not currently called from _audio_section — SFX timing is now computed
+    automatically by _sfx_delay_within_scene_s (D076). Kept for its existing
+    test coverage and as a potential future manual-override hook.
     """
     timing = sfx_timing.strip().lower()
     if timing == "scene_start":

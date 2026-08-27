@@ -41,9 +41,16 @@ Newest first.
 `cd.yml` uses `railway up --detach`, a failed image build will NOT turn the workflow
 red — confirm the Railway build log and the running service, not just the tag run.
 
-**PROD verified:** pending — see the note on v0.21.0; no PROD base URL is recorded in
-this repo and the local Railway CLI is broken, so endpoint verification
-(`/platform/health`, `/platform/version`, one render path) is an operator step.
+**PROD verified:** operator supplied the container startup log (2026-08-27 15:36:09,
+~7 min after the tag run). Image built — so the new `COPY assets/fonts/*.ttf` layer
+resolved — and the service is up: `Startup OK — environment=prod`,
+`cf_platform migrations: ok`, `cf_platform checkpointer setup: ok`, uvicorn listening
+on 0.0.0.0:8000, no errors. Font wiring confirmed by inspection: `_OST_FONTFILE`
+(`/usr/local/share/fonts/Montserrat-Bold.ttf`) is the exact Dockerfile COPY target and
+is passed to drawtext as an absolute path, so fontconfig is not a dependency (and
+`fc-cache -f` runs regardless). NOT yet exercised: a real 9:16 render with a long
+on-screen-text string, which is what would prove the D075 wrap against the deployed
+image rather than the local checkout.
 
 **Rollback:** deleting the tag does not un-deploy. Roll forward: tag the previous good
 commit as `v0.22.1` and push, since the CD workflow deploys tags.
