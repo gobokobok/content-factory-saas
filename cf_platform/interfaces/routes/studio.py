@@ -61,6 +61,21 @@ async def studio_get_storyboard(
     return body
 
 
+@router.get("/studio/sfx-library")
+async def studio_get_sfx_library(
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> list[dict]:
+    """Curated SFX options for the storyboard SFX picker (D076).
+
+    Only returns keys that are both in the curated manifest
+    (cf_platform.core.sfx_library.SFX_LIBRARY) AND have a backing file in
+    sfx-library/ in R2 — so the picker never offers a choice with no audio.
+    """
+    from cf_platform.workers.render_worker import list_available_sfx
+
+    return await list_available_sfx(storage)
+
+
 @router.get("/studio/runs/{run_id}/storyboard/status")
 async def studio_get_storyboard_status(
     run_id: str,
@@ -226,6 +241,7 @@ class ScenePatchRequest(BaseModel):
     primary_stk: str | None = None
     context_stk: str | None = None
     concept_stk: str | None = None
+    sfx: str | None = None
     clear_on_screen_text: bool = False
 
 
@@ -241,6 +257,11 @@ async def studio_patch_scene(
 
     Recomputes render_options for all scenes (cumulative timing must stay coherent)
     using the same _patch_storyboard logic as the StoryboardWorker's internal cycle.
+
+    sfx (D076): an empty string is normalised to "silence". No copy-into-run side
+    effect happens here — that's handled once, in bulk, at render time by
+    render_worker._copy_all_scene_sfx_to_run, which covers both an AI-suggested
+    SFX the operator never touched and one picked here.
     """
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
@@ -275,6 +296,8 @@ async def studio_patch_scene(
         patches.append({"scene_id": scene_id, "field": "context_stk", "value": body.context_stk})
     if body.concept_stk is not None:
         patches.append({"scene_id": scene_id, "field": "concept_stk", "value": body.concept_stk})
+    if body.sfx is not None:
+        patches.append({"scene_id": scene_id, "field": "sfx", "value": body.sfx or "silence"})
 
     if not patches:
         raise HTTPException(status_code=400, detail="No patchable fields provided.")

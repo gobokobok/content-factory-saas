@@ -1010,6 +1010,7 @@ let state = {
   settings: defaultSettings(),
   autoConfirm: false,
   manifestEntries: {},
+  sfxLibrary: [],  // D076 — [{key, display_name}], fetched once in loadRun()
 };
 
 // ── Auth / 401 intercept (and demo routing) ──────────────────────────────
@@ -1375,6 +1376,13 @@ async function loadRun(id) {
       renderVoiceResult(data);
     }
   } catch { /* ignore */ }
+
+  // Load the curated SFX picker options (D076) before the storyboard renders,
+  // since buildSceneRow reads state.sfxLibrary synchronously.
+  try {
+    const r = await fetch(`/platform/studio/sfx-library`);
+    if (r.ok) state.sfxLibrary = await r.json();
+  } catch { /* ignore — dropdown just shows "none / silence" only */ }
 
   // Try to load storyboard artifact
   try {
@@ -1870,6 +1878,7 @@ function renderStoryboard(data) {
             <th>Query</th>
             <th>Motion</th>
             <th>On-Screen Text</th>
+            <th>SFX</th>
             <th>Preview</th>
             <th style="width:32px;"></th>
           </tr>
@@ -1936,6 +1945,12 @@ function buildSceneRow(s, nextScene, totalDur) {
     <td class="editable-cell" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Click to edit" style="font-size:11px;max-width:180px;">${esc(s.primary_stk || '—')}</td>
     <td class="narrow">${motionText}</td>
     <td class="editable-cell" id="ost-${sceneId}" onclick="editOst(this, '${sceneId}')" title="Click to edit">${ostDisplay}</td>
+    <td class="narrow" style="padding:4px 6px;">
+      <select id="sfx-${sceneId}" onchange="onSfxChange('${sceneId}')" title="Sound effect for this scene">
+        <option value="">— none / silence —</option>
+        ${state.sfxLibrary.map(o => `<option value="${esc(o.key)}"${s.sfx === o.key ? ' selected' : ''}>${esc(o.display_name)}</option>`).join('')}
+      </select>
+    </td>
     <td class="narrow" id="thumb-cell-${sceneId}" style="padding:4px 6px;">${buildThumbCell(sceneId)}</td>
     <td class="narrow" style="padding:4px 2px;"><button class="pencil-btn" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" disabled title="Override asset">✎</button></td>
   </tr>`;
@@ -1975,6 +1990,15 @@ async function saveOst(sceneId) {
   const scene = state.stageData.storyboard?.storyboard?.scenes?.find(s => s.scene === sceneId);
   const currentType = scene?.on_screen_text_type || 'stat';
   await patchScene(sceneId, { on_screen_text: val, on_screen_text_type: currentType });
+}
+
+// SFX picker (D076) — a native <select>, no click-to-edit affordance needed.
+// The AI pre-selects a curated key (or leaves it on "none / silence") during
+// storyboard generation; this just lets the operator change or clear it.
+async function onSfxChange(sceneId) {
+  const sel = document.getElementById(`sfx-${sceneId}`);
+  if (!sel) return;
+  await patchScene(sceneId, { sfx: sel.value });
 }
 
 // Inline editing — primary stock query

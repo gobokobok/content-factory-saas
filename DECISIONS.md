@@ -5,6 +5,24 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D076 — AI-suggested curated SFX per scene, operator-reviewed, auto-timed at render (supersedes D008)
+**Date:** 2026-08-27
+**Status:** ACTIVE
+**Decision:** A fixed 8-entry curated SFX manifest (`cf_platform/core/sfx_library.py` — `cash_register`, `checkmark`, `error`, `whoosh`, `pop`, `notification`, `drumroll`, `impact`) is: (1) seeded into R2 (`sfx-library/{key}.mp3`) once, offline, via `scripts/seed_sfx_library.py` using Freesound (CC0-licensed results only, `FREESOUND_API_KEY` already provisioned in `.env.local` but unused until now); (2) suggested automatically per scene during storyboard generation — `cf_platform/workers/storyboard_worker.py`'s generation prompt now instructs Claude to pick the best-fitting curated key or `"silence"` (majority of scenes) instead of writing free text, via a new `_SFX_VOCAB_SENTINEL` substituted from the shared manifest (same pattern as `_FORMAT_LINE_SENTINEL`/`_PACING_LINE_SENTINEL`); the reviewer's SFX dimension was updated the same way; (3) reviewable/editable by the operator via a new Studio SFX dropdown (`GET /platform/studio/sfx-library` lists available options; `ScenePatchRequest.sfx` patches it); (4) timed automatically at render time, not chosen manually — `src/ffmpeg_builder.py::_audio_section` now derives the within-scene delay from a scene's `on_screen_text` presence (`_sfx_delay_within_scene_s`): `0.7s` in (matching the OST slide-in's fixed 0.3s appear-delay + 0.4s slide duration, D074/D075) if the scene has on-screen text, `0.0s` (scene start) otherwise. `scene.sfx_timing` is no longer consulted by this path — `_parse_sfx_delay_ms` is kept (still tested, unused by `_audio_section`) as a possible future manual-override hook.
+**Rationale:** Operator wants the AI to auto-suggest from a fixed vocabulary rather than leave scenes blank for manual curation from scratch, reviews/adjusts per scene afterward, and wants timing to be a deterministic rule tied to on-screen-text presence rather than a manual per-scene choice. D008 ("Freesound API for SFX acquisition", per-scene dynamic search at render/generation time) is superseded — acquisition now happens once, offline, at library-seed time. This lets the SFX mixing already built into `_audio_section` (imported live by `cf_platform/workers/render_worker.py`, confirmed not dead code) work with only its internal timing computation swapped — the file-lookup/mixing logic itself is unchanged. The "copy library file into the run" step (`_copy_all_scene_sfx_to_run`, mirrors the existing `_copy_music_to_run`) runs unconditionally at render time rather than from the Studio PATCH endpoint, so an AI-suggested SFX the operator never manually touches still renders correctly.
+**D047 boundary note:** `_audio_section` lives in `src/` and must never import from `cf_platform/`. The `0.3s + 0.4s = 0.7s` OST-sync figure is therefore a literal constant (`_SFX_OST_SYNC_OFFSET_S`) in `src/ffmpeg_builder.py` with a comment cross-referencing `render_worker.py`'s `_OST_SLIDE_IN_S` — not an import. If the OST slide timing ever changes, both places need a manual update.
+**No new dependency** — `httpx` (already used project-wide) covers Freesound's plain REST search and no-OAuth preview download; `scripts/seed_sfx_library.py` uses the existing `src.config.Settings` + `src.storage.R2Client` (synchronous), matching `scripts/init_r2_structure.py`'s established convention for standalone operator scripts.
+**Deferred / non-goals:**
+- No per-scene dynamic AI SFX search at generation or render time (D008's shape, explicitly rejected here).
+- No attribution-tracking system — avoided by filtering seed candidates to CC0-licensed results only.
+- No manual timing override in the Studio UI — the automatic on-screen-text rule is unconditional for this flow.
+- Automated seed-script candidate selection (by `avg_rating`/`num_downloads`, duration-filtered to 0.5-6.0s) is a heuristic, not a quality guarantee — operator does a listening pass after seeding, re-runs `scripts/seed_sfx_library.py --key <x>` to swap a bad pick.
+**Trade-off:** a brand-new SFX category needs a manifest entry + seed-script run, not available at request time — acceptable, matches the fixed-choice design the operator asked for.
+**Implemented by:** operator chat request, 2026-08-27.
+**See:** D008, D074, D075.
+
+---
+
 ## D075 — D074 follow-up: real word-wrap, box flush-left, 30%-from-top, colours reversed
 **Date:** 2026-08-27
 **Status:** ACTIVE

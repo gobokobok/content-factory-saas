@@ -10,6 +10,7 @@ from src.exceptions import FFmpegBuildError, StorageError
 from src.ffmpeg_builder import (
     _local_path,
     _parse_sfx_delay_ms,
+    _sfx_delay_within_scene_s,
     _zoompan_filter,
     assign_words_to_scenes,
     build_ffmpeg_script,
@@ -62,6 +63,7 @@ def _scene(
     sfx: str = "silence",
     sfx_timing: str = "scene_start",
     motion_effect: str | None = None,
+    on_screen_text: str | None = None,
 ) -> StoryboardScene:
     return StoryboardScene(
         scene=scene_id,
@@ -74,6 +76,7 @@ def _scene(
         motion_effect=motion_effect,
         sfx=sfx,
         sfx_timing=sfx_timing,
+        on_screen_text=on_screen_text,
     )
 
 
@@ -519,6 +522,44 @@ class TestBuildFfmpegScript:
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "_sfx_inputs=()" in script
         assert '"${_sfx_inputs[@]}"' in script
+
+    # ── D076: automatic SFX timing (on_screen_text presence, not sfx_timing) ──
+
+    def test_sfx_delay_within_scene_is_zero_without_on_screen_text(self):
+        scene = _scene("01", "hard_cut", 3.0, sfx="whoosh")
+        assert _sfx_delay_within_scene_s(scene) == 0.0
+
+    def test_sfx_delay_within_scene_is_0_7s_with_on_screen_text(self):
+        scene = _scene("01", "hard_cut", 3.0, sfx="whoosh", on_screen_text="$100,000")
+        assert _sfx_delay_within_scene_s(scene) == 0.7
+
+    def test_sfx_timing_field_ignored_by_audio_section(self):
+        # sfx_timing="end" would normally push the delay near the end of the
+        # scene under the old manual-timing logic — the new automatic rule
+        # ignores it entirely and uses the on_screen_text-based rule instead.
+        scenes = [_scene("01", "hard_cut", 3.0, sfx="whoosh", sfx_timing="end")]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "adelay=0|0" in script  # no on_screen_text -> scene start, not "end"
+
+    def test_sfx_delay_is_700ms_when_scene_has_on_screen_text(self):
+        scenes = [_scene("01", "hard_cut", 3.0, sfx="cash_register", on_screen_text="$100,000")]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        assert "adelay=700|700" in script
+
+    def test_sfx_delay_accumulates_offset_plus_on_screen_text_sync(self):
+        scenes = [
+            _scene("01", "hard_cut", 5.0, sfx="silence"),
+            _scene("02", "hard_cut", 3.0, sfx="checkmark", on_screen_text="Step 1"),
+        ]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "hard_cut")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        # Scene 02 starts at 5.0s + 0.7s OST-sync offset = 5700ms
+        assert "adelay=5700|5700" in script
 
     def test_debug_section_present_in_script(self):
         scenes = [_scene("01", "hard_cut", 3.0)]

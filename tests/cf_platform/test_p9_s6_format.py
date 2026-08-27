@@ -287,3 +287,56 @@ class TestStoryboardWorkerPromptHeader:
             _GENERATE_SYSTEM_PROMPT,
         )
         assert _FORMAT_LINE_SENTINEL in _GENERATE_SYSTEM_PROMPT
+
+
+# ── D076: SFX vocabulary sentinel substitution ───────────────────────────────
+
+
+class TestSfxVocabSentinelSubstitution:
+    """The SFX vocab sentinel is present in both prompt variants and gets fully
+    replaced with real cf_platform.core.sfx_library.SFX_LIBRARY content — never
+    left as a literal placeholder, and never drifts from the manifest."""
+
+    def test_sentinel_present_in_generate_prompt_v013(self):
+        from cf_platform.workers.storyboard_worker import (
+            _GENERATE_SYSTEM_PROMPT_V013,
+            _SFX_VOCAB_SENTINEL,
+        )
+        assert _SFX_VOCAB_SENTINEL in _GENERATE_SYSTEM_PROMPT_V013
+
+    def test_sentinel_present_in_generate_prompt_fallback(self):
+        from cf_platform.workers.storyboard_worker import (
+            _GENERATE_SYSTEM_PROMPT,
+            _SFX_VOCAB_SENTINEL,
+        )
+        assert _SFX_VOCAB_SENTINEL in _GENERATE_SYSTEM_PROMPT
+
+    def test_sentinel_present_in_review_prompt(self):
+        from cf_platform.workers.storyboard_worker import (
+            _REVIEW_SYSTEM_PROMPT,
+            _SFX_VOCAB_SENTINEL,
+        )
+        assert _SFX_VOCAB_SENTINEL in _REVIEW_SYSTEM_PROMPT
+
+    def test_substitution_leaves_no_placeholder_and_lists_every_curated_key(self):
+        from cf_platform.core.sfx_library import SFX_LIBRARY, sfx_vocab_prompt_line
+        from cf_platform.workers.storyboard_worker import (
+            _GENERATE_SYSTEM_PROMPT_V013,
+            _SFX_VOCAB_SENTINEL,
+        )
+        prompt = _GENERATE_SYSTEM_PROMPT_V013.replace(_SFX_VOCAB_SENTINEL, sfx_vocab_prompt_line())
+        assert _SFX_VOCAB_SENTINEL not in prompt
+        for entry in SFX_LIBRARY:
+            assert entry.key in prompt
+        assert '"silence"' in prompt
+
+    def test_review_substitution_leaves_no_placeholder(self):
+        from cf_platform.core.sfx_library import SFX_LIBRARY, sfx_vocab_reviewer_line
+        from cf_platform.workers.storyboard_worker import (
+            _REVIEW_SYSTEM_PROMPT,
+            _SFX_VOCAB_SENTINEL,
+        )
+        prompt = _REVIEW_SYSTEM_PROMPT.replace(_SFX_VOCAB_SENTINEL, sfx_vocab_reviewer_line())
+        assert _SFX_VOCAB_SENTINEL not in prompt
+        for entry in SFX_LIBRARY:
+            assert entry.key in prompt

@@ -26,6 +26,7 @@ from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
+from cf_platform.core.sfx_library import sfx_vocab_prompt_line, sfx_vocab_reviewer_line
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.voice_production import VoiceAlignmentArtifact, VoiceWordTimestamp
@@ -69,6 +70,11 @@ _PACING_LINE_LANDSCAPE = (
     "PACING TARGET (long-form 16:9): body scenes 3–6 seconds, hard maximum 8 seconds.\n"
     "HOOK: the first ~4 seconds of narration must still cut fast — target ~1–1.5 seconds per scene."
 )
+
+# SFX vocabulary block substituted into _GENERATE_SYSTEM_PROMPT[_V013] — built from
+# cf_platform.core.sfx_library.SFX_LIBRARY at call time (D076), so the prompt can
+# never drift from the actual curated set.
+_SFX_VOCAB_SENTINEL = "SFX_VOCAB_PLACEHOLDER"
 
 # Seconds-based targets used to derive per-request word budgets in _generate().
 _HOOK_WINDOW_S = 4.0
@@ -190,6 +196,21 @@ Rules:
 - When on_screen_text is a year or date, set on_screen_text_type: "date" — but NEVER use a bare year alone (e.g. "2011" is forbidden). Always pair with context: "2011: Hippocampus Study" or "2002 Nature Review"
 - If the text does not fit "stat", "date", or "label", set both on_screen_text and on_screen_text_type to null
 - When on_screen_text is null, on_screen_text_type must also be null
+
+═══════════════════════════════════════
+SFX (SOUND EFFECT) SELECTION
+═══════════════════════════════════════
+
+sfx must be exactly one of these curated keys, or "silence":
+SFX_VOCAB_PLACEHOLDER
+
+"silence" should be the MAJORITY of scenes — only pick a curated key when a scene
+clearly matches one of the descriptions above. Do not force an sfx onto a scene
+that doesn't call for one.
+
+sfx_timing: leave as "scene_start" — timing is computed automatically at render
+time from whether the scene has on_screen_text set; this field is not used for
+manual timing control.
 
 ═══════════════════════════════════════
 RENDER DECISION NOTE
@@ -356,8 +377,8 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
       "on_screen_text": null,
       "on_screen_text_type": null,
       "motion_effect": "ken_burns_in",
-      "sfx": "ambient street traffic",
-      "sfx_timing": "on cut",
+      "sfx": "silence",
+      "sfx_timing": "scene_start",
       "person_name": null,
       "person_title": null
     },
@@ -381,7 +402,7 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
       "on_screen_text_type": null,
       "motion_effect": "ken_burns_in",
       "sfx": "silence",
-      "sfx_timing": "on cut",
+      "sfx_timing": "scene_start",
       "person_name": "Jerome Powell",
       "person_title": "Chair, Federal Reserve"
     }
@@ -547,6 +568,21 @@ Rules:
 - When on_screen_text is null, on_screen_text_type must also be null
 
 ═══════════════════════════════════════
+SFX (SOUND EFFECT) SELECTION
+═══════════════════════════════════════
+
+sfx must be exactly one of these curated keys, or "silence":
+SFX_VOCAB_PLACEHOLDER
+
+"silence" should be the MAJORITY of scenes — only pick a curated key when a scene
+clearly matches one of the descriptions above. Do not force an sfx onto a scene
+that doesn't call for one.
+
+sfx_timing: leave as "scene_start" — timing is computed automatically at render
+time from whether the scene has on_screen_text set; this field is not used for
+manual timing control.
+
+═══════════════════════════════════════
 RENDER DECISION NOTE
 ═══════════════════════════════════════
 
@@ -639,8 +675,8 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
       },
       "on_screen_text": null,
       "on_screen_text_type": null,
-      "sfx": "ambient street traffic",
-      "sfx_timing": "on cut",
+      "sfx": "silence",
+      "sfx_timing": "scene_start",
       "person_name": null,
       "person_title": null
     },
@@ -662,7 +698,7 @@ Output ONLY the JSON object below. No prose. No markdown fences. No extra keys.
       "on_screen_text": null,
       "on_screen_text_type": null,
       "sfx": "silence",
-      "sfx_timing": "on cut",
+      "sfx_timing": "scene_start",
       "person_name": "Jerome Powell",
       "person_title": "Chair, Federal Reserve"
     }
@@ -691,9 +727,9 @@ c. on_screen_text gaps: if voiceover_line contains a prominent stat (percentage,
 d. Query domain anchoring: primary_stk should reflect the video topic domain, not literal VO
    words. Flag when queries contain era labels (Victorian, 1880s, medieval) or drift off-topic.
    Suggest a topic-anchored replacement.
-e. SFX specificity: sfx must be a concrete, specific noun phrase (e.g. "pen scratching paper",
-   "crowd applause in conference room"). Flag vague values like "sound", "noise", "ambient".
-   Suggest a specific replacement.
+e. SFX vocabulary: sfx must be one of these curated keys, or "silence": SFX_VOCAB_PLACEHOLDER.
+   Flag any other value (free text, a stale/legacy description, or an unrecognised key) and
+   patch it to whichever curated key best fits the scene, or "silence" if none fits.
 
 Output ONLY valid JSON. No prose. No markdown fences.
 
@@ -1230,6 +1266,7 @@ async def _generate(
         n_words = len(normalized_words)
         system_prompt = _GENERATE_SYSTEM_PROMPT_V013.replace(_FORMAT_LINE_SENTINEL, format_line)
         system_prompt = system_prompt.replace(_PACING_LINE_SENTINEL, pacing_line)
+        system_prompt = system_prompt.replace(_SFX_VOCAB_SENTINEL, sfx_vocab_prompt_line())
 
         # Convert the prompt's seconds targets into a word budget from the measured
         # speech rate — for large scripts the list carries no timestamps, so word
@@ -1263,6 +1300,7 @@ async def _generate(
         logger.warning("StoryboardWorker: voice_alignment absent — using v0.12 word-count durations")
         normalized_words = []
         system_prompt = _GENERATE_SYSTEM_PROMPT.replace(_FORMAT_LINE_SENTINEL, format_line)
+        system_prompt = system_prompt.replace(_SFX_VOCAB_SENTINEL, sfx_vocab_prompt_line())
         user_content = script
 
     # Background task — no Railway HTTP timeout; single attempt, generous wall-clock budget.
@@ -1358,11 +1396,13 @@ async def _review(
         f"STORYBOARD JSON:\n{storyboard_json}"
     )
 
+    review_prompt = _REVIEW_SYSTEM_PROMPT.replace(_SFX_VOCAB_SENTINEL, sfx_vocab_reviewer_line())
+
     client = anthropic.AsyncAnthropic(api_key=api_key, timeout=120.0, max_retries=0)
     message = await client.messages.create(
         model=_HAIKU_MODEL,
         max_tokens=2048,
-        system=[{"type": "text", "text": _REVIEW_SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+        system=[{"type": "text", "text": review_prompt, "cache_control": {"type": "ephemeral"}}],
         messages=[{"role": "user", "content": user_content}],
     )
     raw_text = message.content[0].text
