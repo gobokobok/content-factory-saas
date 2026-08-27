@@ -388,27 +388,49 @@ def test_bug5_noto_font_path_in_overlay_section():
     assert "Poppins" not in section
 
 
-def test_bug5_noto_font_path_in_collect_overlay_filters():
-    """_collect_overlay_filters (textfile= path) also references NotoSans."""
+def test_ost_slides_in_from_left_not_centered():
+    """D074: OST x-position animates in from off-screen-left, not a static centered x.
+
+    Was `x=max(40,(w-text_w)/2)` (static, centered). Now an `if(lt(t-...` ramp
+    from -text_w to the fixed left margin — assert the old centered expression
+    is gone and the new ramp toward the resting margin is present.
+    """
+    scene = _scene("1", on_screen_text="Rate hike 2018", on_screen_text_type="stat", duration_s=3.0)
+    sb = _storyboard([scene])
+    _, filters = _collect_overlay_filters(sb)
+    filter_block = "\n".join(filters)
+    assert "x=max(40" not in filter_block  # old centered expression is gone
+    assert "-(text_w)" in filter_block  # slides in from fully off-screen-left
+    assert ",60)" in filter_block  # resting left margin (_OST_TARGET_X)
+
+
+def test_bug5_montserrat_font_path_in_collect_overlay_filters():
+    """_collect_overlay_filters (textfile= path) uses Montserrat Bold (D074 — was NotoSans).
+
+    Montserrat replaced NotoSans as the OST font: bigger (fontsize 90, was 60)
+    and — like NotoSans — verified to cover the Unicode arrow glyphs Poppins
+    lacks (P10-S1 Bug 5), so switching away from NotoSans didn't reintroduce it.
+    """
     scene = _scene("1", on_screen_text="Rate hike 2018", on_screen_text_type="stat", duration_s=3.0)
     scene_with_ost = scene.model_copy(update={"on_screen_text": "Rate hike 2018"})
     sb = _storyboard([scene_with_ost])
     _, filters = _collect_overlay_filters(sb)
     filter_block = "\n".join(filters)
-    assert "NotoSans" in filter_block
+    assert "Montserrat-Bold.ttf" in filter_block
+    assert "fontsize=90" in filter_block
     assert "Poppins" not in filter_block
 
 
-def test_bug5_noto_font_in_render_script():
-    """OST drawtext in render script uses NotoSans, not Poppins (Bug 5).
+def test_bug5_montserrat_font_in_render_script():
+    """OST drawtext in render script uses Montserrat Bold, not Poppins (Bug 5 / D074).
 
-    The ASS caption style line still uses Poppins for subtitles — that's expected.
-    Only the drawtext overlay font must be NotoSans.
+    The ASS caption style line still uses Titillium Web SemiBold for subtitles —
+    that's expected and unrelated. Only the drawtext overlay font is asserted here.
     """
     ost = OnScreenTextOverlay(text="Rate up 0.75%", type="stat", enable_expr="between(t,0,3)")
     scene = _scene("1", render_options=SceneRenderOptions(on_screen_text_overlay=ost), duration_s=3.0)
     sb = _storyboard([scene])
     mf = _manifest(["1"])
     script = _build_render_script("run1", sb, mf, None, "neutral", True)
-    assert "NotoSans" in script
+    assert "Montserrat-Bold.ttf" in script
     assert "fontfile=/usr/local/share/fonts/Poppins-Bold.ttf" not in script  # OST must not use Poppins

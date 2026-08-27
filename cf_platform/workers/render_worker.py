@@ -105,8 +105,12 @@ def _build_captions_with_y_override(
     aspect_ratio restricts the D070/D071 Shorts caption styling to '9:16' —
     landscape (16:9) renders fall back to the original Poppins styling
     unchanged (see src.captions._captions_header).
+
+    Purely numeric word tokens (e.g. "100000") are spelled out for display
+    only (see src.captions.spell_out_numbers, D073) — word_ts.word itself is
+    untouched, since it still drives start_ms/end_ms timing.
     """
-    from src.captions import _captions_header, format_ass_time
+    from src.captions import _captions_header, format_ass_time, spell_out_numbers
 
     _CHUNK_SIZE = 5
 
@@ -132,10 +136,10 @@ def _build_captions_with_y_override(
         chunks = [words[j : j + _CHUNK_SIZE] for j in range(0, len(words), _CHUNK_SIZE)]
         for j, chunk in enumerate(chunks):
             next_chunk = chunks[j + 1] if j + 1 < len(chunks) else None
-            chunk_texts = [w.word for w in chunk]
+            chunk_texts = [spell_out_numbers(w.word) for w in chunk]
             for k, word_ts in enumerate(chunk):
                 before = chunk_texts[:k]
-                active = "{\\c&H0000FFFF&}" + word_ts.word + "{\\c&H00FFFFFF&}"
+                active = "{\\c&H0000FFFF&}" + spell_out_numbers(word_ts.word) + "{\\c&H00FFFFFF&}"
                 after = chunk_texts[k + 1 :]
                 text = " ".join(before + [active] + after)
                 start_s = word_ts.start_ms / 1000.0
@@ -257,6 +261,12 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
     return section, new_source
 
 
+_OST_FONTFILE = "/usr/share/fonts/truetype/montserrat/Montserrat-Bold.ttf"
+_OST_FONTSIZE = 90
+_OST_SLIDE_IN_S = 0.4  # seconds to slide from off-screen-left to resting position
+_OST_TARGET_X = 60  # resting left margin, px (D074 — was centered)
+
+
 def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
     """Return (preamble_lines, drawtext_filters) for lower_third + on_screen_text overlays.
 
@@ -264,6 +274,13 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
     expansion=none so that % and ' in the text need no filter-chain escaping.
     Lower-third names/titles still use text= (they are operator-controlled
     and unlikely to contain problematic characters).
+
+    D074: text slides in from off-screen-left to a fixed left margin (was
+    centered + fade). Montserrat Bold (fontsize 90, was NotoSans 60) — Futura
+    Bold was requested but is a commercial Bauer Types/Monotype font with no
+    free-license source to bundle; Montserrat is the closest open (SIL OFL)
+    geometric-sans substitute and was already installed via apt. Verified it
+    covers the Unicode arrow glyphs NotoSans was chosen for (P10-S1 Bug 5).
     """
     preamble: list[str] = []
     filters: list[str] = []
@@ -284,7 +301,8 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
         if ost_text:
             import textwrap as _tw
             # Wrap long text so it doesn't run off screen; FFmpeg renders newlines as line breaks.
-            lines = _tw.wrap(ost_text.upper(), width=32)
+            # Narrower than before (32->22 chars) since fontsize grew 60->90 (D074).
+            lines = _tw.wrap(ost_text.upper(), width=22)
             wrapped = "\n".join(lines) if lines else ost_text.upper()
             # Write text to a file so % and ' require no filter-chain escaping
             fname = f"ost_{ost_idx:02d}.txt"
@@ -292,16 +310,22 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
             preamble.append(f'printf "%s" {shlex.quote(wrapped)} > "$WORK/{fname}"')
             t_appear = scene_start + 0.3
             ost_enable = f"between(t,{t_appear:.3f},{scene_end:.3f})"
-            alpha_expr = f"if(lt(t-{t_appear:.3f}\\,0.5)\\,(t-{t_appear:.3f})/0.5\\,1)"
-            # NotoSans covers Unicode arrows/symbols; Poppins does not (P10-S1 Bug 5).
-            # text_h covers total multiline height so (h-text_h)/2 centres correctly.
+            # Slide in from fully off-screen-left (-text_w) to the resting left
+            # margin over _OST_SLIDE_IN_S, then hold. text_w is drawtext's own
+            # rendered-text-width variable, so this works for any text length.
+            x_expr = (
+                f"if(lt(t-{t_appear:.3f}\\,{_OST_SLIDE_IN_S})\\,"
+                f"-(text_w)+((text_w)+{_OST_TARGET_X})*(t-{t_appear:.3f})/{_OST_SLIDE_IN_S}\\,"
+                f"{_OST_TARGET_X})"
+            )
+            # text_h covers total multiline height so (h-text_h)/2 centres vertically.
             filters.append(
                 f"drawtext=textfile=$WORK/{fname}:expansion=none"
-                f":fontfile=/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf"
-                f":fontsize=60:fontcolor=white"
+                f":fontfile={_OST_FONTFILE}"
+                f":fontsize={_OST_FONTSIZE}:fontcolor=white"
                 f":box=1:boxcolor=black@0.55:boxborderw=18"
-                f":x=max(40\\,(w-text_w)/2):y=(h-text_h)/2"
-                f":alpha='{alpha_expr}':enable='{ost_enable}'"
+                f":x='{x_expr}':y=(h-text_h)/2"
+                f":enable='{ost_enable}'"
             )
             ost_idx += 1
 

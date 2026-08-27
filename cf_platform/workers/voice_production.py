@@ -49,23 +49,25 @@ _PUNCT_RE = re.compile(r"[^\w\s.%]")
 # ── Narration pace (words-per-second) used for proportional fallback ──────────
 
 _WORDS_PER_SECOND = 160 / 60
-_WORDS_PER_SECOND_SHORT = 167.5 / 60  # 9:16 Shorts target 165-170 wpm (was 170-180 — too fast)
+_WORDS_PER_SECOND_SHORT = 172.5 / 60  # 9:16 Shorts target ~170-175 wpm (D073)
 
 # Gemini's native TTS models have no numeric speaking-rate parameter (SpeechConfig
 # only exposes language_code, voice_config, multi_speaker_voice_config) — pace is
 # controlled by a natural-language style instruction prefixed to the input text,
 # which the model follows without vocalizing the instruction itself.
 #
-# "energetically"/"brisk" wording (pre-2026-08-26) made Gemini run sentences and
-# list items together with no breathing room, which reads as *faster* than the
-# wpm number regardless of the target — operator feedback confirmed duration
-# dropped further, not just "too fast" overall. The instruction now leads with
-# an explicit pause requirement instead of an energy/speed adjective.
+# History: "energetically"/"brisk" wording (pre-2026-08-26) made Gemini run
+# sentences and list items together with no breathing room — duration dropped
+# instead of the pace slowing down. Removing that wording (165-170 wpm, pauses
+# only) fixed the pauses but read as flat/slow (13s -> 19s on the same script).
+# D073: put the energy back in explicitly, but scoped to *between* pauses only,
+# and pushed the target to ~170-175 wpm — so pauses are kept, delivery is not flat.
 _SHORTS_PACE_INSTRUCTION = (
-    "Narrate the following like a natural, unhurried YouTube Shorts voiceover at "
-    "roughly 165 to 170 words per minute. Take a brief, natural pause after each "
+    "Narrate the following like an upbeat, energetic YouTube Shorts voiceover at "
+    "roughly 170 to 175 words per minute. Take a brief, natural pause after each "
     "sentence and after each list item — do not run straight from one sentence or "
-    "item into the next: "
+    "item into the next — but keep the delivery lively and energetic within each "
+    "sentence, between the pauses: "
 )
 
 
@@ -260,7 +262,7 @@ def build_voice_production_worker(
     the pipeline always continues with whatever timestamps are available.
 
     state.inputs['aspect_ratio'] (default "16:9") selects narration pace: "9:16"
-    applies a fast-pace style instruction for Shorts (~165-170 wpm); other ratios
+    applies a fast-pace style instruction for Shorts (~170-175 wpm); other ratios
     use Gemini's natural default pace.
     """
 

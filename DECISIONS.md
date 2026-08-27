@@ -5,6 +5,32 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D074 — On-screen text overlay: bigger, Montserrat Bold (Futura substitute), slide-in from left
+**Date:** 2026-08-27
+**Status:** ACTIVE
+**Decision:** `_collect_overlay_filters` (the live on-screen-text-overlay drawtext path in `cf_platform/workers/render_worker.py` — `_overlay_section` is dead code, unchanged, still NotoSans):
+- **Font:** NotoSans-Bold → **Montserrat Bold** (`/usr/share/fonts/truetype/montserrat/Montserrat-Bold.ttf`, already installed via the existing `fonts-montserrat` apt package — no Dockerfile change needed).
+- **Size:** fontsize 60 → **90**. Text-wrap width tightened 32 → 22 chars/line to compensate.
+- **Animation:** was a static centered `x=max(40,(w-text_w)/2)` with a 0.5s alpha fade-in. Now slides in from fully off-screen-left (`x = -text_w`) to a fixed 60px left margin over 0.4s (`_OST_SLIDE_IN_S`/`_OST_TARGET_X`), then holds; alpha fade removed (the slide itself is the reveal). Y position (vertical-center) unchanged — not requested.
+**Why Montserrat, not Futura:** the operator asked for Futura Bold specifically. Futura is a commercial Bauer Types/Monotype typeface with no free-license source — bundling a "free Futura" download found online would be redistributing an unlicensed copy in the Docker image and burning it into every published video, a real IP risk for the channel. Montserrat is a widely-used, SIL-OFL-licensed geometric sans in the same visual family (often cited as a free-license Futura-alike) and was already installed. Verified via `fc-list`/`fontTools` in a container matching the Dockerfile that Montserrat Bold covers the Unicode arrow glyphs (→ ← ↑ ↓) NotoSans was originally chosen for (P10-S1 Bug 5) — switching fonts didn't reintroduce that bug. If the operator supplies a properly-licensed Futura file, swapping `_OST_FONTFILE` is a one-line change.
+**Not implemented (deferred, not explicitly requested in words):** the reference screenshot's translucent *gradient* bar behind the text — `drawtext`'s `box=1` only supports a flat colour+alpha, not a gradient; a true gradient would need a separately generated/composited image layer. Kept the existing flat semi-transparent black box. Also left vertical (Y) position unchanged (screenshot's higher position wasn't called out in words, only the slide-in motion and font/size were).
+**No new dependencies.**
+**Implemented by:** operator chat request, 2026-08-27.
+
+---
+
+## D073 — TTS pace 165-170 → ~170-175 wpm (energy back, pauses kept); captions spell out numbers
+**Date:** 2026-08-27
+**Status:** ACTIVE
+**Decision:** Two independent fixes from the same feedback round:
+1. **TTS pace instruction** (`cf_platform/workers/voice_production.py`) — D071's pause-only wording (165-170 wpm, "natural, unhurried") fixed the missing-pauses bug but over-corrected: the same script's rendered duration went 13s → 19s and read as flat/slow. `_SHORTS_PACE_INSTRUCTION` now explicitly keeps the pause requirement ("brief, natural pause after each sentence and after each list item") *and* asks for energetic delivery *between* pauses, with the target nudged to ~170-175 wpm. `_WORDS_PER_SECOND_SHORT` (proportional-fallback estimate) updated to 172.5/60 to match.
+2. **Caption number spelling** (`src/captions.py`) — Deepgram's `smart_format` strips "$"/"," from word tokens (D045 rev), so a spoken "$100,000" was showing in captions as the bare digit run "100000" — hard to parse at a glance. New `spell_out_numbers()` converts purely-numeric caption tokens to English words for **display only** ("100000" → "one hundred thousand", "$15,000" → "fifteen thousand dollars", "90%" → "ninety percent", "3.5" → "three point five", trailing sentence punctuation preserved). Applied in `build_word_synced_captions_ass`, `build_captions_ass`, and `render_worker._build_captions_with_y_override` — always to the text *joined into the Dialogue line*, never to `WordTimestamp.word` itself, so scene-alignment/gap-filling matching against the verbatim script (the reason `smart_format` was chosen) is unaffected.
+**Known behavior, not special-cased:** every purely-numeric token is spelled out uniformly — including years ("2026" → "two thousand twenty-six"). The operator's request was general ("captions shall have text all over"); if years or other exceptions turn out to read oddly, that's a small follow-up (an allow/deny-list in `_spell_out_token`), not a redesign.
+**No new dependencies.** Number-to-words is a small self-contained integer/decimal converter (supports up to billions) — no library added.
+**Implemented by:** operator chat request, 2026-08-27.
+
+---
+
 ## D072 — D071 follow-up: caption size 108pt → 80pt, verified against a real render
 **Date:** 2026-08-26
 **Status:** ACTIVE

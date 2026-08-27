@@ -8,6 +8,7 @@ from src.captions import (
     build_captions_ass,
     build_word_synced_captions_ass,
     format_ass_time,
+    spell_out_numbers,
 )
 from src.models import StoryboardScene, VisualPrompts, WordTimestamp
 
@@ -621,3 +622,64 @@ class TestAspectRatioScopesShortsStyling:
         words = [_word("test", 0, 500)]
         result = build_word_synced_captions_ass([words], aspect_ratio="16:9")
         assert "Style: VoiceCaption,Poppins,147" in result
+
+
+# ── Unit: spell_out_numbers ─────────────────────────────────────────────────────
+
+
+class TestSpellOutNumbers:
+    """D073: numeric caption tokens are spelled out for readability."""
+
+    def test_plain_integer(self):
+        assert spell_out_numbers("100000") == "one hundred thousand"
+
+    def test_within_sentence(self):
+        assert spell_out_numbers("up to 100000") == "up to one hundred thousand"
+
+    def test_dollar_prefix_adds_dollars_suffix(self):
+        assert spell_out_numbers("$15,000") == "fifteen thousand dollars"
+
+    def test_percent_suffix(self):
+        assert spell_out_numbers("90%") == "ninety percent"
+
+    def test_decimal(self):
+        assert spell_out_numbers("3.5") == "three point five"
+
+    def test_trailing_sentence_punctuation_preserved(self):
+        assert spell_out_numbers("$100,000.") == "one hundred thousand dollars."
+
+    def test_non_numeric_word_unchanged(self):
+        assert spell_out_numbers("cost,") == "cost,"
+
+    def test_alphanumeric_mix_unchanged(self):
+        # "1st" is not a plain number — left as-is rather than mis-converted.
+        assert spell_out_numbers("1st") == "1st"
+
+    def test_plain_word_unchanged(self):
+        assert spell_out_numbers("hello") == "hello"
+
+    def test_zero(self):
+        assert spell_out_numbers("0") == "zero"
+
+    def test_large_number_billions(self):
+        assert spell_out_numbers("1000000000") == "one billion"
+
+    def test_multi_scale_number(self):
+        assert (
+            spell_out_numbers("1234567")
+            == "one million two hundred thirty-four thousand five hundred sixty-seven"
+        )
+
+    def test_empty_string_unchanged(self):
+        assert spell_out_numbers("") == ""
+
+    def test_word_synced_captions_spell_out_numbers(self):
+        words = [_word("100000", 0, 500)]
+        result = build_word_synced_captions_ass([words])
+        assert "one hundred thousand" in result
+        assert "100000" not in result
+
+    def test_scene_boundary_captions_spell_out_numbers(self):
+        result = build_captions_ass([_scene("01", voiceover_line="Costs up to $100,000 total.")])
+        assert "one hundred thousand" in result
+        assert "$100,000" not in result

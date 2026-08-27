@@ -1,6 +1,99 @@
 """ASS subtitle file generator for on-screen text and voiceover captions."""
 
+import re
+
 from src.models import StoryboardScene, WordTimestamp
+
+# ── Number-to-words for caption display (D073) ────────────────────────────────
+#
+# Deepgram's smart_format strips "$"/"," from word tokens (see D045 rev /
+# cf_platform/workers/voice_production.py), so a spoken "$100,000" arrives as
+# the bare token "100000" — a long digit run with no thousands separator reads
+# as near-impossible to parse at a glance in a Shorts caption. Below spells
+# such tokens out ("one hundred thousand") for DISPLAY ONLY: it is applied to
+# the text joined into each Dialogue line, never to WordTimestamp.word itself,
+# so scene-alignment / gap-filling matching against the verbatim script is
+# unaffected.
+
+_ONES = [
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
+    "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+    "eighteen", "nineteen",
+]
+_TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+_SCALES = [(1_000_000_000, "billion"), (1_000_000, "million"), (1_000, "thousand")]
+
+_TRAILING_PUNCT_RE = re.compile(r"([.,!?;:]+)$")
+_NUMERIC_CORE_RE = re.compile(r"^(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?$")
+
+
+def _int_to_words(n: int) -> str:
+    """Convert a non-negative integer to English words (supports up to billions)."""
+    if n < 0:
+        return "minus " + _int_to_words(-n)
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        tens, rem = divmod(n, 10)
+        return _TENS[tens] + (f"-{_ONES[rem]}" if rem else "")
+    if n < 1000:
+        hundreds, rem = divmod(n, 100)
+        return f"{_ONES[hundreds]} hundred" + (f" {_int_to_words(rem)}" if rem else "")
+    for scale_val, scale_name in _SCALES:
+        if n >= scale_val:
+            hi, rem = divmod(n, scale_val)
+            return f"{_int_to_words(hi)} {scale_name}" + (f" {_int_to_words(rem)}" if rem else "")
+    return str(n)  # unreachable for n < 1e12, kept as a safe fallback
+
+
+def _spell_out_token(token: str) -> str:
+    """Return the spoken-word form of a single numeric caption token.
+
+    Handles an optional leading '$' (-> trailing "dollars"), an optional
+    trailing '%' (-> trailing "percent"), comma thousands-separators, decimals
+    ("3.5" -> "three point five"), and preserves trailing sentence punctuation
+    (e.g. "100000." -> "one hundred thousand."). Returns the token unchanged
+    if it is not (once currency/percent/punctuation are stripped) a plain
+    number — words like "1st" or mixed alphanumerics are left untouched.
+    """
+    if not token:
+        return token
+    core = token
+    is_currency = core.startswith("$")
+    if is_currency:
+        core = core[1:]
+    trailing = ""
+    m = _TRAILING_PUNCT_RE.search(core)
+    if m:
+        trailing = m.group(1)
+        core = core[: m.start()]
+    is_percent = core.endswith("%")
+    if is_percent:
+        core = core[:-1]
+    match = _NUMERIC_CORE_RE.match(core)
+    if not match:
+        return token
+    int_part, dec_part = match.groups()
+    words = _int_to_words(int(int_part.replace(",", "")))
+    if dec_part:
+        digit_words = " ".join(_ONES[int(d)] for d in dec_part[1:])
+        words += f" point {digit_words}"
+    if is_percent:
+        words += " percent"
+    if is_currency:
+        words += " dollars"
+    return words + trailing
+
+
+def spell_out_numbers(text: str) -> str:
+    """Convert every purely-numeric word in text to its spoken form.
+
+    e.g. "up to 100000" -> "up to one hundred thousand"; "$15,000" ->
+    "fifteen thousand dollars"; "90%" -> "ninety percent". Non-numeric words
+    are left untouched. Caption display only — never applied to word-timing
+    or alignment data (see module docstring above).
+    """
+    return " ".join(_spell_out_token(tok) for tok in text.split())
 
 _ASS_HEADER = (
     "[Script Info]\n"
@@ -171,7 +264,9 @@ def build_word_synced_captions_ass(
     Chunks are formed within each scene independently — they never cross scene
     boundaries.  For each word in a chunk one Dialogue event is emitted spanning
     that word's start_ms → end_ms.  The active word is highlighted in yellow via
-    an ASS inline colour override; surrounding words remain white.
+    an ASS inline colour override; surrounding words remain white.  Purely
+    numeric tokens (e.g. "100000") are spelled out ("one hundred thousand")
+    for display only — see spell_out_numbers (D073).
     subtitle_style selects 'TikTok' (default, 80pt Titillium Web SemiBold) or
     'Classic' (56pt).  aspect_ratio restricts the D070/D071/D072 Shorts styling to
     '9:16' — any other value falls back to the original Poppins styling
@@ -185,10 +280,13 @@ def build_word_synced_captions_ass(
         chunks = [words[i : i + chunk_size] for i in range(0, len(words), chunk_size)]
         for j, chunk in enumerate(chunks):
             next_chunk = chunks[j + 1] if j + 1 < len(chunks) else None
-            chunk_texts = [w.word for w in chunk]
+            # Display text only (D073) — spell out numeric tokens for
+            # readability. word_ts.word itself is untouched below, since it
+            # still drives start_ms/end_ms timing.
+            chunk_texts = [spell_out_numbers(w.word) for w in chunk]
             for i, word_ts in enumerate(chunk):
                 before = chunk_texts[:i]
-                active = "{\\c&H0000FFFF&}" + word_ts.word + "{\\c&H00FFFFFF&}"
+                active = "{\\c&H0000FFFF&}" + spell_out_numbers(word_ts.word) + "{\\c&H00FFFFFF&}"
                 after = chunk_texts[i + 1 :]
                 text = " ".join(before + [active] + after)
                 start_s = word_ts.start_ms / 1000.0
@@ -232,7 +330,9 @@ def build_captions_ass(
     Each scene's voiceover_line is split into 5-word chunks; scene duration is
     divided equally across chunks so each chunk is displayed for the same slice
     of time. Timing is derived by accumulating duration_s values in order.
-    Text is displayed as-is (natural sentence case, no quote stripping).
+    Text is displayed as-is (natural sentence case, no quote stripping), except
+    purely numeric tokens are spelled out for display (see spell_out_numbers,
+    D073).
     Scenes with an empty voiceover_line produce no Dialogue event.
     subtitle_style selects 'TikTok' (default, 80pt Titillium Web SemiBold) or
     'Classic' (56pt).  aspect_ratio restricts the D070/D071/D072 Shorts styling to
@@ -255,7 +355,7 @@ def build_captions_ass(
             end = scene_start + (i + 1) * chunk_duration
             events.append(
                 f"Dialogue: 0,{format_ass_time(start)},{format_ass_time(end)},"
-                f"VoiceCaption,,0,0,0,,{chunk}"
+                f"VoiceCaption,,0,0,0,,{spell_out_numbers(chunk)}"
             )
 
     header = _captions_header(subtitle_style, aspect_ratio)
