@@ -5,6 +5,49 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D077 — CD waits for the Railway build; /platform/version reads a build stamp, not git
+
+**Context.** Releasing v0.22.0 exposed two gaps in the deploy path at once.
+
+`cd.yml` ran `railway up --detach`, so the workflow went green in 10s — that only
+means Railway accepted the upload, not that the image built or the service came up.
+v0.22.0 was the first release to change the Dockerfile (bundling Montserrat Bold,
+D075); a broken build would have left the workflow green and the old code serving.
+Confirming the deploy took a manual round trip: the operator had to open Railway and
+paste the container startup log.
+
+`GET /platform/version` was supposed to make that check cheap, but it shelled out to
+`git rev-parse --short HEAD` at request time inside a bare `try/except`. The built
+image has neither a `.git` directory nor a `git` binary (`python:3.11-slim` ships
+no git), so `subprocess` raised `FileNotFoundError` and the route had been silently
+answering `"unknown"` since it was written. Nobody noticed because nobody had needed
+to ask until there was a release to verify.
+
+**Decision.**
+1. Drop `--detach` in favour of `railway up --ci`, which streams the build log and
+   exits non-zero when the build fails. Added `timeout-minutes: 30` since the job now
+   blocks through an ffmpeg + pip build. Pinned the CLI to `@railway/cli@5.45.2` — an
+   unpinned global install is what left the operator's local CLI half-installed and
+   unusable during this same session.
+2. Stamp `build_info.json` (commit + tag) in the workflow before `railway up`
+   uploads, and have `cf_platform/core/build_info.get_build_info()` read it, with
+   `BUILD_SHA` / `BUILD_VERSION` env vars taking precedence as an escape hatch for a
+   hand-rolled deploy. Every failure mode degrades to `"unknown"` rather than raising.
+
+**Why a stamped file rather than a Docker build ARG.** `railway up` uploads the
+runner's working directory and Railway builds from it, so a file written just before
+upload is baked in by the existing `COPY . .` with no build-arg plumbing and no
+Railway-side variable to keep in sync. The placeholder must stay **git-tracked**: the
+Railway CLI honours `.gitignore` when uploading, so an ignored stamp would be dropped
+from the build context and the endpoint would quietly regress to `"unknown"`.
+
+**Not done.** A test-gate job that `deploy` `needs:` — the suite still only runs on
+push to `main`, so tagging a commit that never went through CI would deploy unverified
+code. Deliberately deferred by the operator as lower risk than the two fixes above.
+Also unaddressed: `railway up` deploys the runner's directory rather than a git ref,
+so a local `railway up` from a dirty checkout will ship a stale stamp that lies.
+Switching PROD to Railway's GitHub integration is the stricter fix.
+
 ## D076 — AI-suggested curated SFX per scene, operator-reviewed, auto-timed at render (supersedes D008)
 **Date:** 2026-08-27
 **Status:** ACTIVE

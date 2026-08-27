@@ -8,14 +8,29 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
 
+      # Pinned deliberately: an unpinned global install is what left the
+      # operator's local CLI half-installed and unusable (D077).
       - name: Install Railway CLI
-        run: npm install -g @railway/cli
+        run: npm install -g @railway/cli@5.45.2
 
+      # Stamps the commit + tag into the upload so GET /platform/version can
+      # report what is actually running. Must run BEFORE `railway up`, and the
+      # file must stay git-tracked — the CLI honours .gitignore when uploading,
+      # so an ignored stamp would be silently dropped (D077).
+      - name: Stamp build info
+        run: |
+          printf '{"commit": "%s", "version": "%s"}\n' \
+            "$(git rev-parse --short HEAD)" "${GITHUB_REF_NAME}" > build_info.json
+          cat build_info.json
+
+      # No --detach: the CLI waits for Railway's build and exits non-zero if it
+      # fails, so a green run means the new code is actually serving (D077).
       - name: Deploy to PROD
-        run: railway up --service content-factory-saas --detach
+        run: railway up --service content-factory-saas --ci
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}

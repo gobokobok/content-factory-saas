@@ -7,6 +7,9 @@
 # Google service account credentials
 *.json
 !package.json
+# CD stamps the deployed commit/tag here; it MUST stay tracked, because the
+# Railway CLI honours .gitignore when uploading the build context (D077).
+!build_info.json
 
 # Python
 __pycache__/

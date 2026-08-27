@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter
 
+from cf_platform.core.build_info import get_build_info
 from cf_platform.core.config import get_platform_settings
 from cf_platform.core.db import check_db_health
 
@@ -10,13 +11,12 @@ router = APIRouter()
 
 @router.get("/version")
 async def platform_version() -> dict:
-    """Return the deployed git commit and async-worker status for deploy verification."""
-    import subprocess
-    try:
-        commit = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.DEVNULL).decode().strip()
-    except Exception:
-        commit = "unknown"
-    return {"commit": commit, "storyboard_async": True, "voice_async": True}
+    """Return the deployed commit, release tag, and async-worker status for deploy verification.
+
+    Reads the build stamp written by the CD workflow (D077) rather than shelling
+    out to git — the image has neither a .git directory nor a git binary.
+    """
+    return {**get_build_info(), "storyboard_async": True, "voice_async": True}
 
 
 @router.get("/health")
