@@ -32,5 +32,4 @@ that the build finished — endpoint verification against PROD (`/platform/healt
 `/platform/version`, one render path) is the operator check that closes this out.
 
 **Rollback:** `git tag -d v0.21.0 && git push --delete origin v0.21.0` does **not**
-un-deploy. Roll forward instead: tag the previous good commit (`v0.20.0` →
-`0d7ee49`-era HEAD) as `v0.21.1` and push, since the CD workflow deploys tags.
+un-deploy. Roll forward instead: tag the previous good commit (`4250c2e`, tagged `v0.20.0`) as `v0.21.1` and push, since the CD workflow deploys tags.
