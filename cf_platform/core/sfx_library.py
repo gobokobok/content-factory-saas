@@ -39,7 +39,7 @@ SFX_LIBRARY: list[SfxLibraryEntry] = [
         key="checkmark",
         display_name="Checkmark",
         prompt_hint="scene lists or confirms an item (a habit, step, or rule)",
-        search_query="checkmark success ding",
+        search_query="correct answer ding",
     ),
     SfxLibraryEntry(
         key="error",
@@ -69,7 +69,7 @@ SFX_LIBRARY: list[SfxLibraryEntry] = [
         key="drumroll",
         display_name="Drumroll riser",
         prompt_hint="tension build-up in the scene right before a big-number reveal",
-        search_query="drumroll tension riser",
+        search_query="drum roll sting",
     ),
     SfxLibraryEntry(
         key="impact",
