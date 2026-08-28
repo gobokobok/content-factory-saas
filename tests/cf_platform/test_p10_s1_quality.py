@@ -388,16 +388,26 @@ def test_bug5_noto_font_path_in_overlay_section():
     assert "Poppins" not in section
 
 
-def test_ost_slides_in_from_left_flush_no_gap():
-    """D074/D075: OST x-position animates in from off-screen-left to a flush-left rest.
+def test_ost_slides_in_from_left_with_safe_margin():
+    """D074/D075/D079: OST x-position animates in from off-screen-left to a
+    resting position that keeps a safe left margin, not flush to the edge.
 
-    Was `x=max(40,(w-text_w)/2)` (static, centered). Now an `if(lt(t-...` ramp
-    from -text_w to _OST_TARGET_X (== _OST_BOX_PAD, so the BOX's left edge —
-    not just the text — lands at x=0 with no gap, per D075).
+    Was `x=max(40,(w-text_w)/2)` (static, centered, D074). D075 made the box
+    flush to x=0 (no gap) — that clipped on real devices (player/screen edge
+    crops the outermost pixels), so D079 restored a proper left margin,
+    matching _OST_RIGHT_MARGIN.
     """
-    from cf_platform.workers.render_worker import _OST_BOX_PAD, _OST_TARGET_X
+    from cf_platform.workers.render_worker import (
+        _OST_BOX_PAD,
+        _OST_LEFT_MARGIN,
+        _OST_RIGHT_MARGIN,
+        _OST_TARGET_X,
+    )
 
-    assert _OST_TARGET_X == _OST_BOX_PAD  # box left edge flush to screen edge at rest
+    box_left_edge = _OST_TARGET_X - _OST_BOX_PAD
+    assert box_left_edge == _OST_LEFT_MARGIN  # real margin, not flush to 0
+    assert box_left_edge > 0
+    assert _OST_LEFT_MARGIN == _OST_RIGHT_MARGIN  # symmetric margins
 
     scene = _scene("1", on_screen_text="Rate hike 2018", on_screen_text_type="stat", duration_s=3.0)
     sb = _storyboard([scene])

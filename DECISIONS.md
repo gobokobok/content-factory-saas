@@ -5,6 +5,17 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D079 — D075 follow-up: OST left margin restored (flush-to-edge clipped on real devices)
+**Date:** 2026-08-28
+**Status:** ACTIVE
+**Decision:** `_OST_TARGET_X` (`cf_platform/workers/render_worker.py`) changed from `_OST_BOX_PAD` (box flush to x=0, D075) to `_OST_LEFT_MARGIN + _OST_BOX_PAD` — a new `_OST_LEFT_MARGIN = 60` constant, matching the existing `_OST_RIGHT_MARGIN`. The on-screen-text box now rests 60px from the left edge, symmetric with the right side.
+**Rationale:** Operator shared a screenshot of a real published Short — "UP TO $100,000" was visibly chopped at the left edge in the YouTube Shorts player. D075's explicit "no gap, box flush to the screen edge" was correct for the raw rendered frame (verified programmatically at the time), but real playback surfaces (the Shorts player UI, screen edge curvature on physical devices) crop the outermost pixels regardless of what the source frame actually contains — a well-known reason broadcast/vertical-video convention keeps a safe-title margin off every edge. Zero-margin content is a genuine defect in practice even when the file itself is "correct."
+**No new dependency.**
+**Implemented by:** operator chat request (screenshot of a live published Short), 2026-08-28.
+**See:** D074, D075.
+
+---
+
 ## D078 — D076 follow-up: manual sfx-library uploads (automated Freesound picks rejected)
 **Date:** 2026-08-27
 **Status:** ACTIVE

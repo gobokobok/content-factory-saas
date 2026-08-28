@@ -264,8 +264,11 @@ def _overlay_section(storyboard, video_source: str) -> tuple[str, str]:
 _OST_FONTFILE = "/usr/local/share/fonts/Montserrat-Bold.ttf"
 _OST_FONTSIZE = 90
 _OST_SLIDE_IN_S = 0.4  # seconds to slide from off-screen-left to resting position
-_OST_BOX_PAD = 18  # boxborderw — also used to compute the flush-left resting x (D075)
-_OST_TARGET_X = _OST_BOX_PAD  # resting x so the BOX's left edge lands at 0, no gap (D075)
+_OST_BOX_PAD = 18  # boxborderw
+_OST_LEFT_MARGIN = 60  # px kept clear on the left — D075's flush-to-0 clipped on real
+# devices (YouTube Shorts player/screen edge curvature crops the outermost pixels even
+# though the raw frame has full content there) — see D079. Matches _OST_RIGHT_MARGIN.
+_OST_TARGET_X = _OST_LEFT_MARGIN + _OST_BOX_PAD  # resting x so the BOX's left edge sits at _OST_LEFT_MARGIN
 _OST_RIGHT_MARGIN = 60  # px kept clear on the right so the box never touches that edge
 _OST_FRAME_W = 1080  # matches src.ffmpeg_builder's 9:16 output width
 _OST_TOP_FRACTION = 0.30  # box top sits 30% down from the top edge (D075)
@@ -328,18 +331,20 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
     Lower-third names/titles still use text= (they are operator-controlled
     and unlikely to contain problematic characters).
 
-    D074/D075: text slides in from off-screen-left to a resting position whose
-    box sits flush against the left edge (was centered + fade, then a fixed
-    60px margin that still left a gap). Box top sits _OST_TOP_FRACTION (30%)
-    down from the top (was vertical-center). Box is white@0.55 / text is black
-    (was reversed — black box / white text). Montserrat Bold (fontsize 90, was
-    NotoSans 60) — Futura Bold was requested but is a commercial Bauer
-    Types/Monotype font with no free-license source to bundle; Montserrat is
-    the closest open (SIL OFL) geometric-sans substitute, now bundled directly
-    (D075) rather than resolved via the fonts-montserrat apt package, so the
-    Python-side wrap measurement below reads the exact bytes ffmpeg renders
-    with. Verified it covers the Unicode arrow glyphs NotoSans was chosen for
-    (P10-S1 Bug 5).
+    D074/D075/D079: text slides in from off-screen-left to a resting position
+    _OST_LEFT_MARGIN (60px) from the left edge (D074: centered + fade; D075:
+    flush to 0 — clipped on real devices, the player/screen edge crops the
+    outermost pixels even though the raw frame has full content there; D079:
+    restored a 60px margin, matching _OST_RIGHT_MARGIN). Box top sits
+    _OST_TOP_FRACTION (30%) down from the top (was vertical-center). Box is
+    white@0.55 / text is black (was reversed — black box / white text).
+    Montserrat Bold (fontsize 90, was NotoSans 60) — Futura Bold was requested
+    but is a commercial Bauer Types/Monotype font with no free-license source
+    to bundle; Montserrat is the closest open (SIL OFL) geometric-sans
+    substitute, now bundled directly (D075) rather than resolved via the
+    fonts-montserrat apt package, so the Python-side wrap measurement below
+    reads the exact bytes ffmpeg renders with. Verified it covers the Unicode
+    arrow glyphs NotoSans was chosen for (P10-S1 Bug 5).
 
     Not implemented: the reference design's left-to-right opacity gradient on
     the box. drawtext's box=1 is a single flat colour+alpha — a true gradient
