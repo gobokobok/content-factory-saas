@@ -1381,8 +1381,12 @@ async function loadRun(id) {
   // since buildSceneRow reads state.sfxLibrary synchronously.
   try {
     const r = await fetch(`/platform/studio/sfx-library`);
-    if (r.ok) state.sfxLibrary = await r.json();
-  } catch { /* ignore — dropdown just shows "none / silence" only */ }
+    if (r.ok) {
+      state.sfxLibrary = await r.json();
+    } else {
+      console.error(`SFX library fetch failed: HTTP ${r.status}`);
+    }
+  } catch (err) { console.error('SFX library fetch failed:', err); }
 
   // Try to load storyboard artifact
   try {
@@ -1949,6 +1953,8 @@ function buildSceneRow(s, nextScene, totalDur) {
       <select id="sfx-${sceneId}" onchange="onSfxChange('${sceneId}')" title="Sound effect for this scene">
         <option value="">— none / silence —</option>
         ${state.sfxLibrary.map(o => `<option value="${esc(o.key)}"${s.sfx === o.key ? ' selected' : ''}>${esc(o.display_name)}</option>`).join('')}
+        ${(s.sfx && s.sfx.toLowerCase() !== 'silence' && !state.sfxLibrary.some(o => o.key === s.sfx))
+          ? `<option value="${esc(s.sfx)}" selected>${esc(s.sfx)} (unavailable)</option>` : ''}
       </select>
     </td>
     <td class="narrow" id="thumb-cell-${sceneId}" style="padding:4px 6px;">${buildThumbCell(sceneId)}</td>

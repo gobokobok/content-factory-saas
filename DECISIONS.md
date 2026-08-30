@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D080 — D076 follow-up: Studio SFX dropdown always shows the scene's real value; stale auto-picks flagged for removal
+**Date:** 2026-08-30
+**Status:** ACTIVE
+**Decision:** `buildSceneRow`'s SFX `<select>` (`src/static/studio-v2.html`) now synthesizes an extra `(unavailable)` `<option>` for a scene's current `sfx` value whenever that key isn't present in `state.sfxLibrary` — e.g. the fetch failed, or the library was pruned since the storyboard was generated. Also made the `/platform/studio/sfx-library` fetch log to `console.error` on failure instead of failing silently.
+**Rationale:** Operator reported: the Studio SFX column showed "none" for every scene (no options in the dropdown), yet the rendered video included SFX on every scene that had one. Root cause was two independent things compounding: (1) `state.sfxLibrary` was empty client-side (its GET request/parse never surfaced a visible error), so no `<option>` existed to match any scene's real `sfx` value, and the bare `<select>` silently fell back to displaying its first option — the blank "none / silence" one — even though the scene's real stored value was untouched; (2) because the dropdown was already *visually* showing "none", picking "none" again fired no `change` event, so the operator had no way to actually clear it. Independently confirmed by direct R2 inspection that all 8 curated `sfx-library/*.mp3` files from the original Freesound auto-seed (D076) — already rejected by the operator on a listening pass, see D078 — were still present in the DEV bucket, which is why render kept mixing them in; nothing had actually removed them, only the manual-upload replacement path (D078) had been added.
+**No new dependency.**
+**Follow-up (not yet done as of this entry):** clear or replace the rejected auto-picked files in `sfx-library/` so new renders stop including them, pending operator confirmation (deleting shared R2 assets requires explicit sign-off, not something to do unprompted).
+**Implemented by:** operator chat report ("no SFX choice available... video includes all the SFX sounds and I cannot delete"), 2026-08-30.
+**See:** D076, D078.
+
+---
+
 ## D079 — D075 follow-up: OST left margin restored (flush-to-edge clipped on real devices)
 **Date:** 2026-08-28
 **Status:** ACTIVE
