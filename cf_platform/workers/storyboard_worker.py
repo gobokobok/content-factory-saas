@@ -882,14 +882,20 @@ def _asset_tier_to_clip_type(tier: str) -> Literal["hard_cut", "still_with_motio
 def _derive_motion_effect(tier: str, scene_index: int) -> str | None:
     """Derive motion_effect deterministically from asset_tier and scene index.
 
-    still        → scale
-    still_motion → ken_burns_in (even index) / ken_burns_out (odd index)
-    video        → None
+    still        → ken_burns
+    still_motion → ken_burns
+    video        → None (motion effects apply to stills only)
+
+    D081: emits the controlled vocabulary (src.models.MOTION_EFFECTS) instead of the
+    old scale / ken_burns_in / ken_burns_out names.  All three of those rendered
+    identically — _zoompan_filter short-circuited on clip_type before reading
+    motion_effect — so the tier split and the even/odd in-vs-out alternation never
+    produced any visible variation.  Rather than invent variation here, every still
+    keeps the gentle push that has always been the validated look, and the operator
+    picks anything else per scene in the Studio storyboard table.
     """
-    if tier == "still":
-        return "scale"
-    elif tier == "still_motion":
-        return "ken_burns_in" if scene_index % 2 == 0 else "ken_burns_out"
+    if tier in ("still", "still_motion"):
+        return "ken_burns"
     return None
 
 
@@ -1129,6 +1135,7 @@ def _apply_patches_and_render_options(
         "segment_type", "person_name", "person_title",
         "primary_stk", "context_stk", "concept_stk",
         "on_screen_text", "on_screen_text_type", "sfx", "sfx_timing",
+        "motion_effect",
     }
 
     for patch in patches:

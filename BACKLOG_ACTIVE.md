@@ -2017,10 +2017,117 @@ StoryboardWorker → VisualDirectorWorker → AcquisitionWorker → RenderWorker
 
 **EPIC 38 — Multi-asset timelines (P11):** Each scene can hold a sub-timeline of 2–3 assets with individual in/out points. The render worker assembles sub-clips within a scene's duration window. Enables e.g. a 7-second "BDNF" scene that shows 3 seconds of neuron microscopy → 2 seconds of a scientist → 2 seconds of a brain scan without a scene boundary. Requires render_script builder rewrite for sub-scene ffmpeg concat.
 
-**EPIC 39 — Visual motion effects (P11):** Slow push (`zoompan`), subtle camera shake (2–5px overlay), film grain (noise filter), light leak overlay (screen blend), animated callouts (arrow grows, underline draws in FFmpeg `drawbox`+`drawtext` sequence). Each effect is a named preset in `motion_effect` field. Controlled vocabulary so the Visual Director can specify them without free-form strings.
+**EPIC 39 — Visual motion effects (P11):** Subtle camera shake (2–5px overlay), film grain (noise filter), light leak overlay (screen blend), animated callouts (arrow grows, underline draws in FFmpeg `drawbox`+`drawtext` sequence). Each effect is a named preset in the `motion_effect` field. **The controlled vocabulary this epic asked for shipped in P-UX2-S3** (`src.models.MOTION_EFFECTS` — ken_burns / zoom_in / zoom_out / pan_right / pan_left / static, D081), along with the operator dropdown and the discovery that `motion_effect` had never actually reached the render script. P11-S2 extends that vocabulary rather than creating it.
 
 **EPIC 32 — Legacy Rebuild** (~3 sprints after P7): re-author Script→Video as native workers; retire `src/` + adapter.
 **EPIC 34 — Replay & Evaluation Engine** (~3 sprints after P7): replay any worker, golden eval dataset, A/B routing, LLM-judge scoring.
+
+---
+
+## EPIC 42 — Render & Narration Controls (Sprint P-UX2)
+
+The validated 9:16 setup becomes a template with operator-selectable variants rather than hardcoded choices. Adds a caption style preset and TTS pace/register to the Settings stage, turns the storyboard table's read-only Motion column into a real per-scene control, and introduces one shared dropdown component so Settings selects, Motion cells and SFX cells all look the same. Uncovered and fixed three latent defects along the way: `motion_effect` never reached the render script (D081), it was not in `_PATCHABLE_FIELDS` so it could not be edited, and `VideoSettings` never reached the native renderer.
+
+---
+
+## [P-UX2-S1] `.cf-select` dropdown component + SFX column restyle
+**Epic:** E42 — Render & Narration Controls
+**Sprint:** P-UX2
+**Status:** done
+**Completed:** 2026-08-30
+**Priority:** high
+**Points:** 3
+**Depends on:** —
+
+### Goal
+One shared dropdown component, used by every select in Studio. Before this story there was no `select` rule anywhere in `studio-v2.html` — the SFX column rendered with raw browser chrome, visually inconsistent with the rest of the design system.
+
+### Acceptance Criteria
+- [x] `.cf-select` defined from existing design tokens, with the same focus treatment as `.script-textarea`
+- [x] Native `<select>` with `appearance: none` + a data-URI chevron — no JS listbox (keyboard nav, type-ahead and the mobile native picker stay free)
+- [x] `.cf-select--sm` modifier for table cells; storyboard row height unchanged
+- [x] Existing SFX select adopts it with no behaviour change to `onSfxChange`
+
+### Definition of Done
+- [x] All AC checked · CI green · verified in the browser preview
+
+---
+
+## [P-UX2-S2] Caption style preset — Standard / Punch
+**Epic:** E42 — Render & Narration Controls
+**Sprint:** P-UX2
+**Status:** done
+**Completed:** 2026-08-30
+**Priority:** high
+**Points:** 4
+**Depends on:** P-UX2-S1
+
+### Goal
+A second caption preset alongside the validated look: ALL CAPS, one word at a time. Chosen on the Settings stage, applied at render.
+
+### Acceptance Criteria
+- [x] `VideoSettings.caption_style: "standard" | "punch"`, orthogonal to `subtitles`
+- [x] Settings dropdown, disabled while the captions toggle is off; persists and rehydrates
+- [x] Flows `RenderWorkerRequest.caption_style` → `state.inputs` → `_build_render_script`
+- [x] Punch: one word per Dialogue event, uppercased, no active-word highlight, gapless timing
+- [x] Uppercasing is display-only — `WordTimestamp.word` untouched (it still drives timing)
+- [x] New `_CAPTIONS_ASS_HEADER_PUNCH` (130px vs 80px); 9:16 only, matching D070's scoping
+- [x] Standard preset output unchanged
+
+### Definition of Done
+- [x] All AC checked · CI green · 19 tests in `tests/cf_platform/test_pux2_s2_caption_style.py` · D082 logged
+
+---
+
+## [P-UX2-S3] Motion effect vocabulary + per-scene Motion dropdown
+**Epic:** E42 — Render & Narration Controls
+**Sprint:** P-UX2
+**Status:** done
+**Completed:** 2026-08-30
+**Priority:** high
+**Points:** 5
+**Depends on:** P-UX2-S1
+
+### Goal
+Make `motion_effect` real. The operator picks per scene from a controlled vocabulary; pans traverse the full landscape image when it is used inside a 9:16 frame.
+
+### Acceptance Criteria
+- [x] `MOTION_EFFECTS` vocabulary + `normalize_motion_effect()` in `src/models.py`; field stays `str | None` so stored artifacts validate
+- [x] `_zoompan_filter`'s `still_with_motion` early return removed — `motion_effect` is honoured for the first time
+- [x] `zoom_in`/`zoom_out` at 2% per second (rate-based, duration-independent)
+- [x] `pan_left`/`pan_right` traverse the full image via a time-driven `crop` on a height-only pre-scale; verified in FFmpeg (100 frames / 4.000s / 25fps, first-vs-last frame delta 97.5)
+- [x] `motion_effect` added to `ScenePatchRequest` (422 on unknown values) and `_PATCHABLE_FIELDS`
+- [x] Storyboard table Motion column is a `.cf-select--sm` dropdown; `—` for video scenes
+- [x] **No regression:** a pre-D081 storyboard produces a byte-identical render script
+
+### Definition of Done
+- [x] All AC checked · CI green · 12 tests in `tests/cf_platform/test_pux2_s3_motion.py` + rewritten `TestZoompanFilter`/`TestMotionVfPrefix` · D081 logged
+
+---
+
+## [P-UX2-S4] Narration pace + emotional register
+**Epic:** E42 — Render & Narration Controls
+**Sprint:** P-UX2
+**Status:** done
+**Completed:** 2026-08-30
+**Priority:** high
+**Points:** 3
+**Depends on:** P-UX2-S1
+
+### Goal
+TTS speed and delivery style on the Settings stage. Gemini exposes no numeric speaking-rate parameter, so both are composed into the natural-language instruction prefixed to the script.
+
+### Acceptance Criteria
+- [x] `VideoSettings.narration_pace` (slow/normal/fast) + `narration_style` (educational/emotional)
+- [x] Two Settings dropdowns; persist and rehydrate
+- [x] `_PACE_WPM` + `_STYLE_CLAUSE` tables replace the single hardcoded constant; `_build_tts_input(script, pace, style)` composes them
+- [x] D073's pause wording preserved **verbatim** in every pace × style combination (asserted)
+- [x] `_estimate_duration` derives wps from the same table
+- [x] Reaches the worker via `settings.json` read in `voice_worker_endpoint`; `VoiceWorkerRequest` unchanged
+- [x] Unknown values fall back to defaults rather than raising (D048)
+
+### Definition of Done
+- [x] All AC checked · CI green · 32 tests in `tests/cf_platform/test_pux2_s4_narration.py` · D083 logged
 
 ---
 

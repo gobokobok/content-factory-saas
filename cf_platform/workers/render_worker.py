@@ -93,6 +93,7 @@ def _build_captions_with_y_override(
     subtitle_style: str,
     play_res_y: int = _PLAY_RES_Y,
     aspect_ratio: str = "9:16",
+    caption_style: str = "standard",
 ) -> str:
     """Word-synced ASS captions with per-scene MarginV for lower_third scenes.
 
@@ -109,10 +110,27 @@ def _build_captions_with_y_override(
     Purely numeric word tokens (e.g. "100000") are spelled out for display
     only (see src.captions.spell_out_numbers, D073) — word_ts.word itself is
     untouched, since it still drives start_ms/end_ms timing.
+
+    caption_style (D082) selects the presentation preset:
+      "standard" — 5-word rolling line, active word highlighted yellow.
+      "punch"    — one word at a time, uppercased. The highlight is dropped: with a
+                   single word on screen the "active" word IS the whole line, so
+                   colouring it would just make every caption yellow.
+    Uppercasing is applied to display text only, after spell_out_numbers and never
+    to word_ts.word, for the same reason the number spell-out is display-only.
+
+    NOTE: this is a near-duplicate of src.captions.build_word_synced_captions_ass,
+    which serves the legacy render path. Keep the two in step until they are merged.
     """
     from src.captions import _captions_header, format_ass_time, spell_out_numbers
 
-    _CHUNK_SIZE = 5
+    punch = caption_style == "punch"
+    chunk_size = 1 if punch else 5
+
+    def _display(word: str) -> str:
+        """Render one word for display: spelled-out numbers, uppercased for punch."""
+        text = spell_out_numbers(word)
+        return text.upper() if punch else text
 
     margin_overrides: list[int | None] = []
     for scene in storyboard_scenes:
@@ -133,15 +151,18 @@ def _build_captions_with_y_override(
         mv = margin_overrides[idx] if idx < len(margin_overrides) else None
         margin_v = mv if mv is not None else 0
 
-        chunks = [words[j : j + _CHUNK_SIZE] for j in range(0, len(words), _CHUNK_SIZE)]
+        chunks = [words[j : j + chunk_size] for j in range(0, len(words), chunk_size)]
         for j, chunk in enumerate(chunks):
             next_chunk = chunks[j + 1] if j + 1 < len(chunks) else None
-            chunk_texts = [spell_out_numbers(w.word) for w in chunk]
+            chunk_texts = [_display(w.word) for w in chunk]
             for k, word_ts in enumerate(chunk):
-                before = chunk_texts[:k]
-                active = "{\\c&H0000FFFF&}" + spell_out_numbers(word_ts.word) + "{\\c&H00FFFFFF&}"
-                after = chunk_texts[k + 1 :]
-                text = " ".join(before + [active] + after)
+                if punch:
+                    text = _display(word_ts.word)
+                else:
+                    before = chunk_texts[:k]
+                    active = "{\\c&H0000FFFF&}" + _display(word_ts.word) + "{\\c&H00FFFFFF&}"
+                    after = chunk_texts[k + 1 :]
+                    text = " ".join(before + [active] + after)
                 start_s = word_ts.start_ms / 1000.0
                 if k + 1 < len(chunk):
                     end_s = chunk[k + 1].start_ms / 1000.0
@@ -154,7 +175,7 @@ def _build_captions_with_y_override(
                     f"VoiceCaption,,0,0,{margin_v},,{text}"
                 )
 
-    header = _captions_header(subtitle_style, aspect_ratio)
+    header = _captions_header(subtitle_style, aspect_ratio, caption_style)
     if events:
         return header + "\n".join(events) + "\n"
     return header
@@ -412,6 +433,7 @@ def _build_render_script(
     blur_fill_enabled: bool,
     format_track: str = "portrait",
     captions: bool = True,
+    caption_style: str = "standard",
 ) -> str:
     """Assemble the complete render bash script with render_options extensions.
 
@@ -423,6 +445,7 @@ def _build_render_script(
     landscape → 1920×1080 (standard YouTube).
     `captions` toggles burned-in subtitles: False forces `subtitles="none"`
     regardless of the `VideoSettings` default.
+    `caption_style` selects the D082 presentation preset ("standard" | "punch").
     """
     from src.captions import build_captions_ass
     from src.ffmpeg_builder import (
@@ -478,7 +501,12 @@ def _build_render_script(
     if subtitles != "none":
         if scene_words:
             ass_content = _build_captions_with_y_override(
-                scene_words, storyboard.scenes, subtitles, play_res_y=out_h, aspect_ratio=caption_aspect_ratio
+                scene_words,
+                storyboard.scenes,
+                subtitles,
+                play_res_y=out_h,
+                aspect_ratio=caption_aspect_ratio,
+                caption_style=caption_style,
             )
         else:
             ass_content = build_captions_ass(
@@ -778,6 +806,7 @@ def build_render_worker(
         # Build render script
         format_track: str = state.inputs.get("format_track", "landscape")
         captions: bool = state.inputs.get("captions", True)
+        caption_style: str = state.inputs.get("caption_style", "standard")
         script_content = _build_render_script(
             run_id=run_id,
             storyboard=storyboard,
@@ -787,6 +816,7 @@ def build_render_worker(
             blur_fill_enabled=blur_fill_enabled,
             format_track=format_track,
             captions=captions,
+            caption_style=caption_style,
         )
 
         # Persist render_script.sh to R2 BEFORE execution for debuggability

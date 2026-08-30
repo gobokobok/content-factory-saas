@@ -46,15 +46,13 @@ _DEEPGRAM_URL = "https://api.deepgram.com/v1/listen"
 _DEEPGRAM_TIMEOUT_SECONDS = 60.0
 _PUNCT_RE = re.compile(r"[^\w\s.%]")
 
-# ── Narration pace (words-per-second) used for proportional fallback ──────────
-
-_WORDS_PER_SECOND = 160 / 60
-_WORDS_PER_SECOND_SHORT = 172.5 / 60  # 9:16 Shorts target ~170-175 wpm (D073)
+# ── Narration pace + style (D083) ─────────────────────────────────────────────
 
 # Gemini's native TTS models have no numeric speaking-rate parameter (SpeechConfig
 # only exposes language_code, voice_config, multi_speaker_voice_config) — pace is
 # controlled by a natural-language style instruction prefixed to the input text,
-# which the model follows without vocalizing the instruction itself.
+# which the model follows without vocalizing the instruction itself.  So both the
+# operator's pace choice and their style choice are composed into that one prefix.
 #
 # History: "energetically"/"brisk" wording (pre-2026-08-26) made Gemini run
 # sentences and list items together with no breathing room — duration dropped
@@ -62,12 +60,30 @@ _WORDS_PER_SECOND_SHORT = 172.5 / 60  # 9:16 Shorts target ~170-175 wpm (D073)
 # only) fixed the pauses but read as flat/slow (13s -> 19s on the same script).
 # D073: put the energy back in explicitly, but scoped to *between* pauses only,
 # and pushed the target to ~170-175 wpm — so pauses are kept, delivery is not flat.
-_SHORTS_PACE_INSTRUCTION = (
-    "Narrate the following like an upbeat, energetic YouTube Shorts voiceover at "
-    "roughly 170 to 175 words per minute. Take a brief, natural pause after each "
-    "sentence and after each list item — do not run straight from one sentence or "
-    "item into the next — but keep the delivery lively and energetic within each "
-    "sentence, between the pauses: "
+# D083 keeps that hard-won pause clause verbatim and makes only the target rate and
+# the leading voice-direction clause operator-selectable.
+
+_PACE_WPM: dict[str, int] = {"slow": 145, "normal": 160, "fast": 172}
+_DEFAULT_PACE = "normal"
+_DEFAULT_STYLE = "educational"
+
+_STYLE_CLAUSE: dict[str, str] = {
+    "educational": (
+        "Narrate the following like a clear, confident explainer voiceover — "
+        "measured and articulate, letting each fact land"
+    ),
+    "emotional": (
+        "Narrate the following like a warm, expressive storyteller voiceover — "
+        "emotionally engaged, leaning into the moments that matter"
+    ),
+}
+
+# D073's pause guidance. Load-bearing — this exact wording is what stopped Gemini
+# running sentences together. Do not reword when adding styles or paces.
+_PAUSE_INSTRUCTION = (
+    "Take a brief, natural pause after each sentence and after each list item — do "
+    "not run straight from one sentence or item into the next — but keep the "
+    "delivery lively and energetic within each sentence, between the pauses: "
 )
 
 
@@ -224,21 +240,33 @@ def _proportional_fallback(text: str, total_duration_s: float) -> list[VoiceWord
     return result
 
 
-def _estimate_duration(script: str, aspect_ratio: str = "16:9") -> float:
-    """Estimate narration duration from word count at standard narration pace.
+def _estimate_duration(script: str, pace: str = _DEFAULT_PACE) -> float:
+    """Estimate narration duration from word count at the selected narration pace.
 
-    9:16 Shorts use a faster proportional-fallback rate to match the TTS pace
-    instruction applied in _build_tts_input.
+    Used only for the proportional fallback when Deepgram alignment is unavailable;
+    the wpm target matches the one given to the TTS in _build_tts_input so the two
+    paths agree.  An unknown pace falls back to the default rate.
     """
-    wps = _WORDS_PER_SECOND_SHORT if aspect_ratio == "9:16" else _WORDS_PER_SECOND
+    wps = _PACE_WPM.get(pace, _PACE_WPM[_DEFAULT_PACE]) / 60
     return max(1.0, len(script.split()) / wps)
 
 
-def _build_tts_input(script: str, aspect_ratio: str) -> str:
-    """Prefix the script with a pace-style instruction for 9:16 Shorts narration."""
-    if aspect_ratio == "9:16":
-        return _SHORTS_PACE_INSTRUCTION + script
-    return script
+def _build_tts_input(
+    script: str,
+    pace: str = _DEFAULT_PACE,
+    style: str = _DEFAULT_STYLE,
+) -> str:
+    """Prefix the script with the composed pace + style narration instruction.
+
+    D083: applied for every aspect ratio. Before D083 only 9:16 received an
+    instruction (hardcoded to ~170-175 wpm) and 16:9 got the raw script at Gemini's
+    natural pace — so landscape narration changes as of this story, by design.
+    Unknown pace/style values fall back to the defaults rather than raising, so a
+    stale settings.json can never break voice generation (D048 fault isolation).
+    """
+    clause = _STYLE_CLAUSE.get(style, _STYLE_CLAUSE[_DEFAULT_STYLE])
+    wpm = _PACE_WPM.get(pace, _PACE_WPM[_DEFAULT_PACE])
+    return f"{clause} at roughly {wpm} words per minute. {_PAUSE_INSTRUCTION}{script}"
 
 
 # ── Worker factory ────────────────────────────────────────────────────────────
@@ -261,9 +289,10 @@ def build_voice_production_worker(
     Fault isolation (D048): missing keys or API failures degrade gracefully;
     the pipeline always continues with whatever timestamps are available.
 
-    state.inputs['aspect_ratio'] (default "16:9") selects narration pace: "9:16"
-    applies a fast-pace style instruction for Shorts (~170-175 wpm); other ratios
-    use Gemini's natural default pace.
+    state.inputs['narration_pace'] ("slow"|"normal"|"fast") and
+    state.inputs['narration_style'] ("educational"|"emotional") compose the
+    natural-language delivery instruction prefixed to the script (D083). Both
+    default when absent, so callers that pass inputs={} keep working.
     """
 
     async def voice_production(state: StageState) -> WorkerOutput:
@@ -274,17 +303,20 @@ def build_voice_production_worker(
 
         _, script_body = await read_artifact(storage, script_key)
         script_text: str = script_body["script"]
-        aspect_ratio: str = state.inputs.get("aspect_ratio", "16:9")
+        # aspect_ratio no longer influences narration (D083 replaced the 9:16-only
+        # pace instruction with explicit operator settings), so it is not read here.
+        pace: str = state.inputs.get("narration_pace") or _DEFAULT_PACE
+        style: str = state.inputs.get("narration_style") or _DEFAULT_STYLE
 
         mp3_r2_key = ""
         word_timestamps: list[VoiceWordTimestamp] = []
         alignment_method = "proportional_fallback"
-        total_duration_s = _estimate_duration(script_text, aspect_ratio)
+        total_duration_s = _estimate_duration(script_text, pace)
 
         # ── Step 1: TTS ────────────────────────────────────────────────────
         if gemini_api_key and gemini_tts_voice:
             try:
-                tts_input = _build_tts_input(script_text, aspect_ratio)
+                tts_input = _build_tts_input(script_text, pace, style)
                 wav_bytes = await _tts_generate(tts_input, gemini_api_key, gemini_tts_voice)
                 mp3_r2_key = f"runs/{state.run_id}/voiceover/generated.wav"
                 await storage.put_bytes(mp3_r2_key, wav_bytes, "audio/wav")

@@ -17,6 +17,7 @@ from src.models import (
     StoryboardScene,
     VideoSettings,
     WordTimestamp,
+    normalize_motion_effect,
 )
 
 logger = logging.getLogger(__name__)
@@ -676,14 +677,18 @@ def _render_image_scene(
     if scene.motion_effect:
         clip_label += f" ({scene.motion_effect})"
 
-    scale_vf = (
-        f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
-        f"crop={out_w}:{out_h}"
-    )
-    zoompan_vf = _zoompan_filter(scene.clip_type, scene.motion_effect, frames, out_w, out_h)
+    # Blur-fill portraits are already letterboxed into the frame, so there is no
+    # overflow left to pan across — downgrade a pan to the default push there.
+    effect = normalize_motion_effect(scene.motion_effect, scene.clip_type)
+    if blur_fill_enabled and effect in ("pan_left", "pan_right"):
+        effect = "ken_burns"
+
+    scale_vf = _motion_vf_prefix(scene.clip_type, effect, frames, out_w, out_h)
+    zoompan_vf = _zoompan_filter(scene.clip_type, effect, frames, out_w, out_h)
     # zoompan bounds output to d=frames and resets the microsecond PTS from the
-    # JPEG/PNG decoder — skipping it causes container duration corruption.
-    normal_vf = f"{scale_vf},{zoompan_vf},fps={_FPS},setsar=1:1"
+    # JPEG/PNG decoder — skipping it causes container duration corruption.  Pans are
+    # the one exception (see _zoompan_filter): they return "" and are dropped here.
+    normal_vf = ",".join(p for p in (scale_vf, zoompan_vf, f"fps={_FPS}", "setsar=1:1") if p)
 
     common_encode = (
         "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
@@ -711,6 +716,8 @@ def _render_image_scene(
 
     # Blur-fill for portrait photos: blurred full-frame background + portrait
     # scaled to fit, with zoompan applied to the composite so the portrait isn't static.
+    # NB: the blur-fill chain deliberately does NOT use scale_vf — it composites its
+    # own background/foreground scales from the raw input.
     blur_vf = (
         f"[in]split=2[bg][fg];"
         f"[bg]scale={out_w}:{out_h},boxblur=20:5[blurred];"
@@ -925,6 +932,76 @@ def _local_path(run_id: str, file_key: str) -> str:
     return f"/tmp/{run_id}/{relative}"
 
 
+# Zoom rate for the zoom_in / zoom_out presets: 2% of frame size per second of
+# scene duration (D081).  Expressed per-second rather than per-clip so a 2s and a
+# 6s scene push at the same visible speed instead of the same total amount.
+_ZOOM_RATE_PER_S = 0.02
+
+# Ken Burns keeps its pre-D081 shape exactly: a fixed 1.0 -> 1.05 push across the
+# whole clip, regardless of duration.  Do not "rationalise" this into a per-second
+# rate — it is the default every existing run renders with.
+_KEN_BURNS_TOTAL = 0.05
+
+# Pan travel budget, as a fraction of the output width per second of scene
+# duration.  The pan traverses min(available headroom, budget) pixels, centred on
+# the image, so a wide landscape still in a 9:16 frame drifts sideways at a
+# constant readable speed instead of racing across the full width on short scenes.
+# This is the knob to turn if the pan reads too fast or too slow.
+_PAN_TRAVEL_FRACTION_PER_S = 0.12
+
+
+def _pan_travel_expr(out_w: int, duration_s: float) -> str:
+    """Return the FFmpeg expression for a pan's travel distance in pixels.
+
+    min(available horizontal headroom, budget), where the budget grows with scene
+    duration at _PAN_TRAVEL_FRACTION_PER_S of the output width per second.  Commas
+    inside the expression are backslash-escaped because the expression is embedded
+    in a comma-separated -vf filter chain.
+    """
+    budget_px = out_w * _PAN_TRAVEL_FRACTION_PER_S * duration_s
+    return f"min(max(0\\,iw-{out_w})\\,{budget_px:.1f})"
+
+
+def _motion_vf_prefix(
+    clip_type: str,
+    motion_effect: str | None,
+    frames: int,
+    out_w: int = _OUT_W,
+    out_h: int = _OUT_H,
+) -> str:
+    """Return the scale (and, for pans, crop) filters that precede zoompan.
+
+    Non-pan effects keep the historical cover-and-centre-crop: the still is scaled
+    to fill the frame and the overflow is discarded, so zoompan animates within a
+    frame-sized image.
+
+    Pan effects (D081) need the discarded overflow, so they scale to output HEIGHT
+    only and leave the full width intact, then slide a frame-sized crop window
+    across it with a time-driven x expression.  This is why pans cannot be done
+    with zoompan: zoompan's crop region is always iw/zoom x ih/zoom, i.e. it always
+    preserves the INPUT aspect ratio, so it cannot express a 9:16 window sliding
+    across a 16:9 image without distorting it.
+    """
+    effect = normalize_motion_effect(motion_effect, clip_type)
+    cover_scale = (
+        f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
+        f"crop={out_w}:{out_h}"
+    )
+    if effect not in ("pan_left", "pan_right"):
+        return cover_scale
+
+    duration_s = frames / _FPS
+    travel = _pan_travel_expr(out_w, duration_s)
+    # Start the window offset from centre by half the travel so the pan is
+    # symmetric about the middle of the image rather than hugging one edge.
+    centre = f"(iw-{out_w})/2"
+    if effect == "pan_right":
+        x = f"{centre}-{travel}/2+{travel}*t/{duration_s:.4f}"
+    else:
+        x = f"{centre}+{travel}/2-{travel}*t/{duration_s:.4f}"
+    return f"scale=-2:{out_h},crop={out_w}:{out_h}:x='{x}':y=0"
+
+
 def _zoompan_filter(
     clip_type: str,
     motion_effect: str | None,
@@ -932,12 +1009,26 @@ def _zoompan_filter(
     out_w: int = _OUT_W,
     out_h: int = _OUT_H,
 ) -> str:
-    """
-    Return a zoompan filter expression for a still or animated clip.
+    """Return a zoompan filter expression for a still clip's motion effect.
 
-    still_with_motion: gentle zoom in 1.0→1.05 (always centered).
-    animated: pronounced 1.0→1.1 or 1.1→1.0 zoom, or 1.1x pan, driven by motion_effect.
-    Unknown motion_effect falls back to zoom_in.
+    Dispatches on the D081 controlled vocabulary (src.models.MOTION_EFFECTS) after
+    normalising legacy names.  Before D081 this function returned early whenever
+    clip_type was "still_with_motion" — which is every generated still — so
+    motion_effect was dead code and every still rendered the same centre push.
+    Now clip_type only supplies the DEFAULT when motion_effect is unset, so
+    untouched runs still render exactly as they did.
+
+    pan_left / pan_right return "" — their motion lives entirely in
+    _motion_vf_prefix's time-driven crop, and appending a zoompan after a moving
+    crop would DESTROY it: zoompan consumes one input frame and emits d frames from
+    that single frame, so it freezes on the crop's first position.  (Verified: with
+    a trailing zoompan the first and last frames of a pan differ by YAVG 0.03,
+    i.e. not at all; without it, by 97.5.)  Those clips get their PTS from
+    `-loop 1 -framerate {_FPS}` on the input plus the standalone fps={_FPS} that
+    _render_image_scene appends, which is sufficient — the microsecond time base
+    problem described below only arises when the still decoder's own timestamps
+    reach the encoder untouched.
+
     out_w / out_h set the s= output size; default to module constants (9:16).
     """
     s = f"{out_w}x{out_h}"
@@ -951,30 +1042,36 @@ def _zoompan_filter(
     suffix = f":d={frames}:s={s}"
     cx = "iw/2-(iw/zoom/2)"
     cy = "ih/2-(ih/zoom/2)"
+    static = f"zoompan=z='1.0':x='{cx}':y='{cy}'{suffix}"
 
-    if clip_type == "still_with_motion":
-        return f"zoompan=z='1+0.05*on/{frames}':x='{cx}':y='{cy}'{suffix}"
+    effect = normalize_motion_effect(motion_effect, clip_type)
 
-    effect = (motion_effect or "zoom_in").lower().replace("-", "_")
+    # Pans carry their motion in the crop; a zoompan here would freeze it.
+    if effect in ("pan_left", "pan_right"):
+        return ""
 
-    # "scale" = static hold, no pan/zoom.  z=1.0 constant; d=frames still bounds
-    # output and resets the microsecond PTS from the JPEG/PNG decoder.
-    if effect == "scale":
-        return f"zoompan=z='1.0':x='{cx}':y='{cy}'{suffix}"
+    # "static" = hold.  z=1.0 constant; d=frames still bounds output and resets the
+    # microsecond PTS from the JPEG/PNG decoder.
+    if effect == "static":
+        return static
 
+    if effect == "ken_burns":
+        return f"zoompan=z='1+{_KEN_BURNS_TOTAL}*on/{frames}':x='{cx}':y='{cy}'{suffix}"
+
+    duration_s = frames / _FPS
+    total = _ZOOM_RATE_PER_S * duration_s
     if effect == "zoom_in":
-        return f"zoompan=z='1+0.1*on/{frames}':x='{cx}':y='{cy}'{suffix}"
+        # on/_FPS is elapsed seconds, so this is literally 2% per second.
+        return f"zoompan=z='1+{_ZOOM_RATE_PER_S}*on/{_FPS}':x='{cx}':y='{cy}'{suffix}"
     if effect == "zoom_out":
-        return f"zoompan=z='1.1-0.1*on/{frames}':x='{cx}':y='{cy}'{suffix}"
-    if effect == "pan_left":
-        x = f"(iw-iw/zoom)*on/{frames}"
-        return f"zoompan=z='1.1':x='{x}':y='{cy}'{suffix}"
-    if effect == "pan_right":
-        x = f"(iw-iw/zoom)*(1-on/{frames})"
-        return f"zoompan=z='1.1':x='{x}':y='{cy}'{suffix}"
+        return (
+            f"zoompan=z='{1 + total:.4f}-{_ZOOM_RATE_PER_S}*on/{_FPS}'"
+            f":x='{cx}':y='{cy}'{suffix}"
+        )
 
-    # Unrecognised effect — fall back to zoom_in
-    return f"zoompan=z='1+0.1*on/{frames}':x='{cx}':y='{cy}'{suffix}"
+    # normalize_motion_effect only ever returns a MOTION_EFFECTS member, so this is
+    # unreachable; kept so an added vocabulary entry degrades to a hold, not a crash.
+    return static
 
 
 # OST appear-delay (0.3s) + slide-in duration (0.4s) from

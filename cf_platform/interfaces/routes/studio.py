@@ -242,6 +242,7 @@ class ScenePatchRequest(BaseModel):
     context_stk: str | None = None
     concept_stk: str | None = None
     sfx: str | None = None
+    motion_effect: str | None = None
     clear_on_screen_text: bool = False
 
 
@@ -258,6 +259,10 @@ async def studio_patch_scene(
     Recomputes render_options for all scenes (cumulative timing must stay coherent)
     using the same _patch_storyboard logic as the StoryboardWorker's internal cycle.
 
+    motion_effect (D081): validated against src.models.MOTION_EFFECTS; unknown values
+    are rejected with 422 rather than silently dropped by _PATCHABLE_FIELDS. Affects
+    render only — no re-acquisition is needed after changing it.
+
     sfx (D076): an empty string is normalised to "silence". No copy-into-run side
     effect happens here — that's handled once, in bulk, at render time by
     render_worker._copy_all_scene_sfx_to_run, which covers both an AI-suggested
@@ -270,7 +275,7 @@ async def studio_patch_scene(
         _apply_patches_and_render_options,
         _sanitize_storyboard_data,
     )
-    from src.models import Storyboard
+    from src.models import MOTION_EFFECTS, Storyboard
 
     key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
     if not key:
@@ -298,6 +303,13 @@ async def studio_patch_scene(
         patches.append({"scene_id": scene_id, "field": "concept_stk", "value": body.concept_stk})
     if body.sfx is not None:
         patches.append({"scene_id": scene_id, "field": "sfx", "value": body.sfx or "silence"})
+    if body.motion_effect is not None:
+        if body.motion_effect not in MOTION_EFFECTS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown motion_effect {body.motion_effect!r} — expected one of {list(MOTION_EFFECTS)}",
+            )
+        patches.append({"scene_id": scene_id, "field": "motion_effect", "value": body.motion_effect})
 
     if not patches:
         raise HTTPException(status_code=400, detail="No patchable fields provided.")

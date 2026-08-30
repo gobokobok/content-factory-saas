@@ -378,12 +378,17 @@ async def voice_worker_endpoint(
         lineage=script_lineage,
     )
 
-    # Read the run's stored aspect ratio (set in Settings, before Voice runs) so
-    # voice_production can apply a faster narration pace for 9:16 Shorts.
-    aspect_ratio = "16:9"
+    # Read the run's stored narration settings (chosen in Settings, before Voice
+    # runs). settings.json is the only channel from the Studio Settings stage to the
+    # TTS — VoiceWorkerRequest deliberately carries nothing but run_id and script.
+    # A missing/unreadable blob leaves the worker on its own defaults (D048).
+    voice_inputs: dict = {}
     try:
         settings_data = await storage.get_json(f"runs/{body.run_id}/settings.json")
-        aspect_ratio = settings_data.get("aspect_ratio", "16:9")
+        voice_inputs = {
+            "narration_pace": settings_data.get("narration_pace"),
+            "narration_style": settings_data.get("narration_style"),
+        }
     except Exception:
         pass
 
@@ -396,7 +401,7 @@ async def voice_worker_endpoint(
     worker_state = StageState(
         run_id=body.run_id,
         user_id=PLATFORM_USER_ID,
-        inputs={"aspect_ratio": aspect_ratio},
+        inputs=voice_inputs,
         artifacts={"script": script_record.r2_key},
     )
 
@@ -504,6 +509,8 @@ class RenderWorkerRequest(BaseModel):
     format_track: str = "landscape"
     captions: bool = True
     music_enabled: bool = True
+    # D082 — "standard" (5-word rolling line) | "punch" (one word at a time, caps).
+    caption_style: str = "standard"
 
 
 class RenderWorkerResponse(BaseModel):
@@ -618,7 +625,12 @@ async def render_worker_endpoint(
     state = StageState(
         run_id=body.run_id,
         user_id=PLATFORM_USER_ID,
-        inputs={"format_track": body.format_track, "captions": body.captions, "music_enabled": body.music_enabled},
+        inputs={
+            "format_track": body.format_track,
+            "captions": body.captions,
+            "music_enabled": body.music_enabled,
+            "caption_style": body.caption_style,
+        },
         artifacts=artifacts,
     )
 

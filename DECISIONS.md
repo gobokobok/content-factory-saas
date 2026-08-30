@@ -5,6 +5,45 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D083 — Narration pace and emotional register as composed TTS instructions (no numeric rate exists)
+**Date:** 2026-08-30
+**Status:** ACTIVE
+**Decision:** `VideoSettings` gains `narration_pace` (`slow` 145 / `normal` 160 / `fast` 172 wpm) and `narration_style` (`educational` / `emotional`), set on the Studio Settings stage. `cf_platform/workers/voice_production.py`'s single `_SHORTS_PACE_INSTRUCTION` constant is replaced by `_PACE_WPM` + `_STYLE_CLAUSE` tables and a `_PAUSE_INSTRUCTION` constant that `_build_tts_input(script, pace, style)` composes into one prefix. `_estimate_duration` derives its words-per-second from the same `_PACE_WPM` table. The two settings reach the worker via `runs/{run_id}/settings.json`, read in `voice_worker_endpoint` — `VoiceWorkerRequest` deliberately still carries only `run_id` and `script`.
+**Rationale:** Operator asked to control TTS speed and emotion from the Settings screen. Gemini's native TTS models expose **no numeric speaking-rate parameter** — `SpeechConfig` has only `language_code`, `voice_config` and `multi_speaker_voice_config` — so speed can only be steered by the natural-language instruction prefixed to the script. An `atempo` post-pass on the generated WAV was considered and explicitly rejected by the operator in favour of the prompt-driven route. D073's pause wording is kept **verbatim** in `_PAUSE_INSTRUCTION`: it is what stopped Gemini running sentences and list items together, and every pace/style combination must still carry it (asserted in `tests/cf_platform/test_pux2_s4_narration.py`).
+**Behaviour change:** before D083 only 9:16 got an instruction (hardcoded ~170-175 wpm) and 16:9 got the raw script at Gemini's natural pace. Now both ratios get one, and the default is `normal` (160 wpm) — an operator who wants the pre-D083 Shorts pace picks **Fast**. Unknown pace/style values fall back to the defaults rather than raising, so a stale `settings.json` can never break voice generation (D048).
+**No new dependency.**
+**Implemented by:** P-UX2-S4.
+**See:** D061, D071, D073, D048.
+
+---
+
+## D082 — Caption style presets: Standard (5-word rolling) and Punch (one word, ALL CAPS)
+**Date:** 2026-08-30
+**Status:** ACTIVE
+**Decision:** New `VideoSettings.caption_style: "standard" | "punch"`, orthogonal to `subtitles` (which stays the on/off + font-family selector). `_build_captions_with_y_override` (`cf_platform/workers/render_worker.py`) gains a `caption_style` parameter driving `chunk_size` (5 vs 1) and display-only uppercasing; a new `_CAPTIONS_ASS_HEADER_PUNCH` in `src/captions.py` (Titillium Web SemiBold 130px, Outline 4, same MarginV as the standard 9:16 header) is selected by `_captions_header`. Threaded through as `RenderWorkerRequest.caption_style` → `state.inputs` → `_build_render_script`.
+**Rationale:** Operator asked for an ALL-CAPS, one-word-at-a-time caption option alongside the validated 9:16 look. Two implementation notes worth recording: (1) the existing chunk loop already extends the last word of a chunk to the next chunk's first word, so `chunk_size=1` yields gapless timing with no new timing code; (2) the yellow active-word highlight is **dropped** for `punch` — with a single word on screen the "active" word IS the whole line, so keeping it would just turn every caption yellow. Uppercasing is applied to display text only, after `spell_out_numbers` and never to `WordTimestamp.word`, for the same reason the number spell-out is display-only (D073): the raw token still drives `start_ms`/`end_ms`. Punch is 9:16-only, matching how the D070 restyle is scoped — landscape keeps the legacy Poppins headers.
+**Known duplication:** `_build_captions_with_y_override` remains a near-duplicate of `src.captions.build_word_synced_captions_ass` (legacy render path). Unifying them was deliberately left out of scope; both carry a cross-reference comment.
+**No new dependency.**
+**Implemented by:** P-UX2-S2.
+**See:** D070, D071, D073.
+
+---
+
+## D081 — Motion effect controlled vocabulary; pans are a time-driven crop, not zoompan
+**Date:** 2026-08-30
+**Status:** ACTIVE
+**Decision:** `src/models.py` gains `MOTION_EFFECTS = (ken_burns, zoom_in, zoom_out, pan_right, pan_left, static)`, `MOTION_EFFECT_ALIASES`, and `normalize_motion_effect()`. `StoryboardScene.motion_effect` stays `str | None` (stored artifacts must keep validating); the tuple is the authority for the Studio dropdown, the patch endpoint's validation, and the renderer's dispatch. `motion_effect` is added to `ScenePatchRequest` and to `_PATCHABLE_FIELDS`, and the Studio storyboard table's Motion column becomes a `.cf-select` dropdown (disabled `—` for video scenes).
+**Root cause this fixes:** `motion_effect` was **dead code**. `_zoompan_filter` returned early for `clip_type == "still_with_motion"` *before* reading it, and `_asset_tier_to_clip_type` maps both `still` and `still_motion` to `still_with_motion` — so every still rendered the identical 1.0→1.05 centre zoom whatever the storyboard said. The values actually emitted (`ken_burns_in`/`ken_burns_out`) were not even in the dispatch chain. Separately, the field was absent from both `ScenePatchRequest` and `_PATCHABLE_FIELDS`, so it could not be edited at all.
+**Rationale — pans cannot use zoompan:** zoompan's crop region is always `iw/zoom × ih/zoom`, i.e. it always preserves the *input* aspect ratio, so it cannot express a 9:16 window sliding across a 16:9 image without distorting it; the old `pan_left`/`pan_right` branches only nudged within an already centre-cropped frame. Pans therefore pre-scale to output **height** only (`scale=-2:{out_h}`, no cover-crop, keeping the horizontal overflow) and slide a frame-sized `crop` with a `t`-driven `x` expression. A trailing zoompan must **not** be appended: zoompan consumes one input frame and emits `d` frames from it, freezing the pan on its first position — measured first-vs-last frame difference YAVG 0.03 with it, 97.5 without. Those clips get their PTS from `-loop 1 -framerate 25` plus the standalone `fps=25`, verified to produce exactly 100 frames / 4.000s / 25fps.
+**Rationale — rate-based zoom:** `zoom_in`/`zoom_out` use `_ZOOM_RATE_PER_S = 0.02` expressed as `on/_FPS` (elapsed seconds), so a 2s and a 6s scene push at the same visible speed. Ken Burns deliberately keeps its fixed 1.0→1.05 total, unchanged.
+**Rationale — pan travel budget:** `_PAN_TRAVEL_FRACTION_PER_S = 0.12` of output width per second, clamped to the available headroom and centred on the image, rather than a full-width race that would be far too fast on short scenes. **This is the knob to turn if the pan reads too fast or too slow.**
+**Backward compatibility:** `ken_burns_in`, `ken_burns_out` and `scale` all alias to `ken_burns` — that is what all three *actually rendered as*. Mapping `scale` to `static` would honour the name but silently freeze the sub-3s scenes of every already-rendered run, so the aliases preserve observed behaviour and `static` stays an operator-only choice. `_derive_motion_effect` likewise now returns `ken_burns` for both still tiers instead of inventing variation that never reached the renderer. Verified: a pre-D081 storyboard produces a **byte-identical** render script before and after.
+**No new dependency.**
+**Implemented by:** P-UX2-S3.
+**See:** D047, D076, EPIC 39.
+
+---
+
 ## D080 — D076 follow-up: Studio SFX dropdown always shows the scene's real value; stale auto-picks flagged for removal
 **Date:** 2026-08-30
 **Status:** ACTIVE

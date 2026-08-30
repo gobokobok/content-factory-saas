@@ -26,7 +26,8 @@ Legacy Script→Video stays untouched and operable (D047).
 | P8 | Footage quality | 14 | done | Footage breakdown in Telegram reply; colour grade applied |
 | P9 | Storyboard v2 + native engine rebuild | ~18 | done | `/run` → fully native pipeline; timestamp-first captions; film look; OST overlays |
 | **P10** | **Production quality + Visual Intelligence Layer** | **~15** | **in-progress** | No food assets for "protein"; researcher portrait from Wikimedia; per-scene asset override in Studio |
-| P11 | Visual Director + motion effects | ~12 | in-progress | Visual Director agent; sub-scene cuts; slow push; film grain; animated callouts |
+| P-UX2 | **Render & narration controls** | **15** | **done** | Caption style preset, per-scene motion dropdown, TTS pace + register |
+| P11 | Visual Director + motion effects | ~12 | in-progress | Visual Director agent; sub-scene cuts; film grain; animated callouts |
 | P12 | Format tracks | ~10 | planned | `documentary`/`educational`/`animated` via `--format` flag |
 | P13 | Analytics & attribution | ~11 | planned | Retention-by-prompt-version report |
 | P14 | n8n automation | ~10 | planned | Niche → scheduled YouTube upload with no operator action |
@@ -191,13 +192,13 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P11 — Visual Director + Motion Effects
 
 **Goal:** Introduce the Visual Director as a dedicated post-storyboard LangGraph node that produces a full visual treatment (shot type, search terms, motion, diversity plan) before any asset is fetched. Add motion effect presets to the render layer. The acquisition layer becomes a pure fulfillment layer.
-**Status:** PAUSED — S1 done; S2/S3 resume now that Sprint P-UX1 (Studio UX redesign) is complete (2026-07-03)
+**Status:** PAUSED — S1 done; S2/S3 resume after Sprint P-UX2 (render & narration controls, 2026-08-30). S2 is now narrower: P-UX2-S3 shipped the motion vocabulary and the operator-facing dropdown it depended on.
 **Points:** ~15
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | P11-S1 (was P10-S2) | Visual Director agent — post-storyboard visual treatment | 6 | done |
-| P11-S2 | Motion effect presets — slow push, film grain, camera shake, light leak | 4 | todo |
+| P11-S2 | Motion effect presets — film grain, camera shake, light leak | 3 | todo |
 | P11-S3 | Sub-scene asset timeline — 2–3 assets per scene with sub-clip in/out points | 5 | todo |
 
 **Execution order:** P11-S1 → P11-S2 (S2 adds `motion` preset execution that S1 specifies). P11-S3 is independent but large.
@@ -207,8 +208,36 @@ Legacy Script→Video stays untouched and operable (D047).
 - [ ] `AcquisitionWorker` reads `visual_treatment.search_terms` as primary source
 - [ ] No 3+ consecutive scenes with same `shot_type`; diversity validator with 1-retry enforced
 - [ ] `footage_summary` includes `diversity_score`
-- [ ] At least 4 motion presets (slow_push, film_grain, camera_shake, light_leak) applied correctly in render script
+- [ ] At least 3 further motion presets (film_grain, camera_shake, light_leak) applied correctly in render script
+      — zoom/pan/Ken Burns already shipped in P-UX2-S3 as the `MOTION_EFFECTS` vocabulary (D081); S2 extends it
 - [ ] **Human touchpoint:** neuroscience run — no food for protein scenes; diversity score in Telegram; 2 motion presets visibly applied in output video
+
+---
+
+# Sprint P-UX2 — Render & Narration Controls
+
+**Goal:** Treat the validated 9:16 setup as the template and add operator-selectable variants on top of it: a caption style preset, a real per-scene motion-effect vocabulary (the field was dead code before this sprint), narration pace + emotional register, all driven through one shared dropdown component.
+**Status:** done (2026-08-30)
+**Points:** 15
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P-UX2-S1 | `.cf-select` dropdown component + SFX column restyle | 3 | done |
+| P-UX2-S2 | Caption style preset — Standard / Punch (one word, ALL CAPS) | 4 | done |
+| P-UX2-S3 | Motion effect vocabulary + per-scene Motion dropdown | 5 | done |
+| P-UX2-S4 | Narration pace + emotional register | 3 | done |
+
+**Execution order:** S1 → (S2 ∥ S3 ∥ S4).
+
+## Sprint P-UX2 Definition of Done
+- [x] One shared `.cf-select` component styles every dropdown (Settings selects, Motion and SFX table cells)
+- [x] Settings stage exposes caption style, narration pace and narration register; all three persist to `settings.json` and rehydrate on run load
+- [x] `caption_style` reaches the renderer (`RenderWorkerRequest` → `state.inputs` → `_build_render_script`); Punch renders one uppercased word per caption with no active-word highlight
+- [x] `motion_effect` is honoured by the render script for the first time (it was dead code — see D081), patchable per scene, and validated against `MOTION_EFFECTS`
+- [x] Pans traverse the full landscape image inside a 9:16 frame (time-driven `crop`, verified in FFmpeg)
+- [x] Narration pace + register reach the TTS via `settings.json`, with D073's pause wording preserved verbatim in every combination
+- [x] **No regression:** a pre-D081 storyboard produces a byte-identical render script before and after
+- [ ] **Human touchpoint:** operator picks Punch captions + a narration pace in Settings, sets a scene to *Pan right* in the Storyboard table, renders a 9:16 video, and sees all three — PENDING a DEV run
 
 ---
 

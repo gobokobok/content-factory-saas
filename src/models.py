@@ -151,6 +151,51 @@ class SceneRenderOptions(BaseModel):
     on_screen_text_overlay: OnScreenTextOverlay | None = None
 
 
+# ── Motion effect vocabulary (D081) ───────────────────────────────────────────
+# Controlled vocabulary for StoryboardScene.motion_effect.  The field itself stays
+# `str | None` so pre-D081 artifacts in R2 still validate; this tuple is the
+# authority for the Studio dropdown, the patch endpoint's validation, and the
+# renderer's dispatch.  Ordered as presented to the operator.
+MOTION_EFFECTS: tuple[str, ...] = (
+    "ken_burns",
+    "zoom_in",
+    "zoom_out",
+    "pan_right",
+    "pan_left",
+    "static",
+)
+
+# Pre-D081 names still present in stored storyboards. All three map to ken_burns
+# because that is what all three ACTUALLY rendered as: _zoompan_filter returned
+# early for clip_type="still_with_motion" — which every generated still is — before
+# it ever read motion_effect, so the stored value was inert and every still got the
+# same gentle centre zoom. Mapping "scale" to "static" instead would honour the name
+# but silently freeze the short scenes of every already-rendered run, so the aliases
+# preserve observed behaviour and "static" stays an operator-only choice.
+MOTION_EFFECT_ALIASES: dict[str, str] = {
+    "ken_burns_in": "ken_burns",
+    "ken_burns_out": "ken_burns",
+    "scale": "ken_burns",
+}
+
+
+def normalize_motion_effect(motion_effect: str | None, clip_type: str = "") -> str:
+    """Resolve any stored motion_effect value to a canonical MOTION_EFFECTS member.
+
+    An empty/unknown value falls back to the pre-D081 default for the clip type:
+    still_with_motion clips get the gentle "ken_burns" push they have always
+    rendered with, everything else holds "static".  This is what keeps existing
+    runs rendering byte-identically after the D081 rewrite.
+    """
+    if not motion_effect:
+        return "ken_burns" if clip_type == "still_with_motion" else "static"
+    key = motion_effect.strip().lower().replace("-", "_")
+    key = MOTION_EFFECT_ALIASES.get(key, key)
+    if key in MOTION_EFFECTS:
+        return key
+    return "ken_burns" if clip_type == "still_with_motion" else "static"
+
+
 class StoryboardScene(BaseModel):
     """A single scene in the production storyboard."""
 
@@ -534,8 +579,17 @@ class VideoSettings(BaseModel):
         "Realistic", "Cinematic", "Cartoonish", "Documentary", "Minimalist"
     ] = "Realistic"
     subtitles: Literal["none", "TikTok", "Classic"] = "TikTok"
+    # D082 — caption presentation preset, orthogonal to `subtitles` (which selects
+    # the on/off + font family). "standard" is the historical 5-word rolling line
+    # with the active word highlighted; "punch" is ONE WORD AT A TIME, uppercase.
+    caption_style: Literal["standard", "punch"] = "standard"
     audio: AudioSettings = Field(default_factory=AudioSettings)
     subject: str = ""
+    # D083 — narration delivery. Gemini TTS exposes no numeric speaking-rate
+    # parameter, so both of these are composed into the natural-language style
+    # instruction prefixed to the script (see cf_platform.workers.voice_production).
+    narration_pace: Literal["slow", "normal", "fast"] = "normal"
+    narration_style: Literal["educational", "emotional"] = "educational"
 
 
 class VideoSettingsResponse(BaseModel):

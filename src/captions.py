@@ -135,6 +135,27 @@ _CAPTIONS_ASS_HEADER = (
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
 )
 
+# Punch style (D082) — ONE WORD AT A TIME, uppercase. A single word owns the whole
+# frame, so the size goes up from 80 to 130 and the outline from 3 to 4 to hold up
+# against bright footage. MarginV matches _CAPTIONS_ASS_HEADER so the caption band
+# sits in the same place whichever preset is chosen. Only used at 9:16.
+_CAPTIONS_ASS_HEADER_PUNCH = (
+    "[Script Info]\n"
+    "ScriptType: v4.00+\n"
+    "PlayResX: 1080\n"
+    "PlayResY: 1920\n"
+    "\n"
+    "[V4+ Styles]\n"
+    "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
+    " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
+    " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
+    "Style: VoiceCaption,Titillium Web SemiBold,130,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "0,0,0,0,100,100,0,0,1,4,1,2,60,60,576,1\n"
+    "\n"
+    "[Events]\n"
+    "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+)
+
 # Classic subtitle style — smaller, clean, traditional appearance. Kept at its
 # original (lower, closer-to-edge) vertical position; only font/size/margin
 # follow the TikTok style's D070/D071/D072 changes.
@@ -193,15 +214,25 @@ _CAPTIONS_ASS_HEADER_CLASSIC_LEGACY = (
 )
 
 
-def _captions_header(subtitle_style: str, aspect_ratio: str = "9:16") -> str:
+def _captions_header(
+    subtitle_style: str,
+    aspect_ratio: str = "9:16",
+    caption_style: str = "standard",
+) -> str:
     """Return the ASS header for the given subtitle style ('TikTok' or 'Classic').
 
     aspect_ratio gates the D070/D071 Shorts-only restyle: any value other than
     '9:16' returns the original pre-D070 Poppins headers untouched, so
     landscape/other-format renders are never affected by Shorts caption tuning.
+
+    caption_style="punch" (D082) selects the one-word-at-a-time header. It is a
+    9:16-only preset — landscape keeps the legacy headers, matching how the D070
+    restyle is scoped.
     """
     if aspect_ratio != "9:16":
         return _CAPTIONS_ASS_HEADER_CLASSIC_LEGACY if subtitle_style == "Classic" else _CAPTIONS_ASS_HEADER_LEGACY
+    if caption_style == "punch":
+        return _CAPTIONS_ASS_HEADER_PUNCH
     if subtitle_style == "Classic":
         return _CAPTIONS_ASS_HEADER_CLASSIC
     return _CAPTIONS_ASS_HEADER

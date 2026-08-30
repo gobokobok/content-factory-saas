@@ -90,20 +90,21 @@ class TestAssetTierToClipType:
 
 
 class TestDeriveMotionEffect:
-    def test_still_always_scale(self) -> None:
-        assert _derive_motion_effect("still", 0) == "scale"
-        assert _derive_motion_effect("still", 1) == "scale"
-        assert _derive_motion_effect("still", 7) == "scale"
+    def test_every_still_tier_gets_the_validated_push(self) -> None:
+        # D081: the still/still_motion split and the even/odd in-vs-out alternation
+        # both produced strings that _zoompan_filter never read, so every still
+        # already rendered as one gentle push. Keep that as the generated default;
+        # variation is now an operator choice, not a guess made here.
+        for idx in (0, 1, 2, 3, 9, 10):
+            assert _derive_motion_effect("still", idx) == "ken_burns"
+            assert _derive_motion_effect("still_motion", idx) == "ken_burns"
 
-    def test_still_motion_even_index_is_ken_burns_in(self) -> None:
-        assert _derive_motion_effect("still_motion", 0) == "ken_burns_in"
-        assert _derive_motion_effect("still_motion", 2) == "ken_burns_in"
-        assert _derive_motion_effect("still_motion", 10) == "ken_burns_in"
+    def test_emits_only_controlled_vocabulary(self) -> None:
+        from src.models import MOTION_EFFECTS
 
-    def test_still_motion_odd_index_is_ken_burns_out(self) -> None:
-        assert _derive_motion_effect("still_motion", 1) == "ken_burns_out"
-        assert _derive_motion_effect("still_motion", 3) == "ken_burns_out"
-        assert _derive_motion_effect("still_motion", 9) == "ken_burns_out"
+        for tier in ("still", "still_motion", "video"):
+            effect = _derive_motion_effect(tier, 0)
+            assert effect is None or effect in MOTION_EFFECTS
 
     def test_video_returns_none(self) -> None:
         assert _derive_motion_effect("video", 0) is None
@@ -192,7 +193,7 @@ class TestReifyScene:
         _reify_scene(raw, words, 0)
         assert raw["asset_tier"] == "still"
         assert raw["clip_type"] == "still_with_motion"
-        assert raw["motion_effect"] == "scale"
+        assert raw["motion_effect"] == "ken_burns"
 
     def test_clip_type_still_with_motion_for_still_motion_tier(self) -> None:
         # Build words spanning 4 seconds (3–6s range → still_motion)
@@ -201,7 +202,7 @@ class TestReifyScene:
         _reify_scene(raw, words, 1)
         assert raw["asset_tier"] == "still_motion"
         assert raw["clip_type"] == "still_with_motion"
-        assert raw["motion_effect"] == "ken_burns_out"  # odd scene_index
+        assert raw["motion_effect"] == "ken_burns"
 
     def test_clip_type_hard_cut_for_video_tier(self) -> None:
         # 7 second duration → video tier

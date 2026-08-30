@@ -298,5 +298,36 @@ The pipeline parses the Claude text output into this JSON structure for downstre
 
 ---
 
+## Narration instruction (Gemini TTS) — v0.2
+
+**Source:** `cf_platform/workers/voice_production.py` — `_STYLE_CLAUSE`, `_PACE_WPM`, `_PAUSE_INSTRUCTION`, composed by `_build_tts_input()`.
+
+Gemini's native TTS models expose **no numeric speaking-rate parameter** (`SpeechConfig` carries only `language_code`, `voice_config`, `multi_speaker_voice_config`), so pace and delivery are steered entirely by a natural-language instruction prefixed to the script. The model follows it without vocalizing it.
+
+The prefix is assembled as: **style clause + wpm target + pause instruction + script**.
+
+| Part | Values |
+|------|--------|
+| Style clause | `educational` — "clear, confident explainer voiceover — measured and articulate, letting each fact land"<br>`emotional` — "warm, expressive storyteller voiceover — emotionally engaged, leaning into the moments that matter" |
+| wpm target | `slow` 145 · `normal` 160 (default) · `fast` 172 |
+| Pause instruction | Fixed. **Do not reword** — see below. |
+
+Both selections come from `runs/{run_id}/settings.json` (`narration_pace`, `narration_style`), chosen on the Studio Settings stage.
+
+### Changelog
+
+| Version | Date | Change |
+|---------|------|--------|
+| v0.1 | 2026-08-26 | Single `_SHORTS_PACE_INSTRUCTION` constant, applied only when `aspect_ratio == "9:16"`, hardcoded to ~170–175 wpm (D073). |
+| v0.2 | 2026-08-30 | Split into operator-selectable pace (`_PACE_WPM`) and register (`_STYLE_CLAUSE`), composed with a now-constant `_PAUSE_INSTRUCTION`. Applied for **every** aspect ratio — 16:9 previously received no instruction at all. Default is `normal`/`educational`; **Fast reproduces the pre-v0.2 Shorts pace.** (D083) |
+
+### The pause instruction is load-bearing — do not reword it
+
+> "Take a brief, natural pause after each sentence and after each list item — do not run straight from one sentence or item into the next — but keep the delivery lively and energetic within each sentence, between the pauses:"
+
+History (D073): earlier "energetically"/"brisk" wording made Gemini run sentences and list items together with no breathing room — duration *dropped* instead of the pace slowing. Removing that wording fixed the pauses but read as flat and slow (13s → 19s on the same script). The current wording puts the energy back explicitly but scopes it to *between* pauses. Every pace × style combination must still carry this clause verbatim; `tests/cf_platform/test_pux2_s4_narration.py` asserts it.
+
+---
+
 ## Future prompts
 _Add entries here as new AI prompt components are introduced._

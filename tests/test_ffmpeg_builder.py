@@ -9,6 +9,7 @@ from src.config import Settings, get_settings
 from src.exceptions import FFmpegBuildError, StorageError
 from src.ffmpeg_builder import (
     _local_path,
+    _motion_vf_prefix,
     _parse_sfx_delay_ms,
     _sfx_delay_within_scene_s,
     _zoompan_filter,
@@ -196,37 +197,72 @@ class TestZoompanFilter:
         # "MB rate > level limit" libx264 error caused by looped-image time bases.
         assert "fps=" not in result
 
-    def test_animated_zoom_in(self):
-        result = _zoompan_filter("animated", "zoom_in", 100)
-        assert "1+0.1*on/100" in result
+    def test_ken_burns_matches_pre_d081_still_with_motion(self):
+        # REGRESSION GUARD: ken_burns is the default every existing still renders
+        # with. Its filter string must stay byte-identical to what
+        # clip_type="still_with_motion" produced before the D081 rewrite.
+        assert _zoompan_filter("still_with_motion", "ken_burns", 75) == (
+            "zoompan=z='1+0.05*on/75':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+            ":d=75:s=1080x1920"
+        )
 
-    def test_animated_zoom_out(self):
-        result = _zoompan_filter("animated", "zoom_out", 100)
-        assert "1.1-0.1*on/100" in result
+    def test_zoom_in_is_two_percent_per_second(self):
+        # on/_FPS is elapsed seconds, so the coefficient is the per-second rate.
+        result = _zoompan_filter("still_with_motion", "zoom_in", 100)
+        assert "z='1+0.02*on/25'" in result
 
-    def test_animated_pan_left(self):
-        result = _zoompan_filter("animated", "pan_left", 100)
-        assert "z='1.1'" in result
-        assert "(iw-iw/zoom)*on/100" in result
+    def test_zoom_out_starts_at_total_and_decreases(self):
+        # 100 frames @ 25fps = 4s, so the total travel is 4 * 2% = 8%.
+        result = _zoompan_filter("still_with_motion", "zoom_out", 100)
+        assert "z='1.0800-0.02*on/25'" in result
 
-    def test_animated_pan_right(self):
-        result = _zoompan_filter("animated", "pan_right", 100)
-        assert "z='1.1'" in result
-        assert "(iw-iw/zoom)*(1-on/100)" in result
+    def test_zoom_rate_is_duration_independent(self):
+        # Same per-second coefficient whatever the clip length — that is the point
+        # of a rate-based zoom versus the old fixed-total one.
+        short = _zoompan_filter("still_with_motion", "zoom_in", 50)
+        long = _zoompan_filter("still_with_motion", "zoom_in", 200)
+        assert "0.02*on/25" in short and "0.02*on/25" in long
 
-    def test_animated_none_motion_defaults_to_zoom_in(self):
-        result = _zoompan_filter("animated", None, 100)
-        assert "1+0.1*on/100" in result
+    def test_pans_emit_no_zoompan(self):
+        # Pans move via a time-driven crop in _motion_vf_prefix. A zoompan after a
+        # moving crop consumes ONE input frame and emits d frames from it, freezing
+        # the pan — so nothing may be appended here.
+        assert _zoompan_filter("still_with_motion", "pan_left", 100) == ""
+        assert _zoompan_filter("still_with_motion", "pan_right", 100) == ""
 
-    def test_animated_unknown_effect_falls_back_to_zoom_in(self):
-        result = _zoompan_filter("animated", "spin_around", 100)
-        assert "1+0.1*on/100" in result
+    def test_static_holds_at_zoom_one(self):
+        result = _zoompan_filter("still_with_motion", "static", 100)
+        assert "z='1.0'" in result
+        assert ":d=100:" in result
 
-    def test_still_with_motion_always_ignores_motion_effect(self):
-        # still_with_motion is always gentle zoom regardless of motion_effect
-        result_no_effect = _zoompan_filter("still_with_motion", None, 100)
-        result_with_effect = _zoompan_filter("still_with_motion", "zoom_in", 100)
-        assert result_no_effect == result_with_effect
+    def test_every_legacy_name_still_renders_as_it_always_did(self):
+        # REGRESSION GUARD: pre-D081 all three of these rendered as the same gentle
+        # push (the filter short-circuited before reading motion_effect). Re-rendering
+        # an existing run must not change its output — notably "scale" must NOT become
+        # a static hold, which would freeze every sub-3s scene of every old run.
+        ken_burns = _zoompan_filter("still_with_motion", "ken_burns", 100)
+        for legacy in ("ken_burns_in", "ken_burns_out", "scale"):
+            assert _zoompan_filter("still_with_motion", legacy, 100) == ken_burns, legacy
+
+    def test_hyphenated_names_are_normalised(self):
+        assert _zoompan_filter("still_with_motion", "zoom-in", 100) == _zoompan_filter(
+            "still_with_motion", "zoom_in", 100
+        )
+
+    def test_unknown_effect_falls_back_to_clip_type_default(self):
+        assert _zoompan_filter("still_with_motion", "spin_around", 100) == _zoompan_filter(
+            "still_with_motion", "ken_burns", 100
+        )
+        assert _zoompan_filter("animated", "spin_around", 100) == _zoompan_filter(
+            "animated", "static", 100
+        )
+
+    def test_motion_effect_is_honoured_not_ignored(self):
+        # Pre-D081 this was asserted to be EQUAL — still_with_motion short-circuited
+        # before reading motion_effect, which made the whole field dead code.
+        assert _zoompan_filter("still_with_motion", None, 100) != _zoompan_filter(
+            "still_with_motion", "zoom_in", 100
+        )
 
     def test_frames_in_zoompan_suffix(self):
         result = _zoompan_filter("still_with_motion", None, 42)
@@ -235,6 +271,48 @@ class TestZoompanFilter:
     def test_output_size_in_suffix(self):
         result = _zoompan_filter("animated", "zoom_in", 50)
         assert "1080x1920" in result
+
+
+# ── Unit: _motion_vf_prefix (D081) ────────────────────────────────────────────
+
+
+class TestMotionVfPrefix:
+    def test_non_pan_effects_keep_the_cover_crop(self):
+        for effect in ("ken_burns", "zoom_in", "zoom_out", "static"):
+            result = _motion_vf_prefix("still_with_motion", effect, 100)
+            assert result == (
+                "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
+            ), effect
+
+    def test_pan_scales_to_height_only_so_overflow_survives(self):
+        # The whole point: a cover-crop would discard the sides of a landscape still
+        # before there is anything left to pan across.
+        result = _motion_vf_prefix("still_with_motion", "pan_right", 100)
+        assert result.startswith("scale=-2:1920,")
+        assert "force_original_aspect_ratio=increase" not in result
+
+    def test_pan_crop_x_is_time_driven(self):
+        result = _motion_vf_prefix("still_with_motion", "pan_right", 100)
+        assert "crop=1080:1920:x='" in result
+        assert "*t/4.0000" in result
+
+    def test_pan_directions_are_mirrored(self):
+        right = _motion_vf_prefix("still_with_motion", "pan_right", 100)
+        left = _motion_vf_prefix("still_with_motion", "pan_left", 100)
+        assert right != left
+        assert "/2-" in right and "*t/" in right      # centre - travel/2 + travel*t
+        assert "/2+" in left and "-min(" in left      # centre + travel/2 - travel*t
+
+    def test_pan_travel_is_clamped_to_available_headroom(self):
+        # max(0, iw-out_w) keeps a portrait source (no headroom) from panning
+        # backwards off the frame.
+        result = _motion_vf_prefix("still_with_motion", "pan_left", 100)
+        assert "max(0\\,iw-1080)" in result
+
+    def test_pan_travel_budget_grows_with_duration(self):
+        # 0.12 * 1080 px per second: 2s -> 259.2, 4s -> 518.4.
+        assert "259.2" in _motion_vf_prefix("still_with_motion", "pan_right", 50)
+        assert "518.4" in _motion_vf_prefix("still_with_motion", "pan_right", 100)
 
 
 # ── Unit: build_ffmpeg_script ─────────────────────────────────────────────────
@@ -366,12 +444,16 @@ class TestBuildFfmpegScript:
         assert "0.05" in script  # gentle zoom factor
         assert "setsar=1:1" in script
 
-    def test_animated_pan_left_uses_pan_expression(self):
+    def test_animated_pan_left_uses_time_driven_crop(self):
         scenes = [_scene("03", "animated", 3.0, motion_effect="pan_left")]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("03", "animated")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "(iw-iw/zoom)*on/" in script
+        # Default VideoSettings is 16:9, so the crop window is 1920x1080 here.
+        assert "crop=1920:1080:x='" in script
+        assert "*t/3.0000" in script
+        # No zoompan on a pan — it would freeze the crop on its first position.
+        assert "zoompan" not in script
 
     def test_still_with_motion_prescales_to_output_dimensions(self):
         """Pre-scale must match s= output size so the centering formula iw/2-(iw/zoom/2) is correct."""
@@ -387,13 +469,22 @@ class TestBuildFfmpegScript:
 
     def test_animated_prescales_to_output_dimensions(self):
         """Same pre-scale requirement applies to all animated clip types."""
-        scenes = [_scene("03", "animated", 3.0, motion_effect="pan_left")]
+        scenes = [_scene("03", "animated", 3.0, motion_effect="zoom_in")]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("03", "animated")])
         script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=VideoSettings(aspect_ratio="9:16"))
         assert "scale=1080:1920" in script
         assert "crop=1080:1920" in script
         assert "scale=2160:3840" not in script
+
+    def test_pan_prescales_to_output_height_only(self):
+        """Pans deliberately skip the cover-crop — they need the horizontal overflow."""
+        scenes = [_scene("03", "animated", 3.0, motion_effect="pan_left")]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("03", "animated")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=VideoSettings(aspect_ratio="9:16"))
+        assert "scale=-2:1920" in script
+        assert "scale=1080:1920:force_original_aspect_ratio=increase" not in script
 
     def test_image_scene_vf_chain_order_is_scale_zoompan_fps_setsar(self):
         """vf filter chain must be: scale+crop → zoompan → fps=25 → setsar=1:1.
@@ -446,7 +537,8 @@ class TestBuildFfmpegScript:
         sb = _storyboard(scenes)
         mf = _manifest([_entry("03", "animated")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        assert "1.1-0.1*on/" in script
+        # 3.0s * 2%/s = 6% total travel, decreasing back to 1.0.
+        assert "1.0600-0.02*on/25" in script
 
     def test_silence_sfx_not_in_audio_inputs(self):
         scenes = [_scene("01", "hard_cut", 3.0, sfx="silence")]

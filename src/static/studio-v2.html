@@ -364,6 +364,29 @@
     .settings-opt.disabled { opacity: 0.45; cursor: not-allowed; }
     .settings-soon { font-size: 9px; background: var(--border2); color: var(--muted); padding: 2px 6px; border-radius: 8px; font-weight: 600; }
 
+    /* ── .cf-select — shared dropdown (Settings selects, Motion + SFX cells) ──
+       Native <select> with the browser chrome stripped and a data-URI chevron
+       painted in its place.  Deliberately NOT a JS-rendered listbox: keyboard
+       navigation, type-ahead and the mobile native picker come for free. */
+    .cf-select {
+      appearance: none; -webkit-appearance: none; -moz-appearance: none;
+      font-family: var(--font); font-size: 13px; font-weight: 500; color: var(--ink);
+      background-color: var(--surface);
+      background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238B8B92' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 11px center;
+      border: 1px solid var(--border); border-radius: var(--r-sm);
+      padding: 9px 32px 9px 12px; cursor: pointer; max-width: 300px; width: 100%;
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .cf-select:hover:not(:disabled) { border-color: var(--faint); }
+    .cf-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .cf-select:disabled { opacity: 0.45; cursor: not-allowed; background-color: var(--border2); }
+    /* Compact modifier for storyboard table cells — keeps the row height unchanged. */
+    .cf-select--sm {
+      font-size: 11.5px; font-weight: 400; padding: 5px 24px 5px 8px;
+      background-position: right 7px center; max-width: 160px; min-width: 110px;
+    }
+
     .music-dropzone {
       border: 1.5px dashed var(--border); border-radius: var(--r-sm); padding: 18px;
       text-align: center; color: var(--muted); font-size: 12.5px; cursor: pointer;
@@ -720,6 +743,25 @@
             <span class="toggle-slider"></span>
           </label>
           <span style="font-size:13px;color:var(--ink-sub);vertical-align:3px;margin-left:10px;">Burn in captions</span>
+          <div style="margin-top:10px;">
+            <select class="cf-select" id="caption-style" onchange="onCaptionStyleChange()" title="Caption presentation style">
+              <option value="standard">Standard — 5 words, word highlight</option>
+              <option value="punch">Punch — one word, ALL CAPS</option>
+            </select>
+          </div>
+
+          <div class="field-label" style="margin-top:20px;">Narration</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;max-width:620px;">
+            <select class="cf-select" id="narration-pace" onchange="onNarrationChange()" title="Speaking rate">
+              <option value="slow">Slow — ~145 wpm</option>
+              <option value="normal">Normal — ~160 wpm</option>
+              <option value="fast">Fast — ~172 wpm</option>
+            </select>
+            <select class="cf-select" id="narration-style" onchange="onNarrationChange()" title="Delivery style">
+              <option value="educational">Educational — clear, measured</option>
+              <option value="emotional">Emotional — warm, expressive</option>
+            </select>
+          </div>
 
           <div class="field-label" style="margin-top:20px;">Run subject <span style="font-size:12px;font-weight:400;color:var(--ink-sub);">— used by auto-advance to generate the script (default 90s)</span></div>
           <input class="gen-input" style="width:100%;box-sizing:border-box;" id="settings-subject" placeholder="e.g. Why starter homes disappeared from America" oninput="onSubjectInput()">
@@ -910,10 +952,10 @@ const DEMO_SCRIPT = "In 1980, the average first home in America cost three times
 
 const DEMO_SCENES = [
   { scene: "1", duration_s: 6.2, scene_start_ms: 0,     voiceover_line: "In 1980, the average first home in America cost three times the median income.", segment_type: "B-roll",    asset_tier: "video", primary_stk: "suburban house 1980s archival", motion_effect: null,          on_screen_text: "1980: 3× income" },
-  { scene: "2", duration_s: 5.1, scene_start_ms: 6200,  voiceover_line: "Today it costs seven. But this isn't just inflation — starter homes have physically vanished.", segment_type: "Event",     asset_tier: "still", primary_stk: "modern expensive house for sale sign", motion_effect: "kenburns_in", on_screen_text: "2024: 7× income" },
-  { scene: "3", duration_s: 7.4, scene_start_ms: 11300, voiceover_line: "In 1982, 40% of new construction was entry-level housing. By 2020, it was 7%.", segment_type: "B-roll",    asset_tier: "still", primary_stk: "construction site framing timber", motion_effect: "kenburns_out", on_screen_text: "40% → 7%" },
+  { scene: "2", duration_s: 5.1, scene_start_ms: 6200,  voiceover_line: "Today it costs seven. But this isn't just inflation — starter homes have physically vanished.", segment_type: "Event",     asset_tier: "still", primary_stk: "modern expensive house for sale sign", motion_effect: "ken_burns", on_screen_text: "2024: 7× income" },
+  { scene: "3", duration_s: 7.4, scene_start_ms: 11300, voiceover_line: "In 1982, 40% of new construction was entry-level housing. By 2020, it was 7%.", segment_type: "B-roll",    asset_tier: "still", primary_stk: "construction site framing timber", motion_effect: "pan_right", on_screen_text: "40% → 7%" },
   { scene: "4", duration_s: 6.8, scene_start_ms: 18700, voiceover_line: "Builders didn't abandon small homes by accident. Zoning laws set minimum lot sizes.", segment_type: "Character", asset_tier: "video", primary_stk: "city council meeting zoning", motion_effect: null,          on_screen_text: null },
-  { scene: "5", duration_s: 7.9, scene_start_ms: 25500, voiceover_line: "Permit fees became fixed costs that only pencil out on luxury builds. A builder pays the same $40,000 in fees either way.", segment_type: "B-roll",    asset_tier: "still", primary_stk: "blueprint permit documents desk", motion_effect: "kenburns_in", on_screen_text: "$40,000 flat" },
+  { scene: "5", duration_s: 7.9, scene_start_ms: 25500, voiceover_line: "Permit fees became fixed costs that only pencil out on luxury builds. A builder pays the same $40,000 in fees either way.", segment_type: "B-roll",    asset_tier: "still", primary_stk: "blueprint permit documents desk", motion_effect: "ken_burns", on_screen_text: "$40,000 flat" },
   { scene: "6", duration_s: 8.1, scene_start_ms: 33400, voiceover_line: "So the starter home didn't die of natural causes. It was regulated out of existence — one city council vote at a time.", segment_type: "Event",     asset_tier: "video", primary_stk: "empty lot suburban fence", motion_effect: null,          on_screen_text: "Regulated away" },
 ];
 
@@ -989,6 +1031,18 @@ function demoRoute(url, opts) {
 // ═══════════════════════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════════════════════
+// Motion effect vocabulary (D081). Mirrors src.models.MOTION_EFFECTS — that tuple is
+// the source of truth and the patch endpoint validates against it; this list only
+// supplies the operator-facing labels. Keep the two in sync.
+const MOTION_EFFECTS = [
+  { key: 'ken_burns', label: 'Ken Burns' },
+  { key: 'zoom_in',   label: 'Zoom in' },
+  { key: 'zoom_out',  label: 'Zoom out' },
+  { key: 'pan_right', label: 'Pan right →' },
+  { key: 'pan_left',  label: '← Pan left' },
+  { key: 'static',    label: 'Static' },
+];
+
 const STAGES = ['settings', 'script', 'voice', 'storyboard', 'render', 'metadata'];
 const STAGE_LABELS = { settings: 'Settings', script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Video', metadata: 'Metadata' };
 
@@ -999,7 +1053,11 @@ function defaultStageData() {
   return { settings: null, script: null, voice: null, storyboard: null, render: null, metadata: null };
 }
 function defaultSettings() {
-  return { aspectRatio: 'portrait', style: 'realistic', captions: true, musicKey: null, subject: '' };
+  return {
+    aspectRatio: 'portrait', style: 'realistic', captions: true, musicKey: null, subject: '',
+    captionStyle: 'standard',                                   // D082
+    narrationPace: 'normal', narrationStyle: 'educational',     // D083
+  };
 }
 
 let state = {
@@ -1232,6 +1290,10 @@ function resetSettingsPane() {
   document.getElementById('captions-toggle').checked = true;
   document.getElementById('music-status').innerHTML = '';
   document.getElementById('settings-subject').value = '';
+  document.getElementById('caption-style').value = 'standard';
+  document.getElementById('narration-pace').value = 'normal';
+  document.getElementById('narration-style').value = 'educational';
+  syncCaptionStyleEnabled();
 }
 
 // ── Info panel ────────────────────────────────────────────────────────────
@@ -1349,8 +1411,21 @@ async function loadRun(id) {
         state.settings.subject = s.subject;
         document.getElementById('settings-subject').value = s.subject;
       }
+      if (s.caption_style) {
+        state.settings.captionStyle = s.caption_style;
+        document.getElementById('caption-style').value = s.caption_style;
+      }
+      if (s.narration_pace) {
+        state.settings.narrationPace = s.narration_pace;
+        document.getElementById('narration-pace').value = s.narration_pace;
+      }
+      if (s.narration_style) {
+        state.settings.narrationStyle = s.narration_style;
+        document.getElementById('narration-style').value = s.narration_style;
+      }
     }
   } catch { /* ignore */ }
+  syncCaptionStyleEnabled();
 
   // Try to load script artifact
   try {
@@ -1456,6 +1531,24 @@ function setStyle(val) {
 
 function onCaptionsToggle() {
   state.settings.captions = document.getElementById('captions-toggle').checked;
+  syncCaptionStyleEnabled();
+  saveRunSettings();
+}
+
+// The caption style preset only means anything while captions are burned in.
+function syncCaptionStyleEnabled() {
+  const el = document.getElementById('caption-style');
+  if (el) el.disabled = !state.settings.captions;
+}
+
+function onCaptionStyleChange() {
+  state.settings.captionStyle = document.getElementById('caption-style').value;
+  saveRunSettings();
+}
+
+function onNarrationChange() {
+  state.settings.narrationPace = document.getElementById('narration-pace').value;
+  state.settings.narrationStyle = document.getElementById('narration-style').value;
   saveRunSettings();
 }
 
@@ -1478,6 +1571,9 @@ async function saveRunSettings() {
     visual_style: 'Realistic',
     subtitles: state.settings.captions ? 'TikTok' : 'none',
     subject: state.settings.subject || '',
+    caption_style: state.settings.captionStyle || 'standard',
+    narration_pace: state.settings.narrationPace || 'normal',
+    narration_style: state.settings.narrationStyle || 'educational',
   };
   try {
     await fetch(`/runs/${state.runId}/settings`, {
@@ -1929,9 +2025,16 @@ function buildSceneRow(s, nextScene, totalDur) {
     else { visCls = 'vis-image'; visLabel = 'image'; }
   }
 
-  const motionText = s.motion_effect
-    ? `<span style="font-size:10px;color:var(--muted);font-family:var(--mono);">${esc(s.motion_effect)}</span>`
-    : '<span class="muted">—</span>';
+  // Motion applies to stills only — video clips are trimmed and centre-cropped with
+  // no zoom/pan, so show a disabled dash rather than a control that does nothing.
+  const isVideoScene = s.asset_tier === 'video' || (!s.asset_tier && s.clip_type === 'hard_cut');
+  const motionCell = isVideoScene
+    ? '<span class="muted" title="Motion effects apply to still images only">—</span>'
+    : `<select class="cf-select cf-select--sm" id="motion-${sceneId}" onchange="onMotionChange('${sceneId}')" title="Motion effect for this scene">
+        ${MOTION_EFFECTS.map(o => `<option value="${esc(o.key)}"${s.motion_effect === o.key ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}
+        ${(s.motion_effect && !MOTION_EFFECTS.some(o => o.key === s.motion_effect))
+          ? `<option value="${esc(s.motion_effect)}" selected>${esc(s.motion_effect)} (legacy)</option>` : ''}
+      </select>`;
 
   // OST: show text + small indicator if overlay is active
   const ostHasOverlay = ro.on_screen_text_overlay;
@@ -1947,10 +2050,10 @@ function buildSceneRow(s, nextScene, totalDur) {
     <td class="narrow"><span class="seg-badge ${segCls}">${esc(s.segment_type || 'B-roll')}</span></td>
     <td class="narrow"><span class="vis-badge ${visCls}">${visLabel}</span></td>
     <td class="editable-cell" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Click to edit" style="font-size:11px;max-width:180px;">${esc(s.primary_stk || '—')}</td>
-    <td class="narrow">${motionText}</td>
+    <td class="narrow" style="padding:4px 6px;">${motionCell}</td>
     <td class="editable-cell" id="ost-${sceneId}" onclick="editOst(this, '${sceneId}')" title="Click to edit">${ostDisplay}</td>
     <td class="narrow" style="padding:4px 6px;">
-      <select id="sfx-${sceneId}" onchange="onSfxChange('${sceneId}')" title="Sound effect for this scene">
+      <select class="cf-select cf-select--sm" id="sfx-${sceneId}" onchange="onSfxChange('${sceneId}')" title="Sound effect for this scene">
         <option value="">— none / silence —</option>
         ${state.sfxLibrary.map(o => `<option value="${esc(o.key)}"${s.sfx === o.key ? ' selected' : ''}>${esc(o.display_name)}</option>`).join('')}
         ${(s.sfx && s.sfx.toLowerCase() !== 'silence' && !state.sfxLibrary.some(o => o.key === s.sfx))
@@ -2001,6 +2104,12 @@ async function saveOst(sceneId) {
 // SFX picker (D076) — a native <select>, no click-to-edit affordance needed.
 // The AI pre-selects a curated key (or leaves it on "none / silence") during
 // storyboard generation; this just lets the operator change or clear it.
+async function onMotionChange(sceneId) {
+  const el = document.getElementById(`motion-${sceneId}`);
+  if (!el) return;
+  await patchScene(sceneId, { motion_effect: el.value });
+}
+
 async function onSfxChange(sceneId) {
   const sel = document.getElementById(`sfx-${sceneId}`);
   if (!sel) return;
@@ -2434,6 +2543,7 @@ async function renderVideo() {
         format_track: state.settings.aspectRatio,
         captions: state.settings.captions,
         music_enabled: !!state.settings.musicKey,
+        caption_style: state.settings.captionStyle || 'standard',
       }),
     });
     if (!r.ok) {
