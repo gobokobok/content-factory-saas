@@ -137,9 +137,34 @@ class TestCaptionsHeader:
         # Landscape keeps the legacy headers, matching how D070 is scoped.
         assert _captions_header("TikTok", "16:9", "punch") is not _CAPTIONS_ASS_HEADER_PUNCH
 
-    def test_punch_font_is_larger_than_standard(self) -> None:
-        assert "SemiBold,130," in _CAPTIONS_ASS_HEADER_PUNCH
-        assert "SemiBold,80," in _CAPTIONS_ASS_HEADER
+    def test_punch_uses_barlow_condensed_bold(self) -> None:
+        # D084. Fontname must be the BASE family with the ASS bold flag set — not
+        # "Barlow Condensed Bold", which is not a family name any font file reports
+        # and would make libass fall back silently to a default face.
+        assert "VoiceCaption,Barlow Condensed,145," in _CAPTIONS_ASS_HEADER_PUNCH
+        assert "Barlow Condensed Bold" not in _CAPTIONS_ASS_HEADER_PUNCH
+        style = [ln for ln in _CAPTIONS_ASS_HEADER_PUNCH.splitlines()
+                 if ln.startswith("Style: VoiceCaption")][0]
+        assert style.split(",")[7] == "-1", "bold flag must be set"
+
+    def test_punch_is_larger_and_more_outlined_than_standard(self) -> None:
+        # A single word owns the whole frame, so it carries more size and a heavier
+        # outline than the 5-word rolling line.
+        punch = [ln for ln in _CAPTIONS_ASS_HEADER_PUNCH.splitlines()
+                 if ln.startswith("Style: VoiceCaption")][0].split(",")
+        std = [ln for ln in _CAPTIONS_ASS_HEADER.splitlines()
+               if ln.startswith("Style: VoiceCaption")][0].split(",")
+        assert int(punch[2]) > int(std[2])    # font size
+        assert int(punch[16]) > int(std[16])  # outline
+
+    def test_punch_keeps_the_standard_caption_band(self) -> None:
+        # MarginV must match so the caption sits in the same place whichever preset
+        # the operator picks.
+        punch = [ln for ln in _CAPTIONS_ASS_HEADER_PUNCH.splitlines()
+                 if ln.startswith("Style: VoiceCaption")][0].split(",")
+        std = [ln for ln in _CAPTIONS_ASS_HEADER.splitlines()
+               if ln.startswith("Style: VoiceCaption")][0].split(",")
+        assert punch[21] == std[21]
 
 
 # ── Plumbing ──────────────────────────────────────────────────────────────────

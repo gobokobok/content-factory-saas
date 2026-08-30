@@ -5,6 +5,20 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D084 — Punch captions move to Barlow Condensed Bold
+**Date:** 2026-08-31
+**Status:** ACTIVE
+**Decision:** `_CAPTIONS_ASS_HEADER_PUNCH` (`src/captions.py`) switches from `Titillium Web SemiBold,130` to `Barlow Condensed,145` with the ASS bold flag set (`-1`) and the outline raised 4 → 5. `assets/fonts/BarlowCondensed-Bold.ttf` (110 KB, SIL OFL, from google/fonts) is bundled and copied in the Dockerfile alongside the existing three. Standard captions are unchanged — the two presets have separate headers and do not have to share a face.
+**Rationale.** The Punch preset lives or dies on fitting one long word inside the 960 px between the margins; anything wider wraps to two lines, which defeats a one-word caption. Measured at matched cap height (100 px, from the canvas ink box of a capital H), "CHAMPIONSHIP" sets **765 px in Barlow Condensed against 1008 px in Titillium Web** — i.e. the outgoing face already wrapped long words. Six of the ten candidates evaluated beat Titillium on this measure; Barlow was picked from that group because it also carries genuine automotive provenance (drawn from Californian highway signage and licence plates) and ships a full 100–900 range plus true italics, leaving room for a slanted variant later without a second font file.
+**Why 145 and not 130.** Cap height is not proportional across faces, so a shared point size is not a shared optical size. 145 is the size at which Barlow's capitals reach the same ~100 px cap height every candidate was compared at; leaving it at 130 would have rendered visibly smaller than the Titillium it replaces.
+**Why the Fontname is `Barlow Condensed` and not `Barlow Condensed Bold`.** Bold is one of the four styles OpenType keeps inside the base family, so the weight belongs in the ASS bold flag. Verified by reading the font's `name` table directly: nameID 1 = `Barlow Condensed`, nameID 2 = `Bold`. This cuts the opposite way from the outgoing value — SemiBold is *not* a standard style, so Google's static SemiBold file reports its own family, which is why that entry had to say `Titillium Web SemiBold`. Getting this wrong is silent: libass falls back to a default face and the render simply looks unchanged.
+**Verification gap.** The name-table match is strong evidence but not proof that libass resolves the face at render time. That could not be checked locally — the developer machine's ffmpeg is built without libass and Docker was unavailable — so the confirming check is the first DEV render of a Punch-caption run.
+**No new dependency** (a bundled font asset, not a package).
+**Implemented by:** operator request, 2026-08-31.
+**See:** D035, D070, D075, D082.
+
+---
+
 ## D083 — Narration pace and emotional register as composed TTS instructions (no numeric rate exists)
 **Date:** 2026-08-30
 **Status:** ACTIVE

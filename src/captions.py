@@ -136,9 +136,28 @@ _CAPTIONS_ASS_HEADER = (
 )
 
 # Punch style (D082) — ONE WORD AT A TIME, uppercase. A single word owns the whole
-# frame, so the size goes up from 80 to 130 and the outline from 3 to 4 to hold up
+# frame, so the size goes up from 80 to 145 and the outline from 3 to 5 to hold up
 # against bright footage. MarginV matches _CAPTIONS_ASS_HEADER so the caption band
 # sits in the same place whichever preset is chosen. Only used at 9:16.
+#
+# Barlow Condensed Bold (D084): chosen over Titillium Web SemiBold because the
+# Punch preset lives or dies on fitting one long word across the 960px between the
+# margins. Measured at matched cap height (100px), "CHAMPIONSHIP" sets 765px in
+# Barlow Condensed against 1008px in Titillium — i.e. the outgoing face wrapped
+# long words onto two lines, which defeats the whole point of a one-word caption.
+# Barlow was drawn from Californian highway signage, so it also reads as automotive
+# rather than merely technical.
+#
+# 145 is not a free choice: it is the size at which Barlow's capitals match the
+# ~100px cap height the other candidates were compared at. Cap height varies enough
+# between faces that a shared point size is NOT a shared optical size.
+#
+# Bold is expressed as the ASS Bold flag (-1) rather than baked into the Fontname,
+# because Bold is one of the four styles OpenType keeps inside the base family:
+# BarlowCondensed-Bold.ttf reports family "Barlow Condensed", subfamily "Bold".
+# Non-standard weights do get their own family — which is exactly why the old value
+# had to say "Titillium Web SemiBold" and this one must NOT say "Barlow Condensed
+# Bold". Verify with: fc-scan --format "%{family}\n%{style}\n" <file>
 _CAPTIONS_ASS_HEADER_PUNCH = (
     "[Script Info]\n"
     "ScriptType: v4.00+\n"
@@ -149,8 +168,8 @@ _CAPTIONS_ASS_HEADER_PUNCH = (
     "Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour,"
     " Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline,"
     " Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n"
-    "Style: VoiceCaption,Titillium Web SemiBold,130,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
-    "0,0,0,0,100,100,0,0,1,4,1,2,60,60,576,1\n"
+    "Style: VoiceCaption,Barlow Condensed,145,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,"
+    "-1,0,0,0,100,100,0,0,1,5,1,2,60,60,576,1\n"
     "\n"
     "[Events]\n"
     "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"

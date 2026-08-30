@@ -13,6 +13,8 @@ RUN apt-get update \
 COPY assets/fonts/Poppins-Bold.ttf /usr/local/share/fonts/Poppins-Bold.ttf
 COPY assets/fonts/TitilliumWeb-SemiBold.ttf /usr/local/share/fonts/TitilliumWeb-SemiBold.ttf
 COPY assets/fonts/Montserrat-Bold.ttf /usr/local/share/fonts/Montserrat-Bold.ttf
+# Barlow Condensed Bold is the Punch caption face (D084).
+COPY assets/fonts/BarlowCondensed-Bold.ttf /usr/local/share/fonts/BarlowCondensed-Bold.ttf
 RUN fc-cache -f /usr/local/share/fonts
 
 WORKDIR /app
