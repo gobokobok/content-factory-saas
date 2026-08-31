@@ -4,6 +4,73 @@ PROD releases are cut by pushing a `v*.*.*` tag, which triggers
 `.github/workflows/cd.yml` (`railway up --service content-factory-saas --detach`).
 Newest first.
 
+## v0.23.0 — 2026-08-31
+
+**Shipped:**
+- **Curated SFX library (D076, D078, D080):** 8-entry controlled vocabulary suggested
+  per scene by the storyboard prompt and overridable in Studio; copied into the run and
+  auto-timed at render. Freesound auto-seeding was rejected on a listening pass, so
+  `scripts/upload_sfx.py` provides a manual path (D078). The Studio dropdown now always
+  reflects the scene's stored value, synthesizing an `(unavailable)` option when the
+  library fetch fails (D080).
+- **CD waits for the Railway build (D077):** `railway up --ci` replaces `--detach`, so a
+  failed image build now turns the workflow red instead of green. `build_info.json` is
+  stamped before upload and `GET /platform/version` reads it, replacing a `git rev-parse`
+  that could never work inside the image.
+- **OST left margin restored (D079):** flush-to-edge text was clipped by the real Shorts
+  player; a 60px safe-title margin now matches the right side.
+- **Sprint P-UX2 — render & narration controls (D081–D083):** a shared `.cf-select`
+  dropdown component; a Punch caption preset (one uppercase word at a time); a real
+  per-scene motion-effect vocabulary; and operator-selectable narration pace and
+  register. **`motion_effect` had never reached the render script at all** — the filter
+  returned early on `clip_type` before reading it — and was absent from
+  `_PATCHABLE_FIELDS`, so it could not be edited either.
+- **Punch captions use Barlow Condensed Bold (D084):** chosen on measured width —
+  "CHAMPIONSHIP" sets 765px against Titillium's 1008px at matched cap height, and 960px
+  is all that fits between the margins, so the outgoing face wrapped long words.
+- **Settings persistence fixed (D085):** every run load POSTed the defaults back to the
+  server, racing the GET meant to restore them, so operator settings were lost on reload.
+- **Artifact versions resolved numerically (D086) — the significant one.**
+  `sorted(keys)[-1]` is a string sort, so `@v9.json` ranks above `@v10.json`. **Once any
+  artifact passed nine versions, every reader silently pinned to v9 and no later edit was
+  ever seen again** — not by the operator, the patch endpoint, or the renderer. Present
+  since the artifact store landed (D055) and invisible below ten versions.
+- **Motion presets are per-second rates (D087):** Ken Burns spread a fixed 5% across the
+  clip, so on a 0.56s scene it zoomed at 8.9%/s — faster than a `zoom_in` the operator had
+  explicitly chosen. All presets now share one speed model.
+- **Narration tempo split from register (D088):** the `educational` clause read "measured
+  and articulate", a slow-down instruction sitting beside a speed-up one; fast delivered
+  126 wpm against normal's 139. Register now describes voice only. `fast` 172 → 190 wpm.
+
+**Range:** `v0.22.0..307313f` — 14 commits, 41 files, +3475/−202. Full suite green
+(2205 passed), ruff clean. CI verified on the tagged commit itself.
+
+**Migrations:** none.
+
+**Behaviour changes PROD operators will notice:**
+- **Narration is slower by default.** The default pace is `normal` (160 wpm) where 9:16
+  previously ran the D073 ~172. Choose **Fast** to get the old pace. 16:9, which received
+  no narration instruction at all before, now gets one.
+- **Every still scene moves less.** A 3.5s scene now pushes 3.5% where it pushed 5%
+  (D087). D081's byte-identity guarantee with the old default is explicitly withdrawn.
+- Studio settings now persist across reloads, which changes what a returning operator sees.
+
+**Build risk:** the `Dockerfile` changes again (`BarlowCondensed-Bold.ttf`). Unlike
+v0.22.0 this is now genuinely gated — D077's `--ci` means a failed image build turns the
+tag run red. The same layer built twice on DEV.
+
+**PROD verified:** _pending._
+
+**Known gap to check on PROD:** the SFX code ships, but `sfx-library/*.mp3` lives in the
+bucket, not the image. If the PROD bucket has never been seeded, scenes with an SFX
+selected will silently render without it (`_copy_sfx_to_run` logs and continues). If it
+*was* seeded from the rejected Freesound batch, PROD will mix in audio the operator turned
+down — see the unresolved D080 follow-up. Neither state could be checked from here: the
+local `.env.local` holds DEV credentials only.
+
+**Rollback:** deleting the tag does not un-deploy. Roll forward: tag the previous good
+commit as `v0.23.1` and push, since the CD workflow deploys tags.
+
 ## v0.22.0 — 2026-08-27
 
 **Shipped:**
