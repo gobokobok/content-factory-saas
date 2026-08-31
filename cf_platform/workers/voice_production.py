@@ -63,18 +63,39 @@ _PUNCT_RE = re.compile(r"[^\w\s.%]")
 # D083 keeps that hard-won pause clause verbatim and makes only the target rate and
 # the leading voice-direction clause operator-selectable.
 
-_PACE_WPM: dict[str, int] = {"slow": 145, "normal": 160, "fast": 172}
+# D088: tempo and tone are kept in SEPARATE clauses. Before D088 the register
+# clause carried tempo words of its own — "educational" read "measured and
+# articulate, letting each fact land", which instructs the model to slow down and
+# sat directly beside a clause asking it to speed up. Gemini resolved the
+# contradiction toward "measured": fast+educational delivered 126 wpm while
+# normal delivered 139. Register clauses must now describe voice only, never speed.
+_PACE_WPM: dict[str, int] = {"slow": 145, "normal": 160, "fast": 190}
 _DEFAULT_PACE = "normal"
 _DEFAULT_STYLE = "educational"
 
 _STYLE_CLAUSE: dict[str, str] = {
     "educational": (
         "Narrate the following like a clear, confident explainer voiceover — "
-        "measured and articulate, letting each fact land"
+        "precise and articulate"
     ),
     "emotional": (
         "Narrate the following like a warm, expressive storyteller voiceover — "
-        "emotionally engaged, leaning into the moments that matter"
+        "emotionally engaged"
+    ),
+}
+
+# Qualitative tempo, carried alongside the numeric target. The number alone is a
+# weak lever — measured against real output, Gemini lands 13-30% below whatever
+# wpm it is given, and two runs at one setting differ by ~4%, so a 7% gap between
+# adjacent targets is inside the noise. The adjectives are what actually move it;
+# D073 found the same thing when "energetic" wording changed delivery far more
+# than any number did.
+_PACE_MANNER: dict[str, str] = {
+    "slow": "Speak unhurriedly and deliberately",
+    "normal": "Speak at a steady explainer tempo",
+    "fast": (
+        "Speak noticeably faster than a standard explainer read — brisk and "
+        "tightly paced, with no dead air between phrases"
     ),
 }
 
@@ -110,12 +131,21 @@ class VoiceAlignmentArtifact(BaseModel):
     Gemini key), in which case the legacy render pipeline produces a silent
     video.  word_timestamps is always populated — by Deepgram when both keys
     are present, otherwise by proportional_fallback.
+
+    narration_pace / narration_style record the settings the audio was generated
+    under (D088). They exist purely for diagnosis: without them, comparing two VOs
+    of the same script means guessing which artifact version was which trial, which
+    is exactly what made the D088 investigation slow. Optional so pre-D088
+    artifacts still validate.
     """
 
     mp3_r2_key: str
     word_timestamps: list[VoiceWordTimestamp]
     alignment_method: str
     total_duration_s: float
+    narration_pace: str | None = None
+    narration_style: str | None = None
+    target_wpm: int | None = None
 
 
 # ── Worker registration ───────────────────────────────────────────────────────
@@ -258,15 +288,20 @@ def _build_tts_input(
 ) -> str:
     """Prefix the script with the composed pace + style narration instruction.
 
+    Composed as: register clause + tempo clause + the D073 pause instruction +
+    the script. The three are deliberately independent — see _STYLE_CLAUSE (voice
+    only, never speed), _PACE_MANNER (speed only) and _PAUSE_INSTRUCTION (verbatim,
+    load-bearing).
+
     D083: applied for every aspect ratio. Before D083 only 9:16 received an
     instruction (hardcoded to ~170-175 wpm) and 16:9 got the raw script at Gemini's
-    natural pace — so landscape narration changes as of this story, by design.
-    Unknown pace/style values fall back to the defaults rather than raising, so a
-    stale settings.json can never break voice generation (D048 fault isolation).
+    natural pace. Unknown pace/style values fall back to the defaults rather than
+    raising, so a stale settings.json can never break voice generation (D048).
     """
     clause = _STYLE_CLAUSE.get(style, _STYLE_CLAUSE[_DEFAULT_STYLE])
+    manner = _PACE_MANNER.get(pace, _PACE_MANNER[_DEFAULT_PACE])
     wpm = _PACE_WPM.get(pace, _PACE_WPM[_DEFAULT_PACE])
-    return f"{clause} at roughly {wpm} words per minute. {_PAUSE_INSTRUCTION}{script}"
+    return f"{clause}. {manner}, at roughly {wpm} words per minute. {_PAUSE_INSTRUCTION}{script}"
 
 
 # ── Worker factory ────────────────────────────────────────────────────────────
@@ -350,6 +385,9 @@ def build_voice_production_worker(
                 word_timestamps=word_timestamps,
                 alignment_method=alignment_method,
                 total_duration_s=total_duration_s,
+                narration_pace=pace,
+                narration_style=style,
+                target_wpm=_PACE_WPM.get(pace, _PACE_WPM[_DEFAULT_PACE]),
             )
         )
 

@@ -130,10 +130,32 @@ class TestNarrationSettings:
         with pytest.raises(ValidationError):
             VideoSettings(narration_style="sarcastic")
 
-    def test_fast_matches_the_pre_d083_shorts_rate(self) -> None:
-        # 9:16 previously ran at ~170-175 wpm (D073); "fast" is how the operator
-        # reproduces that pace now that the default is "normal".
-        assert _PACE_WPM["fast"] == 172
+    def test_fast_targets_a_gap_wide_enough_to_survive_model_noise(self) -> None:
+        # D088. Measured against real output, two runs at ONE setting differ by
+        # ~4%, so the old 160 -> 172 gap (7.5%) was inside the noise and "fast" was
+        # indistinguishable from "normal" — it even came out slower. Keep a wide
+        # enough separation that the setting is actually observable.
+        gap = (_PACE_WPM["fast"] - _PACE_WPM["normal"]) / _PACE_WPM["normal"]
+        assert gap >= 0.15, f"fast is only {gap:.1%} above normal — inside model noise"
+
+    def test_register_clauses_carry_no_tempo_words(self) -> None:
+        # D088 root cause: "educational" used to read "measured and articulate,
+        # letting each fact land" — a slow-down instruction sitting beside a
+        # speed-up one. Tempo belongs to _PACE_MANNER, never to the register.
+        from cf_platform.workers.voice_production import _STYLE_CLAUSE
+
+        tempo_words = ("measured", "slow", "unhurried", "brisk", "fast",
+                       "quick", "rapid", "words per minute", "let each", "letting each")
+        for name, clause in _STYLE_CLAUSE.items():
+            low = clause.lower()
+            for word in tempo_words:
+                assert word not in low, f"{name} register clause carries tempo word {word!r}"
+
+    def test_pace_manner_is_distinct_per_pace(self) -> None:
+        from cf_platform.workers.voice_production import _PACE_MANNER
+
+        assert len(set(_PACE_MANNER.values())) == len(_PACE_MANNER)
+        assert "faster" in _PACE_MANNER["fast"].lower()
 
 
 # ── settings.json -> state.inputs (the only UI -> TTS channel) ────────────────

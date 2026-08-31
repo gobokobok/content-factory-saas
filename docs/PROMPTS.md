@@ -319,6 +319,7 @@ Both selections come from `runs/{run_id}/settings.json` (`narration_pace`, `narr
 | Version | Date | Change |
 |---------|------|--------|
 | v0.1 | 2026-08-26 | Single `_SHORTS_PACE_INSTRUCTION` constant, applied only when `aspect_ratio == "9:16"`, hardcoded to ~170–175 wpm (D073). |
+| v0.3 | 2026-08-31 | Tempo split out of the register clause into `_PACE_MANNER`. The `educational` register said "measured and articulate, letting each fact land" — a slow-down instruction beside a speed-up one, which made fast+educational deliver **126 wpm against normal's 139**. Register now describes voice only, tempo only speed. `fast` 172 → **190 wpm**: measured output lands 13–30% below target and two runs at one setting differ by ~4%, so the old 7.5% gap was inside the noise. (D088) |
 | v0.2 | 2026-08-30 | Split into operator-selectable pace (`_PACE_WPM`) and register (`_STYLE_CLAUSE`), composed with a now-constant `_PAUSE_INSTRUCTION`. Applied for **every** aspect ratio — 16:9 previously received no instruction at all. Default is `normal`/`educational`; **Fast reproduces the pre-v0.2 Shorts pace.** (D083) |
 
 ### The pause instruction is load-bearing — do not reword it

@@ -5,6 +5,20 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D088 — Narration tempo and register are separate clauses; fast raised to 190 wpm
+**Date:** 2026-08-31
+**Status:** ACTIVE
+**Decision:** `_STYLE_CLAUSE` now describes **voice only** and carries no tempo words; a new `_PACE_MANNER` carries **speed only**; `_PAUSE_INSTRUCTION` stays verbatim (D073). `_build_tts_input` composes register + tempo + pause + script. `_PACE_WPM["fast"]` goes 172 → 190. `VoiceAlignmentArtifact` gains optional `narration_pace`, `narration_style` and `target_wpm` for diagnosis. `atempo` was considered and **rejected by the operator**: resampling makes the voiceover sound robotic, and natural delivery is the point.
+**Root cause of "fast is not fast".** The `educational` register clause read *"measured and articulate, letting each fact land"* — a slow-down instruction sitting immediately beside one asking the model to speed up. Gemini resolved the contradiction toward "measured". Measured on real DEV output (45-word script): fast+educational delivered **126 wpm** while normal delivered **139 wpm** — the fast setting was genuinely *slower* than medium.
+**Second cause: the numeric lever is weak and the gap was inside the noise.** Against seven real samples, Gemini lands **13–30% below** whatever wpm it is given and never once hit a target (145→102, 160→139, 172→126, 172→122). Two runs at the *same* setting differ by **3.8%**, while 160→172 is only a **7.5%** gap. Raising fast to 180 as first proposed would have been a 4.7% change — smaller still than the noise. 190 gives an 18.75% separation, and `_PACE_MANNER` adds qualitative force, which is the lever D073 already found moves this model far more than any number.
+**Verified and not verified.** The plumbing was proven correct before changing anything: an in-process test through the real `/platform/workers/voice` endpoint, reading a real `settings.json`, confirmed 145/160/172 and the matching register clause all reached the Gemini call. So this was never a wiring fault. Whether the new wording actually delivers the operator's acceptance criterion — fast at least 10–15% faster than normal — **cannot be verified locally**: there is no `GEMINI_API_KEY` in `.env.local`, it exists only on Railway. The confirming test is a DEV run at normal and at fast on one script, and `target_wpm` on the artifact now makes that comparison unambiguous.
+**Accepted by the operator:** the pause instruction makes delivery slower than the nominal target. That is wanted — the staccato "adds air". Only the fast/normal *separation* was the defect.
+**No new dependency.**
+**Implemented by:** operator chat report and direction ("the best way to achieve natural sound is via TTS instructions... fast needs to be 10-15% faster than the current medium"), 2026-08-31.
+**See:** D073, D083.
+
+---
+
 ## D087 — Every zoom preset is a per-second rate; Ken Burns stops being duration-dependent
 **Date:** 2026-08-31
 **Status:** ACTIVE
