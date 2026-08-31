@@ -932,15 +932,23 @@ def _local_path(run_id: str, file_key: str) -> str:
     return f"/tmp/{run_id}/{relative}"
 
 
-# Zoom rate for the zoom_in / zoom_out presets: 2% of frame size per second of
-# scene duration (D081).  Expressed per-second rather than per-clip so a 2s and a
-# 6s scene push at the same visible speed instead of the same total amount.
+# All zoom presets are expressed as a rate per second of scene duration, so a 0.5s
+# and a 5s scene push at the same visible SPEED (D087).  Perceived motion is speed,
+# not total travel, so this is the only model under which the presets stay
+# comparable to each other across a cut.
+#
+# D081 shipped ken_burns on the opposite model — a fixed 5% spread across the clip,
+# preserved verbatim from pre-D081 so existing runs rendered byte-identically. That
+# turned out to be the bug: 5% across a 0.56s scene is 8.9%/s, four times faster
+# than a "zoom_in" the operator explicitly chose, so on short scenes the default
+# out-zoomed the effect picked to zoom. Consistency across presets beats byte
+# identity with the old default.
+#
+# ken_burns is the gentle bed the operator gets without choosing anything;
+# zoom_in / zoom_out are deliberate, and sit at twice its rate so the difference
+# reads on screen.
+_KEN_BURNS_RATE_PER_S = 0.01
 _ZOOM_RATE_PER_S = 0.02
-
-# Ken Burns keeps its pre-D081 shape exactly: a fixed 1.0 -> 1.05 push across the
-# whole clip, regardless of duration.  Do not "rationalise" this into a per-second
-# rate — it is the default every existing run renders with.
-_KEN_BURNS_TOTAL = 0.05
 
 # Pan travel budget, as a fraction of the output width per second of scene
 # duration.  The pan traverses min(available headroom, budget) pixels, centred on
@@ -1055,13 +1063,14 @@ def _zoompan_filter(
     if effect == "static":
         return static
 
+    # on/_FPS is elapsed seconds, so each coefficient below is literally a per-second
+    # rate, independent of how long the scene runs.
     if effect == "ken_burns":
-        return f"zoompan=z='1+{_KEN_BURNS_TOTAL}*on/{frames}':x='{cx}':y='{cy}'{suffix}"
+        return f"zoompan=z='1+{_KEN_BURNS_RATE_PER_S}*on/{_FPS}':x='{cx}':y='{cy}'{suffix}"
 
     duration_s = frames / _FPS
     total = _ZOOM_RATE_PER_S * duration_s
     if effect == "zoom_in":
-        # on/_FPS is elapsed seconds, so this is literally 2% per second.
         return f"zoompan=z='1+{_ZOOM_RATE_PER_S}*on/{_FPS}':x='{cx}':y='{cy}'{suffix}"
     if effect == "zoom_out":
         return (

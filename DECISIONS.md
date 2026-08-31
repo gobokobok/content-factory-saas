@@ -5,6 +5,22 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D087 — Every zoom preset is a per-second rate; Ken Burns stops being duration-dependent
+**Date:** 2026-08-31
+**Status:** ACTIVE
+**Decision:** `_KEN_BURNS_TOTAL = 0.05` (a fixed total spread across the clip) is replaced by `_KEN_BURNS_RATE_PER_S = 0.01`, matching the model `zoom_in`/`zoom_out` already used. All three presets are now expressed as `on/_FPS` — elapsed seconds — so the coefficient is literally a rate per second and is independent of scene length. `zoom_in`/`zoom_out` stay at the operator-specified 2%/s, i.e. twice the default, so a deliberate choice always reads as more motion than the bed.
+**Root cause.** D081 deliberately preserved ken_burns' pre-D081 formula verbatim so existing runs would render byte-identically. That safety measure was the bug: a fixed 5% across a **0.56s** scene is **8.9%/s**, while `zoom_in` at 2%/s over a 0.96s scene totals **1.9%**. On short scenes the untouched default therefore zoomed roughly four times faster than the effect the operator had explicitly selected — the presets were on incompatible models (fixed-total vs fixed-rate) and inverted below about 2.5 seconds.
+**Evidence.** Reported against a real run whose scenes are 0.56 / 0.96 / 1.6 / 3.5s: "Scene 1 zooms in quickly, not Ken Burns; Scene 2 zooms in slowly with ken burns". The render script confirmed both scenes had received exactly the effect the storyboard specified, so this was never a wiring fault. Measured after the fix by rendering through FFmpeg and diffing first vs last frame: zoom_in produces 1.9–2.0× the motion of ken_burns at 0.56s, 0.96s and 3.5s alike.
+**Why rate and not total.** Perceived motion is speed, not distance travelled. A model that holds total constant makes the same preset look frantic on a cut and static on a hold, and makes two presets incomparable across a cut. Consistency between presets was judged more valuable than byte-identity with the old default.
+**Accepted consequence:** this changes the default look of every existing still scene — a 3.5s scene moves 3.5% where it previously moved 5%. That is deliberate; D081's byte-identity guarantee is explicitly withdrawn.
+**Known limitation, not fixed here:** under a speed-consistent model a very short scene necessarily shows little travel (2%/s over 0.5s is 1%). Adding a minimum-total floor would restore visibility on flash cuts at the cost of reintroducing duration-dependent speed. Left to the operator to call.
+**Open observation:** ken_burns and zoom_in remain the same filter shape — a centred zoom — differing only in rate, which is part of why they were hard to tell apart. A true Ken Burns combines zoom with a lateral drift. Not changed here; worth considering alongside P11-S2.
+**No new dependency.**
+**Implemented by:** operator chat report (per-scene comparison of the first four scenes of a DEV run), 2026-08-31.
+**See:** D081, D086.
+
+---
+
 ## D086 — Artifact versions must be resolved numerically, not lexicographically
 **Date:** 2026-08-31
 **Status:** ACTIVE

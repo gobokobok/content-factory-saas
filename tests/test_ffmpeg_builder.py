@@ -189,7 +189,8 @@ class TestParseSfxDelayMs:
 class TestZoompanFilter:
     def test_still_with_motion_gentle_zoom(self):
         result = _zoompan_filter("still_with_motion", None, 75)
-        assert "1+0.05*on/75" in result
+        # Per-SECOND rate (on/_FPS is elapsed seconds), not a per-clip total.
+        assert "1+0.01*on/25" in result
         assert "d=75" in result
         assert "s=1080x1920" in result
         # fps= is intentionally NOT in the zoompan string — it is a separate fps filter
@@ -197,14 +198,24 @@ class TestZoompanFilter:
         # "MB rate > level limit" libx264 error caused by looped-image time bases.
         assert "fps=" not in result
 
-    def test_ken_burns_matches_pre_d081_still_with_motion(self):
-        # REGRESSION GUARD: ken_burns is the default every existing still renders
-        # with. Its filter string must stay byte-identical to what
-        # clip_type="still_with_motion" produced before the D081 rewrite.
-        assert _zoompan_filter("still_with_motion", "ken_burns", 75) == (
-            "zoompan=z='1+0.05*on/75':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
-            ":d=75:s=1080x1920"
-        )
+    def test_ken_burns_speed_is_independent_of_scene_length(self):
+        # D087. The pre-D087 formula spread a fixed 5% across the clip, so a 0.56s
+        # scene zoomed at 8.9%/s — four times faster than a zoom_in the operator had
+        # explicitly chosen. Every preset is now a per-second rate, so short and long
+        # scenes push at the same visible speed and the presets stay comparable.
+        short = _zoompan_filter("still_with_motion", "ken_burns", 14)   # 0.56s
+        long = _zoompan_filter("still_with_motion", "ken_burns", 125)   # 5.0s
+        assert "1+0.01*on/25" in short
+        assert "1+0.01*on/25" in long
+
+    def test_chosen_zoom_is_faster_than_the_default_at_every_length(self):
+        # The bug the operator reported: on short scenes the default out-zoomed the
+        # effect they picked. Guard the ordering at both extremes.
+        for frames in (10, 14, 24, 40, 125):
+            kb = _zoompan_filter("still_with_motion", "ken_burns", frames)
+            zi = _zoompan_filter("still_with_motion", "zoom_in", frames)
+            assert "0.01*on/25" in kb, frames
+            assert "0.02*on/25" in zi, frames
 
     def test_zoom_in_is_two_percent_per_second(self):
         # on/_FPS is elapsed seconds, so the coefficient is the per-second rate.
@@ -441,7 +452,7 @@ class TestBuildFfmpegScript:
         mf = _manifest([_entry("02", "still_with_motion")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
         assert "zoompan" in script
-        assert "0.05" in script  # gentle zoom factor
+        assert "0.01*on/25" in script  # gentle default rate, 1%/s
         assert "setsar=1:1" in script
 
     def test_animated_pan_left_uses_time_driven_crop(self):
