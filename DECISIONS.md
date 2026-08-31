@@ -5,6 +5,21 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D086 — Artifact versions must be resolved numerically, not lexicographically
+**Date:** 2026-08-31
+**Status:** ACTIVE
+**Decision:** New `latest_version_key(keys)` in `cf_platform/core/artifact_manager.py` parses the trailing `@v{n}` with the existing `_VERSION_KEY_PATTERN` and returns the key with the highest integer version, ignoring unversioned keys. All three readers now use it: `routes/_helpers.latest_artifact_key` (every Studio GET plus the scene PATCH endpoint), the render endpoint's `_latest_key`, and the acquisition endpoint's storyboard lookup.
+**Root cause.** All three did `sorted(keys)[-1]`, a **string** sort. `"...@v9.json"` sorts after `"...@v10.json"`..`"...@v16.json"`, so **the moment an artifact passed nine versions, every reader silently pinned itself to v9 and stayed there.** Writing was never affected — `_next_version` already parsed integers — so versions kept incrementing correctly while nothing ever read them.
+**Three operator-reported symptoms, one cause.** On a run with 16 storyboard versions: (a) motion effects appeared not to apply — the render script was generated from v9; (b) `pan_left`/`pan_right` "did nothing" — same reason, the scenes rendered with v9's `ken_burns`; (c) on-screen text on the last scene neither appeared nor cleared — v15 added it and v16 removed it, and the renderer read neither.
+**Compounding effect, worth understanding.** The PATCH endpoint reads-modifies-writes, so it *also* read v9. Every patch was therefore "v9 plus one change", discarding the previous edit. The stored history shows this exactly: v10 = v9+scene4, v11 = v9+scene3, v12 = v9+scene4, v13 = v9+scene8, v14 = v9+scene9, v15 = v9+OST, v16 = v9+scene9. **So edits made before this fix were lost at write time, not merely mis-read — they cannot be recovered by re-reading, and affected runs must have their scene edits redone.**
+**Blast radius.** Every versioned artifact reader — script, storyboard, manifest, voice alignment, metadata. Invisible below ten versions, which is why it survived since the artifact store was introduced (D055). This is very likely also the real cause of the D080 report ("video includes all the SFX sounds and I cannot delete"), which was diagnosed at the time as a UI dropdown problem.
+**Test coverage:** `tests/cf_platform/test_d086_artifact_version_resolution.py` pins the numeric behaviour, asserts explicitly that a lexicographic sort *would* have been wrong, and guards both call-site modules against a regression back to `sorted(keys)[-1]`.
+**No new dependency.**
+**Implemented by:** operator chat report ("Ken Burns is applied to all scenes... scene 8 pan left, nothing happens... on-screen text for the last scene does not work"), 2026-08-31.
+**See:** D055, D080, D081, D082.
+
+---
+
 ## D085 — Settings persistence: hydration must never write back
 **Date:** 2026-08-31
 **Status:** ACTIVE

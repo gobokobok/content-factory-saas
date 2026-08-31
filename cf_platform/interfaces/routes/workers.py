@@ -458,7 +458,15 @@ async def acquisition_worker_endpoint(
             detail=f"No verified_storyboard artifact found for run_id={body.run_id!r}. "
                    "Run /platform/workers/storyboard first.",
         )
-    storyboard_key = sorted(storyboard_keys)[-1]  # latest version
+    # Numeric, not lexicographic — a string sort ranks @v9 above @v10 (D086).
+    from cf_platform.core.artifact_manager import latest_version_key as _lvk
+
+    storyboard_key = _lvk(storyboard_keys)
+    if storyboard_key is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No versioned verified_storyboard artifact for run_id={body.run_id!r}.",
+        )
 
     worker = build_acquisition_worker(
         storage,
@@ -586,8 +594,14 @@ async def render_worker_endpoint(
     """
     import uuid as _uuid_mod
 
+    from cf_platform.core.artifact_manager import latest_version_key
+
     def _latest_key(keys: list[str]) -> str:
-        return sorted(keys)[-1]
+        """Highest @v{n}. Numeric — a string sort ranks @v9 above @v10 (D086)."""
+        key = latest_version_key(keys)
+        if key is None:
+            raise HTTPException(status_code=404, detail="No versioned artifact found.")
+        return key
 
     sb_prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/storyboard/verified_storyboard@v"
     sb_keys = await storage.list_keys(sb_prefix)

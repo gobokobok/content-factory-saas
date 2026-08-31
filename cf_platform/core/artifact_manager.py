@@ -12,6 +12,7 @@ src/storage.py's R2Client, since cf_platform may not import src/ (D047).
 import asyncio
 import json
 import re
+from collections.abc import Iterable
 from typing import Any, Protocol
 
 import boto3
@@ -246,6 +247,29 @@ class R2ArtifactStorage:
 def _artifact_prefix(user_id: str, run_id: str, stage: str, name: str) -> str:
     """Return the R2 key prefix shared by all versions of one artifact."""
     return f"users/{user_id}/runs/{run_id}/{stage}/{name}@v"
+
+
+def latest_version_key(keys: Iterable[str]) -> str | None:
+    """Return the artifact key with the highest @v{n}, or None if there are none.
+
+    Versions MUST be compared numerically. Sorting the keys as strings puts
+    "@v9.json" after "@v10.json".."@v16.json", so once an artifact passed nine
+    versions every reader silently pinned itself to v9 and no later edit was ever
+    seen again — by the operator, the patch endpoint, or the renderer (D086).
+
+    Keys that carry no parseable version are ignored rather than raising, so a
+    stray object under the prefix cannot break artifact resolution.
+    """
+    best: str | None = None
+    best_version = -1
+    for key in keys:
+        match = _VERSION_KEY_PATTERN.search(key)
+        if match is None:
+            continue
+        version = int(match.group(1))
+        if version > best_version:
+            best, best_version = key, version
+    return best
 
 
 async def _next_version(storage: ArtifactStorage, user_id: str, run_id: str, stage: str, name: str) -> int:
