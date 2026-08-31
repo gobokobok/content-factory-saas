@@ -764,7 +764,7 @@
           </div>
 
           <div class="field-label" style="margin-top:20px;">Run subject <span style="font-size:12px;font-weight:400;color:var(--ink-sub);">— used by auto-advance to generate the script (default 90s)</span></div>
-          <input class="gen-input" style="width:100%;box-sizing:border-box;" id="settings-subject" placeholder="e.g. Why starter homes disappeared from America" oninput="onSubjectInput()">
+          <input class="gen-input" style="width:100%;box-sizing:border-box;" id="settings-subject" placeholder="e.g. Why starter homes disappeared from America" oninput="onSubjectInput()" onchange="saveRunSettings()">
 
           <div class="stage-cta">
             <button class="btn btn-primary" onclick="onSettingsContinue()">Continue to Script →</button>
@@ -1284,16 +1284,22 @@ function enterWorkspace(id, createdTs, name) {
 }
 
 function resetSettingsPane() {
-  state.settings = defaultSettings();
-  setAspectRatio('portrait');
-  setStyle('realistic');
-  document.getElementById('captions-toggle').checked = true;
-  document.getElementById('music-status').innerHTML = '';
-  document.getElementById('settings-subject').value = '';
-  document.getElementById('caption-style').value = 'standard';
-  document.getElementById('narration-pace').value = 'normal';
-  document.getElementById('narration-style').value = 'educational';
-  syncCaptionStyleEnabled();
+  // Guarded: this only repaints the controls, it must never write to the server.
+  hydratingSettings = true;
+  try {
+    state.settings = defaultSettings();
+    setAspectRatio('portrait');
+    setStyle('realistic');
+    document.getElementById('captions-toggle').checked = true;
+    document.getElementById('music-status').innerHTML = '';
+    document.getElementById('settings-subject').value = '';
+    document.getElementById('caption-style').value = 'standard';
+    document.getElementById('narration-pace').value = 'normal';
+    document.getElementById('narration-style').value = 'educational';
+    syncCaptionStyleEnabled();
+  } finally {
+    hydratingSettings = false;
+  }
 }
 
 // ── Info panel ────────────────────────────────────────────────────────────
@@ -1374,6 +1380,11 @@ function newRun() {
   enterWorkspace(id, createdTs);
   saveLocalRun(id, {});
   activateStage('settings');
+  // enterWorkspace -> resetSettingsPane no longer persists, so seed settings.json
+  // explicitly here. Otherwise a run whose Settings stage is never touched would
+  // have no stored settings at all, and the voice worker would fall back to its
+  // own defaults rather than to what the operator can see on screen.
+  saveRunSettings();
 }
 
 // ── Load existing run ─────────────────────────────────────────────────────
@@ -1395,7 +1406,9 @@ async function loadRun(id) {
   renderRunList();
   activateStage('settings');
 
-  // Load persisted settings (aspect ratio, subject, etc.)
+  // Load persisted settings (aspect ratio, subject, etc.). Guarded for the same
+  // reason as resetSettingsPane: setAspectRatio() below would otherwise save.
+  hydratingSettings = true;
   try {
     const r = await fetch(`/runs/${id}/settings`);
     if (r.ok) {
@@ -1424,7 +1437,9 @@ async function loadRun(id) {
         document.getElementById('narration-style').value = s.narration_style;
       }
     }
-  } catch { /* ignore */ }
+  } catch { /* ignore */ } finally {
+    hydratingSettings = false;
+  }
   syncCaptionStyleEnabled();
 
   // Try to load script artifact
@@ -1563,8 +1578,15 @@ function onSettingsContinue() {
   activateStage('script');
 }
 
+// True while stored values are being pushed INTO the controls. Without this,
+// resetSettingsPane() -> setAspectRatio() -> saveRunSettings() fired on every run
+// load and POSTed the DEFAULTS, racing the GET that was meant to restore them.
+// Whichever won the race, the server ended up holding defaults, so any setting the
+// operator picked was silently lost on their next page load.
+let hydratingSettings = false;
+
 async function saveRunSettings() {
-  if (!state.runId || DEMO) return;
+  if (!state.runId || DEMO || hydratingSettings) return;
   const arMap = { portrait: '9:16', landscape: '16:9' };
   const body = {
     aspect_ratio: arMap[state.settings.aspectRatio] || '9:16',

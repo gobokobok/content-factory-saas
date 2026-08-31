@@ -5,6 +5,20 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D085 — Settings persistence: hydration must never write back
+**Date:** 2026-08-31
+**Status:** ACTIVE
+**Decision:** `src/static/studio-v2.html` gains a module-level `hydratingSettings` flag. `saveRunSettings()` returns early while it is set, and both `resetSettingsPane()` and the settings-restore block in `loadRun()` set it for the duration of their work. A brand-new run now calls `saveRunSettings()` explicitly from `newRun()`, since the reset no longer persists as a side effect. The Run subject input also saves on `change` (blur), not only via "Continue to Script".
+**Root cause.** `loadRun()` → `enterWorkspace()` → `resetSettingsPane()` → `setAspectRatio('portrait')` → `saveRunSettings()`. Every run load fired a POST carrying the **defaults**, racing the GET that was supposed to restore the stored values. Whichever won the race, the server ended up holding defaults, so any setting the operator picked was silently lost on their next page load. Confirmed against the DEV bucket: one run held `punch`/`fast`/`emotional` (set and never reloaded), another held pure defaults; the POST/GET round-trip itself was reproduced as correct in isolation, so the backend was never at fault.
+**Two symptoms, one cause.** (a) Settings dropdowns reset on reload. (b) Narration pace appeared to do nothing — the voice worker reads `narration_pace` only from `settings.json` (D083), which had been flattened back to `normal` by the time VO was generated. Render was unaffected because `caption_style` is sent to the render worker straight from client state, which is why the operator saw correct captions in the output while the stored value was already wrong — a genuinely misleading signal.
+**Generalisable rule:** any control whose `onchange` persists must not be driven programmatically without a guard. Repainting a control from stored state is not an edit and must never write back.
+**Test coverage gap, stated plainly:** the bug is in JavaScript and this repo has no JS test harness, so no automated test would have caught it. The added test (`TestSettingsRoundTrip`) guards the other half of the contract — that the D082/D083 fields survive the model → R2 → model trip — which is what makes the front-end fix observable.
+**No new dependency.**
+**Implemented by:** operator chat report ("the drop down selections from settings go back to default when reloading the page... whatever i choose on settings screen, the tts duration does not change"), 2026-08-31.
+**See:** D082, D083.
+
+---
+
 ## D084 — Punch captions move to Barlow Condensed Bold
 **Date:** 2026-08-31
 **Status:** ACTIVE

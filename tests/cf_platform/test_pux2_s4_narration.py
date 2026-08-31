@@ -201,3 +201,100 @@ class TestVoiceEndpointReadsSettings:
         state = self._post(None)
         assert not state.inputs.get("narration_pace")
         assert not state.inputs.get("narration_style")
+
+
+# ── settings.json round-trip (regression for the reset-clobber bug) ───────────
+
+
+class TestSettingsRoundTrip:
+    """POST then GET /runs/{id}/settings must preserve the D082/D083 fields.
+
+    The operator hit this as "my dropdowns reset when I reload". The cause was in
+    the front-end (resetSettingsPane fired saveRunSettings on every run load and
+    POSTed the DEFAULTS, racing the GET meant to restore them), so this test would
+    not have caught it. It guards the other half of the contract: that the fields
+    survive the model -> R2 -> model trip at all, which is what makes the
+    front-end fix observable.
+    """
+
+    _ENV = {
+        "ENVIRONMENT": "dev",
+        "R2_ACCOUNT_ID": "f",
+        "R2_ACCESS_KEY_ID": "f",
+        "R2_SECRET_ACCESS_KEY": "f",
+        "R2_BUCKET_NAME": "b",
+        "ANTHROPIC_API_KEY": "sk-ant-f",
+        "PEXELS_API_KEY": "f",
+        "REPLICATE_API_TOKEN": "f",
+        "FREESOUND_API_KEY": "f",
+        "OPERATOR_PASSWORD": "correct-horse-battery",
+        "SESSION_SECRET_KEY": "s",
+    }
+
+    def _client(self, store: dict):
+        """Return a logged-in TestClient whose settings routes use an in-memory R2."""
+        from unittest.mock import patch
+
+        from fastapi.testclient import TestClient
+
+        from src.config import Settings, get_settings
+        from src.exceptions import StorageError
+        from src.main import app
+
+        class FakeR2:
+            def upload_json(self, key, obj):
+                store[key] = dict(obj)
+
+            def get_json(self, key):
+                if key not in store:
+                    raise StorageError("not found")
+                return store[key]
+
+        app.dependency_overrides[get_settings] = lambda: Settings.model_validate(self._ENV)
+        ctx = patch("src.routes.runs._make_r2_client", lambda s: FakeR2())
+        ctx.start()
+        client = TestClient(app)
+        client.post("/auth/login", json={"password": "correct-horse-battery"})
+        return client, ctx
+
+    def test_non_default_settings_survive_the_round_trip(self) -> None:
+        store: dict = {}
+        client, ctx = self._client(store)
+        try:
+            body = {
+                "aspect_ratio": "9:16",
+                "visual_style": "Realistic",
+                "subtitles": "TikTok",
+                "subject": "",
+                "caption_style": "punch",
+                "narration_pace": "slow",
+                "narration_style": "emotional",
+            }
+            assert client.post("/runs/run-x/settings", json=body).status_code == 200
+
+            got = client.get("/runs/run-x/settings").json()["settings"]
+            assert got["caption_style"] == "punch"
+            assert got["narration_pace"] == "slow"
+            assert got["narration_style"] == "emotional"
+
+            # And they are actually written to the stored object, not just echoed.
+            stored = store["runs/run-x/settings.json"]
+            assert stored["narration_pace"] == "slow"
+            assert stored["narration_style"] == "emotional"
+            assert stored["caption_style"] == "punch"
+        finally:
+            ctx.stop()
+            app_overrides = __import__("src.main", fromlist=["app"]).app.dependency_overrides
+            app_overrides.clear()
+
+    def test_absent_settings_fall_back_to_defaults(self) -> None:
+        store: dict = {}
+        client, ctx = self._client(store)
+        try:
+            got = client.get("/runs/never-saved/settings").json()["settings"]
+            assert got["narration_pace"] == _DEFAULT_PACE
+            assert got["narration_style"] == _DEFAULT_STYLE
+            assert got["caption_style"] == "standard"
+        finally:
+            ctx.stop()
+            __import__("src.main", fromlist=["app"]).app.dependency_overrides.clear()
