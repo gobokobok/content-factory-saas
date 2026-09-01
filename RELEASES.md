@@ -4,6 +4,21 @@ PROD releases are cut by pushing a `v*.*.*` tag, which triggers
 `.github/workflows/cd.yml` (`railway up --service content-factory-saas --detach`).
 Newest first.
 
+## v0.23.1 — 2026-09-01
+
+**Shipped:**
+- **Operator video on a still scene no longer fails the render (D089).** A scene whose
+  storyboard said `still_with_motion` while holding an operator-uploaded MP4 reached the
+  still path, whose `-loop 1` is an image2-demuxer option; FFmpeg 7 rejects it on mov/mp4
+  and **the whole render exits 1, not just that scene**. `_render_scene` now routes on
+  file extension alone — the check already existed but guarded only the opposite
+  direction (a JPEG on a `hard_cut` scene). The upload endpoint additionally re-derives
+  the scene's `asset_tier` / `clip_type` / `motion_effect` from what was uploaded:
+  `asset_tier` comes from scene *duration* at storyboard time, and nothing re-derived it
+  when the operator overruled that guess by hand. Motion effects being stills-only is now
+  enforced in the data — an effect on a video scene is cleared rather than ignored at
+  render time — so the Studio table and the render can no longer disagree.
+
 ## v0.23.0 — 2026-08-31
 
 **Shipped:**
