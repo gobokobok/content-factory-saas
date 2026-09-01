@@ -590,21 +590,34 @@ def _render_scene(
 ) -> str:
     """Generate the ffmpeg command for a single scene segment.
 
-    Routes by file extension rather than clip_type alone.  A person portrait photo
-    (JPEG) may be acquired for a scene whose storyboard clip_type is "hard_cut";
-    passing a JPEG to _render_video_scene would produce a ~1-frame clip.  The
-    extension check ensures images always go through _render_image_scene regardless
-    of the storyboard clip_type.
+    Routes on the file extension alone; clip_type is not consulted.  The asset on
+    disk is the authority on how it must be decoded, and the two can disagree in
+    both directions:
+
+    - a JPEG on a clip_type="hard_cut" scene (a Wikipedia portrait acquired for a
+      long scene) would produce a ~1-frame clip through _render_video_scene;
+    - an MP4 on a still clip_type (an operator upload — the storyboard's tier is
+      derived from scene duration, so a hand-swapped asset can contradict it)
+      would reach _render_image_scene, whose `-loop 1` is an image2-demuxer option
+      that FFmpeg 7 rejects outright on mov/mp4 ("Option loop not found"), failing
+      the whole render (D089).
+
+    Motion effects are therefore a stills-only concept at every layer: anything
+    that is not an image renders as trimmed, centre-cropped footage, and any
+    motion_effect stored on such a scene is ignored rather than honoured.
     """
     local = _local_path(run_id, entry.file_key)  # type: ignore[arg-type]
     out = f'"$WORK/scene_{num:02d}.mp4"'
 
-    # Route by file extension: JPEG/PNG assets must always use the still-image path
-    # even when clip_type="hard_cut" (e.g. Wikipedia portrait for a short scene).
+    # Route by file extension only.  Images always take the still path (even on a
+    # "hard_cut" scene); everything else always takes the video path (even on a
+    # still scene).  An unrecognised extension is treated as footage: the video
+    # path passes the file to FFmpeg unadorned, whereas the image path would add
+    # -loop 1 and turn a decodable file into a hard failure.
     file_ext = Path(local).suffix.lower()
     is_image_file = file_ext in _IMAGE_EXTS
 
-    if scene.clip_type == "hard_cut" and not is_image_file:
+    if not is_image_file:
         return _render_video_scene(scene, local, out, num, out_w, out_h)
 
     # Blur-fill only for person portrait photos (source=wikimedia_person).

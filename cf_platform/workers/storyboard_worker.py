@@ -899,6 +899,36 @@ def _derive_motion_effect(tier: str, scene_index: int) -> str | None:
     return None
 
 
+def rederive_scene_visual_contract(
+    duration_s: float,
+    is_video: bool,
+    current_motion_effect: str | None = None,
+) -> tuple[str, str, str | None]:
+    """Re-derive (asset_tier, clip_type, motion_effect) from the asset actually supplied.
+
+    _assign_asset_tier guesses the tier from scene duration, which is the best
+    available signal while acquisition is still choosing the asset.  Once an
+    operator uploads a specific file the file wins: an MP4 must render as footage
+    on a 2s scene, and a JPEG must render as a still on an 8s one (D089).
+
+    Video → ("video", "hard_cut", None).  Motion effects are a stills-only concept
+    — _render_video_scene never reads motion_effect — so a stored effect is cleared
+    outright rather than left on the scene to be silently ignored, which is what
+    keeps the Studio table honest about what the render will do.
+
+    Image → the duration-derived still tier, floored to "still_motion" when the
+    duration alone would have asked for footage.  An effect the operator already
+    chose is preserved across the swap; only an unset one takes the tier default.
+    """
+    if is_video:
+        return "video", "hard_cut", None
+    tier = _assign_asset_tier(duration_s)
+    if tier == "video":
+        tier = "still_motion"
+    effect = current_motion_effect or _derive_motion_effect(tier, 0)
+    return tier, _asset_tier_to_clip_type(tier), effect
+
+
 def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -> dict:
     """Reconstruct Python-owned fields from a Deepgram word span (P9-S9).
 

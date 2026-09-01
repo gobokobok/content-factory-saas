@@ -99,6 +99,24 @@ def _scene(scene_id: str, segment_type: str = "B-roll", **kwargs) -> dict:
     return defaults
 
 
+def _artifact_stubs(scenes: list[dict], entries: list[dict]):
+    """Return (_latest_artifact_key, read_artifact) stubs that dispatch by stage.
+
+    The upload endpoint reads the storyboard as well as the manifest (D089), so a
+    single blanket read_artifact return value no longer covers it.
+    """
+
+    async def latest_key(storage, run_id, stage, name):
+        return "sb_key" if stage == "storyboard" else "mf_key"
+
+    async def read(storage, key):
+        if key == "sb_key":
+            return ("sb_key", _make_storyboard_artifact(scenes))
+        return ("mf_key", _make_manifest_artifact(entries))
+
+    return AsyncMock(side_effect=latest_key), AsyncMock(side_effect=read)
+
+
 def _entry(scene_id: str, status: str = "acquired", **kwargs) -> dict:
     defaults = {
         "scene_id": scene_id,
@@ -414,8 +432,9 @@ class TestUploadEndpoint:
         record = MagicMock()
         record.r2_key = "users/platform/runs/run1/acquisition/asset_manifest@v2"
 
-        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
-             patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("1")]))), \
+        key_stub, read_stub = _artifact_stubs([_scene("1")], [_entry("1")])
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", key_stub), \
+             patch("cf_platform.interfaces.routes.studio.read_artifact", read_stub), \
              patch("cf_platform.core.artifact_manager.write_artifact", new_callable=AsyncMock, return_value=record):
 
             r = client.post(
@@ -478,8 +497,9 @@ class TestUploadEndpoint:
             record = MagicMock()
             record.r2_key = "users/platform/runs/run1/acquisition/asset_manifest@v2"
 
-            with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
-                 patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("1")]))), \
+            key_stub, read_stub = _artifact_stubs([_scene("1")], [_entry("1")])
+            with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", key_stub), \
+                 patch("cf_platform.interfaces.routes.studio.read_artifact", read_stub), \
                  patch("cf_platform.core.artifact_manager.write_artifact", new_callable=AsyncMock, return_value=record):
 
                 r = client.post(
@@ -506,8 +526,9 @@ class TestUploadEndpoint:
 
         mock_storage.put_bytes.side_effect = capture_put
 
-        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", new_callable=AsyncMock, return_value="mf_key"), \
-             patch("cf_platform.interfaces.routes.studio.read_artifact", new_callable=AsyncMock, return_value=("mf_key", _make_manifest_artifact([_entry("3")]))), \
+        key_stub, read_stub = _artifact_stubs([_scene("3")], [_entry("3")])
+        with patch("cf_platform.interfaces.routes.studio._latest_artifact_key", key_stub), \
+             patch("cf_platform.interfaces.routes.studio.read_artifact", read_stub), \
              patch("cf_platform.core.artifact_manager.write_artifact", new_callable=AsyncMock, return_value=record):
 
             r = client.post(

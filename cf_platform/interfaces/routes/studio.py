@@ -495,6 +495,92 @@ async def studio_reacquire_scene(
     }
 
 
+async def _rederive_scene_media_contract(
+    storage: ArtifactStorage,
+    run_id: str,
+    scene_n: str,
+    *,
+    is_video: bool,
+) -> str | None:
+    """Realign one storyboard scene's asset_tier/clip_type/motion_effect with its asset.
+
+    Called after an operator supplies a scene's asset by hand, because the three
+    fields were derived from scene *duration* at storyboard time and the operator
+    has just overruled that guess (D089).  Returns the new artifact key, or None
+    when the scene already described the uploaded media kind — an unchanged
+    storyboard must not burn a version, since every reader resolves "latest" and
+    the history is the operator's audit trail.
+
+    Raises 404 if the run has no storyboard or no such scene: both mean the caller
+    patched a manifest entry that nothing downstream can render.
+    """
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+    from cf_platform.workers.storyboard_worker import (
+        VerifiedStoryboardArtifact,
+        _apply_patches_and_render_options,
+        _sanitize_storyboard_data,
+        rederive_scene_visual_contract,
+    )
+    from src.models import Storyboard
+
+    key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
+    if not key:
+        raise HTTPException(status_code=404, detail="No storyboard found — run storyboard generation first.")
+
+    _, artifact_body = await read_artifact(storage, key)
+    storyboard = Storyboard.model_validate(_sanitize_storyboard_data(artifact_body["storyboard"]))
+
+    target = next((sc for sc in storyboard.scenes if str(sc.scene) == scene_n), None)
+    if target is None:
+        raise HTTPException(status_code=404, detail=f"Scene {scene_n!r} not found in storyboard.")
+
+    tier, clip_type, motion_effect = rederive_scene_visual_contract(
+        target.duration_s, is_video, target.motion_effect
+    )
+    if (target.asset_tier, target.clip_type, target.motion_effect) == (tier, clip_type, motion_effect):
+        return None
+
+    _logger.info(
+        "studio_upload: scene %s of run %s re-derived %s/%s/%s → %s/%s/%s (is_video=%s)",
+        scene_n, run_id,
+        target.asset_tier, target.clip_type, target.motion_effect,
+        tier, clip_type, motion_effect, is_video,
+    )
+
+    updated = target.model_copy(update={
+        "asset_tier": tier, "clip_type": clip_type, "motion_effect": motion_effect,
+    })
+    scenes = [updated if sc is target else sc for sc in storyboard.scenes]
+    # Empty patch list: the scene is already replaced above — this call is here to
+    # recompute render_options, which the patch endpoint also relies on to keep the
+    # cumulative on-screen-text enable_expr offsets coherent.
+    patched = _apply_patches_and_render_options(
+        storyboard.model_copy(update={"scenes": scenes}), []
+    )
+
+    record = await write_artifact(
+        storage,
+        VerifiedStoryboardArtifact(
+            prompt_version=artifact_body.get("prompt_version", "patched"),
+            scene_count=len(patched.scenes),
+            storyboard=patched.model_dump(by_alias=True, mode="json"),
+            generated_at=datetime.now(),
+        ),
+        name="verified_storyboard", stage="storyboard",
+        run_id=run_id, user_id=PLATFORM_USER_ID,
+        lineage=LineageEnvelope(
+            run_id=run_id,
+            worker="studio_upload",
+            worker_version="1.0.0",
+            prompt_version="manual",
+            model="none",
+            created_at=datetime.now(),
+        ),
+    )
+    return record.r2_key
+
+
 @router.post("/studio/runs/{run_id}/scenes/{scene_n}/upload")
 async def studio_upload_scene_asset(
     run_id: str,
@@ -507,8 +593,15 @@ async def studio_upload_scene_asset(
     """Upload an operator-supplied asset for a single scene.
 
     Validates MIME type and size (≤200 MB), stores to R2, patches the asset_manifest
-    entry for this scene, writes a new manifest version, and emits an
+    entry for this scene, writes a new manifest version, re-derives the storyboard
+    scene's visual contract from the uploaded media kind, and emits an
     operator_asset_override TraceEvent. Returns the updated entry with a presigned URL.
+
+    The storyboard write is what keeps asset_tier / clip_type / motion_effect
+    describing the file that is actually on disk (D089).  Those three are derived
+    once, from scene duration, at storyboard time; without this step an uploaded
+    MP4 leaves a short scene still labelled a still, so Studio keeps offering it a
+    motion dropdown and the renderer keeps treating it as an image.
     """
     import time
 
@@ -589,6 +682,12 @@ async def studio_upload_scene_asset(
         run_id=run_id, user_id=PLATFORM_USER_ID, lineage=lineage,
     )
     latency_ms = int((time.monotonic() - t0) * 1000)
+
+    # Re-derive the storyboard scene's visual contract from what was actually
+    # uploaded.  Deliberately NOT best-effort: leaving the storyboard describing a
+    # still while an MP4 sits in the manifest is the exact inconsistency this
+    # endpoint used to create, so a failure here must surface rather than hide.
+    await _rederive_scene_media_contract(storage, run_id, scene_n, is_video=is_video)
 
     # Best-effort: see the identical comment in studio_reacquire_scene above — Studio
     # run_ids are never inserted into Postgres `runs`, so this always trips trace_events'
