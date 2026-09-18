@@ -4,6 +4,21 @@ PROD releases are cut by pushing a `v*.*.*` tag, which triggers
 `.github/workflows/cd.yml` (`railway up --service content-factory-saas --detach`).
 Newest first.
 
+## v0.23.4 — 2026-09-18
+
+**Shipped:**
+- **Second D090 follow-up: cap `-filter_threads`, not just the encoder's `-threads`.**
+  v0.23.3 deployed cleanly but the operator's retry hit the identical scene-8 crop
+  crash — `threads=2` visibly correct in the fresh log, proving the fix was
+  incomplete. `-threads` only caps libx264's own thread pool; FFmpeg's `-vf` filter
+  graph runs its own, separate thread pool controlled by the global `-filter_threads`
+  option, left uncapped and still auto-detecting the host's full CPU count. The
+  crash's log tag (`vf#0:0`, `Task finished with error code: -22`) is literally that
+  filter pool's worker failing — `-threads` was never going to reach it. Both
+  `_render_video_scene` and `_render_image_scene` now also pass `-filter_threads N`
+  (same `FFMPEG_SCENE_THREADS` setting, default 2). Not reproducible locally
+  (needs genuine host contention); pending confirmation on the next PROD retry.
+
 ## v0.23.3 — 2026-09-18
 
 **Shipped:**

@@ -678,7 +678,11 @@ def _render_video_scene(
     t_value = frames / _FPS
     return (
         f"# Scene {num:02d} — {scene.scene} — hard_cut — {scene.duration_s}s\n"
-        f'ffmpeg -y -i "{local}" \\\n'
+        # -filter_threads caps the -vf filter graph's OWN thread pool — separate from
+        # -threads below, which only caps the encoder. Left unset it defaults to the
+        # host's full CPU count too, which is what actually crashed D090 scenes: the
+        # error came from ffmpeg 7.1's per-filter "Task" engine (vf#0:0), not libx264.
+        f'ffmpeg -y -filter_threads {threads} -i "{local}" \\\n'
         f"  -t {t_value} \\\n"
         f'  -vf "{vf}" \\\n'
         # -r forces frame-rate conversion from source fps (e.g. 30) to _FPS (25),
@@ -740,8 +744,11 @@ def _render_image_scene(
         "  -video_track_timescale 25 \\\n"
         f"  {out}"
     )
+    # -filter_threads caps the zoompan/scale/crop filter graph's OWN thread pool —
+    # separate from -threads in common_encode, which only caps the encoder. See the
+    # comment in _render_video_scene: this is the flag D090 actually needed.
     ffmpeg_prefix = (
-        f"ffmpeg -y -loop 1 -framerate {_FPS} -i \"{local}\" \\\n"
+        f"ffmpeg -y -filter_threads {threads} -loop 1 -framerate {_FPS} -i \"{local}\" \\\n"
         f"  -t {t_value} \\\n"
     )
 
