@@ -434,6 +434,7 @@ def _build_render_script(
     format_track: str = "portrait",
     captions: bool = True,
     caption_style: str = "standard",
+    scene_threads: int = 2,
 ) -> str:
     """Assemble the complete render bash script with render_options extensions.
 
@@ -446,6 +447,8 @@ def _build_render_script(
     `captions` toggles burned-in subtitles: False forces `subtitles="none"`
     regardless of the `VideoSettings` default.
     `caption_style` selects the D082 presentation preset ("standard" | "punch").
+    `scene_threads` caps each concurrent per-scene libx264 encoder's thread count
+    (D090) — pass Settings.FFMPEG_SCENE_THREADS.
     """
     from src.captions import build_captions_ass
     from src.ffmpeg_builder import (
@@ -478,7 +481,10 @@ def _build_render_script(
         _voiceover_check(),
         _music_check(audio),
         _debug_section(),
-        _scene_section(storyboard, entries, run_id, out_w, out_h, blur_fill_enabled=blur_fill_enabled),
+        _scene_section(
+            storyboard, entries, run_id, out_w, out_h,
+            blur_fill_enabled=blur_fill_enabled, scene_threads=scene_threads,
+        ),
     ]
 
     # Film look: per-scene sepia applied BEFORE concat so only affected clips carry it
@@ -668,6 +674,7 @@ def build_render_worker(
     color_grade_preset: str = "neutral",
     blur_fill_enabled: bool = True,
     ffmpeg_timeout_seconds: int = 1800,
+    ffmpeg_scene_threads: int = 2,
 ) -> WorkerNode:
     """Build the native RenderWorker node.
 
@@ -680,6 +687,9 @@ def build_render_worker(
         color_grade_preset: FFmpeg colour grade preset name (default "neutral").
         blur_fill_enabled: whether to blur-fill portrait stills (default True).
         ffmpeg_timeout_seconds: subprocess timeout in seconds (default 1800).
+        ffmpeg_scene_threads: -threads cap per concurrent per-scene libx264 encoder
+            (default 2). See D090 — without a cap, libx264 auto-detects the host's
+            full CPU count per process and the parallel scene batch oversubscribes it.
     """
     from src.ffmpeg_builder import (
         assign_words_to_scenes,
@@ -817,6 +827,7 @@ def build_render_worker(
             format_track=format_track,
             captions=captions,
             caption_style=caption_style,
+            scene_threads=ffmpeg_scene_threads,
         )
 
         # Persist render_script.sh to R2 BEFORE execution for debuggability

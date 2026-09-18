@@ -90,6 +90,7 @@ def build_full_pipeline_graph(
     color_grade_preset: str = "neutral",
     blur_fill_enabled: bool = True,
     ffmpeg_timeout_seconds: int = 1800,
+    ffmpeg_scene_threads: int = 2,
 ) -> CompiledStateGraph:
     """Compile the full pipeline StateGraph over PipelineState (P6-S2, P9-S5).
 
@@ -223,6 +224,7 @@ def build_full_pipeline_graph(
         color_grade_preset=color_grade_preset,
         blur_fill_enabled=blur_fill_enabled,
         ffmpeg_timeout_seconds=ffmpeg_timeout_seconds,
+        ffmpeg_scene_threads=ffmpeg_scene_threads,
     )
     render_graph = build_observed_node_graph(
         "render_artifact",

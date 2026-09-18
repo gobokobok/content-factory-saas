@@ -5,6 +5,20 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D090 — Cap per-scene libx264 threads so parallel scene encodes stop starving each other
+**Date:** 2026-09-18
+**Status:** ACTIVE
+**Decision:** Every per-scene `-c:v libx264` invocation in `_render_video_scene` / `_render_image_scene` (`src/ffmpeg_builder.py`) now carries an explicit `-threads N` flag, threaded through `_scene_section` → `_render_scene`. `N` defaults to `_DEFAULT_SCENE_THREADS = 2` and is overridable via the new `Settings.FFMPEG_SCENE_THREADS` env var, plumbed through `build_ffmpeg_script` (legacy pipeline) and `build_render_worker` / `_build_render_script` (Platform v2 renderer used by Studio) the same way `FFMPEG_TIMEOUT_SECONDS` already is. The sequential single-process steps (concat, captions, colour grade, overlays) are unchanged — only the parallel per-scene batch was at risk.
+**Root cause.** `_scene_section` runs up to `_MAX=4` scene encodes concurrently in the background (`&` + `wait`), and none of them passed `-threads`, so each libx264 process auto-detected the **host's** logical CPU count rather than the container's actual cgroup quota. On PROD, `threads=60` was reported per process — 4 concurrent processes × 60 threads each, fighting over whatever the Railway container was actually allocated. Under that contention, FFmpeg 7.1.5's newer per-filter threaded "Task" execution model (`vf#0:0`, distinct from older ffmpeg's single-threaded filter graph) lost a race reinitializing one scene's filter graph and errored out (`Error reinitializing filters!` → `Invalid too big or non positive size for width '1080' or height '1920'` on the crop filter → `Could not open encoder before EOF` → exit 1), taking the whole render down via `wait "$_pid" || exit 1`.
+**Evidence.** PROD run `e743b0ea-93dd-47ef-9910-0b2a95b6db43`: scene 8 (`zoom_in`, 4.92s) failed with the filter-reinit error above while scene 7 — the identical `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=...` template, run moments earlier in the same batch — succeeded. Pulled both source JPEGs from R2 (`runs/e743b0ea.../images/scene_07_op.jpg`, `scene_08_op.jpg`) via a `railway run` subprocess (credentials never left the subprocess env — no PROD secrets were written to disk or printed) and confirmed identical dimensions (1536×2752, no EXIF rotation). Re-ran scene 8's exact extracted command standalone with local ffmpeg: succeeded immediately. This ruled out the asset and the filter template, leaving concurrent-batch resource contention as the only remaining variable — consistent with scene 8 being one of up to 4 processes running at once (alongside scene 6, scene 7, and a `scene_05_op.mp4` hard-cut re-encode, all interleaved in the same `ffmpeg_log.txt`).
+**Why 2 and not 1 or unset.** `_MAX` stays at 4 (untouched — deliberately out of scope here, see below). At 2 threads/process, 4 concurrent jobs bound total libx264 threads to 8, which is sane for typical Railway container allocations while still giving each encode some intra-frame parallelism (unlike `-threads 1`, which would serialize each encode internally and slow the batch down for no contention benefit on a host with any real headroom).
+**Not fixed here: `_MAX=4` itself is still a hardcoded literal**, independent of actual container CPU count. Lowering per-process thread count fixes the demonstrated failure mode without touching batch width, which is the smaller, more targeted change. If contention recurs at `FFMPEG_SCENE_THREADS=2`, revisit `_MAX` next — it is the other half of the same oversubscription equation.
+**No new dependency.**
+**Implemented by:** operator chat report ("FFmpeg exited 1 for run e743b0ea… Check R2 key 'ffmpeg_log.txt' for details"), 2026-09-18.
+**See:** D089.
+
+---
+
 ## D089 — The asset on disk decides how a scene renders; motion effects are stills-only
 **Date:** 2026-09-01
 **Status:** ACTIVE

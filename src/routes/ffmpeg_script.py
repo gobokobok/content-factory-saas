@@ -148,6 +148,7 @@ def generate_ffmpeg_script(
             video_settings=video_settings,
             color_grade_preset=settings.COLOR_GRADE_PRESET,
             blur_fill_enabled=settings.BLUR_FILL_ENABLED,
+            scene_threads=settings.FFMPEG_SCENE_THREADS,
         )
     except FFmpegBuildError as exc:
         logger.error("FFmpeg script build failed for run=%s: %s", run_id, exc)

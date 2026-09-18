@@ -54,6 +54,16 @@ class Settings(BaseSettings):
     # video (timed out mid-caption-encode). 1800s gives headroom for current
     # script lengths; longer videos will need a background-render redesign.
     FFMPEG_TIMEOUT_SECONDS: int = 1800
+    # Per-process -threads cap for the libx264 encoders launched inside
+    # _scene_section's parallel batch (up to 4 scenes encode concurrently — see
+    # _scene_section's _MAX). Left unset, libx264 auto-detects the HOST's
+    # logical CPU count rather than the container's actual cgroup quota, so 4
+    # concurrent processes can each spin up dozens of threads and starve each
+    # other. PROD run e743b0ea-93dd-47ef-9910-0b2a95b6db43 crashed this way:
+    # libx264 reported threads=60 per process, and one of the 4 concurrent
+    # scene encodes lost the resulting contention and errored out re-opening
+    # its filter graph ("Error reinitializing filters!", exit 1). See D090.
+    FFMPEG_SCENE_THREADS: int = 2
 
     # CLIP reranking (E4-S4)
     CLIP_RERANK_ENABLED: bool = False

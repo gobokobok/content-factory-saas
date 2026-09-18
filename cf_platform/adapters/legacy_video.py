@@ -331,6 +331,7 @@ class InProcessLegacyVideoAdapter:
                 video_settings=VideoSettings(aspect_ratio="16:9"),
                 color_grade_preset=s.COLOR_GRADE_PRESET,
                 blur_fill_enabled=s.BLUR_FILL_ENABLED,
+                scene_threads=s.FFMPEG_SCENE_THREADS,
             )
             storage.upload_text(
                 f"runs/{run_id}/ffmpeg_script.sh",

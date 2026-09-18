@@ -543,6 +543,31 @@ class TestBuildFfmpegScript:
         scene_block = script[:script.index("# ── Concatenate")]
         assert "-video_track_timescale 25" in scene_block
 
+    def test_scene_encodes_default_to_threads_2(self):
+        """Every per-scene libx264 command gets -threads 2 by default (D090).
+
+        Without an explicit cap, libx264 auto-detects the HOST's full CPU count
+        per process; with up to 4 scenes encoding concurrently (_scene_section's
+        _MAX), that oversubscribes the container and can starve a concurrent
+        encode's filter graph (PROD run e743b0ea-93dd-47ef-9910-0b2a95b6db43).
+        """
+        scenes = [_scene("01", "hard_cut", 2.0), _scene("02", "still_with_motion", 2.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "still_with_motion")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf)
+        scene_block = script[:script.index("# ── Concatenate")]
+        assert scene_block.count("-threads 2") == 2
+
+    def test_scene_encodes_honour_custom_scene_threads(self):
+        """scene_threads overrides the default -threads value for both scene kinds."""
+        scenes = [_scene("01", "hard_cut", 2.0), _scene("02", "still_with_motion", 2.0)]
+        sb = _storyboard(scenes)
+        mf = _manifest([_entry("01", "hard_cut"), _entry("02", "still_with_motion")])
+        script = build_ffmpeg_script(RUN_ID, sb, mf, scene_threads=4)
+        scene_block = script[:script.index("# ── Concatenate")]
+        assert scene_block.count("-threads 4") == 2
+        assert "-threads 2" not in scene_block
+
     def test_animated_zoom_out_uses_decreasing_expression(self):
         scenes = [_scene("03", "animated", 3.0, motion_effect="zoom_out")]
         sb = _storyboard(scenes)

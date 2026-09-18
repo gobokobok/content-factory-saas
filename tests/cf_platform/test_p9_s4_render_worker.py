@@ -283,6 +283,25 @@ def test_render_script_no_sepia_when_no_film_look():
     assert "hqdn3d" not in script
 
 
+def test_render_script_scene_threads_default_is_2():
+    """_build_render_script caps per-scene libx264 -threads at 2 by default (D090)."""
+    sb = _storyboard([_scene("1")])
+    mf = _manifest(["1"])
+    script = _build_render_script("run42", sb, mf, None, "neutral", True)
+    assert "-threads 2" in script
+
+
+def test_render_script_scene_threads_override():
+    """scene_threads kwarg overrides the default -threads value."""
+    sb = _storyboard([_scene("1")])
+    mf = _manifest(["1"])
+    script = _build_render_script(
+        "run42", sb, mf, None, "neutral", True, scene_threads=3
+    )
+    assert "-threads 3" in script
+    assert "-threads 2" not in script
+
+
 def test_render_script_overlay_section_absent_for_lower_third_only():
     """lower_third alone does not add drawtext to render script (P10-S1 Bug 1 — use OST instead)."""
     lt = LowerThirdSpec(name="Janet Yellen", title="Treasury Secretary")

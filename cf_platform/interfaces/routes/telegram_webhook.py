@@ -267,6 +267,7 @@ async def _run_pipeline_and_reply(
             color_grade_preset=settings.COLOR_GRADE_PRESET,
             blur_fill_enabled=settings.BLUR_FILL_ENABLED,
             ffmpeg_timeout_seconds=settings.FFMPEG_TIMEOUT_SECONDS,
+            ffmpeg_scene_threads=settings.FFMPEG_SCENE_THREADS,
         )
         state = PipelineState(
             run_id=run.run_id,

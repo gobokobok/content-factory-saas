@@ -27,6 +27,12 @@ _OUT_W = 1080  # Default output width (9:16)
 _OUT_H = 1920  # Default output height (9:16)
 _DUCKING_FACTOR = 0.4  # Multiplier applied to music volume when ducking is enabled
 
+# Default -threads cap for the per-scene libx264 encoders in _scene_section, which
+# runs up to 4 of them concurrently (see _MAX in _scene_section). Callers should
+# pass Settings.FFMPEG_SCENE_THREADS instead of relying on this default — see
+# config.py's comment and D090 for why an explicit cap is needed here.
+_DEFAULT_SCENE_THREADS = 2
+
 _ASPECT_DIMENSIONS: dict[str, tuple[int, int]] = {
     "9:16": (1080, 1920),
     "16:9": (1920, 1080),
@@ -353,6 +359,7 @@ def build_ffmpeg_script(
     video_settings: VideoSettings | None = None,
     color_grade_preset: str = "neutral",
     blur_fill_enabled: bool = True,
+    scene_threads: int = _DEFAULT_SCENE_THREADS,
 ) -> str:
     """
     Build a self-contained bash script that assembles the run's assets into a Short.
@@ -366,6 +373,9 @@ def build_ffmpeg_script(
 
     color_grade_preset: one of neutral|vivid|warm|cinematic|muted (COLOR_GRADE_PRESET env var).
     blur_fill_enabled: when True, landscape still images use blur-fill compositing (BLUR_FILL_ENABLED).
+    scene_threads: -threads cap per concurrent per-scene libx264 encoder (FFMPEG_SCENE_THREADS
+      env var, see D090) — bounds total CPU contention when _scene_section's _MAX concurrent
+      scene jobs run at once.
 
     When scene_words is provided (Deepgram words grouped per scene), captions use
     word-level sync with the active word highlighted in yellow.  Falls back to
@@ -412,7 +422,10 @@ def build_ffmpeg_script(
         _voiceover_check(),
         _music_check(audio),
         _debug_section(),
-        _scene_section(storyboard, entries, run_id, out_w, out_h, blur_fill_enabled=blur_fill_enabled),
+        _scene_section(
+            storyboard, entries, run_id, out_w, out_h,
+            blur_fill_enabled=blur_fill_enabled, scene_threads=scene_threads,
+        ),
         _filter_complex_concat(n_scenes),
     ]
 
@@ -548,12 +561,23 @@ def _scene_section(
     out_w: int = _OUT_W,
     out_h: int = _OUT_H,
     blur_fill_enabled: bool = True,
+    scene_threads: int = _DEFAULT_SCENE_THREADS,
 ) -> str:
-    """Generate one ffmpeg command per scene, run in parallel with a concurrency cap."""
+    """Generate one ffmpeg command per scene, run in parallel with a concurrency cap.
+
+    scene_threads caps each concurrent libx264 encoder's thread count (see D090) —
+    without it, libx264 auto-detects the host's full logical CPU count per process,
+    and _MAX concurrent processes oversubscribe the container's actual CPU quota.
+    """
     cmds = []
     for i, scene in enumerate(storyboard.scenes, 1):
         entry = entries[scene.scene]
-        cmds.append(_render_scene(scene, entry, run_id, i, out_w, out_h, blur_fill_enabled=blur_fill_enabled))
+        cmds.append(
+            _render_scene(
+                scene, entry, run_id, i, out_w, out_h,
+                blur_fill_enabled=blur_fill_enabled, threads=scene_threads,
+            )
+        )
 
     # Run scene encodes in parallel (max 4 concurrent jobs) — large win for still images
     # since zoompan/scale per-frame processing is CPU-bound and mostly independent.
@@ -587,6 +611,7 @@ def _render_scene(
     out_w: int = _OUT_W,
     out_h: int = _OUT_H,
     blur_fill_enabled: bool = True,
+    threads: int = _DEFAULT_SCENE_THREADS,
 ) -> str:
     """Generate the ffmpeg command for a single scene segment.
 
@@ -618,19 +643,21 @@ def _render_scene(
     is_image_file = file_ext in _IMAGE_EXTS
 
     if not is_image_file:
-        return _render_video_scene(scene, local, out, num, out_w, out_h)
+        return _render_video_scene(scene, local, out, num, out_w, out_h, threads=threads)
 
     # Blur-fill only for person portrait photos (source=wikimedia_person).
     is_person_photo = getattr(entry, "source", None) == "wikimedia_person"
     return _render_image_scene(
         scene, local, out, num, out_w, out_h,
         blur_fill_enabled=blur_fill_enabled and is_person_photo,
+        threads=threads,
     )
 
 
 def _render_video_scene(
     scene: StoryboardScene, local: str, out: str, num: int,
     out_w: int = _OUT_W, out_h: int = _OUT_H,
+    threads: int = _DEFAULT_SCENE_THREADS,
 ) -> str:
     """Trim and scale a video clip to the output dimensions, re-encoding at _FPS fps.
 
@@ -657,7 +684,7 @@ def _render_video_scene(
         # -r forces frame-rate conversion from source fps (e.g. 30) to _FPS (25),
         # ensuring the encoded clip has exactly `frames` frames.
         f"  -r {_FPS} \\\n"
-        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
+        f"  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads {threads} \\\n"
         # Force the MP4 video track timescale to 1/25 so all per-scene clips share
         # an identical tbn.  Without this flag libx264 writes the container tbn
         # derived from the SOURCE clip (Pexels videos arrive with 12800, 15360, 30000
@@ -673,6 +700,7 @@ def _render_image_scene(
     scene: StoryboardScene, local: str, out: str, num: int,
     out_w: int = _OUT_W, out_h: int = _OUT_H,
     blur_fill_enabled: bool = False,
+    threads: int = _DEFAULT_SCENE_THREADS,
 ) -> str:
     """Animate a still image using zoompan and write it as a video segment.
 
@@ -704,7 +732,7 @@ def _render_image_scene(
     normal_vf = ",".join(p for p in (scale_vf, zoompan_vf, f"fps={_FPS}", "setsar=1:1") if p)
 
     common_encode = (
-        "  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \\\n"
+        f"  -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads {threads} \\\n"
         # Same timescale normalisation as _render_video_scene — see comment there.
         # Image clips using -loop 1 + zoompan inherit a 1/1_000_000 microsecond
         # time base from the still-image decoder; forcing 25 here ensures the clip's
