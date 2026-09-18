@@ -4,6 +4,20 @@ PROD releases are cut by pushing a `v*.*.*` tag, which triggers
 `.github/workflows/cd.yml` (`railway up --service content-factory-saas --detach`).
 Newest first.
 
+## v0.23.2 — 2026-09-18
+
+**Shipped:**
+- **Per-scene libx264 threads capped to stop parallel encodes starving each other (D090).**
+  `_scene_section` runs up to 4 scene encodes concurrently; none passed `-threads`, so
+  each libx264 process auto-detected the **host's** full CPU count rather than the
+  container's actual quota. PROD run `e743b0ea-93dd-47ef-9910-0b2a95b6db43` crashed this
+  way: `threads=60` per process, and one of the 4 concurrent scenes lost the resulting
+  contention and errored out reinitializing its filter graph, taking the whole render
+  down (exit 1). Every per-scene `-c:v libx264` call now carries an explicit `-threads N`
+  (default 2, overridable via new `FFMPEG_SCENE_THREADS`), applied identically in the
+  legacy pipeline (`build_ffmpeg_script`) and the Platform v2 renderer used by Studio
+  (`build_render_worker` / `_build_render_script`).
+
 ## v0.23.1 — 2026-09-01
 
 **Shipped:**
