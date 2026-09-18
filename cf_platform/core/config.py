@@ -63,6 +63,9 @@ class PlatformSettings(BaseSettings):
     FFMPEG_TIMEOUT_SECONDS: int = 1800
     COLOR_GRADE_PRESET: str = "neutral"
     BLUR_FILL_ENABLED: bool = True
+    # -threads cap per concurrent per-scene libx264 encoder (D090). Same ENV var
+    # name and default as src/config.py's Settings.FFMPEG_SCENE_THREADS.
+    FFMPEG_SCENE_THREADS: int = 2
 
 
 def get_platform_settings() -> PlatformSettings:

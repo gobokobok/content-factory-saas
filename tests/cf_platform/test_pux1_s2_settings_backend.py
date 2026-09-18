@@ -126,6 +126,45 @@ async def test_render_endpoint_forwards_captions_false():
     assert scheduled_state.inputs["captions"] is False
 
 
+@pytest.mark.asyncio
+async def test_render_endpoint_works_with_real_platform_settings():
+    """render_worker_endpoint must not AttributeError on a real PlatformSettings.
+
+    Regression for D090: FFMPEG_SCENE_THREADS was added to src.config.Settings but
+    not to cf_platform.core.config.PlatformSettings (a separate class per D047 — the
+    two are not related by inheritance), so PROD's real settings object had no such
+    attribute even though this same test suite was green — the sibling test above
+    uses a MagicMock(...), which silently answers any unlisted attribute instead of
+    raising AttributeError like the real Settings/PlatformSettings classes do. This
+    test uses a real PlatformSettings so a field present on only one of the two
+    classes fails here the same way it failed in PROD.
+    """
+    from fastapi import BackgroundTasks
+
+    from cf_platform.core.artifact_manager import InMemoryArtifactStorage
+    from cf_platform.core.config import PlatformSettings
+    from cf_platform.interfaces.api import RenderWorkerRequest, render_worker_endpoint
+
+    storage = InMemoryArtifactStorage()
+    await storage.put_json(
+        "users/operator/runs/run1/storyboard/verified_storyboard@v1.json", {"storyboard": {}}
+    )
+    await storage.put_json(
+        "users/operator/runs/run1/acquisition/asset_manifest@v1.json", {"manifest": {}}
+    )
+    settings = PlatformSettings(
+        R2_ACCOUNT_ID="fake", R2_ACCESS_KEY_ID="fake",
+        R2_SECRET_ACCESS_KEY="fake", R2_BUCKET_NAME="fake-bucket",
+    )
+    body = RenderWorkerRequest(run_id="run1")
+    background_tasks = BackgroundTasks()
+
+    with patch("cf_platform.interfaces.routes.workers.build_render_worker", return_value=AsyncMock()):
+        await render_worker_endpoint(body, background_tasks, storage=storage, settings=settings)
+
+    assert background_tasks.tasks
+
+
 def test_build_render_script_captions_false_forces_no_subtitles():
     """captions=False overrides VideoSettings default and disables burned-in subtitles."""
     from cf_platform.workers.render_worker import _build_render_script

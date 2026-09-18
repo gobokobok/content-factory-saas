@@ -4,6 +4,19 @@ PROD releases are cut by pushing a `v*.*.*` tag, which triggers
 `.github/workflows/cd.yml` (`railway up --service content-factory-saas --detach`).
 Newest first.
 
+## v0.23.3 — 2026-09-18
+
+**Shipped:**
+- **Hotfix: render endpoint 500 on every call (D090 follow-up).** v0.23.2 added
+  `FFMPEG_SCENE_THREADS` to `src/config.py`'s `Settings` but not to
+  `cf_platform/core/config.py`'s separate `PlatformSettings` class (D047 keeps them
+  independent), so the Platform v2 render endpoint — what Studio actually calls —
+  crashed with `AttributeError: 'PlatformSettings' object has no attribute
+  'FFMPEG_SCENE_THREADS'` on every request. Added the same field to `PlatformSettings`.
+  New regression test builds a real `PlatformSettings()` instead of a `MagicMock` (whose
+  unlisted attributes silently resolve instead of raising) so a field present on only
+  one of the two settings classes fails CI instead of only PROD.
+
 ## v0.23.2 — 2026-09-18
 
 **Shipped:**
