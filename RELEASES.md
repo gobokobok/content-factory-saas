@@ -4,6 +4,16 @@ PROD releases are cut by pushing a `v*.*.*` tag, which triggers
 `.github/workflows/cd.yml` (`railway up --service content-factory-saas --detach`).
 Newest first.
 
+## v0.23.5 — 2026-09-19
+
+**Shipped:**
+- **Pan effects no longer crash on portrait stills narrower than 9:16 (D091).** The
+  real cause of the `FFmpeg exited 1` render failures on run `e743b0ea…`: a pan scaled
+  the still with `scale=-2:1920`, so a 1536x2752 upload came out 1072px wide and the
+  1080px crop could not fit. Now scaled with `force_original_aspect_ratio=increase`;
+  landscape pans are unchanged. **This supersedes D090 / v0.23.3 / v0.23.4**, whose
+  thread-contention diagnosis was wrong — the thread caps did not fix anything.
+
 ## v0.23.4 — 2026-09-18
 
 **Shipped:**

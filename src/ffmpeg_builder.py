@@ -1055,7 +1055,16 @@ def _motion_vf_prefix(
         x = f"{centre}-{travel}/2+{travel}*t/{duration_s:.4f}"
     else:
         x = f"{centre}+{travel}/2-{travel}*t/{duration_s:.4f}"
-    return f"scale=-2:{out_h},crop={out_w}:{out_h}:x='{x}':y=0"
+    # force_original_aspect_ratio=increase (not scale=-2:{out_h}) guarantees the scaled
+    # width is >= out_w. A portrait still narrower than the frame (e.g. 1536x2752 is
+    # 0.558 vs 9:16's 0.5625) scales to 1072px wide under scale=-2:1920, and the 1080px
+    # crop below then fails outright ("Invalid too big or non positive size", D091).
+    # Landscape stills are unchanged: height is still the binding dimension. Narrow
+    # portraits get zero pan headroom, so the travel expression collapses to a static crop.
+    return (
+        f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
+        f"crop={out_w}:{out_h}:x='{x}':y=0"
+    )
 
 
 def _zoompan_filter(

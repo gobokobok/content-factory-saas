@@ -295,12 +295,43 @@ class TestMotionVfPrefix:
                 "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
             ), effect
 
-    def test_pan_scales_to_height_only_so_overflow_survives(self):
-        # The whole point: a cover-crop would discard the sides of a landscape still
-        # before there is anything left to pan across.
+    def test_pan_scales_to_cover_but_keeps_overflow_for_a_time_driven_crop(self):
+        # A pan must not pre-crop to frame size (that would discard the sides of a
+        # landscape still before anything is left to pan across): the scale only
+        # covers the frame, and the x-driven crop does the cropping.
         result = _motion_vf_prefix("still_with_motion", "pan_right", 100)
-        assert result.startswith("scale=-2:1920,")
-        assert "force_original_aspect_ratio=increase" not in result
+        assert result.startswith("scale=1080:1920:force_original_aspect_ratio=increase,")
+        assert "crop=1080:1920:x='" in result
+        assert "scale=-2:" not in result
+
+    def test_pan_never_scales_narrower_than_the_crop_window(self):
+        """D091: scale=-2:1920 on a 1536x2752 portrait gave 1072px, so crop=1080 failed.
+
+        Runs real ffmpeg against a portrait slightly narrower than 9:16 — the exact
+        shape of the PROD failure — and asserts it renders instead of exiting 1.
+        """
+        import shutil
+        import subprocess
+        import tempfile
+
+        if shutil.which("ffmpeg") is None:
+            pytest.skip("ffmpeg not installed")
+        for effect in ("pan_left", "pan_right"):
+            vf = _motion_vf_prefix("still_with_motion", effect, 60) + ",fps=25,setsar=1:1"
+            with tempfile.TemporaryDirectory() as tmp:
+                img = f"{tmp}/narrow.jpg"
+                subprocess.run(
+                    ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+                     "testsrc2=size=1536x2752", "-frames:v", "1", img],
+                    check=True,
+                )
+                r = subprocess.run(
+                    ["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "25",
+                     "-i", img, "-t", "2.4", "-vf", vf, "-c:v", "libx264",
+                     "-preset", "ultrafast", "-an", f"{tmp}/out.mp4"],
+                    capture_output=True, text=True,
+                )
+                assert r.returncode == 0, r.stderr
 
     def test_pan_crop_x_is_time_driven(self):
         result = _motion_vf_prefix("still_with_motion", "pan_right", 100)
@@ -488,14 +519,14 @@ class TestBuildFfmpegScript:
         assert "crop=1080:1920" in script
         assert "scale=2160:3840" not in script
 
-    def test_pan_prescales_to_output_height_only(self):
-        """Pans deliberately skip the cover-crop — they need the horizontal overflow."""
+    def test_pan_uses_a_time_driven_crop_not_a_static_cover_crop(self):
+        """Pans deliberately skip the static cover-crop — they need the horizontal overflow."""
         scenes = [_scene("03", "animated", 3.0, motion_effect="pan_left")]
         sb = _storyboard(scenes)
         mf = _manifest([_entry("03", "animated")])
         script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=VideoSettings(aspect_ratio="9:16"))
-        assert "scale=-2:1920" in script
-        assert "scale=1080:1920:force_original_aspect_ratio=increase" not in script
+        assert "crop=1080:1920:x='" in script
+        assert "scale=-2:1920" not in script
 
     def test_image_scene_vf_chain_order_is_scale_zoompan_fps_setsar(self):
         """vf filter chain must be: scale+crop → zoompan → fps=25 → setsar=1:1.
