@@ -62,13 +62,12 @@ _FORMAT_LINE_LANDSCAPE = "Format: 16:9 horizontal, 30–180 second YouTube video
 # per-request into the user message; these lines set the qualitative target in seconds.
 _PACING_LINE_SENTINEL = "PACING_TARGET_PLACEHOLDER"
 _PACING_LINE_PORTRAIT = (
-    "PACING TARGET (short-form 9:16): body scenes 1.5–3 seconds, hard maximum 5 seconds.\n"
-    "HOOK: the first ~4 seconds of narration must cut fast — target ~1 second per scene;\n"
-    "sub-second scenes are expected and encouraged here to hook the viewer."
+    "PACING TARGET (short-form 9:16): scenes 1.5–3 seconds throughout, hard maximum 5 seconds.\n"
+    "There is no special fast-cut opening — the first scenes follow the same target as the rest."
 )
 _PACING_LINE_LANDSCAPE = (
-    "PACING TARGET (long-form 16:9): body scenes 3–6 seconds, hard maximum 8 seconds.\n"
-    "HOOK: the first ~4 seconds of narration must still cut fast — target ~1–1.5 seconds per scene."
+    "PACING TARGET (long-form 16:9): scenes 3–6 seconds throughout, hard maximum 8 seconds.\n"
+    "There is no special fast-cut opening — the first scenes follow the same target as the rest."
 )
 
 # SFX vocabulary block substituted into _GENERATE_SYSTEM_PROMPT[_V013] — built from
@@ -77,8 +76,6 @@ _PACING_LINE_LANDSCAPE = (
 _SFX_VOCAB_SENTINEL = "SFX_VOCAB_PLACEHOLDER"
 
 # Seconds-based targets used to derive per-request word budgets in _generate().
-_HOOK_WINDOW_S = 4.0
-_HOOK_TARGET_S = 1.0
 _BODY_PACING_SECONDS: dict[str, tuple[float, float, float]] = {
     # format_track -> (target_lo_s, target_hi_s, hard_max_s)
     "portrait": (1.5, 3.0, 5.0),
@@ -437,7 +434,7 @@ For each scene set start_word and end_word to integer indices from this list.
 Rules:
 - Follow the PACING TARGET above and the exact word budget given in the user
   message (computed from this script's measured speech rate) — count words per
-  scene and stay within the hook/body targets given there.
+  scene and stay within the targets given there.
 - SENTENCE BOUNDARIES FIRST: strongly prefer ending a scene on a word that carries
   sentence-final punctuation (. ? !). Split inside a sentence ONLY when the whole
   sentence would exceed the budget — and then split at a clause boundary
@@ -1307,21 +1304,17 @@ async def _generate(
 
         # Convert the prompt's seconds targets into a word budget from the measured
         # speech rate — for large scripts the list carries no timestamps, so word
-        # counts are the only length signal Claude can act on. Two tiers: a fast
-        # hook window (first ~4s) and the format-conditional body target.
+        # counts are the only length signal Claude can act on. One
+        # format-conditional target applies to every scene (no separate hook tier).
         total_s = max(normalized_words[-1].end_ms / 1000.0, 1.0) if normalized_words else 1.0
         wps = n_words / total_s
-        hook_words = max(2, round(_HOOK_WINDOW_S * wps))
-        hook_scene_words = max(1, round(_HOOK_TARGET_S * wps))
         body_lo = max(2, round(lo_s * wps))
         body_hi = max(body_lo + 2, round(hi_s * wps))
         hard_max_words = max(body_hi + 2, round(hard_s * wps))
         budget_note = (
             f"Measured speech rate: {wps:.1f} words/sec.\n"
-            f"HOOK — first ~{hook_words} words (~{_HOOK_WINDOW_S:.0f}s of narration): "
-            f"target ~{hook_scene_words} words per scene (~1s each); sub-{hook_scene_words}-word "
-            f"scenes are fine here. Cut fast to hook the viewer.\n"
-            f"BODY — after the hook: aim {body_lo}–{body_hi} words per scene; "
+            f"Aim {body_lo}–{body_hi} words per scene from the very first scene "
+            f"(no faster opening); "
             f"HARD MAXIMUM {hard_max_words} words. Count words per scene and stay under it.\n"
             f"LIST ITEMS always get their own scene regardless of these targets, even 1–2 words."
         )
