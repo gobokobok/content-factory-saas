@@ -4,6 +4,27 @@ PROD releases are cut by pushing a `v*.*.*` tag, which triggers
 `.github/workflows/cd.yml` (`railway up --service content-factory-saas --detach`).
 Newest first.
 
+## v0.24.0 — 2026-10-02
+
+**Shipped:**
+- **Uniform scene pacing — the fast-cut hook rule is gone from the storyboard prompt.**
+  The first ~4 seconds no longer target ~1-second scenes; every scene, including the
+  opening, follows the same format target (9:16: 1.5–3s, hard max 5s; 16:9: 3–6s, hard
+  max 8s). The per-request word budget drops its separate hook tier accordingly.
+  Baseline release: brings PROD level with the DEV build the operator validated
+  (`edc92ba`), ahead of new feature work.
+
+**Migrations:** none.
+
+**PROD verified:** CD run green and stamped `{"commit": "edc92ba", "version": "v0.24.0"}`;
+Railway deployment `bafcc504…` SUCCESS; startup log clean (migrations ok, checkpointer
+ok); `GET /health` → 200 `environment=prod`. `/platform/version` is auth-gated (401
+unauthenticated), so the running stamp was not read from the service itself, and no
+storyboard was generated on PROD after the deploy.
+
+**Rollback:** re-tag the previous good commit forward —
+`git tag -a v0.24.1 -m "revert: roll back to bcaa182" bcaa182 && git push origin v0.24.1`.
+
 ## v0.23.5 — 2026-09-19
 
 **Shipped:**
