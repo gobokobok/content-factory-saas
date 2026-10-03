@@ -5,7 +5,7 @@ On every new session, read in this order:
 1. **This file** (CLAUDE.md)
 2. **SPRINT.md** — current sprint status and story table (active sprints only; history in SPRINT_ARCHIVE.md)
 3. **The active story** in **BACKLOG_ACTIVE.md** (current + next two sprints; full archive in BACKLOG.md)
-4. **DONE.md** — last 3 entries for recent context
+4. **DONE.md** — recent entries for context (older ones are in DONE_ARCHIVE.md)
 5. **CONVENTIONS.md** — coding standards before touching any code
 
 ## Project summary
@@ -18,7 +18,7 @@ _Backlog order: P13 Storyboard control → P13b CapCut export (D100) → P14 AI 
 ## Active story
 **None yet — Sprint P13 has an epic outline in BACKLOG_ACTIVE.md (EPIC 44) but no stories.** Groom it first (`/groom`), then deliver it as one sprint, not story by story (METHODOLOGY.md, 2026-10-03).
 
-**Blockers / operator actions:** Google API audit application in progress — operator will submit (lead time for P16 publishing). 8 smoke tests outstanding in DONE.md (7 deferred, 1 partial).
+**Blockers / operator actions:** Google API audit application in progress — operator will submit (lead time for P16 publishing). 1 smoke test deferred (P10-S2 asset swap from Studio — clears in P13).
 
 ## Environments
 
@@ -32,11 +32,11 @@ _Backlog order: P13 Storyboard control → P13b CapCut export (D100) → P14 AI 
 
 | File | Purpose |
 |------|---------|
-| BACKLOG_ACTIVE.md | **Active stories — current + next two sprints (read this)** |
+| BACKLOG_ACTIVE.md | **Active stories — last completed sprint, upcoming sprint outlines, open unassigned stories (read this)** |
 | BACKLOG.md | Full story archive (all epics; read for sprint planning only) |
-| SPRINT.md | Active sprints (P7) + Platform Track roadmap (P0–P12) |
-| SPRINT_ARCHIVE.md | Legacy sprints S1–S19 + completed platform sprints P0–P4 |
-| DONE.md | Completed stories log (last 5 entries inline; older in DONE_ARCHIVE.md) |
+| SPRINT.md | Roadmap table (P0–P17), open carried items, and the current sprint only |
+| SPRINT_ARCHIVE.md | Every closed sprint: legacy S1–S19 + platform P0–P12 |
+| DONE.md | Completed stories log — last two sprints plus any entry with an open smoke-test deferral; older in DONE_ARCHIVE.md |
 | DECISIONS.md | All architecture and dependency decisions |
 | CONVENTIONS.md | Python coding standards |
 | ENV.md | All environment variables (no values) |
