@@ -1,10 +1,10 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
-> As of 2026-06-29 the active work is the **Platform v2 track (Sprints P0–P15)**, defined in **docs/v2_platform_plan.md** (decisions D047–D063).
-> - **Sprints P0–P9 complete.** P9 velocity: 8/10 stories done; P9-S8 and P9-S10 carry to P10.
-> - Sprints **S14–S17** (video-UX polish) are **PAUSED** — they resume later behind the legacy adapter.
-> - The legacy Script→Video pipeline (Sprints 1–13) keeps running in DEV/PROD, untouched (D047).
-> - Full history: **SPRINT_ARCHIVE.md** (Sprints 1–19 + Platform P0–P4).
-> - **Next sprint:** P10 — Production quality + Visual Intelligence Layer.
+> As of 2026-10-03 the roadmap is **replaced by the Pipeline & Platform Update spec** (D092–D099): **P12 Projects & shortlist → P13 Storyboard control → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance.**
+> - **Sprints P0–P10, P-UX1, P-UX2 complete.** P11 closed with S1 done; P11-S2 and P11-S3 are parked (D099).
+> - Studio is the only operator interface; Telegram is dormant (D093).
+> - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
+> - Full history: **SPRINT_ARCHIVE.md**.
+> - **Next sprint:** P12 — Projects & Shortlist.
 
 ---
 
@@ -27,11 +27,15 @@ Legacy Script→Video stays untouched and operable (D047).
 | P9 | Storyboard v2 + native engine rebuild | ~18 | done | `/run` → fully native pipeline; timestamp-first captions; film look; OST overlays |
 | **P10** | **Production quality + Visual Intelligence Layer** | **~15** | **in-progress** | No food assets for "protein"; researcher portrait from Wikimedia; per-scene asset override in Studio |
 | P-UX2 | **Render & narration controls** | **15** | **done** | Caption style preset, per-scene motion dropdown, TTS pace + register |
-| P11 | Visual Director + motion effects | ~12 | in-progress | Visual Director agent; sub-scene cuts; film grain; animated callouts |
-| P12 | Format tracks | ~10 | planned | `documentary`/`educational`/`animated` via `--format` flag |
-| P13 | Analytics & attribution | ~11 | planned | Retention-by-prompt-version report |
-| P14 | n8n automation | ~10 | planned | Niche → scheduled YouTube upload with no operator action |
-| P15 | Multi-tenant SaaS frontend | ~20 | planned | Multi-channel, multi-run operator UI |
+| P11 | Visual Director + motion effects | 6 | closed | Visual Director agent (S1). S2/S3 parked (D099) |
+| **P12** | **Projects & shortlist** | **16** | **planned — next** | Open Studio → project list → add a shortlist idea by hand → create a run from it |
+| P13 | Storyboard control | ~14 | planned | Change a scene from image to video, split and merge scenes, then acquire |
+| P14 | AI Created style | ~13 | planned | Pick AI Created, write a mood prompt, get a generated image on every scene |
+| P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
+| P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
+| P17 | Server-side Auto Advance | ~10 | planned | Pick a shortlist idea, close the tab, come back to a scheduled video |
+
+**Parked (D099):** P11-S2 motion presets · P11-S3 sub-scene asset timeline · Format tracks (old P12) · Analytics & attribution (old P13).
 
 **Core platform (P0–P6) = 116 pts done. P7–P8 = 22 pts done. Total: 138 pts.**
 
@@ -192,14 +196,14 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P11 — Visual Director + Motion Effects
 
 **Goal:** Introduce the Visual Director as a dedicated post-storyboard LangGraph node that produces a full visual treatment (shot type, search terms, motion, diversity plan) before any asset is fetched. Add motion effect presets to the render layer. The acquisition layer becomes a pure fulfillment layer.
-**Status:** PAUSED — S1 done; S2/S3 resume after Sprint P-UX2 (render & narration controls, 2026-08-30). S2 is now narrower: P-UX2-S3 shipped the motion vocabulary and the operator-facing dropdown it depended on.
+**Status:** CLOSED 2026-10-03 — S1 done; S2 and S3 parked by D099 (roadmap replaced by the Pipeline & Platform Update spec). The DoD items below that belong to S2 stay unchecked.
 **Points:** ~15
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | P11-S1 (was P10-S2) | Visual Director agent — post-storyboard visual treatment | 6 | done |
-| P11-S2 | Motion effect presets — film grain, camera shake, light leak | 3 | todo |
-| P11-S3 | Sub-scene asset timeline — 2–3 assets per scene with sub-clip in/out points | 5 | todo |
+| P11-S2 | Motion effect presets — film grain, camera shake, light leak | 3 | parked (D099) |
+| P11-S3 | Sub-scene asset timeline — 2–3 assets per scene with sub-clip in/out points | 5 | parked (D099) |
 
 **Execution order:** P11-S1 → P11-S2 (S2 adds `motion` preset execution that S1 specifies). P11-S3 is independent but large.
 
@@ -211,6 +215,33 @@ Legacy Script→Video stays untouched and operable (D047).
 - [ ] At least 3 further motion presets (film_grain, camera_shake, light_leak) applied correctly in render script
       — zoom/pan/Ken Burns already shipped in P-UX2-S3 as the `MOTION_EFFECTS` vocabulary (D081); S2 extends it
 - [ ] **Human touchpoint:** neuroscience run — no food for protein scenes; diversity score in Telegram; 2 motion presets visibly applied in output video
+
+---
+
+# Sprint P12 — Projects & Shortlist
+
+**Goal:** Runs stop being top-level. The operator works inside a project that owns a persistent shortlist of content ideas, and every content run starts from one or more shortlist items (D092, D094). No research yet — ideas are added by hand; P15 fills the shortlist automatically.
+**Status:** planned — next
+**Points:** 16
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P12-S1 | Projects data model + API (`tenant_id`, `project_id`, default-project backfill) | 3 | todo |
+| P12-S2 | Studio project landing + server-side, project-scoped run list | 5 | todo |
+| P12-S3 | Persistent shortlist — table, API, project page | 5 | todo |
+| P12-S4 | Create a content run from shortlist item(s) | 3 | todo |
+
+**Execution order:** S1 → (S2 ∥ S3) → S4.
+
+## Sprint P12 Definition of Done
+- [ ] `projects` and `shortlist_items` tables exist via a numbered migration; every row carries `tenant_id`
+- [ ] Every run belongs to a project; pre-existing runs sit in a default project and still open in Studio
+- [ ] Run list comes from the server, scoped to the project — not from browser `localStorage`
+- [ ] Shortlist items persist until removed and keep their origin fields (method, source, evidence, date)
+- [ ] A run created from shortlist items records which items it came from and pre-fills the Script stage
+- [ ] Project and shortlist views are separate static pages, not additions to `studio-v2.html` (D092)
+- [ ] **Lead-time task:** Google API audit application submitted (needed for P16 — unaudited API uploads stay private)
+- [ ] **Human touchpoint:** operator opens `/`, sees the project list, opens a project, adds a shortlist idea by hand, creates a run from it and lands in the existing Settings → Script flow
 
 ---
 

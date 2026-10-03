@@ -12,11 +12,11 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Platform v2 — Sprint P-UX2 (Render & Narration Controls) complete.** The 9:16 setup is the template; caption style, per-scene motion effect and TTS pace/register are now operator-selectable (D081–D083). Studio is the default UI (`/`); legacy pipeline UI lives at `/legacy`. Sprint P11 resumes next: S1 done, S2 (narrowed to film grain / camera shake / light leak) and S3 remaining.
-_Backlog order: P11 Visual Director + motion effects (resuming) → P12 Format tracks → P13 Analytics → P14 n8n automation → P15 Multi-tenant SaaS frontend._
+**Platform v2 — roadmap replaced 2026-10-03 by the Pipeline & Platform Update spec (D092–D099).** Next sprint: **P12 — Projects & Shortlist** (Tenant → Project → Run hierarchy, persistent project shortlist, runs created from shortlist items). P11 closed with S1 done; P11-S2/S3 parked. Studio is the only operator interface (`/`); Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
+_Backlog order: P12 Projects & shortlist → P13 Storyboard control → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance._
 
 ## Active story
-**P11-S2 / P11-S3** — see SPRINT.md and BACKLOG_ACTIVE.md for details.
+**Sprint P12, all stories (S1–S4)** — delivered as one sprint, not story by story (METHODOLOGY.md, 2026-10-03). See SPRINT.md and BACKLOG_ACTIVE.md for details.
 
 ## Environments
 
@@ -75,7 +75,7 @@ _Backlog order: P11 Visual Director + motion effects (resuming) → P12 Format t
 - **Every story** ships with tests (see docs/TESTING.md)
 - **No hardcoded values** — all config via ENV vars
 - **No UI frameworks** — plain HTML/JS only for operator UI
-- **Free-tier APIs only** for POC (Pexels, Replicate, Freesound)
+- **Free-tier APIs only** for POC (Pexels, Pixabay, Freesound) — exception: paid AI image generation (D096)
 - CI must be green before marking a story complete
 - **Pipeline step functions must be pure async** — take explicit inputs, return explicit outputs, no coupling to HTTP request context. Routes are thin wrappers only. See CONVENTIONS.md § Async function discipline and DECISIONS.md D040.
 

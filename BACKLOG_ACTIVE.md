@@ -1,4 +1,4 @@
-# Backlog — Active Stories (Sprints P8–P10)
+# Backlog — Active Stories
 
 _Contains completed sprint (P8), active sprint (P9), and next sprint outline (P10). Full history in BACKLOG.md._
 _Updated at each sprint boundary: move completed sprint block to BACKLOG.md archive._
@@ -2021,6 +2021,167 @@ StoryboardWorker → VisualDirectorWorker → AcquisitionWorker → RenderWorker
 
 **EPIC 32 — Legacy Rebuild** (~3 sprints after P7): re-author Script→Video as native workers; retire `src/` + adapter.
 **EPIC 34 — Replay & Evaluation Engine** (~3 sprints after P7): replay any worker, golden eval dataset, A/B routing, LLM-judge scoring.
+
+---
+
+## EPIC 43 — Projects & Shortlist (Sprint P12)
+
+First sprint of the Pipeline & Platform Update (D092–D099). Introduces the Tenant → Project → Run hierarchy and the persistent project shortlist. No research agents yet: ideas are added by hand so the hierarchy and the shortlist → run hand-off can be used and judged before P15 automates the intake.
+
+**Design rules for the whole epic**
+- Every new table has `tenant_id`, filled with the existing `PLATFORM_USER_ID` (`"operator"`). No auth work (D092).
+- New views are separate static pages under `src/static/`, plain HTML/JS, reusing Studio's CSS tokens and `.cf-select`. `studio-v2.html` only gains what it needs to be opened for a given project and run.
+- Schema changes go in a new numbered file in `cf_platform/db/migrations/` (next: `0002_`).
+- Studio / REST only — no Telegram commands (D093).
+
+---
+
+## [P12-S1] Projects data model + API
+**Epic:** E43 — Projects & Shortlist
+**Sprint:** P12
+**Status:** todo
+**Priority:** high
+**Points:** 3
+**Depends on:** —
+
+### Goal
+A `projects` table and a project reference on every run, with REST endpoints to list, create, read and update projects. Existing runs are moved into one default project so nothing disappears.
+
+**Open point to settle first (not yet verified):** Studio creates runs client-side (`newRun()` in `studio-v2.html`) and keeps its run list in `localStorage` (`studio_runs`). It is not confirmed that every Studio run — in particular one started from a pasted script, which skips `POST /platform/blocks/idea-to-script` — gets a row in the Postgres `runs` table. Establish this before writing the migration; if some runs have no row, this story adds an explicit "create run" endpoint that always writes one.
+
+**Tech:** Postgres (raw SQL migration, D048), FastAPI, Pydantic.
+
+### Data model
+```
+projects(project_id TEXT PK, tenant_id TEXT NOT NULL, name TEXT NOT NULL, niche TEXT NOT NULL DEFAULT '',
+         config JSONB NOT NULL DEFAULT '{}',        -- content/style defaults; research config lands here in P15
+         default_channel_id TEXT NULL,              -- filled in P16
+         archived_at TIMESTAMPTZ NULL, created_at, updated_at)
+runs: + tenant_id TEXT, + project_id TEXT REFERENCES projects
+```
+
+### Acceptance Criteria
+- [ ] Open point above resolved and the finding written into this story's Handover
+- [ ] Migration `0002_*.sql` creates `projects`, adds `runs.tenant_id` and `runs.project_id`, creates one default project and assigns all existing runs to it
+- [ ] `GET /platform/projects`, `POST /platform/projects`, `GET /platform/projects/{id}`, `PATCH /platform/projects/{id}` (name, niche, config, archive)
+- [ ] `GET /platform/projects/{id}/runs` returns that project's runs, newest first, with status and created date
+- [ ] Creating a run requires a `project_id`; a run cannot be created without one
+- [ ] Repository functions are pure async and take explicit inputs (D040); routes are thin wrappers
+- [ ] Tests: migration applies on an empty and on a populated database; CRUD happy paths; run without `project_id` rejected; project-scoped run list excludes other projects' runs
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P12-S2] Studio project landing + server-side run list
+**Epic:** E43 — Projects & Shortlist
+**Sprint:** P12
+**Status:** todo
+**Priority:** high
+**Points:** 5
+**Depends on:** P12-S1
+
+### Goal
+`GET /` shows the project list. Opening a project shows its page with two areas — Shortlist (P12-S3) and Runs — and a settings panel for name and niche. The run list comes from the server, so it is the same in every browser.
+
+**Tech:** plain HTML/JS static page(s); existing Studio CSS.
+
+### Acceptance Criteria
+- [ ] `/` serves a project list with "+ New project"; each project shows name, niche and run count
+- [ ] Project page lists the project's runs from `GET /platform/projects/{id}/runs`; clicking a run opens the existing Studio pipeline for it
+- [ ] `localStorage.studio_runs` is no longer the source of the run list; runs that exist only in a browser's local history are not lost silently — the Handover states what happens to them
+- [ ] Project name and niche are editable on the project page and persist
+- [ ] Studio pipeline header shows the project name and a link back to the project page
+- [ ] Bookmarked `/studio` links keep working
+- [ ] Usable at 9:16-phone and desktop widths, per docs/UI_GUIDELINES.md
+- [ ] Tests: route status codes; project page renders an empty state with no runs
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P12-S3] Persistent shortlist — table, API, project page
+**Epic:** E43 — Projects & Shortlist
+**Sprint:** P12
+**Status:** todo
+**Priority:** high
+**Points:** 5
+**Depends on:** P12-S1
+
+### Goal
+Each project has a shortlist of content ideas that only grows by adding and only shrinks by explicit removal (D094). In this sprint items are added by hand; the schema already carries the origin fields research will fill in P15.
+
+### Data model
+```
+shortlist_items(item_id TEXT PK, tenant_id, project_id REFERENCES projects,
+                title TEXT NOT NULL, summary TEXT NOT NULL DEFAULT '',
+                discovery_method TEXT NOT NULL CHECK (IN ('manual','trend','competitor')),
+                source TEXT NULL,                 -- e.g. "reddit", "google_news", a channel handle
+                evidence JSONB NOT NULL DEFAULT '{}',   -- why it is trending / why it performs
+                kpis JSONB NOT NULL DEFAULT '{}',       -- e.g. likes_per_1k_views, outlier_score
+                research_run_id TEXT NULL,        -- filled in P15
+                discovered_at TIMESTAMPTZ NOT NULL,
+                removed_at TIMESTAMPTZ NULL, created_at)
+```
+Removal is a soft delete (`removed_at`), so a run created from an item keeps a valid reference.
+
+### Acceptance Criteria
+- [ ] Migration adds `shortlist_items` as above
+- [ ] `GET /platform/projects/{id}/shortlist`, `POST …/shortlist` (manual add: title, summary, optional source/notes), `DELETE …/shortlist/{item_id}` (soft)
+- [ ] There is no endpoint that replaces or clears the shortlist in bulk
+- [ ] Project page Shortlist area: list with title, summary, method badge, source, date discovered; add form; remove with confirmation
+- [ ] Each item shows how many runs were created from it (0 until P12-S4)
+- [ ] Tests: add / list / remove; removed items excluded from the default list but still resolvable by id; items of another project not returned
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## [P12-S4] Create a content run from shortlist item(s)
+**Epic:** E43 — Projects & Shortlist
+**Sprint:** P12
+**Status:** todo
+**Priority:** high
+**Points:** 3
+**Depends on:** P12-S2, P12-S3
+
+### Goal
+The operator ticks one or more shortlist items and presses "Create video". A run is created in the project, linked to those items, and opens in the existing Studio flow at Settings, with the Script stage pre-filled from the selected ideas. Both existing script paths stay: generate, or paste an existing script.
+
+### Acceptance Criteria
+- [ ] `run_shortlist_items(run_id, item_id)` link table; one run can reference several items, one item can feed several runs
+- [ ] `POST /platform/projects/{id}/runs {item_ids: [...]}` creates the run row, the links, and returns the run id
+- [ ] Script stage: idea title pre-filled from the selected item(s); with several items, titles and summaries are combined into the idea context passed to `idea-to-script`
+- [ ] Project `niche` is passed to script generation instead of being typed per run
+- [ ] Settings stage starts from the project's `config` defaults when present; per-run changes do not write back to the project
+- [ ] Run info panel lists the shortlist items the run came from
+- [ ] The rest of the pipeline (voice, storyboard, acquisition, render, metadata) is unchanged
+- [ ] Tests: run creation with 1 and with 2 items; unknown or removed item id rejected; links readable from the run
+- [ ] **Human touchpoint:** operator opens `/`, opens a project, adds an idea by hand, creates a run from it and reaches a rendered video through the existing stages
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## Platform Update outlines — Sprints P13–P17 (not yet detailed)
+
+Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & Platform Update specification (2026-10-03).
+
+**EPIC 44 — Storyboard control (P13, D095, spec §10–15).** Per-scene asset strategy becomes patchable before acquisition: stock image, stock video, upload (AI image arrives in P14). Builds on `SceneVisualPlan.asset_class` / `preferred_source` (P11-S1) and the existing scene PATCH. Split and merge scenes by moving `start_word` / `end_word` indices; timing recomputed from Deepgram word timestamps through the existing `_patch_storyboard` path. Script-view editing where blank lines mark scene boundaries. Acquisition runs only after the operator confirms the storyboard. Open: what happens to already-acquired assets when a scene is split; whether editing voiceover text is allowed at this stage (it forces re-voicing).
+
+**EPIC 45 — AI Created style (P14, D096, spec §8, 11, 12).** Opens with the side-by-side provider test from D096. `ImageProvider` interface, kie.ai implementation, generated images stored in the run's R2 folder. New style option with a general visual prompt / mood in Settings. Visual Director prompt branch: for this style it writes a per-scene visual prompt from the scene's voiceover plus the global mood, instead of stock keywords. Per-scene "AI image" option with an editable prompt, usable in any style. Open: keeping a consistent look across scenes (style reference image vs. prompt only); per-run spend cap.
+
+**EPIC 46 — Research (P15, D094, D097, spec §2–5).** Project research page. Trend research: existing Google Trends, Reddit and YouTube adapters (D050) plus Google News, over a chosen time window, producing ~10 topics each with a summary and the evidence for why it is trending. Competitor research: port from `content-researcher` (D097), project-level channel list, publications from the last 24/48 hours with likes per 1,000 views and outlier score, daily snapshot job. Results are ticked into the shortlist with their evidence. Open: orchestrator-with-specialists vs. parallel agents with a synthesis step (spec §26 D); **X.com** — ENV.md records it as excluded under the free-tier constraint, so including it needs a decision on a paid source.
+
+**EPIC 47 — Publishing via n8n (P16, D098, spec §18–21).** `channels` table (tenant level: name, platform, n8n channel key), project default channel, per-run destinations with publish time. Endpoints `due` / `claim` / `result`; API key for n8n. n8n workflow for YouTube (upload early with YouTube's own scheduled-publish time), exported JSON committed to the repo. Publication status in Studio's Metadata stage, replacing the disabled "Upload to channel" button; fills `published_videos`. Instagram as a second destination if time allows. Depends on the Google API audit started in P12.
+
+**EPIC 48 — Server-side Auto Advance (P17, spec §22).** The Studio toggle hands the run to the server-side pipeline (`full_pipeline.py`, HITL gates from P6-S3) so it continues with the browser closed. First task: confirm that pipeline writes the same artifacts in the same places as the stage-by-stage Studio flow, so an auto-advanced run opens cleanly for review. Define which stages may run unattended, where it stops on error or missing input, and add OpenAI direct as the image fallback (D096). Optional: one-way Telegram notifications (D093).
+
+**Parked by D099:** P11-S2 motion presets (EPIC 39), P11-S3 sub-scene asset timeline (EPIC 38), Format tracks, Analytics & attribution.
 
 ---
 

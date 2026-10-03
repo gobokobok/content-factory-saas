@@ -5,6 +5,98 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D099 — Roadmap replaced: P12–P17 follow the Pipeline & Platform Update spec
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** The remaining Platform Track is replaced. New order: **P12** Projects & shortlist → **P13** Storyboard control → **P14** AI Created style → **P15** Research → **P16** Publishing via n8n → **P17** Server-side Auto Advance. Sprint P11 closes with S1 done.
+**Parked (not deleted):** P11-S2 (film grain / camera shake / light leak), P11-S3 (sub-scene asset timeline), old P12 Format tracks, old P13 Analytics & attribution. **Absorbed:** old P14 n8n automation → new P16; old P15 Multi-tenant SaaS frontend → new P12 (hierarchy only, see D092).
+**Rationale:** The operator's spec (2026-10-03) moves the product from "one run at a time" to "research → shortlist → run → publish" per project. Finishing P11-S2/S3 first was the rejected alternative: both polish the render layer, which the spec says should stay largely unchanged.
+**Decided:** 2026-10-03 by user ("replace").
+**See:** D092–D098, D019.
+
+---
+
+## D098 — Publishing runs through n8n; the platform stays the source of truth
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** Channels, per-run destinations, publish times and publication status live in the platform's Postgres. The operator's existing n8n instance is a stateless publisher: it polls `GET /platform/publications/due`, claims an item atomically (`POST /platform/publications/{id}/claim`), uploads video + metadata with the channel credential held in n8n, and reports back (`POST /platform/publications/{id}/result`). A channel row in the platform carries a name, a platform and an n8n channel key; it holds no OAuth tokens.
+**Rejected:** native OAuth + token storage + in-app scheduler. It is roughly a sprint of work versus two stories, and brings callback routes, refresh logic and encrypted credential storage into this codebase.
+**Known limits:** (1) channels are connected in n8n, not self-serve in Studio, which is acceptable for a single operator and not for external tenants; (2) n8n uses the operator's own Google Cloud OAuth client, so Google's API audit and upload quota apply unchanged; (3) the n8n workflow lives outside git unless its JSON export is committed.
+**Exit path:** n8n only sees the three endpoints above, so replacing it with a native publisher later changes nothing else.
+**New ENV (P16):** an API key for n8n → platform calls. **No new Python dependency.**
+**Decided:** 2026-10-03 by user (proposed the n8n-polls-platform shape; confirmed an instance is already running).
+**See:** D054 (YouTube Analytics OAuth, separate concern), `published_videos` table in `cf_platform/db/schema.sql`.
+
+---
+
+## D097 — Competitor-channel research is ported from content-researcher; daily snapshots; transcripts deferred
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** The "YouTube Content Scout" named in the spec is the sibling project `content-researcher`. Its `src/youtube/resolve.py`, `uploads.py`, `metadata.py` and `src/metrics.py` (about 670 lines, `httpx` + YouTube Data API only) are copied into `cf_platform/sources/` as a competitor-channel adapter. Its `channels` / `videos` / `video_stats` tables are rebuilt in Postgres with `project_id`. A daily stats snapshot of monitored channels feeds the outlier score (views vs. the channel's own median at the same age); likes per 1,000 views comes from the same metadata.
+**Not ported:** Telegram bot, digest, APScheduler, SQLite, RSS discovery (its own log records RSS as IP-blocked on Railway; `feedparser` is therefore not added), Apify transcripts.
+**Rejected:** calling `content-researcher` as a service. It has no HTTP interface and is single-user. The cost of copying is two codebases that can drift.
+**Deferred:** transcripts (`apify-client`, paid) until there is a need to explain performance beyond title, format, timing and numbers; if added, only for items selected into the shortlist.
+**Uses existing `YOUTUBE_API_KEY` (D050). No new dependency.**
+**Decided:** 2026-10-03 by user ("this one" = content-researcher). Snapshot job and transcript deferral are Claude's recommendation, not yet explicitly confirmed.
+**See:** D050.
+
+---
+
+## D096 — Paid AI image generation behind a provider interface; kie.ai first, OpenAI direct as fallback
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** AI-generated scene images are allowed as a paid service. A small `ImageProvider` interface (same pattern as the Pexels / Pixabay clients) selects provider and model by ENV. First implementation: kie.ai, defaulting to OpenAI's GPT Image model. Second implementation: OpenAI's API directly, used as fallback once Auto Advance runs unattended (P17). Generated images are copied into the run's R2 folder immediately.
+**Narrows the "Free-tier APIs only" hard constraint** in CLAUDE.md: image generation is exempt. Supersedes the retirement of AI images in D063 (Replicate stays retired; D007 is not revived).
+**Rejected:** Gemini-first (lowest friction, since `GEMINI_API_KEY` exists for TTS) — the operator judges OpenAI's images better. OpenAI-direct-only — kie.ai is cheaper and gives several models on one key.
+**Prices checked 2026-10-03:** OpenAI direct ≈ $0.041 (medium) / $0.165 (high) per 1024×1536 image; kie.ai ≈ $0.03 at 1K. Which OpenAI quality tier kie.ai's price corresponds to is **unverified** — P14 opens with a side-by-side test on five real scene prompts.
+**Risk:** kie.ai is a reseller (availability, price changes); its API is asynchronous (create task → poll or callback).
+**New ENV (P14):** provider selector, model, kie.ai key, OpenAI key. **No new Python dependency** (plain `httpx`).
+**Decided:** 2026-10-03 by user ("paid - fine", prefers OpenAI quality, proposed kie.ai). kie.ai-first ordering is Claude's recommendation.
+**See:** D063, D007.
+
+---
+
+## D095 — The storyboard is a human gate: nothing is acquired or generated before it
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** The Visual Director's per-scene choices (asset type, stock vs. AI-generated vs. upload, search keywords or visual prompt, scene boundaries) are a proposal the operator can change before any acquisition or generation call is made. The storyboard records the *desired* asset strategy per scene; acquisition executes it. Scene boundaries are edited as `start_word` / `end_word` indices (P9-S9), and timing is recomputed from Deepgram word timestamps — never typed in by hand. With Auto Advance on, the gate is skipped.
+**Rejected:** fixing scenes only after acquisition (today's re-acquire / upload path), which spends API calls and time on decisions the operator would have changed.
+**Constraint this creates:** changing the voiceover *text* after TTS invalidates the word timestamps and requires re-voicing; split / merge without text changes does not.
+**Decided:** 2026-10-03 by user (spec §10–15).
+**See:** P9-S9, P11-S1, D081.
+
+---
+
+## D094 — Persistent project shortlist; research adds, never replaces
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** Each project has one shortlist of content ideas in Postgres. Research results (trend or competitor) and manual entries are added to it; an item stays until the operator removes it. Every item keeps its origin: discovery method, source, evidence, KPIs, date discovered and the research run it came from. Content runs are created from one or more shortlist items.
+**Rejected:** run-scoped ideas (today's `niche_to_ideas` → `ranked_ideas` artifact), where each research run starts from nothing and the reason an idea was picked is lost with the run.
+**Decided:** 2026-10-03 by user (spec §4–6).
+
+---
+
+## D093 — Studio is the only operator interface; Telegram is dormant
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** All operator actions happen in the Studio web UI and its REST endpoints. No new feature gets a Telegram command, and sprint human touchpoints (D019) are Studio screens. The existing Telegram code (D049) is left in place, unused; removing it is a separate story if ever wanted. Telegram may return later as a one-way notification channel (e.g. "video published", "run failed"); that would be a new decision.
+**Rejected:** keeping Telegram as a parallel trigger layer — it doubles the surface every new feature has to cover, and the operator does not use it for this project.
+**Decided:** 2026-10-03 by user.
+**See:** D049, D019.
+
+---
+
+## D092 — Tenant → Project → Run hierarchy; `tenant_id` column, single operator for now
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** Runs belong to a project; projects belong to a tenant. A project holds niche, research configuration, competitor channels, shortlist, content/style defaults and a default publishing channel. New tables carry `tenant_id` from the start, populated with the existing single platform user. There is no multi-tenant authentication, sign-up or per-tenant isolation yet. Existing runs are assigned to a default project.
+**Rejected:** real multi-tenant auth now. There is one operator; building auth before a second user exists delays every feature in the spec. Also rejected: no `tenant_id` at all, which would mean a schema migration across every table later.
+**UI consequence:** project, research, shortlist and channel views are separate static pages, not additions to `studio-v2.html` (2,679 lines) — still plain HTML/JS.
+**Decided:** 2026-10-03 by user ("as you propose").
+**See:** D048 (Postgres index), D066.
+
+---
+
 ## D091 — Pan effects crashed on portrait stills narrower than 9:16
 **Date:** 2026-09-19
 **Status:** ACTIVE
