@@ -1,6 +1,6 @@
 # Sprint Archive — Content Factory
 
-_Historical sprints S1–S19 and Platform P0–P12 (incl. P-UX1, P-UX2), oldest first. Moved here to slim SPRINT.md._
+_Historical sprints S1–S19 and Platform P0–P13 (incl. P-UX1, P-UX2), oldest first. Moved here to slim SPRINT.md._
 _Active sprints: SPRINT.md. Full story details: BACKLOG.md._
 
 ---
@@ -976,3 +976,24 @@ _(new threshold: 3 outstanding triggers integration session)_
 - [x] Project and shortlist views are separate static pages, not additions to `studio-v2.html` (D092)
 - [ ] **Lead-time task:** Google API audit application submitted (needed for P16 — unaudited API uploads stay private) — IN PROGRESS (2026-10-03): operator will submit; not yet sent
 - [x] **Human touchpoint:** operator opens `/`, sees the project list, opens a project, adds a shortlist idea by hand, creates a run from it and lands in the existing Settings → Script flow — VERIFIED 2026-10-03 on Railway DEV
+
+---
+
+# Sprint P13 — Storyboard control
+
+**Goal:** The storyboard becomes a human gate (D095): per-scene asset strategy is editable before anything is acquired, and scenes can be split and merged.
+**Status:** done — 2026-10-03, delivered as one sprint; DEV smoke test passed (`1e5ff4b`). Decision D102.
+**Points:** 14
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P13-S1 | Per-scene asset strategy — model, patch, acquisition | 4 | done |
+| P13-S2 | Split and merge scenes | 4 | done |
+| P13-S3 | Storyboard stage — strategy dropdown, split / merge controls, confirm gate | 3 | done |
+| P13-S4 | Script view — edit scene boundaries as text | 3 | done |
+
+**Execution order:** (S1 ∥ S2) → (S3 ∥ S4).
+
+**Operator decisions (2026-10-03):** voiceover text is read-only at the storyboard stage; on split, the first half keeps an already-acquired asset and the second half needs acquisition.
+
+**Human touchpoint:** change a scene from image to video, split and merge scenes, then acquire — and swap one scene's asset afterwards (clears the P10-S2 deferral).

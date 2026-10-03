@@ -4,13 +4,13 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprint P13 complete** (2026-10-03). **Next sprint:** P13b — CapCut export (D100); stories not yet written.
+> - **Sprints P12 and P13 complete** (2026-10-03). **Current sprint:** P13b — CapCut export (D100), stories P13b-S1..S4.
 
 ---
 
 # CONTENT FACTORY v2 — PLATFORM TRACK (Sprints P0–P17)
 
-**Canonical spec:** docs/v2_platform_plan.md · **Decisions:** D047–D101 · **Stories:** BACKLOG_ACTIVE.md (last completed sprint + upcoming outlines), BACKLOG.md (full archive).
+**Canonical spec:** docs/v2_platform_plan.md · **Decisions:** D047–D102 · **Stories:** BACKLOG_ACTIVE.md (last completed sprint + upcoming outlines), BACKLOG.md (full archive).
 Legacy Script→Video stays untouched and operable (D047).
 
 | Sprint | Theme | Pts | Status | Human touchpoint |
@@ -31,7 +31,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P11 | Visual Director + motion effects | 6 | closed | Visual Director agent (S1). S2/S3 parked (D099) |
 | P12 | Projects & shortlist | 16 | done | Open Studio → project list → add a shortlist idea by hand → create a run from it |
 | P13 | Storyboard control | 14 | done | Change a scene from image to video, split and merge scenes, then acquire |
-| P13b | CapCut export (second render path) | ~10 | planned | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
+| P13b | CapCut export (second render path) | 11 | current | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
 | P14 | AI Created style | ~13 | planned | Pick AI Created, write a mood prompt, get a generated image on every scene |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
@@ -45,26 +45,34 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Open items carried from closed sprints
 
-- **Deferred smoke tests: 0.** P10-S2 (asset swap from Studio) was cleared on 2026-10-03 by the P13 smoke test.
+- **Deferred smoke tests: 0.**
+- **PROD is two sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12 and P13 (including migration `0002_projects_shortlist.sql`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
+- **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
+- **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
 - **Google API audit application** (P12 lead-time task) — in progress; operator will submit. Needed for P16.
+- **Candidate, not a story yet:** captions take their words from the Deepgram transcript, so a misheard word ("pedals are wheel" for "pedals or wheel", PROD 2026-10-02) can reach the video. See docs/RUNBOOK.md.
 
 ---
 
-# Sprint P13 — Storyboard control
+# Sprint P13b — CapCut export
 
-**Goal:** The storyboard becomes a human gate (D095): per-scene asset strategy is editable before anything is acquired, and scenes can be split and merged.
-**Status:** done — 2026-10-03, delivered as one sprint; DEV smoke test passed (`1e5ff4b`). Decision D102.
-**Points:** 14
+**Goal:** A finalized storyboard can leave Studio as a CapCut project: one download, one command on the laptop, and the full edit opens in CapCut; the video rendered there comes back into the run (D100). The FFmpeg render on Railway keeps working unchanged.
+**Status:** current — planned 2026-10-03 at the Sprint P13 review. Built in one pass (`/start-story P13b-S1..S4`).
+**Points:** 11
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P13-S1 | Per-scene asset strategy — model, patch, acquisition | 4 | done |
-| P13-S2 | Split and merge scenes | 4 | done |
-| P13-S3 | Storyboard stage — strategy dropdown, split / merge controls, confirm gate | 3 | done |
-| P13-S4 | Script view — edit scene boundaries as text | 3 | done |
+| P13b-S1 | Neutral timeline artifact + render regression tests | 4 | todo |
+| P13b-S2 | "Download for CapCut" — zip of media and timeline | 2 | todo |
+| P13b-S3 | Laptop script and setup guide | 3 | todo |
+| P13b-S4 | Return path — upload the CapCut-rendered video into the run | 2 | todo |
 
-**Execution order:** (S1 ∥ S2) → (S3 ∥ S4).
+**Execution order:** S1 → (S2 ∥ S3) → S4.
 
-**Operator decisions (2026-10-03):** voiceover text is read-only at the storyboard stage; on split, the first half keeps an already-acquired asset and the second half needs acquisition.
+**Why S1 carries render hardening:** render is a recurring-fix area (7 untracked fixes, 2026-08-16 → 09-19, three releases on a wrong diagnosis — D090/D091). S1 rewires what the FFmpeg builder reads, so the golden render-script tests are written first and must stay byte-identical.
 
-**Human touchpoint:** change a scene from image to video, split and merge scenes, then acquire — and swap one scene's asset afterwards (clears the P10-S2 deferral).
+**Human touchpoint:** on DEV, the operator downloads a finalized storyboard, runs one command on the laptop, opens the full edit in CapCut, renders it there and uploads the result back into the run.
+
+## Scope changes
+
+_None._

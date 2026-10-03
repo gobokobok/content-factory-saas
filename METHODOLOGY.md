@@ -1,7 +1,7 @@
 # Methodology
 
 ## Version
-APEX-DEV v0.1
+APEX-DEV v0.5 (canonical spec and improvement log: `~/.claude/APEX-DEV.md`)
 
 ## Commands installed
 - `/init-project` — initialize project artifacts from spec
@@ -30,3 +30,4 @@ _METHODOLOGY IMPROVEMENT notes from sprint reviews are recorded here._
 | P10/P11-S1 | 2026-07-03 | **Proposal B — Surface untracked fixes:** 10 `fix:` commits landed after P11-S1 shipped with no story ID and no DONE.md entry; 5 of them repeatedly re-patched the same feature (character/person portrait acquisition) instead of getting a proper regression-tested story. Added `/sprint-review` step 1.5: grep commits since the last sprint-review for story-less `fix:`/`hotfix:` messages, list them, and call out 3+-commit clusters on the same area as a story candidate. Applied to `/sprint-review` v0.2. |
 | P10/P11-S1 | 2026-07-03 | **Proposal C — Keep CLAUDE.md in sync at sprint boundaries:** CLAUDE.md's "Current sprint"/"Active story" lines were stale (still said "P8 complete, next P9") while SPRINT.md and DONE.md showed work through P11-S1 — the bootstrap file every session reads first had drifted. `/sprint-review` step 7 now updates CLAUDE.md alongside SPRINT.md. Applied to `/sprint-review` v0.2 step 7. |
 | P12 | 2026-10-03 | **Sprint-at-a-time delivery (operator instruction):** from P12 on, a sprint is built and delivered as a whole — all its stories in one pass — instead of one `/start-story` → `/finish-story` cycle per story, to speed up delivery. Stories remain the unit of tracking: each still gets its acceptance criteria checked, its tests, its Handover and its DONE.md entry, and CI must be green before the sprint is marked complete. The human touchpoint (D019) is verified once, at the end of the sprint. |
+| P13 | 2026-10-03 | Sprint P13 review — four changes applied to the command files; details in `~/.claude/APEX-DEV.md` (2026-10-03): **(A)** `/sprint-review` v0.7 covers every sprint closed since the last review commit; **(B)** `/start-story` v0.5 and `/finish-story` v0.7 gain a sprint mode for a story range; **(C)** a post-close fix carries the story ID it repairs — a decision number alone counts as untracked; **(D)** `/release` v0.2 requires `/prod-check` v0.2 first, and the first prod check creates `docs/RUNBOOK.md`. |

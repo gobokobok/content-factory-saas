@@ -4,6 +4,52 @@ _Completed-story entries older than the last two sprints, newest first. Recent e
 
 ---
 
+## Untracked work, 2026-07-05 → 2026-09-25 — summary notes (Sprint P13 review)
+
+_Recorded at the Sprint P13 review (2026-10-03). This work shipped with decisions and release notes but without stories, so it has no acceptance criteria, no Handover and no smoke-test line; these notes are pointers, not story entries. The decisions and RELEASES.md are the record._
+
+- **Storyboard generation hardening** (2026-07-05 → 07-07; 1 feat, 1 perf, 10 fix; no decision IDs). Async voice and storyboard generation to survive Railway's request timeout, explicit Claude API timeouts, `max_tokens` 32000, ~60% lower token use on long scripts, scenes over 10s split into equal-word sub-scenes, pause-guided boundaries and no mid-sentence splits, prompt v0.16, format-conditional pacing. The fast-cut hook rule added here was removed again on 2026-09-25 (`edc92ba`, v0.24.0).
+- **Repository hardening** (2026-07-26; D067–D069): runtime/dev dependency split with version caps, ruff lint gate in CI, `api.py` split into per-domain routers, constant-time password compare and per-IP login rate limiting.
+- **On-screen text editing fixes** (2026-08-14 → 08-16; 5 fix): clearing on-screen text, no coercion of `on_screen_text_type` to `"stat"`, stale `render_options` overlay, trace-event write failure no longer 500s an upload. Released in v0.21.0.
+- **Captions, voice and on-screen text redesign** (2026-08-26 → 08-31; D070–D075, D079, D084, D088). Titillium Web captions scoped to 9:16, size 108pt → 80pt after a real render, TTS pace and pauses, numbers spelled out, on-screen text in Montserrat Bold with slide-in, real word-wrap and a restored left margin, Punch captions in Barlow Condensed Bold, narration tempo split from register. Released in v0.21.0–v0.23.0.
+- **SFX library** (2026-08-27 → 08-30; D076, D078, D080; supersedes D008). Curated 8-entry vocabulary suggested per scene and overridable in Studio, copied into the run and auto-timed at render; manual upload tool after the Freesound auto-picks were rejected. Released in v0.23.0. Same period: CD waits for the Railway build and `/platform/version` reads a build stamp (D077).
+- **P-UX2 follow-up fixes** (2026-08-30 → 09-01; D080, D085–D089): settings reset on reload, artifact versions resolved numerically, zoom presets as per-second rates, operator video on a still scene. Six fixes within 72 hours of P-UX2's close — P-UX2 counts as reopened.
+- **Render crashes** (2026-09-18 → 09-19; D090, D091). Three releases (v0.23.2–v0.23.4) capped FFmpeg threads on a wrong diagnosis; D091 (v0.23.5) found the cause — a pan on a portrait still narrower than 9:16. D090 is marked superseded.
+
+**Follow-up:** render and storyboard are recurring-fix areas. P13b-S1 adds golden render-script tests before the builder is rewired.
+
+---
+
+## [P-UX2] Render & Narration Controls — S1 dropdown component, S2 caption style, S3 motion effects, S4 narration
+**Completed:** 2026-08-30
+**Handover:**
+- **S1 (`.cf-select`):** new shared dropdown component in `src/static/studio-v2.html` — native `<select>` with `appearance:none` + a data-URI chevron, built from existing tokens, plus a `.cf-select--sm` table modifier. There was no `select` rule anywhere in the file before this; the SFX column had raw browser chrome. Adopted by the SFX cell, the new Motion cell and the three new Settings selects.
+- **S2 (caption style):** `VideoSettings.caption_style: "standard"|"punch"` (orthogonal to `subtitles`). `_build_captions_with_y_override` (`render_worker.py`) gains a `caption_style` param driving `chunk_size` (5→1) and display-only uppercasing; the yellow active-word highlight is dropped for punch (one word on screen = the whole line would be yellow). New `_CAPTIONS_ASS_HEADER_PUNCH` in `src/captions.py` (Titillium Web SemiBold 130 vs 80, Outline 4), selected by `_captions_header(subtitle_style, aspect_ratio, caption_style)` — 9:16 only, matching D070's scoping. Threaded `RenderWorkerRequest.caption_style` → `state.inputs` → `_build_render_script`.
+- **S3 (motion effects):** `MOTION_EFFECTS` / `MOTION_EFFECT_ALIASES` / `normalize_motion_effect()` added to `src/models.py`. **`motion_effect` was dead code** — `_zoompan_filter` returned early on `clip_type == "still_with_motion"` (which every generated still is) before reading it, and it was in neither `ScenePatchRequest` nor `_PATCHABLE_FIELDS`. Early return removed; clip_type now only supplies the default. New `_motion_vf_prefix()` in `src/ffmpeg_builder.py`: pans pre-scale to output height only and slide a frame-sized `crop` with a `t`-driven x expression, because zoompan's region is always `iw/zoom × ih/zoom` and so cannot express a 9:16 window crossing a 16:9 image. **A trailing zoompan must not be appended to a pan** — it consumes one frame and emits `d` from it, freezing the motion (measured: first-vs-last frame delta YAVG 0.03 with it, 97.5 without). `zoom_in`/`zoom_out` are rate-based at `_ZOOM_RATE_PER_S = 0.02` per second; pan travel is `_PAN_TRAVEL_FRACTION_PER_S = 0.12` of output width per second, clamped to available headroom and centred — **this is the knob to turn if the pan speed reads wrong.** All five effects rendered through real FFmpeg at exactly 100 frames / 4.000s / 25fps.
+- **S4 (narration):** `VideoSettings.narration_pace` + `narration_style`. `voice_production.py`'s `_SHORTS_PACE_INSTRUCTION` replaced by `_PACE_WPM` (145/160/172) + `_STYLE_CLAUSE` + a verbatim `_PAUSE_INSTRUCTION` (D073's wording is load-bearing), composed by `_build_tts_input(script, pace, style)`. `_estimate_duration` takes `pace`. Gemini exposes no numeric rate parameter, so this is the only lever. Reaches the worker through `runs/{id}/settings.json`, read in `voice_worker_endpoint` — `VoiceWorkerRequest` unchanged. `aspect_ratio` is no longer consulted for narration, so 16:9 now gets an instruction too (it previously got none).
+- **Backward compatibility:** `ken_burns_in` / `ken_burns_out` / `scale` all alias to `ken_burns` — what all three *actually rendered as*. Mapping `scale` to `static` would honour the name but freeze the sub-3s scenes of every already-rendered run. `_derive_motion_effect` likewise returns `ken_burns` for both still tiers. **Verified: a pre-D081 storyboard produces a byte-identical render script before and after.**
+- **Default change to call out:** narration defaults to `normal` (160 wpm); 9:16 previously ran at ~172. Picking **Fast** reproduces the old pace.
+- New tests: `test_pux2_s2_caption_style.py` (19), `test_pux2_s3_motion.py` (12), `test_pux2_s4_narration.py` (32); `TestZoompanFilter` rewritten and `TestMotionVfPrefix` added in `test_ffmpeg_builder.py`. **2186 passing, 0 failing** (the "6 pre-existing failures" recorded in earlier DONE entries are stale — baseline on `main` was already clean).
+- Also fixed: `.claude/launch.json`'s `fastapi-dev` ran system `python3` (3.9), which cannot import the app (`X | None` syntax); now uses `.venv/bin/python`.
+- Decisions logged: **D081** (motion vocabulary + why pans are a crop), **D082** (caption presets), **D083** (narration as composed instructions).
+**Smoke test:** PASSED — UI verified in the browser against the demo fixture (Settings shows the three new dropdowns; captions toggle gates the style select; Motion column renders a dropdown per still scene and `—` for video scenes; both table selects carry `.cf-select--sm` with row height unchanged; no console errors). FFmpeg behaviour verified directly by rendering every motion effect and diffing frames. The full DEV run that was deferred (a full DEV run — punch captions burned into a real video, a pan on real landscape footage, and an audible pace difference — needs operator credentials) was confirmed by the operator at grooming, 2026-10-03.
+**Promoted to backlog:** none. P11-S2 narrowed to film grain / camera shake / light leak, since the vocabulary and dropdown it depended on shipped here.
+
+---
+
+## [P10-S2] Merged storyboard+assets table with per-scene asset override
+**Completed:** 2026-06-29
+**Handover:**
+- `_acquire_single_scene(scene, entry, pexels, pixabay, wikimedia, storage, run_id, used_file_keys?)` — public function in `cf_platform/workers/acquisition_worker.py`; standalone per-scene acquisition callable from REST endpoints
+- `POST /platform/studio/runs/{run_id}/scenes/{scene_n}/reacquire` — custom query, versioned manifest, TraceEvent
+- `POST /platform/studio/runs/{run_id}/scenes/{scene_n}/upload` — MIME+size validated, R2 write, versioned manifest, TraceEvent
+- `studio.html` nav is now 4 stages (Script/Voice/Storyboard/Render); storyboard table has Preview thumbnail + pencil columns; pencil modal handles both re-acquire and custom upload; live 3s polling fills thumbnails during acquisition
+- `tests/cf_platform/test_p10_s2_asset_override.py` — 16 tests (all green)
+**Smoke test:** PASSED — 2026-10-03 on Railway DEV (`1e5ff4b`), cleared by P13-S3: the operator swapped a scene's asset from the Storyboard table with the pencil (re-acquire with a new query, then upload) as the last step of the P13 smoke test. Deferred from 2026-06-29. Post-ship fix on record: `python-multipart` added to requirements.txt (commit 29068b7) — its absence caused the entire `/platform/*` router to fail to mount on DEV.
+**Promoted to backlog:** none
+
+---
+
 ## [P-UX1] Studio UX Redesign — S1 shell, S2 Settings stage, S3 Metadata stage, S4 legacy retirement
 **Completed:** 2026-07-03
 **Handover:**
