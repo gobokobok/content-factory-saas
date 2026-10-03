@@ -16,7 +16,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 _Backlog order: P13 Storyboard control → P13b CapCut export (D100) → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance._
 
 ## Active story
-**None yet — Sprint P13 has an epic outline in BACKLOG_ACTIVE.md (EPIC 44) but no stories.** Backlog groomed 2026-10-03; the feature-story block is clear. Write the P13 stories next (`/add-story`; two open questions in the EPIC 44 outline need the operator's answer first), then deliver it as one sprint, not story by story (METHODOLOGY.md, 2026-10-03).
+**Sprint P13 — all four stories, built in one pass** (METHODOLOGY.md, 2026-10-03): P13-S1 asset strategy, P13-S2 split / merge, P13-S3 Storyboard stage controls + confirm gate, P13-S4 script view. Order: (S1 ∥ S2) → (S3 ∥ S4). Stories: BACKLOG_ACTIVE.md, EPIC 44.
 
 **Blockers / operator actions:** Google API audit application in progress — operator will submit (lead time for P16 publishing). 1 smoke test deferred (P10-S2 asset swap from Studio — clears in P13).
 

@@ -4,7 +4,7 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprint P12 complete** (2026-10-03). **Next sprint:** P13 — Storyboard control (stories not yet written — groom first).
+> - **Sprint P12 complete** (2026-10-03). **Next sprint:** P13 — Storyboard control (4 stories, 14 pts, ready to build).
 
 ---
 
@@ -30,7 +30,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-UX2 | Render & narration controls | 15 | done | Caption style preset, per-scene motion dropdown, TTS pace + register |
 | P11 | Visual Director + motion effects | 6 | closed | Visual Director agent (S1). S2/S3 parked (D099) |
 | P12 | Projects & shortlist | 16 | done | Open Studio → project list → add a shortlist idea by hand → create a run from it |
-| P13 | Storyboard control | ~14 | planned | Change a scene from image to video, split and merge scenes, then acquire |
+| P13 | Storyboard control | 14 | planned | Change a scene from image to video, split and merge scenes, then acquire |
 | P13b | CapCut export (second render path) | ~10 | planned | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
 | P14 | AI Created style | ~13 | planned | Pick AI Created, write a mood prompt, get a generated image on every scene |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
@@ -53,7 +53,18 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P13 — Storyboard control
 
 **Goal:** The storyboard becomes a human gate (D095): per-scene asset strategy is editable before anything is acquired, and scenes can be split and merged.
-**Status:** planned — stories not yet written. Epic outline: BACKLOG_ACTIVE.md, EPIC 44.
-**Points:** ~14
+**Status:** planned — stories written 2026-10-03 (BACKLOG_ACTIVE.md, EPIC 44); delivered as one sprint.
+**Points:** 14
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P13-S1 | Per-scene asset strategy — model, patch, acquisition | 4 | planned |
+| P13-S2 | Split and merge scenes | 4 | planned |
+| P13-S3 | Storyboard stage — strategy dropdown, split / merge controls, confirm gate | 3 | planned |
+| P13-S4 | Script view — edit scene boundaries as text | 3 | planned |
+
+**Execution order:** (S1 ∥ S2) → (S3 ∥ S4).
+
+**Operator decisions (2026-10-03):** voiceover text is read-only at the storyboard stage; on split, the first half keeps an already-acquired asset and the second half needs acquisition.
 
 **Human touchpoint:** change a scene from image to video, split and merge scenes, then acquire — and swap one scene's asset afterwards (clears the P10-S2 deferral).
