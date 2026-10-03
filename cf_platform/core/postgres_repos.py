@@ -29,6 +29,44 @@ async def _ensure_open(pool: AsyncConnectionPool) -> None:
         await pool.open(wait=False)
 
 
+_RUN_COLUMNS = (
+    "run_id, user_id, block, status, inputs, error, created_at, updated_at, "
+    "tenant_id, project_id, name, archived_at"
+)
+
+
+def _run_from_row(row: tuple) -> RunRecord:
+    """Build a RunRecord from a row selected with _RUN_COLUMNS."""
+    (
+        run_id,
+        user_id,
+        block,
+        status,
+        inputs,
+        error,
+        created_at,
+        updated_at,
+        tenant_id,
+        project_id,
+        name,
+        archived_at,
+    ) = row
+    return RunRecord(
+        run_id=run_id,
+        user_id=user_id,
+        block=block,
+        status=status,
+        inputs=inputs,
+        error=error,
+        created_at=created_at,
+        updated_at=updated_at,
+        tenant_id=tenant_id,
+        project_id=project_id,
+        name=name,
+        archived_at=archived_at,
+    )
+
+
 class PostgresRunRepository:
     """Postgres-backed RunRepository — upserts into the `runs` table by `run_id`."""
 
@@ -43,15 +81,20 @@ class PostgresRunRepository:
             async with conn.cursor() as cur:
                 await cur.execute(
                     """
-                    INSERT INTO runs (run_id, user_id, block, status, inputs, error, created_at, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO runs (run_id, user_id, block, status, inputs, error, created_at, updated_at,
+                                      tenant_id, project_id, name, archived_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (run_id) DO UPDATE SET
                         user_id = EXCLUDED.user_id,
                         block = EXCLUDED.block,
                         status = EXCLUDED.status,
                         inputs = EXCLUDED.inputs,
                         error = EXCLUDED.error,
-                        updated_at = EXCLUDED.updated_at
+                        updated_at = EXCLUDED.updated_at,
+                        tenant_id = EXCLUDED.tenant_id,
+                        project_id = EXCLUDED.project_id,
+                        name = EXCLUDED.name,
+                        archived_at = EXCLUDED.archived_at
                     """,
                     (
                         run.run_id,
@@ -62,6 +105,10 @@ class PostgresRunRepository:
                         run.error,
                         run.created_at,
                         run.updated_at,
+                        run.tenant_id or run.user_id,
+                        run.project_id,
+                        run.name,
+                        run.archived_at,
                     ),
                 )
             await conn.commit()
@@ -72,53 +119,47 @@ class PostgresRunRepository:
         await _ensure_open(self._pool)
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(
-                    """
-                    SELECT run_id, user_id, block, status, inputs, error, created_at, updated_at
-                    FROM runs WHERE run_id = %s
-                    """,
-                    (run_id,),
-                )
+                await cur.execute(f"SELECT {_RUN_COLUMNS} FROM runs WHERE run_id = %s", (run_id,))
                 row = await cur.fetchone()
         if row is None:
             raise RunNotFoundError(f"Run not found: {run_id}")
-        run_id_, user_id, block, status, inputs, error, created_at, updated_at = row
-        return RunRecord(
-            run_id=run_id_,
-            user_id=user_id,
-            block=block,
-            status=status,
-            inputs=inputs,
-            error=error,
-            created_at=created_at,
-            updated_at=updated_at,
-        )
+        return _run_from_row(row)
 
     async def list_runs(self) -> list[RunRecord]:
         """Return all RunRecords, most recently created first."""
         await _ensure_open(self._pool)
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
+                await cur.execute(f"SELECT {_RUN_COLUMNS} FROM runs ORDER BY created_at DESC")
+                rows = await cur.fetchall()
+        return [_run_from_row(row) for row in rows]
+
+    async def list_for_project(self, project_id: str) -> list[RunRecord]:
+        """Return project_id's non-archived RunRecords, most recently created first."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
                 await cur.execute(
-                    """
-                    SELECT run_id, user_id, block, status, inputs, error, created_at, updated_at
-                    FROM runs ORDER BY created_at DESC
-                    """
+                    f"""
+                    SELECT {_RUN_COLUMNS} FROM runs
+                    WHERE project_id = %s AND archived_at IS NULL
+                    ORDER BY created_at DESC
+                    """,
+                    (project_id,),
                 )
                 rows = await cur.fetchall()
-        return [
-            RunRecord(
-                run_id=run_id_,
-                user_id=user_id,
-                block=block,
-                status=status,
-                inputs=inputs,
-                error=error,
-                created_at=created_at,
-                updated_at=updated_at,
-            )
-            for run_id_, user_id, block, status, inputs, error, created_at, updated_at in rows
-        ]
+        return [_run_from_row(row) for row in rows]
+
+    async def count_by_project(self) -> dict[str, int]:
+        """Return {project_id: number of non-archived runs} for every project that has runs."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT project_id, COUNT(*) FROM runs WHERE archived_at IS NULL GROUP BY project_id"
+                )
+                rows = await cur.fetchall()
+        return {project_id: count for project_id, count in rows}
 
 
 class PostgresArtifactRepository:

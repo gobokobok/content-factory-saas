@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Projects — Content Factory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <style>
+    /* Project list (P12-S2, D092). Same "Monochrome Console" tokens as studio-v2.html —
+       a separate static page, not an addition to it. */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #FAFAFA; --surface: #FFFFFF; --border: #E7E7E9; --border2: #F0F0F2;
+      --ink: #121215; --ink-sub: #55555C; --muted: #8B8B92; --faint: #B4B4BA;
+      --accent: #2E45EC; --accent-h: #1F33C9; --accent-tint: #EEF0FE; --accent-ring: rgba(46, 69, 236, 0.28);
+      --red: #D92D20; --red-tint: #FEF1F0;
+      --font: 'Schibsted Grotesk', system-ui, sans-serif; --mono: 'Fragment Mono', ui-monospace, monospace;
+      --r: 8px; --r-sm: 6px;
+    }
+    body {
+      font-family: var(--font); font-size: 14px; line-height: 1.5; color: var(--ink);
+      background: var(--bg); min-height: 100vh; -webkit-font-smoothing: antialiased;
+    }
+    button, input { font-family: var(--font); }
+    :focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; border-radius: 4px; }
+
+    .topbar {
+      display: flex; align-items: center; gap: 10px; padding: 14px 40px;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+    }
+    .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--ink); position: relative; flex-shrink: 0; }
+    .brand-mark::after { content: ""; position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); right: 5px; bottom: 5px; }
+    .brand-name { font-weight: 700; letter-spacing: -0.01em; }
+    .brand-name span { color: var(--muted); font-weight: 500; }
+    .spacer { flex: 1; }
+
+    .page { max-width: 760px; padding: 56px 40px 80px; }
+    .page-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+    .page-count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: var(--r-sm);
+      font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; line-height: 1; transition: all 0.15s;
+    }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-h); border-color: var(--accent-h); }
+    .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
+    .btn-secondary:hover:not(:disabled) { border-color: var(--faint); background: var(--border2); }
+    .btn-ghost { background: transparent; color: var(--muted); font-weight: 500; }
+    .btn-ghost:hover { color: var(--ink); background: var(--border2); }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; margin-bottom: 16px; }
+    .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .form-row > div { flex: 1; min-width: 200px; }
+    .label { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
+    .input {
+      width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      font-size: 13px; color: var(--ink); background: var(--surface); transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .input::placeholder { color: var(--faint); }
+
+    .row {
+      display: flex; align-items: center; gap: 16px; width: 100%; padding: 14px 18px; margin-bottom: 8px;
+      text-align: left; text-decoration: none; color: inherit;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+      transition: border-color 0.12s, box-shadow 0.12s;
+    }
+    .row:hover { border-color: var(--faint); box-shadow: 0 2px 8px rgba(18,18,21,0.05); }
+    .row-main { flex: 1; min-width: 0; }
+    .row-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-meta { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-count { font-family: var(--mono); font-size: 11px; color: var(--muted); flex-shrink: 0; }
+    .row-arrow { color: var(--faint); flex-shrink: 0; }
+    .row:hover .row-arrow { color: var(--ink); }
+
+    .empty { text-align: center; padding: 72px 0 32px; }
+    .empty-glyph { font-family: var(--mono); font-size: 13px; color: var(--faint); letter-spacing: 0.3em; margin-bottom: 16px; }
+    .empty-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+    .empty-sub { font-size: 13px; color: var(--muted); }
+
+    .error-bar { padding: 10px 14px; border: 1px solid #F4C6C2; border-radius: var(--r-sm); background: var(--red-tint); color: var(--red); font-size: 13px; margin-bottom: 16px; }
+    .notice { padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--accent-tint); color: var(--accent); font-size: 13px; margin-bottom: 16px; }
+    .muted { color: var(--muted); }
+
+    @media (max-width: 600px) {
+      .topbar { padding: 12px 16px; }
+      .page { padding: 28px 16px 64px; }
+      .row { padding: 12px 14px; gap: 10px; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  </style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand-mark" aria-hidden="true"></div>
+  <div class="brand-name">CF <span>Studio</span></div>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost" onclick="logOut()">Log out</button>
+</header>
+
+<main class="page">
+  <div class="page-head">
+    <h1 class="page-title">Projects</h1>
+    <span class="page-count" id="project-count"></span>
+    <div class="spacer"></div>
+    <button class="btn btn-primary" id="new-project-btn" onclick="toggleNewProject()">+ New project</button>
+  </div>
+
+  <div id="error" class="error-bar" style="display:none;"></div>
+  <div id="notice" class="notice" style="display:none;"></div>
+
+  <form class="card" id="new-project-form" style="display:none;" onsubmit="createProject(event)">
+    <div class="form-row">
+      <div>
+        <label class="label" for="np-name">Project name</label>
+        <input class="input" id="np-name" maxlength="120" placeholder="The Housing Equation" required>
+      </div>
+      <div>
+        <label class="label" for="np-niche">Niche (optional)</label>
+        <input class="input" id="np-niche" maxlength="200" placeholder="american housing economics">
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit" id="np-submit">Create project</button>
+    <button class="btn btn-ghost" type="button" onclick="toggleNewProject()">Cancel</button>
+  </form>
+
+  <div id="project-list"><div class="muted">Loading…</div></div>
+</main>
+
+<script>
+// A bookmarked run link from before P12 (`/#run/<id>/<stage>`) still opens the run.
+// Also on hashchange: pasting such a link while already on this page does not reload it.
+function forwardRunBookmark() {
+  if (location.hash.startsWith('#run/')) location.replace('/studio' + location.hash);
+}
+forwardRunBookmark();
+window.addEventListener('hashchange', forwardRunBookmark);
+
+const DEFAULT_PROJECT_ID = 'default';
+
+function esc(v) {
+  return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showMsg(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.style.display = msg ? '' : 'none';
+}
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  if (r.status === 401) { window.location.href = '/login'; throw new Error('Unauthorized'); }
+  return r;
+}
+async function logOut() {
+  await fetch('/auth/logout', { method: 'POST' });
+  window.location.href = '/login';
+}
+
+// ── One-time import of this browser's local run history ───────────────────
+// Before P12 Studio kept its run list in localStorage.studio_runs, and a run
+// started from a pasted script never got a server-side row. Register them in the
+// default project so they are not lost. The local list itself is left in place.
+async function importLocalRuns() {
+  let local = [];
+  try {
+    if (localStorage.getItem('studio_runs_imported')) return;
+    local = JSON.parse(localStorage.getItem('studio_runs') || '[]');
+  } catch { return; }
+  const runs = local
+    .filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.id))
+    .map(r => ({ id: r.id, name: String(r.name || r.scriptPreview || '').slice(0, 200), ts: Number(r.ts) || null }));
+  if (!runs.length) {
+    try { localStorage.setItem('studio_runs_imported', '1'); } catch { /* private mode */ }
+    return;
+  }
+  try {
+    const r = await api(`/platform/projects/${DEFAULT_PROJECT_ID}/runs/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ runs }),
+    });
+    if (!r.ok) return;  // leave the flag unset — the import is retried on the next visit
+    const data = await r.json();
+    localStorage.setItem('studio_runs_imported', '1');
+    if (data.imported > 0) {
+      showMsg('notice', `${data.imported} run${data.imported === 1 ? '' : 's'} from this browser's history moved into "Default project".`);
+    }
+  } catch { /* retried on the next visit */ }
+}
+
+// ── Project list ──────────────────────────────────────────────────────────
+function renderProjects(projects) {
+  document.getElementById('project-count').textContent = projects.length ? String(projects.length) : '';
+  const el = document.getElementById('project-list');
+  if (!projects.length) {
+    el.innerHTML = `
+      <div class="empty">
+        <div class="empty-glyph">[ · · · ]</div>
+        <div class="empty-title">No projects yet</div>
+        <div class="empty-sub">Create a project to start collecting ideas and producing videos.</div>
+      </div>`;
+    return;
+  }
+  el.innerHTML = projects.map(p => `
+    <a class="row" href="/project?id=${encodeURIComponent(p.project_id)}">
+      <div class="row-main">
+        <div class="row-name">${esc(p.name)}</div>
+        <div class="row-meta">${p.niche ? esc(p.niche) : 'No niche set'}</div>
+      </div>
+      <span class="row-count">${p.run_count} run${p.run_count === 1 ? '' : 's'}</span>
+      <svg class="row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </a>`).join('');
+}
+
+async function loadProjects() {
+  try {
+    const r = await api('/platform/projects');
+    if (!r.ok) throw new Error(`Error ${r.status}`);
+    renderProjects(await r.json());
+    showMsg('error', '');
+  } catch (e) {
+    document.getElementById('project-list').innerHTML = '';
+    showMsg('error', `Could not load projects: ${e.message}`);
+  }
+}
+
+// ── New project ───────────────────────────────────────────────────────────
+function toggleNewProject() {
+  const form = document.getElementById('new-project-form');
+  const open = form.style.display === 'none';
+  form.style.display = open ? '' : 'none';
+  if (open) document.getElementById('np-name').focus();
+}
+
+async function createProject(event) {
+  event.preventDefault();
+  const name = document.getElementById('np-name').value.trim();
+  const niche = document.getElementById('np-niche').value.trim();
+  if (!name) return;
+  const btn = document.getElementById('np-submit');
+  btn.disabled = true;
+  try {
+    const r = await api('/platform/projects', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, niche }),
+    });
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(typeof err.detail === 'string' ? err.detail : `Error ${r.status}`);
+    }
+    const project = await r.json();
+    window.location.href = `/project?id=${encodeURIComponent(project.project_id)}`;
+  } catch (e) {
+    showMsg('error', `Could not create the project: ${e.message}`);
+    btn.disabled = false;
+  }
+}
+
+(async function init() {
+  await importLocalRuns();
+  await loadProjects();
+})();
+</script>
+</body>
+</html>

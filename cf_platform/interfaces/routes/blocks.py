@@ -1,8 +1,9 @@
 """Block routes — POST /blocks/niche-to-ideas, POST /blocks/idea-to-script."""
 
+import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from pydantic import BaseModel
 
@@ -15,8 +16,9 @@ from cf_platform.core.artifact_manager import (
 )
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.execution_engine import run_graph
-from cf_platform.core.run_manager import RunRepository, create_run, transition_run
-from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, SourceAdapter
+from cf_platform.core.projects import ProjectNotFoundError, ProjectRepository
+from cf_platform.core.run_manager import RunNotFoundError, RunRepository, create_run, transition_run
+from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, RunRecord, SourceAdapter
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.core.worker_registry import ExecutionRepository, WorkerRegistry
 from cf_platform.interfaces.dependencies import (
@@ -26,6 +28,7 @@ from cf_platform.interfaces.dependencies import (
     get_discovery_adapters,
     get_execution_repository,
     get_graph_checkpointer,
+    get_project_repository,
     get_run_repository,
     get_trace_event_repository,
     get_worker_registry,
@@ -117,6 +120,15 @@ async def niche_to_ideas(
     )
 
 
+async def _project_niche(project_id: str, projects: ProjectRepository) -> str | None:
+    """Return the niche of project_id, or None when it has none or the project is gone."""
+    try:
+        project = await projects.get(project_id)
+    except ProjectNotFoundError:
+        return None
+    return project.niche or None
+
+
 class IdeaToScriptRequest(BaseModel):
     """Request body for POST /platform/blocks/idea-to-script."""
 
@@ -126,6 +138,9 @@ class IdeaToScriptRequest(BaseModel):
     supporting_points: list[str] | None = None
     max_iterations: int | None = None
     target_duration_seconds: int = 60
+    # P12-S4 — generate into an existing run (one created from shortlist items)
+    # instead of minting a new run id. Omitted: a new run is created, as before.
+    run_id: str | None = None
 
 
 class IdeaToScriptResponse(BaseModel):
@@ -147,6 +162,7 @@ async def idea_to_script(
     artifacts: ArtifactRepository = Depends(get_artifact_repository),
     checkpointer: BaseCheckpointSaver = Depends(get_graph_checkpointer),
     settings: PlatformSettings = Depends(get_platform_settings),
+    projects: ProjectRepository = Depends(get_project_repository),
 ) -> IdeaToScriptResponse:
     """Run the full idea→script block and return the terminal script artifact.
 
@@ -159,17 +175,43 @@ async def idea_to_script(
     so a second request is not needed.
 
     `max_iterations` overrides the default of 3 when provided.
+
+    With `run_id` (P12-S4) the script is generated into that existing run, so the
+    run keeps its id, project and shortlist links; its project's niche is used
+    when the request names none. Returns 404 for an unknown `run_id`.
     """
+    existing_run: RunRecord | None = None
+    niche = body.niche
+    if body.run_id:
+        try:
+            existing_run = await runs.get(body.run_id)
+        except RunNotFoundError:
+            raise HTTPException(status_code=404, detail=f"Run not found: {body.run_id}")
+        if not niche:
+            niche = await _project_niche(existing_run.project_id, projects)
+
     run_inputs: dict[str, Any] = {"idea_title": body.idea_title}
-    if body.niche:
-        run_inputs["niche"] = body.niche
+    if niche:
+        run_inputs["niche"] = niche
     if body.angle:
         run_inputs["angle"] = body.angle
     if body.supporting_points:
         run_inputs["supporting_points"] = body.supporting_points
 
-    run = await create_run(PLATFORM_USER_ID, "idea_to_script", run_inputs, runs)
-    run = await transition_run(run.run_id, "running", runs)
+    if existing_run is None:
+        run = await create_run(PLATFORM_USER_ID, "idea_to_script", run_inputs, runs)
+        run = await transition_run(run.run_id, "running", runs)
+        thread_id = run.run_id
+    else:
+        # The run outlives this block: it is only moved out of 'created', never
+        # to 'complete' — generating a script does not finish a video run.
+        run = existing_run
+        if run.status == "created":
+            run = await transition_run(run.run_id, "running", runs)
+        # A fresh checkpoint thread per generation. Re-invoking a finished thread
+        # would resume from its saved state and re-apply the additive reducers
+        # (iteration, integrity_loops) on top of the previous generation's counts.
+        thread_id = f"{run.run_id}:idea_to_script:{uuid.uuid4().hex[:8]}"
 
     state_kwargs: dict[str, Any] = {"target_duration_seconds": body.target_duration_seconds}
     if body.max_iterations is not None:
@@ -189,8 +231,9 @@ async def idea_to_script(
         inputs=run_inputs,
         **state_kwargs,
     )
-    result = await run_graph(graph, state, thread_id=run.run_id)
-    await transition_run(run.run_id, "complete", runs)
+    result = await run_graph(graph, state, thread_id=thread_id)
+    if existing_run is None:
+        await transition_run(run.run_id, "complete", runs)
 
     script_key = result.artifacts["script"]
     _, body_dict = await read_artifact(storage, script_key)

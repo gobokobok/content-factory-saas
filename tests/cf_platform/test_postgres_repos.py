@@ -108,7 +108,10 @@ class TestPostgresRunRepository:
     async def test_get_returns_run_record(self):
         """get() maps a found row back into a RunRecord."""
         run = _run_record()
-        row = (run.run_id, run.user_id, run.block, run.status, run.inputs, run.error, run.created_at, run.updated_at)
+        row = (
+            run.run_id, run.user_id, run.block, run.status, run.inputs, run.error, run.created_at, run.updated_at,
+            run.tenant_id, run.project_id, run.name, run.archived_at,
+        )
         pool, cursor, _ = _mock_pool(fetchone=row)
         repo = PostgresRunRepository(pool)
 
@@ -129,7 +132,10 @@ class TestPostgresRunRepository:
     async def test_list_runs_maps_rows_to_records(self):
         """list_runs() maps runs rows back into RunRecord models, ordered by created_at desc."""
         run = _run_record()
-        row = (run.run_id, run.user_id, run.block, run.status, run.inputs, run.error, run.created_at, run.updated_at)
+        row = (
+            run.run_id, run.user_id, run.block, run.status, run.inputs, run.error, run.created_at, run.updated_at,
+            run.tenant_id, run.project_id, run.name, run.archived_at,
+        )
         pool, cursor, _ = _mock_pool(fetchall=[row])
         repo = PostgresRunRepository(pool)
 

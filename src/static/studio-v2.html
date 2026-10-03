@@ -220,6 +220,21 @@
     }
     .ws-back:hover { border-color: var(--faint); color: var(--ink); }
     .ws-run-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+    /* Project the run belongs to + link back to its page (P12-S2). */
+    .ws-project {
+      display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
+      font-size: 12px; font-weight: 500; color: var(--muted); text-decoration: none;
+      padding: 5px 10px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      background: var(--surface); white-space: nowrap; transition: color 0.12s, border-color 0.12s;
+    }
+    .ws-project span { overflow: hidden; text-overflow: ellipsis; }
+    .ws-project:hover { color: var(--ink); border-color: var(--faint); }
+    .info-items-label {
+      font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em;
+      color: var(--muted); margin: 18px 0 8px;
+    }
+    .info-item { font-size: 12px; color: var(--ink-sub); padding: 8px 0; border-top: 1px solid var(--border2); }
+    .info-item strong { display: block; color: var(--ink); font-weight: 600; }
     .ws-run-id {
       font-family: var(--mono); font-size: 10px; color: var(--muted);
       background: var(--border2); padding: 3px 8px; border-radius: 10px;
@@ -685,6 +700,7 @@
   <div class="workspace" id="workspace" style="display:none;">
 
     <div class="ws-header">
+      <a class="ws-project" id="ws-project-link" href="/" title="Back to the project">← <span id="ws-project-name">Projects</span></a>
       <span class="ws-run-name" id="ws-run-name">—</span>
       <span class="ws-run-id" id="run-id-display">—</span>
       <div class="spacer"></div>
@@ -798,7 +814,7 @@
                   <input class="gen-input" style="width:100%;" id="gen-idea" placeholder="Why starter homes disappeared from America" oninput="updateGenerateBtn()">
                 </div>
                 <div style="flex:1;min-width:160px;">
-                  <div class="gen-label">Niche (optional)</div>
+                  <div class="gen-label" id="gen-niche-label">Niche (optional)</div>
                   <input class="gen-input" style="width:100%;" id="gen-niche" placeholder="housing economics">
                 </div>
               </div>
@@ -937,6 +953,9 @@
     <div class="info-row"><span>Created</span><span id="info-created">—</span></div>
     <div class="info-row"><span>Aspect ratio</span><span id="info-aspect">—</span></div>
     <div class="info-row"><span>Cost so far</span><span id="info-cost">—</span></div>
+    <div class="info-row"><span>Project</span><span id="info-project">—</span></div>
+    <div class="info-items-label">Shortlist ideas this run came from</div>
+    <div id="info-items"><div class="muted" style="font-size:12px;">None</div></div>
     <div class="muted" style="font-size:11px;margin-top:16px;">Full cost breakdown and logs land here later.</div>
   </div>
 </div>
@@ -1069,7 +1088,17 @@ let state = {
   autoConfirm: false,
   manifestEntries: {},
   sfxLibrary: [],  // D076 — [{key, display_name}], fetched once in loadRun()
+  project: null,     // P12 — the run's project, from /platform/studio/runs/{id}/context
+  runContext: null,  // P12 — { items, idea_title, supporting_points } the run was created from
 };
+
+// P12-S2 — the run list is the server's, scoped to the run's project. This cache
+// replaces localStorage.studio_runs as the source of the sidebar's "Recent" list.
+let _serverRuns = [];
+const DEFAULT_PROJECT_ID = 'default';
+function projectUrl() {
+  return state.project ? `/project?id=${encodeURIComponent(state.project.project_id)}` : '/';
+}
 
 // ── Auth / 401 intercept (and demo routing) ──────────────────────────────
 const _fetch = window.fetch;
@@ -1144,7 +1173,7 @@ function timeAgo(ts) {
 // ── Local storage run list ────────────────────────────────────────────────
 function getLocalRuns() {
   if (DEMO) return _demoRuns;
-  try { return JSON.parse(localStorage.getItem('studio_runs') || '[]'); } catch { return []; }
+  return _serverRuns;
 }
 function saveLocalRun(runId, fields) {
   const doneCount = Object.values(state.stageStatus).filter(s => s === 'done').length;
@@ -1156,13 +1185,9 @@ function saveLocalRun(runId, fields) {
     renderRunList();
     return;
   }
-  const runs = getLocalRuns();
-  const idx = runs.findIndex(r => r.id === runId);
-  const existing = idx >= 0 ? runs[idx] : { id: runId, ts: Date.now() };
-  if (idx >= 0) runs.splice(idx, 1);
-  runs.unshift({ ...existing, ...fields, id: runId, progress: Math.max(existing.progress || 0, doneCount) });
-  localStorage.setItem('studio_runs', JSON.stringify(runs.slice(0, 20)));
-  renderRunList();
+  // Outside demo mode the run list lives on the server (P12-S2): a run is named
+  // when it is created from its shortlist items, so there is nothing to store here.
+  renderSidebarRecent();
 }
 
 function renderRunList() {
@@ -1259,6 +1284,7 @@ function activateStage(stage) {
 
 // ── Landing / workspace switch ────────────────────────────────────────────
 function showLanding() {
+  if (!DEMO) { window.location.href = projectUrl(); return; }
   document.getElementById('workspace').style.display = 'none';
   document.getElementById('landing').style.display = '';
   document.getElementById('info-panel').classList.remove('open');
@@ -1332,8 +1358,11 @@ async function deleteRun() {
   if (DEMO) {
     const idx = _demoRuns.findIndex(r => r.id === id);
     if (idx >= 0) _demoRuns.splice(idx, 1);
-  } else {
-    localStorage.setItem('studio_runs', JSON.stringify(getLocalRuns().filter(r => r.id !== id)));
+  } else if (state.project) {
+    // Drop it from the project's server-side run list too (the row is archived).
+    try {
+      await fetch(`/platform/projects/${encodeURIComponent(state.project.project_id)}/runs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    } catch { /* the R2 assets are gone; a stale list row is not worth blocking on */ }
   }
   showLanding();
 }
@@ -1355,8 +1384,110 @@ function populateInfoPanel(id, createdTs) {
   document.getElementById('info-cost').textContent = '—';
 }
 
+// ── Run context: project + source shortlist items (P12) ───────────────────
+function renderRunContext() {
+  const project = state.project;
+  document.getElementById('ws-project-name').textContent = project ? project.name : 'Projects';
+  document.getElementById('ws-project-link').href = projectUrl();
+  document.getElementById('info-project').textContent = project ? project.name : '—';
+
+  const items = state.runContext?.items || [];
+  document.getElementById('info-items').innerHTML = items.length
+    ? items.map(i => `<div class="info-item"><strong>${esc(i.title)}</strong>${esc(i.summary)}</div>`).join('')
+    : '<div class="muted" style="font-size:12px;">None</div>';
+
+  // The project's niche is passed to script generation instead of being typed per run.
+  const nicheEl = document.getElementById('gen-niche');
+  const hasNiche = !!(project && project.niche);
+  nicheEl.value = hasNiche ? project.niche : '';
+  nicheEl.readOnly = hasNiche;
+  document.getElementById('gen-niche-label').textContent = hasNiche ? 'Niche (from project)' : 'Niche (optional)';
+
+  // Pre-fill the idea from the shortlist item(s) the run was created from.
+  const idea = state.runContext?.idea_title || '';
+  document.getElementById('gen-idea').value = idea;
+  if (idea) document.getElementById('generate-body').classList.add('open');
+  updateGenerateBtn();
+}
+
+async function fetchRunContext(id) {
+  const r = await fetch(`/platform/studio/runs/${id}/context`);
+  return r.ok ? r.json() : null;
+}
+
+async function loadRunContext(id) {
+  state.project = null;
+  state.runContext = null;
+  _serverRuns = [];
+  if (DEMO) return;
+  try {
+    let ctx = await fetchRunContext(id);
+    if (!ctx) {
+      // A run from before P12 with no server-side row (its id was minted in a
+      // browser): register it in the default project so it is listed from now on.
+      await fetch(`/platform/projects/${DEFAULT_PROJECT_ID}/runs/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runs: [{ id }] }),
+      });
+      ctx = await fetchRunContext(id);
+    }
+    if (!ctx) return;
+    state.project = ctx.project;
+    state.runContext = { items: ctx.items, idea_title: ctx.idea_title, supporting_points: ctx.supporting_points };
+    if (ctx.name) document.getElementById('ws-run-name').textContent = ctx.name;
+    document.getElementById('info-created').textContent = new Date(ctx.created_at).toLocaleString();
+
+    const r = await fetch(`/platform/projects/${encodeURIComponent(ctx.project.project_id)}/runs`);
+    if (r.ok) {
+      _serverRuns = (await r.json()).map(run => ({ id: run.run_id, name: run.name, ts: Date.parse(run.created_at) }));
+    }
+  } catch { /* context is additive — the run still opens without it */ } finally {
+    renderRunContext();
+    renderSidebarRecent();
+  }
+}
+
+// Push a stored (or project-default) settings object into the Settings controls.
+// Callers must hold hydratingSettings so none of the setters POST while this runs.
+function applyStoredSettings(s) {
+  const arMap = { '9:16': 'portrait', '16:9': 'landscape', '1:1': 'portrait' };
+  if (s.aspect_ratio) setAspectRatio(arMap[s.aspect_ratio] || 'portrait');
+  if (s.subtitles !== undefined) {
+    state.settings.captions = s.subtitles !== 'none';
+    document.getElementById('captions-toggle').checked = state.settings.captions;
+  }
+  if (s.subject) {
+    state.settings.subject = s.subject;
+    document.getElementById('settings-subject').value = s.subject;
+  }
+  if (s.caption_style) {
+    state.settings.captionStyle = s.caption_style;
+    document.getElementById('caption-style').value = s.caption_style;
+  }
+  if (s.narration_pace) {
+    state.settings.narrationPace = s.narration_pace;
+    document.getElementById('narration-pace').value = s.narration_pace;
+  }
+  if (s.narration_style) {
+    state.settings.narrationStyle = s.narration_style;
+    document.getElementById('narration-style').value = s.narration_style;
+  }
+}
+
+// True once for a run just created on the project page (project.html sets the flag).
+function consumeNewRunFlag(id) {
+  try {
+    if (sessionStorage.getItem('cf_new_run') !== id) return false;
+    sessionStorage.removeItem('cf_new_run');
+    return true;
+  } catch { return false; }
+}
+
 // ── New run ───────────────────────────────────────────────────────────────
 function newRun() {
+  // Runs are created from shortlist items on the project page (P12-S4, D094).
+  if (!DEMO) { window.location.href = projectUrl(); return; }
   const id = uuid();
   state.runId = id;
   state.activeStage = 'settings';
@@ -1406,40 +1537,32 @@ async function loadRun(id) {
   renderRunList();
   activateStage('settings');
 
+  await loadRunContext(id);
+
   // Load persisted settings (aspect ratio, subject, etc.). Guarded for the same
   // reason as resetSettingsPane: setAspectRatio() below would otherwise save.
+  // A run just created from the shortlist has no stored settings yet: it starts
+  // from its project's defaults, with the idea as the run subject (P12-S4). Those
+  // are then saved to the RUN — per-run changes never write back to the project.
+  const isNewRun = consumeNewRunFlag(id);
   hydratingSettings = true;
   try {
-    const r = await fetch(`/runs/${id}/settings`);
-    if (r.ok) {
-      const data = await r.json();
-      const s = data.settings || {};
-      const arMap = { '9:16': 'portrait', '16:9': 'landscape', '1:1': 'portrait' };
-      if (s.aspect_ratio) setAspectRatio(arMap[s.aspect_ratio] || 'portrait');
-      if (s.subtitles !== undefined) {
-        state.settings.captions = s.subtitles !== 'none';
-        document.getElementById('captions-toggle').checked = state.settings.captions;
-      }
-      if (s.subject) {
-        state.settings.subject = s.subject;
-        document.getElementById('settings-subject').value = s.subject;
-      }
-      if (s.caption_style) {
-        state.settings.captionStyle = s.caption_style;
-        document.getElementById('caption-style').value = s.caption_style;
-      }
-      if (s.narration_pace) {
-        state.settings.narrationPace = s.narration_pace;
-        document.getElementById('narration-pace').value = s.narration_pace;
-      }
-      if (s.narration_style) {
-        state.settings.narrationStyle = s.narration_style;
-        document.getElementById('narration-style').value = s.narration_style;
+    if (isNewRun) {
+      applyStoredSettings({
+        ...(state.project?.config?.run_defaults || {}),
+        subject: state.runContext?.idea_title || '',
+      });
+    } else {
+      const r = await fetch(`/runs/${id}/settings`);
+      if (r.ok) {
+        const data = await r.json();
+        applyStoredSettings(data.settings || {});
       }
     }
   } catch { /* ignore */ } finally {
     hydratingSettings = false;
   }
+  if (isNewRun) saveRunSettings();
   syncCaptionStyleEnabled();
 
   // Try to load script artifact
@@ -1683,6 +1806,12 @@ async function generateScript() {
   try {
     const body = { idea_title: idea, target_duration_seconds: duration };
     if (niche) body.niche = niche;
+    if (!DEMO) {
+      // Generate into THIS run so it keeps its id, project and shortlist links (P12-S4).
+      body.run_id = state.runId;
+      const points = state.runContext?.supporting_points || [];
+      if (points.length) body.supporting_points = points;
+    }
     const r = await fetch('/platform/blocks/idea-to-script', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2672,6 +2801,9 @@ function parseHash() {
   if (parsed && parsed.runId) {
     await loadRun(parsed.runId);
     if (parsed.stage && STAGES.includes(parsed.stage)) activateStage(parsed.stage);
+  } else if (!DEMO) {
+    // No run in the URL: the run list now lives on the project pages (P12-S2).
+    window.location.replace('/');
   }
 })();
 </script>

@@ -17,14 +17,20 @@ from cf_platform.core.artifact_manager import (
 )
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.db import get_checkpointer, get_pool
+from cf_platform.core.postgres_project_repos import (
+    PostgresProjectRepository,
+    PostgresShortlistRepository,
+)
 from cf_platform.core.postgres_repos import (
     PostgresArtifactRepository,
     PostgresExecutionRepository,
     PostgresRunRepository,
     PostgresTraceEventRepository,
 )
+from cf_platform.core.projects import InMemoryProjectRepository, ProjectRepository
 from cf_platform.core.run_manager import InMemoryRunRepository, RunRepository
 from cf_platform.core.schemas import SourceAdapter
+from cf_platform.core.shortlist import InMemoryShortlistRepository, ShortlistRepository
 from cf_platform.core.trace_repo import InMemoryTraceEventRepository, TraceEventRepository
 from cf_platform.core.worker_registry import (
     ExecutionRepository,
@@ -39,7 +45,7 @@ from cf_platform.workers.echo import ECHO_REGISTRATION
 from cf_platform.workers.storyboard_worker import STORYBOARD_WORKER_REGISTRATION
 from cf_platform.workers.voice_production import VOICE_PRODUCTION_REGISTRATION
 
-# Single-operator platform (multi-tenant isolation lands in S19) — fixed user_id for now.
+# Single-operator platform — fixed user_id, also used as tenant_id on every new row (D092).
 PLATFORM_USER_ID = "operator"
 
 # In-memory fallback when DATABASE_URL is unset (D048) — process-local singletons.
@@ -47,6 +53,8 @@ _run_repository = InMemoryRunRepository()
 _execution_repository = InMemoryExecutionRepository()
 _artifact_repository = InMemoryArtifactRepository()
 _trace_event_repository = InMemoryTraceEventRepository()
+_project_repository = InMemoryProjectRepository(PLATFORM_USER_ID)
+_shortlist_repository = InMemoryShortlistRepository()
 _worker_registry = WorkerRegistry()
 _worker_registry.register("echo", ECHO_REGISTRATION)
 register_niche_to_ideas_workers(_worker_registry)
@@ -62,6 +70,22 @@ def get_run_repository() -> RunRepository:
     if pool is not None:
         return PostgresRunRepository(pool)
     return _run_repository
+
+
+def get_project_repository() -> ProjectRepository:
+    """Return a Postgres-backed ProjectRepository when DATABASE_URL is set, else the in-memory fallback (D048)."""
+    pool = get_pool(get_platform_settings().DATABASE_URL)
+    if pool is not None:
+        return PostgresProjectRepository(pool)
+    return _project_repository
+
+
+def get_shortlist_repository() -> ShortlistRepository:
+    """Return a Postgres-backed ShortlistRepository when DATABASE_URL is set, else the in-memory fallback (D048)."""
+    pool = get_pool(get_platform_settings().DATABASE_URL)
+    if pool is not None:
+        return PostgresShortlistRepository(pool)
+    return _shortlist_repository
 
 
 def get_execution_repository() -> ExecutionRepository:

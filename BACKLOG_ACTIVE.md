@@ -2039,7 +2039,7 @@ First sprint of the Pipeline & Platform Update (D092–D099). Introduces the Ten
 ## [P12-S1] Projects data model + API
 **Epic:** E43 — Projects & Shortlist
 **Sprint:** P12
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** —
@@ -2061,23 +2061,33 @@ runs: + tenant_id TEXT, + project_id TEXT REFERENCES projects
 ```
 
 ### Acceptance Criteria
-- [ ] Open point above resolved and the finding written into this story's Handover
-- [ ] Migration `0002_*.sql` creates `projects`, adds `runs.tenant_id` and `runs.project_id`, creates one default project and assigns all existing runs to it
-- [ ] `GET /platform/projects`, `POST /platform/projects`, `GET /platform/projects/{id}`, `PATCH /platform/projects/{id}` (name, niche, config, archive)
-- [ ] `GET /platform/projects/{id}/runs` returns that project's runs, newest first, with status and created date
-- [ ] Creating a run requires a `project_id`; a run cannot be created without one
-- [ ] Repository functions are pure async and take explicit inputs (D040); routes are thin wrappers
-- [ ] Tests: migration applies on an empty and on a populated database; CRUD happy paths; run without `project_id` rejected; project-scoped run list excludes other projects' runs
+- [x] Open point above resolved and the finding written into this story's Handover
+- [x] Migration `0002_*.sql` creates `projects`, adds `runs.tenant_id` and `runs.project_id`, creates one default project and assigns all existing runs to it
+- [x] `GET /platform/projects`, `POST /platform/projects`, `GET /platform/projects/{id}`, `PATCH /platform/projects/{id}` (name, niche, config, archive)
+- [x] `GET /platform/projects/{id}/runs` returns that project's runs, newest first, with status and created date
+- [x] Creating a run requires a `project_id`; a run cannot be created without one
+- [x] Repository functions are pure async and take explicit inputs (D040); routes are thin wrappers
+- [x] Tests: migration applies on an empty and on a populated database; CRUD happy paths; run without `project_id` rejected; project-scoped run list excludes other projects' runs
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- **Open point — resolved.** Studio runs did **not** reliably have a `runs` row. `newRun()` minted the id in the browser and wrote only `settings.json` to R2 plus `localStorage.studio_runs`; a pasted-script run never got a row (`studio.py`'s reacquire handler already documented the resulting FK failure on `trace_events`). A generated-script run got one only because `POST /platform/blocks/idea-to-script` minted a *new* id that Studio then swapped to. Consequence: the migration backfill covers generated-script runs only; the rest are registered by `POST /platform/projects/{id}/runs/import` (see S2).
+- `cf_platform/db/migrations/0002_projects_shortlist.sql`: `projects`, `shortlist_items`, `run_shortlist_items`; `runs` gains `tenant_id` (backfilled from `user_id`), `project_id NOT NULL DEFAULT 'default' REFERENCES projects` (adding the column *is* the backfill), `name`, `archived_at`. Idempotent like 0001.
+- `cf_platform/core/projects.py`: `Project`, `ProjectRepository` Protocol, `InMemoryProjectRepository` (seeded with the default project), `create_project`, `update_project`. `cf_platform/core/postgres_project_repos.py`: `PostgresProjectRepository`.
+- `RunRecord` gains `tenant_id`, `project_id` (default `DEFAULT_PROJECT_ID`), `name`, `archived_at`. `create_run(..., project_id=, name=, run_id=)` — existing callers (Telegram, block routes) are unchanged and land in the default project; an empty `project_id` raises `ValueError`. New `register_existing_run`, `archive_run`; `RunRepository` gains `list_for_project`, `count_by_project`.
+- Routes in `cf_platform/interfaces/routes/projects.py`: `GET/POST /platform/projects`, `GET/PATCH /platform/projects/{id}`, `GET /platform/projects/{id}/runs`. There is no project-less run-creation route; the only creation route is nested under a project (S4).
+- `tenant_id` is `PLATFORM_USER_ID` (`"operator"`) everywhere; a project whose tenant differs is a 404.
+- **Migration verified on real Postgres** (local 5432, scratch database, dropped afterwards): empty database, populated database (two pre-existing runs land in the default project), and applied twice. Kept as `tests/integration/test_p12_migration_postgres.py` — excluded from CI, run with `CF_TEST_DATABASE_URL=... pytest -m integration`.
+- Tests: `tests/cf_platform/test_p12_s1_projects.py` (31).
 
 ---
 
 ## [P12-S2] Studio project landing + server-side run list
 **Epic:** E43 — Projects & Shortlist
 **Sprint:** P12
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 5
 **Depends on:** P12-S1
@@ -2088,24 +2098,34 @@ runs: + tenant_id TEXT, + project_id TEXT REFERENCES projects
 **Tech:** plain HTML/JS static page(s); existing Studio CSS.
 
 ### Acceptance Criteria
-- [ ] `/` serves a project list with "+ New project"; each project shows name, niche and run count
-- [ ] Project page lists the project's runs from `GET /platform/projects/{id}/runs`; clicking a run opens the existing Studio pipeline for it
-- [ ] `localStorage.studio_runs` is no longer the source of the run list; runs that exist only in a browser's local history are not lost silently — the Handover states what happens to them
-- [ ] Project name and niche are editable on the project page and persist
-- [ ] Studio pipeline header shows the project name and a link back to the project page
-- [ ] Bookmarked `/studio` links keep working
-- [ ] Usable at 9:16-phone and desktop widths, per docs/UI_GUIDELINES.md
-- [ ] Tests: route status codes; project page renders an empty state with no runs
+- [x] `/` serves a project list with "+ New project"; each project shows name, niche and run count
+- [x] Project page lists the project's runs from `GET /platform/projects/{id}/runs`; clicking a run opens the existing Studio pipeline for it
+- [x] `localStorage.studio_runs` is no longer the source of the run list; runs that exist only in a browser's local history are not lost silently — the Handover states what happens to them
+- [x] Project name and niche are editable on the project page and persist
+- [x] Studio pipeline header shows the project name and a link back to the project page
+- [x] Bookmarked `/studio` links keep working
+- [x] Usable at 9:16-phone and desktop widths, per docs/UI_GUIDELINES.md
+- [x] Tests: route status codes; project page renders an empty state with no runs
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `src/main.py`: `/` → `projects.html`, `/project?id=<project_id>` → `project.html`, `/studio` → `studio-v2.html`. Studio deep links are unchanged (`/studio#run/<id>/<stage>`); an old `/#run/<id>` bookmark is forwarded to `/studio` by `projects.html`; `/studio` with no run in the URL redirects to `/`.
+- `projects.html` (list, "+ New project", run count) and `project.html` (Shortlist, Runs, Settings panel) are separate static pages with their own inline CSS using the Studio tokens (D092). Project settings edit name, niche and `config.run_defaults` (aspect ratio, captions, narration pace/style).
+- **What happens to browser-only runs:** nothing is deleted. On load, `projects.html` sends `localStorage.studio_runs` (id, name, timestamp) to `POST /platform/projects/default/runs/import`, which registers any run without a row into "Default project" and reports how many moved; it then sets `studio_runs_imported` so it runs once per browser. The local list itself is left in place. A pre-P12 run opened directly by its link is registered the same way by Studio. Runs known only to a browser that is never opened again stay in R2 but unlisted.
+- `studio-v2.html`: `getLocalRuns()` returns the project's runs from `GET /platform/projects/{id}/runs` (sidebar "Recent"); `localStorage.studio_runs` is no longer read or written. Header shows `← <project name>` linking to the project page; "All runs" / "New run" go to the project page. Demo mode (`?demo=1`) keeps its in-page mock run list.
+- Deleting a run in Studio also archives its row (`DELETE /platform/projects/{id}/runs/{run_id}`) so it leaves the list; the row is kept for lineage.
+- Run status in the list is the row's lifecycle (`created` shown as "Draft", `running` as "In progress"), not per-stage pipeline progress — no Studio stage writes to the row yet.
+- `docs/UI_GUIDELINES.md` predates Studio (it describes the dark legacy UI); the new pages follow Studio's "Monochrome Console" tokens instead. Verified at 375px and desktop widths in a local preview: no horizontal overflow, "Create video" bar pinned to the bottom.
+- Tests: `tests/test_p12_s2_pages.py` (10); `tests/test_pux1_s4_routing.py` updated (`/` no longer serves Studio).
 
 ---
 
 ## [P12-S3] Persistent shortlist — table, API, project page
 **Epic:** E43 — Projects & Shortlist
 **Sprint:** P12
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 5
 **Depends on:** P12-S1
@@ -2128,22 +2148,30 @@ shortlist_items(item_id TEXT PK, tenant_id, project_id REFERENCES projects,
 Removal is a soft delete (`removed_at`), so a run created from an item keeps a valid reference.
 
 ### Acceptance Criteria
-- [ ] Migration adds `shortlist_items` as above
-- [ ] `GET /platform/projects/{id}/shortlist`, `POST …/shortlist` (manual add: title, summary, optional source/notes), `DELETE …/shortlist/{item_id}` (soft)
-- [ ] There is no endpoint that replaces or clears the shortlist in bulk
-- [ ] Project page Shortlist area: list with title, summary, method badge, source, date discovered; add form; remove with confirmation
-- [ ] Each item shows how many runs were created from it (0 until P12-S4)
-- [ ] Tests: add / list / remove; removed items excluded from the default list but still resolvable by id; items of another project not returned
+- [x] Migration adds `shortlist_items` as above
+- [x] `GET /platform/projects/{id}/shortlist`, `POST …/shortlist` (manual add: title, summary, optional source/notes), `DELETE …/shortlist/{item_id}` (soft)
+- [x] There is no endpoint that replaces or clears the shortlist in bulk
+- [x] Project page Shortlist area: list with title, summary, method badge, source, date discovered; add form; remove with confirmation
+- [x] Each item shows how many runs were created from it (0 until P12-S4)
+- [x] Tests: add / list / remove; removed items excluded from the default list but still resolvable by id; items of another project not returned
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `cf_platform/core/shortlist.py`: `ShortlistItem`, `ShortlistRepository` Protocol, `InMemoryShortlistRepository`, `add_manual_item`, `remove_item`. `PostgresShortlistRepository` in `postgres_project_repos.py`. The repository has `add` and `mark_removed` only — no bulk write of any kind (D094).
+- Routes: `GET/POST /platform/projects/{id}/shortlist`, `GET/DELETE /platform/projects/{id}/shortlist/{item_id}`. A test pins the shortlist surface to exactly these four operations; `PUT`/`PATCH`/`DELETE` on the collection are 405.
+- Manual add stores `discovery_method="manual"`, optional `source`, and `notes` as `evidence["notes"]`. `kpis` and `research_run_id` stay empty until P15.
+- Removal sets `removed_at`; the item leaves the default list but `GET .../shortlist/{item_id}` still returns it, and runs created from it keep their link.
+- Each listed item carries `run_count` (from `run_shortlist_items`).
+- Tests: `tests/cf_platform/test_p12_s3_shortlist.py` (16).
 
 ---
 
 ## [P12-S4] Create a content run from shortlist item(s)
 **Epic:** E43 — Projects & Shortlist
 **Sprint:** P12
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P12-S2, P12-S3
@@ -2152,18 +2180,28 @@ Removal is a soft delete (`removed_at`), so a run created from an item keeps a v
 The operator ticks one or more shortlist items and presses "Create video". A run is created in the project, linked to those items, and opens in the existing Studio flow at Settings, with the Script stage pre-filled from the selected ideas. Both existing script paths stay: generate, or paste an existing script.
 
 ### Acceptance Criteria
-- [ ] `run_shortlist_items(run_id, item_id)` link table; one run can reference several items, one item can feed several runs
-- [ ] `POST /platform/projects/{id}/runs {item_ids: [...]}` creates the run row, the links, and returns the run id
-- [ ] Script stage: idea title pre-filled from the selected item(s); with several items, titles and summaries are combined into the idea context passed to `idea-to-script`
-- [ ] Project `niche` is passed to script generation instead of being typed per run
-- [ ] Settings stage starts from the project's `config` defaults when present; per-run changes do not write back to the project
-- [ ] Run info panel lists the shortlist items the run came from
-- [ ] The rest of the pipeline (voice, storyboard, acquisition, render, metadata) is unchanged
-- [ ] Tests: run creation with 1 and with 2 items; unknown or removed item id rejected; links readable from the run
+- [x] `run_shortlist_items(run_id, item_id)` link table; one run can reference several items, one item can feed several runs
+- [x] `POST /platform/projects/{id}/runs {item_ids: [...]}` creates the run row, the links, and returns the run id
+- [x] Script stage: idea title pre-filled from the selected item(s); with several items, titles and summaries are combined into the idea context passed to `idea-to-script`
+- [x] Project `niche` is passed to script generation instead of being typed per run
+- [x] Settings stage starts from the project's `config` defaults when present; per-run changes do not write back to the project
+- [x] Run info panel lists the shortlist items the run came from
+- [x] The rest of the pipeline (voice, storyboard, acquisition, render, metadata) is unchanged
+- [x] Tests: run creation with 1 and with 2 items; unknown or removed item id rejected; links readable from the run
 - [ ] **Human touchpoint:** operator opens `/`, opens a project, adds an idea by hand, creates a run from it and reaches a rendered video through the existing stages
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Handover
+- `POST /platform/projects/{id}/runs {item_ids}` → 201 with the run. Validates first (`resolve_items_for_run`): unknown id → 404, removed or other-project item → 409, empty list → 422; then writes the `runs` row (`block="studio"`, name = idea title) and the ordered links. A run needs at least one item — there is no blank-run path (D094).
+- `build_idea_context(items)`: one item → its title + summary; several → titles joined with " + " and one "title — summary" supporting point per item.
+- `GET /platform/studio/runs/{run_id}/context` → project, source items (including later-removed ones), `idea_title`, `supporting_points`. Studio uses it for the header, the info panel ("Shortlist ideas this run came from") and the Script stage pre-fill.
+- `POST /platform/blocks/idea-to-script` accepts optional `run_id`: the script is generated into that run (same id, project and links), the project's niche is used when the request names none, the run moves `created → running` and is **not** marked complete, and each generation uses a fresh checkpoint thread (`{run_id}:idea_to_script:{8 hex}`) — reusing the finished thread would re-apply the additive `iteration` / `integrity_loops` reducers. Without `run_id` behaviour is unchanged (Telegram path untouched).
+- Settings: `project.html` flags a just-created run in `sessionStorage` (`cf_new_run`); Studio then seeds Settings from `project.config.run_defaults` plus the idea as Run subject and saves them to the run's `settings.json`. Later edits only ever write the run's settings.
+- The Niche field in the Script stage is read-only and labelled "from project" when the project has one.
+- Verified in a local preview (fake credentials, in-memory repositories): project → add two ideas → create a run from one and from both → Studio opens at Settings with the project defaults, idea, niche and source items in place. **Not exercised locally:** script generation, voice, storyboard, render (need real API keys and R2) — that is the DEV smoke test.
+- Tests: `tests/cf_platform/test_p12_s4_runs_from_shortlist.py` (18).
 
 ---
 
@@ -2172,6 +2210,8 @@ The operator ticks one or more shortlist items and presses "Create video". A run
 Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & Platform Update specification (2026-10-03).
 
 **EPIC 44 — Storyboard control (P13, D095, spec §10–15).** Per-scene asset strategy becomes patchable before acquisition: stock image, stock video, upload (AI image arrives in P14). Builds on `SceneVisualPlan.asset_class` / `preferred_source` (P11-S1) and the existing scene PATCH. Split and merge scenes by moving `start_word` / `end_word` indices; timing recomputed from Deepgram word timestamps through the existing `_patch_storyboard` path. Script-view editing where blank lines mark scene boundaries. Acquisition runs only after the operator confirms the storyboard. Open: what happens to already-acquired assets when a scene is split; whether editing voiceover text is allowed at this stage (it forces re-voicing).
+
+**EPIC 49 — CapCut export (P13b, D100).** Second render path from a finalized storyboard; FFmpeg on Railway is unchanged. (1) A neutral timeline artifact — scenes, timing, asset per scene, motion, on-screen text, caption words, voiceover, music, SFX — that the FFmpeg script builder and the CapCut script both read. (2) "Download for CapCut" in Studio: a zip of the run's media plus the timeline file. (3) Laptop script (own requirements file with `pycapcut`; not in the platform image) that unpacks the zip and writes the CapCut project, with a one-time setup guide; starts from `tools/capcut_spike/`. (4) Return path: upload the CapCut-rendered video into the run so metadata and publishing continue. Still to test beyond the spike: music and SFX tracks, video clips (the spike run was stills only), 16:9, and which of `draft_content.json` / `draft_info.json` CapCut 8.x reads. Open: pin a CapCut version or detect format breaks; whether storyboard changes from P13 (split/merge, asset type) need anything extra in the timeline file.
 
 **EPIC 45 — AI Created style (P14, D096, spec §8, 11, 12).** Opens with the side-by-side provider test from D096. `ImageProvider` interface, kie.ai implementation, generated images stored in the run's R2 folder. New style option with a general visual prompt / mood in Settings. Visual Director prompt branch: for this style it writes a per-scene visual prompt from the scene's voiceover plus the global mood, instead of stock keywords. Per-scene "AI image" option with an editable prompt, usable in any style. Open: keeping a consistent look across scenes (style reference image vs. prompt only); per-run spend cap.
 

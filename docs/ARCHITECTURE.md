@@ -36,6 +36,44 @@ See CONVENTIONS.md § "Platform v2 — worker/node contract (D056) and state dis
 
 ---
 
+## 0a. Tenant → Project → Run (Sprint P12, D092, D094)
+
+Runs are no longer top-level. The operator works inside a **project**; a project owns a
+persistent **shortlist** of content ideas, and every content run is created from one or
+more shortlist items.
+
+```
+tenant (single operator for now — tenant_id on every row)
+  └── project            projects            niche, config.run_defaults, default_channel_id (P16)
+        ├── shortlist    shortlist_items     add-only; soft-removed one at a time (removed_at)
+        └── runs         runs.project_id     NOT NULL, defaults to the 'default' project
+              └── run_shortlist_items        which items a run was created from (M:N, ordered)
+```
+
+| Piece | Where |
+|-------|-------|
+| Schema | `cf_platform/db/migrations/0002_projects_shortlist.sql` |
+| Domain functions + in-memory repos | `cf_platform/core/projects.py`, `shortlist.py`, `run_manager.py` |
+| Postgres repos | `cf_platform/core/postgres_project_repos.py`, `postgres_repos.py` |
+| Routes | `cf_platform/interfaces/routes/projects.py` (`/platform/projects/...`, `/platform/studio/runs/{id}/context`) |
+| Pages | `/` → `projects.html`, `/project?id=` → `project.html`, `/studio#run/<id>/<stage>` → `studio-v2.html` |
+
+**Run creation.** `POST /platform/projects/{id}/runs {item_ids}` writes the `runs` row and the
+links, then the browser opens Studio at Settings. Studio reads the run's context (project,
+source items, combined idea) and passes `run_id` to `POST /platform/blocks/idea-to-script`, so
+the script is generated *into* that run rather than into a newly minted one.
+
+**Pre-P12 runs.** Studio used to mint run ids in the browser and list them from
+`localStorage.studio_runs`; a pasted-script run had no `runs` row at all. The migration
+backfills rows that exist; `POST /platform/projects/default/runs/import` registers the rest the
+first time a browser that knows them opens the project list (or opens the run by its link).
+
+**Run status** in the project's run list is the `runs` row lifecycle (`created` → `running`
+once a script is generated into it). Per-stage pipeline progress is still derived from R2
+artifacts when the run is opened in Studio; nothing writes it to the row yet.
+
+---
+
 ## Document status
 This document tracks three layers:
 1. **Current state** — what is deployed and working today

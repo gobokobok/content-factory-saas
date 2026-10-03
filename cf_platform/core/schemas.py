@@ -43,8 +43,19 @@ class Artifact(BaseModel):
 # ── Run & execution records ────────────────────────────────────────────
 
 
+# The project every run belongs to unless one is named (D092). Created by migration
+# 0002 and seeded by InMemoryProjectRepository, so it always exists.
+DEFAULT_PROJECT_ID = "default"
+
+
 class RunRecord(BaseModel):
-    """Top-level lifecycle record for a single platform run."""
+    """Top-level lifecycle record for a single platform run.
+
+    Every run belongs to a project (D092). `tenant_id` is None on records built
+    before P12; repositories fall back to `user_id` for it. `name` is the
+    operator-facing label in the project's run list; `archived_at` hides a run
+    whose assets the operator deleted.
+    """
 
     run_id: str
     user_id: str
@@ -54,6 +65,10 @@ class RunRecord(BaseModel):
     error: str | None = None
     created_at: datetime
     updated_at: datetime
+    tenant_id: str | None = None
+    project_id: str = DEFAULT_PROJECT_ID
+    name: str = ""
+    archived_at: datetime | None = None
 
 
 class WorkerExecution(BaseModel):

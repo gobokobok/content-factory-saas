@@ -1,7 +1,7 @@
 """Platform-facing REST API — composition root, mounted under /platform in src/main.py.
 
 Route handlers live in cf_platform/interfaces/routes/ (D069), grouped by domain
-(meta, echo, blocks, workers, studio, runs, pipeline, telegram_webhook). This
+(meta, echo, blocks, workers, studio, runs, projects, pipeline, telegram_webhook). This
 module assembles them into one router and re-exports the names older tests
 and call sites still import directly from here.
 """
@@ -16,7 +16,9 @@ from cf_platform.interfaces.dependencies import (  # noqa: F401
     get_discovery_adapters,
     get_execution_repository,
     get_graph_checkpointer,
+    get_project_repository,
     get_run_repository,
+    get_shortlist_repository,
     get_trace_event_repository,
     get_worker_registry,
 )
@@ -25,6 +27,7 @@ from cf_platform.interfaces.routes import (
     echo,
     meta,
     pipeline,
+    projects,
     runs,
     studio,
     telegram_webhook,
@@ -63,5 +66,6 @@ router.include_router(blocks.router)
 router.include_router(workers.router)
 router.include_router(studio.router)
 router.include_router(runs.router)
+router.include_router(projects.router)
 router.include_router(pipeline.router)
 router.include_router(telegram_webhook.router)

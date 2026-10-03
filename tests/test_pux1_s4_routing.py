@@ -1,7 +1,7 @@
 """Tests for P-UX1-S4: Studio becomes the default UI; legacy pipeline moves to /legacy.
 
 Covers:
-- GET / serves studio.html (not pipeline.html)
+- GET / no longer serves studio.html (P12-S2: it serves the project list)
 - GET /legacy serves pipeline.html unchanged
 - GET /studio still serves studio.html (alias for bookmarked links)
 """
@@ -36,11 +36,12 @@ def _authenticated_client() -> tuple[TestClient, dict]:
     return client, {AUTH_COOKIE_NAME: token}
 
 
-def test_root_serves_studio_html():
+def test_root_no_longer_serves_studio_html():
+    """P12-S2 moved the landing page to the project list; Studio lives at /studio."""
     client, cookies = _authenticated_client()
     r = client.get("/", cookies=cookies)
     assert r.status_code == 200
-    assert "Content Factory Studio" in r.text
+    assert "Content Factory Studio" not in r.text
 
 
 def test_legacy_serves_pipeline_html():

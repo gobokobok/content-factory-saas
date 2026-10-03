@@ -156,22 +156,25 @@ async def auth_middleware(request: Request, call_next):
     return await call_next(request)
 
 
+_NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate"}
+
+
 @app.get("/", include_in_schema=False)
-def studio_ui() -> FileResponse:
-    """Serve the Studio UI."""
-    return FileResponse(
-        _STATIC_DIR / "studio-v2.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
+def projects_ui() -> FileResponse:
+    """Serve the project list — the operator's landing page (P12, D092)."""
+    return FileResponse(_STATIC_DIR / "projects.html", headers=_NO_CACHE)
+
+
+@app.get("/project", include_in_schema=False)
+def project_ui() -> FileResponse:
+    """Serve one project's page (shortlist + runs); the project id is the `id` query param."""
+    return FileResponse(_STATIC_DIR / "project.html", headers=_NO_CACHE)
 
 
 @app.get("/studio", include_in_schema=False)
-def studio_ui_alias() -> FileResponse:
-    """Alias for /."""
-    return FileResponse(
-        _STATIC_DIR / "studio-v2.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
+def studio_ui() -> FileResponse:
+    """Serve the Studio pipeline UI for one run (`/studio#run/<run_id>/<stage>`)."""
+    return FileResponse(_STATIC_DIR / "studio-v2.html", headers=_NO_CACHE)
 
 
 @app.get("/legacy", include_in_schema=False)
