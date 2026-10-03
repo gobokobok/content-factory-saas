@@ -1,6 +1,6 @@
 # Backlog — Active Stories
 
-_Contains the next sprint (P13), the last completed sprint (P12), the outlines for P13b–P17, and open unassigned stories. Everything older is in BACKLOG.md._
+_Contains the last completed sprint (P13), the sprint before it (P12 — moves to BACKLOG.md at the next grooming), the outlines for P13b–P17, and open unassigned stories. Everything older is in BACKLOG.md._
 _Updated at each sprint boundary: move the completed sprint's block to BACKLOG.md._
 
 ---
@@ -9,7 +9,7 @@ _Updated at each sprint boundary: move the completed sprint's block to BACKLOG.m
 
 Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & Platform Update specification (2026-10-03).
 
-**EPIC 44 — Storyboard control (P13)** — detailed: see the EPIC 44 section below. Open for P13b: whether split / merge and asset strategy need anything extra in the CapCut timeline file.
+**EPIC 44 — Storyboard control (P13)** — done 2026-10-03: see the EPIC 44 section below. Open for P13b: whether split / merge and asset strategy need anything extra in the CapCut timeline file (new scene fields: `asset_strategy`; manifest: `asset_slot`, status `awaiting_upload`).
 
 **EPIC 49 — CapCut export (P13b, D100).** Second render path from a finalized storyboard; FFmpeg on Railway is unchanged. (1) A neutral timeline artifact — scenes, timing, asset per scene, motion, on-screen text, caption words, voiceover, music, SFX — that the FFmpeg script builder and the CapCut script both read. (2) "Download for CapCut" in Studio: a zip of the run's media plus the timeline file. (3) Laptop script (own requirements file with `pycapcut`; not in the platform image) that unpacks the zip and writes the CapCut project, with a one-time setup guide; starts from `tools/capcut_spike/`. (4) Return path: upload the CapCut-rendered video into the run so metadata and publishing continue. Still to test beyond the spike: music and SFX tracks, video clips (the spike run was stills only), 16:9, and which of `draft_content.json` / `draft_info.json` CapCut 8.x reads. Open: pin a CapCut version or detect format breaks; whether storyboard changes from P13 (split/merge, asset type) need anything extra in the timeline file.
 
@@ -42,7 +42,8 @@ Second sprint of the Pipeline & Platform Update (D095, spec §10–15). The stor
 ## [P13-S1] Per-scene asset strategy — model, patch, acquisition
 **Epic:** E44 — Storyboard control
 **Sprint:** P13
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-03
 **Priority:** high
 **Points:** 4
 **Depends on:** —
@@ -51,18 +52,18 @@ Second sprint of the Pipeline & Platform Update (D095, spec §10–15). The stor
 Each scene carries an operator-editable asset strategy — stock image, stock video, or upload — that is set before acquisition and that acquisition obeys. Without an explicit choice, behaviour is exactly as today.
 
 ### Acceptance Criteria
-- [ ] `StoryboardScene` gains `asset_strategy: Literal["stock_image", "stock_video", "upload"] | None = None`; `None` means "derive from `asset_tier` as today". The vocabulary lives in one constant so P14 can add `ai_image`
-- [ ] `asset_strategy` is in `_PATCHABLE_FIELDS` and validated in `PATCH /platform/studio/runs/{run_id}/storyboard/scenes/{scene_id}`; an unknown value is rejected with 422
-- [ ] The storyboard GET returns, for every scene, the effective strategy (the explicit one, or the one derived from `asset_tier`) so the UI never has to re-derive it
-- [ ] AcquisitionWorker: `stock_image` forces the photo path and `stock_video` the video path, regardless of `asset_tier` / `clip_type`; the render script treats the scene accordingly (a still gets its motion effect, a video does not)
-- [ ] `upload` scenes are skipped by acquisition and reported as "awaiting upload" in the manifest and `footage_summary`; the existing per-scene upload endpoint fills them; render is refused with a clear message while any upload scene has no file
-- [ ] Changing a still scene to video (or back) resets `motion_effect` to the correct default via `normalize_motion_effect`
-- [ ] **Confirm at the start of the story:** whether the Studio stage-by-stage flow runs the Visual Director at all — it is only referenced from `full_pipeline.py`, not from the worker routes. Record the finding in the Handover; wiring it in is out of scope unless the strategy cannot work without it
-- [ ] **No regression:** a storyboard with no `asset_strategy` on any scene produces a byte-identical manifest request and render script before and after
-- [ ] Tests: patch accept/reject; each strategy's acquisition path; upload scene skipped and blocking render; legacy storyboard unchanged
+- [x] `StoryboardScene` gains `asset_strategy: Literal["stock_image", "stock_video", "upload"] | None = None`; `None` means "derive from `asset_tier` as today". The vocabulary lives in one constant so P14 can add `ai_image`
+- [x] `asset_strategy` is in `_PATCHABLE_FIELDS` and validated in `PATCH /platform/studio/runs/{run_id}/storyboard/scenes/{scene_id}`; an unknown value is rejected with 422
+- [x] The storyboard GET returns, for every scene, the effective strategy (the explicit one, or the one derived from `asset_tier`) so the UI never has to re-derive it
+- [x] AcquisitionWorker: `stock_image` forces the photo path and `stock_video` the video path, regardless of `asset_tier` / `clip_type`; the render script treats the scene accordingly (a still gets its motion effect, a video does not)
+- [x] `upload` scenes are skipped by acquisition and reported as "awaiting upload" in the manifest and `footage_summary`; the existing per-scene upload endpoint fills them; render is refused with a clear message while any upload scene has no file
+- [x] Changing a still scene to video (or back) resets `motion_effect` to the correct default via `normalize_motion_effect`
+- [x] **Confirm at the start of the story:** whether the Studio stage-by-stage flow runs the Visual Director at all — it is only referenced from `full_pipeline.py`, not from the worker routes. Record the finding in the Handover; wiring it in is out of scope unless the strategy cannot work without it
+- [x] **No regression:** a storyboard with no `asset_strategy` on any scene produces a byte-identical manifest request and render script before and after
+- [x] Tests: patch accept/reject; each strategy's acquisition path; upload scene skipped and blocking render; legacy storyboard unchanged
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `cf_platform/workers/storyboard_worker.py` — `_assign_asset_tier`, `_asset_tier_to_clip_type`, `_patch_storyboard` / `_PATCHABLE_FIELDS`
@@ -88,7 +89,8 @@ Each scene carries an operator-editable asset strategy — stock image, stock vi
 ## [P13-S2] Split and merge scenes
 **Epic:** E44 — Storyboard control
 **Sprint:** P13
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-03
 **Priority:** high
 **Points:** 4
 **Depends on:** —
@@ -97,19 +99,19 @@ Each scene carries an operator-editable asset strategy — stock image, stock vi
 The operator can split one scene into two at a word, and merge a scene with the next one. Boundaries move as word indices; durations and overlay timing are recomputed from the Deepgram timestamps.
 
 ### Acceptance Criteria
-- [ ] `POST /platform/studio/runs/{run_id}/storyboard/scenes/{scene_id}/split {at_word}` — `at_word` becomes the first word of the new second scene; rejected with 422 unless `start_word < at_word <= end_word`
-- [ ] `POST /platform/studio/runs/{run_id}/storyboard/scenes/{scene_id}/merge` — merges the scene with the one after it; rejected with 409 on the last scene
-- [ ] After either operation the storyboard is still contiguous (first `start_word` = 0, last `end_word` = N−1, no gaps), scene ids are renumbered in order, and `voiceover_line`, `scene_start_ms` / `scene_end_ms`, `duration_s` and `asset_tier` are recomputed from the word timestamps by the same code the StoryboardWorker uses
-- [ ] Split: the first half keeps every field of the original scene; the second half copies the visual fields (search terms, segment type, asset strategy) and starts with no on-screen text and no SFX
-- [ ] Merge: the first scene's fields win; the second scene's on-screen text and SFX are dropped, and the response says so
-- [ ] `render_options` for all scenes are rebuilt through `_patch_storyboard`; a new storyboard artifact version is written
-- [ ] **Already-acquired assets (operator decision):** on split, the first half keeps the asset and the second half is marked as needing acquisition; on merge, the merged scene keeps the first scene's asset and the second scene's manifest entry is removed. The manifest stays aligned with the renumbered scenes, and a later "Acquire Assets" fetches only the scenes that need one
-- [ ] A split that would create a scene shorter than the minimum scene duration is rejected with a clear message
-- [ ] Voiceover text is not editable through these endpoints
-- [ ] Tests: split and merge happy paths; boundary validation; contiguity and timing after a sequence of splits and merges; manifest alignment with and without acquired assets
+- [x] `POST /platform/studio/runs/{run_id}/storyboard/scenes/{scene_id}/split {at_word}` — `at_word` becomes the first word of the new second scene; rejected with 422 unless `start_word < at_word <= end_word`
+- [x] `POST /platform/studio/runs/{run_id}/storyboard/scenes/{scene_id}/merge` — merges the scene with the one after it; rejected with 409 on the last scene
+- [x] After either operation the storyboard is still contiguous (first `start_word` = 0, last `end_word` = N−1, no gaps), scene ids are renumbered in order, and `voiceover_line`, `scene_start_ms` / `scene_end_ms`, `duration_s` and `asset_tier` are recomputed from the word timestamps by the same code the StoryboardWorker uses
+- [x] Split: the first half keeps every field of the original scene; the second half copies the visual fields (search terms, segment type, asset strategy) and starts with no on-screen text and no SFX
+- [x] Merge: the first scene's fields win; the second scene's on-screen text and SFX are dropped, and the response says so
+- [x] `render_options` for all scenes are rebuilt through `_patch_storyboard`; a new storyboard artifact version is written
+- [x] **Already-acquired assets (operator decision):** on split, the first half keeps the asset and the second half is marked as needing acquisition; on merge, the merged scene keeps the first scene's asset and the second scene's manifest entry is removed. The manifest stays aligned with the renumbered scenes, and a later "Acquire Assets" fetches only the scenes that need one
+- [x] A split that would create a scene shorter than the minimum scene duration is rejected with a clear message
+- [x] Voiceover text is not editable through these endpoints
+- [x] Tests: split and merge happy paths; boundary validation; contiguity and timing after a sequence of splits and merges; manifest alignment with and without acquired assets
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `cf_platform/workers/storyboard_worker.py` — the scene-from-word-span builder (around `start_word` / `end_word` clamping), the long-scene splitter, the contiguity enforcement, `_patch_storyboard`
@@ -134,7 +136,8 @@ The operator can split one scene into two at a word, and merge a scene with the 
 ## [P13-S3] Storyboard stage — strategy dropdown, split / merge controls, confirm gate
 **Epic:** E44 — Storyboard control
 **Sprint:** P13
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-03
 **Priority:** high
 **Points:** 3
 **Depends on:** P13-S1, P13-S2
@@ -143,18 +146,18 @@ The operator can split one scene into two at a word, and merge a scene with the 
 The Storyboard table in Studio exposes the new controls, and acquisition starts only when the operator confirms the storyboard.
 
 ### Acceptance Criteria
-- [ ] New "Asset" column: a `.cf-select--sm` dropdown per scene with Stock image / Stock video / Upload, showing the effective strategy; changing it calls the scene PATCH and re-renders the row (the Motion cell follows: dropdown for stills, `—` for video)
-- [ ] An "Upload" scene shows an upload control in its row before acquisition, using the existing per-scene upload endpoint
-- [ ] Split: clicking a word in a scene's voiceover text offers "Split here"; Merge: each row except the last has "Merge with next". Both re-render the table from the response
-- [ ] A merge that drops on-screen text or SFX asks for confirmation first
-- [ ] The acquire button reads "Confirm storyboard & acquire"; nothing is acquired before it is pressed when Auto Advance is off. With Auto Advance on, acquisition starts without the gate (D095)
-- [ ] After acquisition, scenes that need an asset (a split's second half, an unfilled upload) are visibly marked, and the button acquires only those
-- [ ] Row height and table width stay as they are at 1280px; no console errors
-- [ ] Tests: static-page test pins the new controls and the routes they call
-- [ ] **Human touchpoint:** on DEV, the operator changes a scene from image to video, splits one scene and merges two, confirms and acquires, then swaps one scene's asset with the pencil — the last step clears the **P10-S2** deferred smoke test
+- [x] New "Asset" column: a `.cf-select--sm` dropdown per scene with Stock image / Stock video / Upload, showing the effective strategy; changing it calls the scene PATCH and re-renders the row (the Motion cell follows: dropdown for stills, `—` for video)
+- [x] An "Upload" scene shows an upload control in its row before acquisition, using the existing per-scene upload endpoint
+- [x] Split: clicking a word in a scene's voiceover text offers "Split here"; Merge: each row except the last has "Merge with next". Both re-render the table from the response
+- [x] A merge that drops on-screen text or SFX asks for confirmation first
+- [x] The acquire button reads "Confirm storyboard & acquire"; nothing is acquired before it is pressed when Auto Advance is off. With Auto Advance on, acquisition starts without the gate (D095)
+- [x] After acquisition, scenes that need an asset (a split's second half, an unfilled upload) are visibly marked, and the button acquires only those
+- [x] Row height and table width stay as they are at 1280px; no console errors
+- [x] Tests: static-page test pins the new controls and the routes they call
+- [x] **Human touchpoint:** on DEV, the operator changes a scene from image to video, splits one scene and merges two, confirms and acquires, then swaps one scene's asset with the pencil — the last step clears the **P10-S2** deferred smoke test
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `src/static/studio-v2.html` — `renderStoryboard`, `patchScene`, `acquireAssets`, the auto-advance block in `renderStageTrack`
@@ -169,7 +172,7 @@ The Storyboard table in Studio exposes the new controls, and acquisition starts 
 - `_applyManifestToTable` now rebuilds `state.manifestEntries` instead of merging (ids are renumbered by edits).
 - **Width at 1280px:** table 987px before and after, row heights identical (measured in the demo fixture). Asset and Motion selects are sized to their longest label to pay for the dropdown.
 - Demo mode (`?demo=1`) mocks strategy patch, split, merge and boundaries so the controls can be tried without a backend.
-- Verified in the browser preview (demo mode): split, acquire-missing, image → video (Motion becomes `—`), Upload control, merge with confirmation, no console errors beyond the demo's missing SFX library. **Not exercised locally:** real acquisition and upload — that is the DEV smoke test.
+- Verified in the browser preview (demo mode): split, acquire-missing, image → video (Motion becomes `—`), Upload control, merge with confirmation, no console errors beyond the demo's missing SFX library. **DEV smoke test PASSED 2026-10-03** (operator, all 17 steps, `1e5ff4b`) — including real acquisition, row upload, only-missing acquisition after a split, and the pencil swap that clears the P10-S2 deferral.
 - Tests: `tests/cf_platform/test_p13_s3_storyboard_stage.py` (20, shared with S4's UI).
 
 ---
@@ -177,7 +180,8 @@ The Storyboard table in Studio exposes the new controls, and acquisition starts 
 ## [P13-S4] Script view — edit scene boundaries as text
 **Epic:** E44 — Storyboard control
 **Sprint:** P13
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-03
 **Priority:** med
 **Points:** 3
 **Depends on:** P13-S2
@@ -186,15 +190,15 @@ The Storyboard table in Studio exposes the new controls, and acquisition starts 
 A second view of the Storyboard stage shows the whole voiceover as text, with a blank line between scenes. The operator moves the blank lines to move the boundaries and applies the result in one step.
 
 ### Acceptance Criteria
-- [ ] Toggle in the Storyboard stage: Table / Script. Script view shows each scene's words as a paragraph, paragraphs separated by one blank line
-- [ ] `PUT /platform/studio/runs/{run_id}/storyboard/boundaries {start_words: [...]}` replaces all scene boundaries at once; validated (starts at 0, strictly increasing, within range, minimum scene duration) and applied through the same recompute path as split / merge
-- [ ] A scene whose `start_word` is unchanged keeps its fields and its asset; a new scene inherits the visual fields of the scene it was cut from; assets follow the same rule as P13-S2
-- [ ] **Words cannot be changed.** If the text differs from the voiceover by anything other than paragraph breaks, Apply is disabled and the message says to change the text in the Script stage (it forces re-voicing)
-- [ ] Apply shows what will change ("12 scenes → 14; 3 scenes need acquisition") before writing
-- [ ] Tests: boundary replace happy path; each validation failure; unchanged scenes keep fields and assets; changed-words rejection
+- [x] Toggle in the Storyboard stage: Table / Script. Script view shows each scene's words as a paragraph, paragraphs separated by one blank line
+- [x] `PUT /platform/studio/runs/{run_id}/storyboard/boundaries {start_words: [...]}` replaces all scene boundaries at once; validated (starts at 0, strictly increasing, within range, minimum scene duration) and applied through the same recompute path as split / merge
+- [x] A scene whose `start_word` is unchanged keeps its fields and its asset; a new scene inherits the visual fields of the scene it was cut from; assets follow the same rule as P13-S2
+- [x] **Words cannot be changed.** If the text differs from the voiceover by anything other than paragraph breaks, Apply is disabled and the message says to change the text in the Script stage (it forces re-voicing)
+- [x] Apply shows what will change ("12 scenes → 14; 3 scenes need acquisition") before writing
+- [x] Tests: boundary replace happy path; each validation failure; unchanged scenes keep fields and assets; changed-words rejection
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - P13-S2 Handover (the recompute helper this story reuses)

@@ -1,7 +1,25 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last two sprints (P12, P-UX2) plus every older entry whose smoke test is still DEFERRED (currently P10-S2) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last two sprints (P13, P12) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. P-UX2 and P10-S2 move to DONE_ARCHIVE.md at the next grooming. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P13] Storyboard control — S1 asset strategy, S2 split / merge, S3 Storyboard stage controls + confirm gate, S4 script view
+**Completed:** 2026-10-03
+**Handover:**
+- **The storyboard is the gate (D095).** Each scene carries `asset_strategy` (`stock_image` / `stock_video` / `upload`, or `None` = derive from `asset_tier` as before). The vocabulary is one Literal in `src/models.py` (`AssetStrategy` → `ASSET_STRATEGIES`) — P14 adds `ai_image` there. The storyboard GET returns `effective_asset_strategy` per scene.
+- **Acquisition obeys it.** `stock_video` goes straight to the stock video search (even on Character / Event scenes); `upload` scenes are never fetched — they keep an uploaded file or are reported as `awaiting_upload` (manifest status, and `footage_summary` only when non-zero). `POST /platform/workers/acquisition {only_missing}` keeps every scene that already holds an asset. `build_manifest_artifact` is the one place that counts acquired / failed.
+- **Boundary edits** live in `cf_platform/workers/storyboard_edit.py`: `replace_boundaries` (plus `split_scene`, `merge_scene`, `start_words_from_text`). One rule — unchanged start word keeps fields and asset; a new start word is cut from the scene that contained it; a vanished start word is merged away (D102). Routes: `POST …/storyboard/scenes/{id}/split {at_word}`, `POST …/scenes/{id}/merge`, `PUT …/storyboard/boundaries {start_words | script_text, dry_run}`. Each writes a new storyboard version and, when the run has a manifest, a realigned manifest version.
+- **Scene ids are renumbered by edits; asset files are not moved.** `ManifestEntry.asset_slot` (and a hash suffix on uploads) keeps a new file from overwriting one another scene still uses. Anything that writes a scene asset must go through `_asset_stem(entry)` / `assign_free_asset_slot` — P13b's CapCut export should read `file_key`, never rebuild a path from the scene id.
+- **Render** is refused up front (409 from the endpoint, `RuntimeError` in the worker) while any scene has no file: `render_worker.missing_assets_message`.
+- **The upload endpoint starts a manifest** from the storyboard when the run has none, so a manifest can now exist before acquisition with `pending` entries.
+- **Studio:** Asset dropdown (replaces the image / video badge), word-click split, `⤵` merge, row upload, "needs asset" marking, `acquirePlan()` deciding the button ("Confirm storyboard & acquire →" / "Acquire N missing scenes →" / "Re-acquire All"), Table / Script toggle. Demo mode mocks all of it.
+- **Visual Director is not run by the Studio stage-by-stage flow** — only by `full_pipeline.py`. Relevant to P14 (its prompt branch) and P17.
+- New ENV var: `STORYBOARD_MIN_SCENE_S` (default 1.0). No new dependencies. Tests: 134 new (`test_p13_s1_asset_strategy.py`, `test_p13_s2_split_merge.py`, `test_p13_s3_storyboard_stage.py`, `test_p13_s4_boundaries.py`, helper `p13_helpers.py`). 2435 passing.
+- Decision logged: **D102**.
+**Smoke test:** PASSED — 2026-10-03 on Railway DEV (`1e5ff4b`), operator ran all 17 steps: gate before acquisition, image ↔ video with Motion following, split with the minimum-length rejection, merge with the dropped-text confirmation, upload at the gate, render refused for an empty Upload scene, only-missing acquisition after a split with every other asset untouched, Script view apply and changed-word block, pencil re-acquire and upload, final render.
+**Promoted to backlog:** none. Noted for later, not a story yet: `render_worker`'s live-boundary block indexes raw alignment words while scene indices refer to the normalised list.
 
 ---
 
@@ -48,5 +66,5 @@ _This file holds the last two sprints (P12, P-UX2) plus every older entry whose 
 - `POST /platform/studio/runs/{run_id}/scenes/{scene_n}/upload` — MIME+size validated, R2 write, versioned manifest, TraceEvent
 - `studio.html` nav is now 4 stages (Script/Voice/Storyboard/Render); storyboard table has Preview thumbnail + pencil columns; pencil modal handles both re-acquire and custom upload; live 3s polling fills thumbnails during acquisition
 - `tests/cf_platform/test_p10_s2_asset_override.py` — 16 tests (all green)
-**Smoke test:** DEFERRED — **to clear in Sprint P13 (storyboard control touches the same table and asset override).** Condition: requires DEV run with completed voiceover and at least one storyboard to exercise the live thumbnail fill and pencil modal end-to-end. Post-ship fix: `python-multipart` added to requirements.txt (commit 29068b7) — its absence caused the entire `/platform/*` router to fail to mount on DEV.
+**Smoke test:** PASSED — 2026-10-03 on Railway DEV (`1e5ff4b`), cleared by P13-S3: the operator swapped a scene's asset from the Storyboard table with the pencil (re-acquire with a new query, then upload) as the last step of the P13 smoke test. Deferred from 2026-06-29. Post-ship fix on record: `python-multipart` added to requirements.txt (commit 29068b7) — its absence caused the entire `/platform/*` router to fail to mount on DEV.
 **Promoted to backlog:** none

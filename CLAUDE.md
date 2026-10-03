@@ -12,13 +12,13 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Platform v2 — Pipeline & Platform Update spec (D092–D101).** Next sprint: **P13 — Storyboard control** (per-scene asset strategy editable before acquisition; split and merge scenes — D095). P12 (Projects & Shortlist) is complete. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Backlog order: P13 Storyboard control → P13b CapCut export (D100) → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance._
+**Platform v2 — Pipeline & Platform Update spec (D092–D102).** Next sprint: **P13b — CapCut export** (second render path from a finalized storyboard — D100). P13 (Storyboard control) is complete. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
+_Backlog order: P13b CapCut export (D100) → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance._
 
 ## Active story
-**Sprint P13 — all four stories, built in one pass** (METHODOLOGY.md, 2026-10-03): P13-S1 asset strategy, P13-S2 split / merge, P13-S3 Storyboard stage controls + confirm gate, P13-S4 script view. Order: (S1 ∥ S2) → (S3 ∥ S4). Stories: BACKLOG_ACTIVE.md, EPIC 44.
+**None yet — write the P13b stories first** (outline: BACKLOG_ACTIVE.md, EPIC 49; spike in `tools/capcut_spike/`). Sprints are built in one pass (METHODOLOGY.md, 2026-10-03).
 
-**Blockers / operator actions:** Google API audit application in progress — operator will submit (lead time for P16 publishing). 1 smoke test deferred (P10-S2 asset swap from Studio — clears in P13).
+**Blockers / operator actions:** Google API audit application in progress — operator will submit (lead time for P16 publishing). Deferred smoke tests: 0.
 
 ## Environments
 

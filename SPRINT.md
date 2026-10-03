@@ -4,7 +4,7 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprint P12 complete** (2026-10-03). **Next sprint:** P13 — Storyboard control (4 stories, 14 pts, ready to build).
+> - **Sprint P13 complete** (2026-10-03). **Next sprint:** P13b — CapCut export (D100); stories not yet written.
 
 ---
 
@@ -30,7 +30,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-UX2 | Render & narration controls | 15 | done | Caption style preset, per-scene motion dropdown, TTS pace + register |
 | P11 | Visual Director + motion effects | 6 | closed | Visual Director agent (S1). S2/S3 parked (D099) |
 | P12 | Projects & shortlist | 16 | done | Open Studio → project list → add a shortlist idea by hand → create a run from it |
-| P13 | Storyboard control | 14 | planned | Change a scene from image to video, split and merge scenes, then acquire |
+| P13 | Storyboard control | 14 | done | Change a scene from image to video, split and merge scenes, then acquire |
 | P13b | CapCut export (second render path) | ~10 | planned | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
 | P14 | AI Created style | ~13 | planned | Pick AI Created, write a mood prompt, get a generated image on every scene |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
@@ -45,7 +45,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Open items carried from closed sprints
 
-- **P10-S2 smoke test — DEFERRED.** Swap one scene's asset from Studio (thumbnail fill + pencil modal) on a DEV run. Clears in P13, whose human touchpoint works in the same storyboard table. Deferred smoke tests: **1** (groomed 2026-10-03; seven others cleared by the operator by name).
+- **Deferred smoke tests: 0.** P10-S2 (asset swap from Studio) was cleared on 2026-10-03 by the P13 smoke test.
 - **Google API audit application** (P12 lead-time task) — in progress; operator will submit. Needed for P16.
 
 ---
@@ -53,15 +53,15 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P13 — Storyboard control
 
 **Goal:** The storyboard becomes a human gate (D095): per-scene asset strategy is editable before anything is acquired, and scenes can be split and merged.
-**Status:** planned — stories written 2026-10-03 (BACKLOG_ACTIVE.md, EPIC 44); delivered as one sprint.
+**Status:** done — 2026-10-03, delivered as one sprint; DEV smoke test passed (`1e5ff4b`). Decision D102.
 **Points:** 14
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P13-S1 | Per-scene asset strategy — model, patch, acquisition | 4 | in-progress |
-| P13-S2 | Split and merge scenes | 4 | in-progress |
-| P13-S3 | Storyboard stage — strategy dropdown, split / merge controls, confirm gate | 3 | in-progress |
-| P13-S4 | Script view — edit scene boundaries as text | 3 | in-progress |
+| P13-S1 | Per-scene asset strategy — model, patch, acquisition | 4 | done |
+| P13-S2 | Split and merge scenes | 4 | done |
+| P13-S3 | Storyboard stage — strategy dropdown, split / merge controls, confirm gate | 3 | done |
+| P13-S4 | Script view — edit scene boundaries as text | 3 | done |
 
 **Execution order:** (S1 ∥ S2) → (S3 ∥ S4).
 
