@@ -5,6 +5,20 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D100 — Two render paths from one finalized storyboard: FFmpeg on Railway, or a CapCut project on the operator's laptop
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** Once the storyboard is finalized (voiceover ready, scene boundaries set, footage in R2, motion effect and on-screen text defined), the operator chooses between two outputs. **Path 1:** the existing FFmpeg render on Railway, unchanged. **Path 2:** Studio offers a zip of the run's artifacts plus a timeline file; a script on the operator's laptop unpacks it and writes a CapCut desktop project (footage with scene timing, motion as keyframes, voiceover, on-screen text, captions as editable text clips). The operator edits and renders in CapCut.
+**Spike result (2026-10-03):** a draft built from run `c034ab5e` (8 scenes, 51 caption words, 6 on-screen texts) with pyCapCut 0.0.3 opened in CapCut 8.9.1 on macOS with clips, timing, zoom/pan keyframes, captions and on-screen text in place — operator: "it worked perfectly". pyCapCut writes `draft_content.json` in the CapCut 6.7 schema; the spike also copied it to `draft_info.json`, the name CapCut 8.x uses. Which of the two files CapCut read was not isolated. Music and SFX were not part of the test. Spike scripts: `tools/capcut_spike/`.
+**Rejected:** replacing FFmpeg with CapCut (CapCut cannot render unattended, so Auto Advance and scheduled publishing would stop working); DaVinci Resolve (not installed, animated captions harder); Remotion / HTML-based renderer for richer automatic designs (a rendering redesign — deferred until CapCut export has been used in practice).
+**Risks:** CapCut has no official API; the draft format is undocumented and a CapCut update can break the export. Path 2 has no Auto Advance; the finished video must be uploaded back to the run for metadata and publishing to continue.
+**Dependency:** `pycapcut` is used only by the laptop script, with its own requirements file. It is **not** added to the platform's `requirements.txt` or Docker image.
+**Sprint placement:** Sprint P13b, after P13 (Storyboard control) and before P14 (AI Created style). Numbered P13b so the sprint numbers cited in D096–D099 stay valid.
+**Decided:** 2026-10-03 by user (two-path design is the operator's own).
+**See:** D095, D098, D099.
+
+---
+
 ## D099 — Roadmap replaced: P12–P17 follow the Pipeline & Platform Update spec
 **Date:** 2026-10-03
 **Status:** ACTIVE
