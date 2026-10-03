@@ -12,11 +12,13 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Platform v2 — roadmap replaced 2026-10-03 by the Pipeline & Platform Update spec (D092–D099).** Current sprint: **P12 — Projects & Shortlist** (Tenant → Project → Run hierarchy, persistent project shortlist, runs created from shortlist items) — all four stories built and pushed 2026-10-03 (`f00eefe`, CI green); human touchpoint and story close-out pending. Next: **P13 — Storyboard control**. P11 closed with S1 done; P11-S2/S3 parked. Studio is the only operator interface (`/`); Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Backlog order: P12 Projects & shortlist → P13 Storyboard control → P13b CapCut export (D100) → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance._
+**Platform v2 — Pipeline & Platform Update spec (D092–D101).** Next sprint: **P13 — Storyboard control** (per-scene asset strategy editable before acquisition; split and merge scenes — D095). P12 (Projects & Shortlist) is complete. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
+_Backlog order: P13 Storyboard control → P13b CapCut export (D100) → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance._
 
 ## Active story
-**Sprint P12, all stories (S1–S4)** — built; awaiting the human touchpoint before close-out. Delivered as one sprint, not story by story (METHODOLOGY.md, 2026-10-03). See SPRINT.md and BACKLOG_ACTIVE.md for details.
+**None yet — Sprint P13 has an epic outline in BACKLOG_ACTIVE.md (EPIC 44) but no stories.** Groom it first (`/groom`), then deliver it as one sprint, not story by story (METHODOLOGY.md, 2026-10-03).
+
+**Blockers / operator actions:** Google API audit application not yet submitted (lead time for P16 publishing). 8 smoke tests outstanding in DONE.md (7 deferred, 1 partial).
 
 ## Environments
 

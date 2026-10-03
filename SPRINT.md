@@ -4,7 +4,7 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history: **SPRINT_ARCHIVE.md**.
-> - **Current sprint:** P12 — Projects & Shortlist (built 2026-10-03, human touchpoint pending). **Next:** P13 — Storyboard control.
+> - **Sprint P12 complete** (2026-10-03). **Next sprint:** P13 — Storyboard control (stories not yet written — groom first).
 
 ---
 
@@ -28,7 +28,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | **P10** | **Production quality + Visual Intelligence Layer** | **~15** | **in-progress** | No food assets for "protein"; researcher portrait from Wikimedia; per-scene asset override in Studio |
 | P-UX2 | **Render & narration controls** | **15** | **done** | Caption style preset, per-scene motion dropdown, TTS pace + register |
 | P11 | Visual Director + motion effects | 6 | closed | Visual Director agent (S1). S2/S3 parked (D099) |
-| **P12** | **Projects & shortlist** | **16** | **in-progress — built (f00eefe), human touchpoint pending** | Open Studio → project list → add a shortlist idea by hand → create a run from it |
+| P12 | Projects & shortlist | 16 | done | Open Studio → project list → add a shortlist idea by hand → create a run from it |
 | P13 | Storyboard control | ~14 | planned | Change a scene from image to video, split and merge scenes, then acquire |
 | P13b | CapCut export (second render path) | ~10 | planned | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
 | P14 | AI Created style | ~13 | planned | Pick AI Created, write a mood prompt, get a generated image on every scene |
@@ -222,27 +222,27 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P12 — Projects & Shortlist
 
 **Goal:** Runs stop being top-level. The operator works inside a project that owns a persistent shortlist of content ideas, and every content run starts from one or more shortlist items (D092, D094). No research yet — ideas are added by hand; P15 fills the shortlist automatically.
-**Status:** in-progress — all four stories built and pushed 2026-10-03 (f00eefe, CI green); human touchpoint and story close-out pending
+**Status:** done (2026-10-03) — all four stories shipped (f00eefe), DEV smoke test passed. One Definition of Done item remains open: the Google API audit application (operator action, lead time for P16).
 **Points:** 16
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P12-S1 | Projects data model + API (`tenant_id`, `project_id`, default-project backfill) | 3 | in-progress |
-| P12-S2 | Studio project landing + server-side, project-scoped run list | 5 | in-progress |
-| P12-S3 | Persistent shortlist — table, API, project page | 5 | in-progress |
-| P12-S4 | Create a content run from shortlist item(s) | 3 | in-progress |
+| P12-S1 | Projects data model + API (`tenant_id`, `project_id`, default-project backfill) | 3 | done |
+| P12-S2 | Studio project landing + server-side, project-scoped run list | 5 | done |
+| P12-S3 | Persistent shortlist — table, API, project page | 5 | done |
+| P12-S4 | Create a content run from shortlist item(s) | 3 | done |
 
 **Execution order:** S1 → (S2 ∥ S3) → S4.
 
 ## Sprint P12 Definition of Done
-- [ ] `projects` and `shortlist_items` tables exist via a numbered migration; every row carries `tenant_id`
-- [ ] Every run belongs to a project; pre-existing runs sit in a default project and still open in Studio
-- [ ] Run list comes from the server, scoped to the project — not from browser `localStorage`
-- [ ] Shortlist items persist until removed and keep their origin fields (method, source, evidence, date)
-- [ ] A run created from shortlist items records which items it came from and pre-fills the Script stage
-- [ ] Project and shortlist views are separate static pages, not additions to `studio-v2.html` (D092)
+- [x] `projects` and `shortlist_items` tables exist via a numbered migration; every row carries `tenant_id`
+- [x] Every run belongs to a project; pre-existing runs sit in a default project and still open in Studio
+- [x] Run list comes from the server, scoped to the project — not from browser `localStorage`
+- [x] Shortlist items persist until removed and keep their origin fields (method, source, evidence, date)
+- [x] A run created from shortlist items records which items it came from and pre-fills the Script stage
+- [x] Project and shortlist views are separate static pages, not additions to `studio-v2.html` (D092)
 - [ ] **Lead-time task:** Google API audit application submitted (needed for P16 — unaudited API uploads stay private)
-- [ ] **Human touchpoint:** operator opens `/`, sees the project list, opens a project, adds a shortlist idea by hand, creates a run from it and lands in the existing Settings → Script flow
+- [x] **Human touchpoint:** operator opens `/`, sees the project list, opens a project, adds a shortlist idea by hand, creates a run from it and lands in the existing Settings → Script flow — VERIFIED 2026-10-03 on Railway DEV
 
 ---
 

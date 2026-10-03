@@ -2039,7 +2039,8 @@ First sprint of the Pipeline & Platform Update (D092–D099). Introduces the Ten
 ## [P12-S1] Projects data model + API
 **Epic:** E43 — Projects & Shortlist
 **Sprint:** P12
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-03
 **Priority:** high
 **Points:** 3
 **Depends on:** —
@@ -2070,7 +2071,7 @@ runs: + tenant_id TEXT, + project_id TEXT REFERENCES projects
 - [x] Tests: migration applies on an empty and on a populated database; CRUD happy paths; run without `project_id` rejected; project-scoped run list excludes other projects' runs
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Handover
 - **Open point — resolved.** Studio runs did **not** reliably have a `runs` row. `newRun()` minted the id in the browser and wrote only `settings.json` to R2 plus `localStorage.studio_runs`; a pasted-script run never got a row (`studio.py`'s reacquire handler already documented the resulting FK failure on `trace_events`). A generated-script run got one only because `POST /platform/blocks/idea-to-script` minted a *new* id that Studio then swapped to. Consequence: the migration backfill covers generated-script runs only; the rest are registered by `POST /platform/projects/{id}/runs/import` (see S2).
@@ -2081,13 +2082,15 @@ runs: + tenant_id TEXT, + project_id TEXT REFERENCES projects
 - `tenant_id` is `PLATFORM_USER_ID` (`"operator"`) everywhere; a project whose tenant differs is a 404.
 - **Migration verified on real Postgres** (local 5432, scratch database, dropped afterwards): empty database, populated database (two pre-existing runs land in the default project), and applied twice. Kept as `tests/integration/test_p12_migration_postgres.py` — excluded from CI, run with `CF_TEST_DATABASE_URL=... pytest -m integration`.
 - Tests: `tests/cf_platform/test_p12_s1_projects.py` (31).
+- **Files that mattered:** `cf_platform/db/migrations/0001_init.sql`, `cf_platform/core/run_manager.py`, `cf_platform/core/postgres_repos.py`, `cf_platform/interfaces/dependencies.py`, `cf_platform/interfaces/routes/studio.py` (the reacquire handler's comment on missing `runs` rows), `src/static/studio-v2.html` (`newRun`, `generateScript`).
 
 ---
 
 ## [P12-S2] Studio project landing + server-side run list
 **Epic:** E43 — Projects & Shortlist
 **Sprint:** P12
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-03
 **Priority:** high
 **Points:** 5
 **Depends on:** P12-S1
@@ -2108,7 +2111,7 @@ runs: + tenant_id TEXT, + project_id TEXT REFERENCES projects
 - [x] Tests: route status codes; project page renders an empty state with no runs
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Handover
 - `src/main.py`: `/` → `projects.html`, `/project?id=<project_id>` → `project.html`, `/studio` → `studio-v2.html`. Studio deep links are unchanged (`/studio#run/<id>/<stage>`); an old `/#run/<id>` bookmark is forwarded to `/studio` by `projects.html`; `/studio` with no run in the URL redirects to `/`.
@@ -2119,13 +2122,15 @@ runs: + tenant_id TEXT, + project_id TEXT REFERENCES projects
 - Run status in the list is the row's lifecycle (`created` shown as "Draft", `running` as "In progress"), not per-stage pipeline progress — no Studio stage writes to the row yet.
 - `docs/UI_GUIDELINES.md` predates Studio (it describes the dark legacy UI); the new pages follow Studio's "Monochrome Console" tokens instead. Verified at 375px and desktop widths in a local preview: no horizontal overflow, "Create video" bar pinned to the bottom.
 - Tests: `tests/test_p12_s2_pages.py` (10); `tests/test_pux1_s4_routing.py` updated (`/` no longer serves Studio).
+- **Files that mattered:** `src/main.py`, `src/static/studio-v2.html` (CSS tokens at the top; `getLocalRuns` / `saveLocalRun` / `loadRun` / `init`), `tests/test_pux1_s4_routing.py`, `tests/conftest.py` (auth bypass fixture).
 
 ---
 
 ## [P12-S3] Persistent shortlist — table, API, project page
 **Epic:** E43 — Projects & Shortlist
 **Sprint:** P12
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-03
 **Priority:** high
 **Points:** 5
 **Depends on:** P12-S1
@@ -2156,7 +2161,7 @@ Removal is a soft delete (`removed_at`), so a run created from an item keeps a v
 - [x] Tests: add / list / remove; removed items excluded from the default list but still resolvable by id; items of another project not returned
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Handover
 - `cf_platform/core/shortlist.py`: `ShortlistItem`, `ShortlistRepository` Protocol, `InMemoryShortlistRepository`, `add_manual_item`, `remove_item`. `PostgresShortlistRepository` in `postgres_project_repos.py`. The repository has `add` and `mark_removed` only — no bulk write of any kind (D094).
@@ -2165,13 +2170,15 @@ Removal is a soft delete (`removed_at`), so a run created from an item keeps a v
 - Removal sets `removed_at`; the item leaves the default list but `GET .../shortlist/{item_id}` still returns it, and runs created from it keep their link.
 - Each listed item carries `run_count` (from `run_shortlist_items`).
 - Tests: `tests/cf_platform/test_p12_s3_shortlist.py` (16).
+- **Files that mattered:** `DECISIONS.md#D094`, `cf_platform/core/run_manager.py` (the Protocol + in-memory + pure-function pattern this mirrors).
 
 ---
 
 ## [P12-S4] Create a content run from shortlist item(s)
 **Epic:** E43 — Projects & Shortlist
 **Sprint:** P12
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-03
 **Priority:** high
 **Points:** 3
 **Depends on:** P12-S2, P12-S3
@@ -2188,10 +2195,10 @@ The operator ticks one or more shortlist items and presses "Create video". A run
 - [x] Run info panel lists the shortlist items the run came from
 - [x] The rest of the pipeline (voice, storyboard, acquisition, render, metadata) is unchanged
 - [x] Tests: run creation with 1 and with 2 items; unknown or removed item id rejected; links readable from the run
-- [ ] **Human touchpoint:** operator opens `/`, opens a project, adds an idea by hand, creates a run from it and reaches a rendered video through the existing stages
+- [x] **Human touchpoint:** operator opens `/`, opens a project, adds an idea by hand, creates a run from it and reaches a rendered video through the existing stages
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Handover
 - `POST /platform/projects/{id}/runs {item_ids}` → 201 with the run. Validates first (`resolve_items_for_run`): unknown id → 404, removed or other-project item → 409, empty list → 422; then writes the `runs` row (`block="studio"`, name = idea title) and the ordered links. A run needs at least one item — there is no blank-run path (D094).
@@ -2202,6 +2209,8 @@ The operator ticks one or more shortlist items and presses "Create video". A run
 - The Niche field in the Script stage is read-only and labelled "from project" when the project has one.
 - Verified in a local preview (fake credentials, in-memory repositories): project → add two ideas → create a run from one and from both → Studio opens at Settings with the project defaults, idea, niche and source items in place. **Not exercised locally:** script generation, voice, storyboard, render (need real API keys and R2) — that is the DEV smoke test.
 - Tests: `tests/cf_platform/test_p12_s4_runs_from_shortlist.py` (18).
+- **Files that mattered:** `cf_platform/interfaces/routes/blocks.py`, `cf_platform/core/execution_engine.py` (`run_graph` thread ids), `cf_platform/workers/context_normalizer.py` (how `supporting_points` is consumed), `src/routes/runs.py` (settings GET returns defaults when absent), `src/static/studio-v2.html` (`loadRun`, `saveRunSettings`, `generateScript`).
+- **DEV smoke test PASSED 2026-10-03** (operator, all 16 steps) — including script generation into the run, the full pipeline to a rendered video, and deleting a run.
 
 ---
 

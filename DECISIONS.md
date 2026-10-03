@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D101 — Runs carry a name and an archive flag; idea-to-script generates into an existing run
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** Three additions to what P12-S1/S4 specified, made while building Sprint P12. (1) `runs` gains `name` (the label in a project's run list) and `archived_at` beyond the specified `tenant_id` / `project_id`: deleting a run in Studio archives its row, so the list drops it while artifact and execution lineage keep a valid `run_id`. (2) `POST /platform/blocks/idea-to-script` accepts an optional `run_id` and generates into that run instead of minting a new one; such a run moves `created → running` and is not marked `complete` by script generation, and each generation uses its own checkpoint thread. (3) A content run cannot be created without at least one shortlist item — Studio no longer has a blank "New run".
+**Why:** Before P12 Studio swapped to a server-minted run id whenever a script was generated; with runs created up front from shortlist items that swap would orphan the project membership and the item links. A list of runs needs a label and a way to leave the list without deleting lineage rows that other tables reference.
+**Rejected:** hard-deleting the `runs` row (foreign keys from `artifacts`, `worker_executions`, `trace_events`, `run_shortlist_items`); keeping the id swap and re-linking afterwards (two ids for one run in R2); storing the label inside `inputs` JSON (not queryable, not obviously a column of the list).
+**Consequence:** run status in the project list is the row's lifecycle, not pipeline progress — nothing writes per-stage status to the row yet (candidate for P17).
+**Decided:** 2026-10-03 during Sprint P12 implementation; recorded at close-out.
+**See:** D092, D094, D048, D055.
+
+---
+
 ## D100 — Two render paths from one finalized storyboard: FFmpeg on Railway, or a CapCut project on the operator's laptop
 **Date:** 2026-10-03
 **Status:** ACTIVE

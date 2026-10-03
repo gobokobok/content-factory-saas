@@ -4,6 +4,24 @@ _Entries added here when a story reaches Definition of Done._
 
 ---
 
+## [P12] Projects & Shortlist — S1 data model + API, S2 project landing + server-side run list, S3 persistent shortlist, S4 runs from shortlist items
+**Completed:** 2026-10-03
+**Handover:**
+- **Hierarchy (D092):** Tenant → Project → Run. Migration `0002_projects_shortlist.sql` adds `projects`, `shortlist_items`, `run_shortlist_items`; `runs` gains `tenant_id`, `project_id` (NOT NULL, default `'default'`), `name`, `archived_at`. `tenant_id` is `PLATFORM_USER_ID` everywhere; there is still no multi-tenant auth.
+- **Every run has a row now.** Before P12 a Studio run started from a pasted script had none (ids were minted in the browser). Runs are created by `POST /platform/projects/{id}/runs {item_ids}`; `create_run` defaults every other caller (Telegram, block routes) to the default project. Pre-P12 runs: the migration backfills rows that exist, and `POST /platform/projects/default/runs/import` registers browser-only runs the first time that browser opens `/` or the run's link.
+- **Modules:** `cf_platform/core/projects.py` (`Project`, `create_project`, `update_project`), `cf_platform/core/shortlist.py` (`ShortlistItem`, `add_manual_item`, `remove_item`, `resolve_items_for_run`, `build_idea_context`), `cf_platform/core/postgres_project_repos.py`, `cf_platform/core/run_manager.py` (`register_existing_run`, `archive_run`, `RunRepository.list_for_project` / `count_by_project`). In-memory fallbacks exist for all of them (no `DATABASE_URL` → still works, not durable).
+- **Routes** (`cf_platform/interfaces/routes/projects.py`): project CRUD, project-scoped run list / create / import / archive, shortlist list / add / read-one / soft-remove, and `GET /platform/studio/runs/{run_id}/context`. The shortlist has no bulk replace or clear, and a test pins its surface to those four operations (D094) — P15 research must add items one at a time through the repository's `add`.
+- **`POST /platform/blocks/idea-to-script` takes an optional `run_id`** and generates into that run (same id, project niche when none is sent, fresh checkpoint thread per generation, run left `running` rather than `complete`). Without it, behaviour is unchanged.
+- **Pages:** `/` → `projects.html`, `/project?id=` → `project.html`, `/studio#run/<id>/<stage>` → `studio-v2.html`. Studio no longer reads or writes `localStorage.studio_runs`; a run with no shortlist item cannot be created (Studio's "New run" goes to the project page).
+- **Project defaults:** `project.config.run_defaults` uses the same keys as a run's `settings.json`; Studio seeds a just-created run from it once and never writes back to the project.
+- **Known limits:** run status in the project list is the row's lifecycle (`created` / `running`), not per-stage pipeline progress — no Studio stage writes to the row. P17 (server-side Auto Advance) is the natural place to fix that.
+- No new ENV vars, no new dependencies. Tests: 75 new (`test_p12_s1_projects.py`, `test_p12_s3_shortlist.py`, `test_p12_s4_runs_from_shortlist.py`, `test_p12_s2_pages.py`) plus `tests/integration/test_p12_migration_postgres.py` (real Postgres, excluded from CI; run with `CF_TEST_DATABASE_URL`). 2301 passing.
+- Decision logged: **D101** (runs carry `name` + `archived_at`; idea-to-script generates into an existing run).
+**Smoke test:** PASSED — 2026-10-03 on Railway DEV (`f00eefe`), operator ran all 16 steps: project list with pre-P12 runs imported into "Default project", new project + defaults, two hand-added ideas, a run from one idea and from two, script generated into the run without the run id changing, full pipeline to a rendered video, run deletion, soft-removed idea still listed on its run, same list in a second browser, phone layout.
+**Promoted to backlog:** none. Outstanding operator action: Google API audit application (lead time for P16) — not submitted yet.
+
+---
+
 ## [P-UX2] Render & Narration Controls — S1 dropdown component, S2 caption style, S3 motion effects, S4 narration
 **Completed:** 2026-08-30
 **Handover:**
