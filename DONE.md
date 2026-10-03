@@ -18,7 +18,7 @@ _Entries added here when a story reaches Definition of Done._
 - No new ENV vars, no new dependencies. Tests: 75 new (`test_p12_s1_projects.py`, `test_p12_s3_shortlist.py`, `test_p12_s4_runs_from_shortlist.py`, `test_p12_s2_pages.py`) plus `tests/integration/test_p12_migration_postgres.py` (real Postgres, excluded from CI; run with `CF_TEST_DATABASE_URL`). 2301 passing.
 - Decision logged: **D101** (runs carry `name` + `archived_at`; idea-to-script generates into an existing run).
 **Smoke test:** PASSED — 2026-10-03 on Railway DEV (`f00eefe`), operator ran all 16 steps: project list with pre-P12 runs imported into "Default project", new project + defaults, two hand-added ideas, a run from one idea and from two, script generated into the run without the run id changing, full pipeline to a rendered video, run deletion, soft-removed idea still listed on its run, same list in a second browser, phone layout.
-**Promoted to backlog:** none. Outstanding operator action: Google API audit application (lead time for P16) — not submitted yet.
+**Promoted to backlog:** none. Operator action in progress: Google API audit application (lead time for P16) — operator will submit.
 
 ---
 

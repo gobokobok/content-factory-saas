@@ -222,7 +222,7 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P12 — Projects & Shortlist
 
 **Goal:** Runs stop being top-level. The operator works inside a project that owns a persistent shortlist of content ideas, and every content run starts from one or more shortlist items (D092, D094). No research yet — ideas are added by hand; P15 fills the shortlist automatically.
-**Status:** done (2026-10-03) — all four stories shipped (f00eefe), DEV smoke test passed. One Definition of Done item remains open: the Google API audit application (operator action, lead time for P16).
+**Status:** done (2026-10-03) — all four stories shipped (f00eefe), DEV smoke test passed. One Definition of Done item is in progress: the Google API audit application (operator will submit; lead time for P16).
 **Points:** 16
 
 | ID | Title | Points | Status |
@@ -241,7 +241,7 @@ Legacy Script→Video stays untouched and operable (D047).
 - [x] Shortlist items persist until removed and keep their origin fields (method, source, evidence, date)
 - [x] A run created from shortlist items records which items it came from and pre-fills the Script stage
 - [x] Project and shortlist views are separate static pages, not additions to `studio-v2.html` (D092)
-- [ ] **Lead-time task:** Google API audit application submitted (needed for P16 — unaudited API uploads stay private)
+- [ ] **Lead-time task:** Google API audit application submitted (needed for P16 — unaudited API uploads stay private) — IN PROGRESS (2026-10-03): operator will submit; not yet sent
 - [x] **Human touchpoint:** operator opens `/`, sees the project list, opens a project, adds a shortlist idea by hand, creates a run from it and lands in the existing Settings → Script flow — VERIFIED 2026-10-03 on Railway DEV
 
 ---

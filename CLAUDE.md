@@ -18,7 +18,7 @@ _Backlog order: P13 Storyboard control → P13b CapCut export (D100) → P14 AI 
 ## Active story
 **None yet — Sprint P13 has an epic outline in BACKLOG_ACTIVE.md (EPIC 44) but no stories.** Groom it first (`/groom`), then deliver it as one sprint, not story by story (METHODOLOGY.md, 2026-10-03).
 
-**Blockers / operator actions:** Google API audit application not yet submitted (lead time for P16 publishing). 8 smoke tests outstanding in DONE.md (7 deferred, 1 partial).
+**Blockers / operator actions:** Google API audit application in progress — operator will submit (lead time for P16 publishing). 8 smoke tests outstanding in DONE.md (7 deferred, 1 partial).
 
 ## Environments
 

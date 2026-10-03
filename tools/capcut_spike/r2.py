@@ -1,5 +1,7 @@
 """Shared R2 helpers for the CapCut export spike (read-only)."""
-import json, os, re
+import json
+import re
+
 import boto3
 from dotenv import dotenv_values
 

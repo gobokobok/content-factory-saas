@@ -1,8 +1,12 @@
 """Spike: build a CapCut draft from one Content Factory run (storyboard + assets + VO + word timings)."""
-import os, sys
+import os
+import shutil
+import sys
+
 import pycapcut as cc
-from pycapcut import trange, KeyframeProperty as KP
-from r2 import s3, BUCKET, ls, latest, get_json
+from pycapcut import KeyframeProperty as KP
+from pycapcut import trange
+from r2 import BUCKET, get_json, latest, s3
 
 RUN = sys.argv[1]
 BUNDLE = os.path.expanduser(f"~/Movies/ContentFactory/{RUN[:8]}")
@@ -19,10 +23,13 @@ def fetch(key):
         s3.download_file(BUCKET, key, dest)
     return dest
 
-sb = get_json(latest(RUN, "storyboard", "verified_storyboard")); sb = sb.get("body", sb)["storyboard"]
-man = get_json(latest(RUN, "acquisition", "asset_manifest")); man = man.get("body", man)
+sb = get_json(latest(RUN, "storyboard", "verified_storyboard"))
+sb = sb.get("body", sb)["storyboard"]
+man = get_json(latest(RUN, "acquisition", "asset_manifest"))
+man = man.get("body", man)
 entries = {str(e["scene_id"]): e for e in man.get("manifest", man)["entries"]}
-va = get_json(latest(RUN, "voice", "voice_alignment")); va = va.get("body", va)
+va = get_json(latest(RUN, "voice", "voice_alignment"))
+va = va.get("body", va)
 words, total_ms = va["word_timestamps"], int(va["total_duration_s"] * 1000)
 scenes = sb["scenes"]
 
@@ -80,7 +87,9 @@ for j, w in enumerate(words):
 
 script.save()
 # CapCut 8.x names the project file draft_info.json; pyCapCut writes the older draft_content.json name.
-import shutil; shutil.copyfile(os.path.join(DRAFTS, NAME, "draft_content.json"), os.path.join(DRAFTS, NAME, "draft_info.json"))
-print("draft:", os.path.join(DRAFTS, NAME)); print("bundle:", BUNDLE)
-for r in report: print("  scene", *r)
+shutil.copyfile(os.path.join(DRAFTS, NAME, "draft_content.json"), os.path.join(DRAFTS, NAME, "draft_info.json"))
+print("draft:", os.path.join(DRAFTS, NAME))
+print("bundle:", BUNDLE)
+for r in report:
+    print("  scene", *r)
 print("captions:", len(words), "| total_ms:", total_ms)
