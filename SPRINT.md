@@ -58,10 +58,10 @@ Legacy Script→Video stays untouched and operable (D047).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P13-S1 | Per-scene asset strategy — model, patch, acquisition | 4 | planned |
-| P13-S2 | Split and merge scenes | 4 | planned |
-| P13-S3 | Storyboard stage — strategy dropdown, split / merge controls, confirm gate | 3 | planned |
-| P13-S4 | Script view — edit scene boundaries as text | 3 | planned |
+| P13-S1 | Per-scene asset strategy — model, patch, acquisition | 4 | in-progress |
+| P13-S2 | Split and merge scenes | 4 | in-progress |
+| P13-S3 | Storyboard stage — strategy dropdown, split / merge controls, confirm gate | 3 | in-progress |
+| P13-S4 | Script view — edit scene boundaries as text | 3 | in-progress |
 
 **Execution order:** (S1 ∥ S2) → (S3 ∥ S4).
 

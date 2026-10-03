@@ -926,6 +926,37 @@ def rederive_scene_visual_contract(
     return tier, _asset_tier_to_clip_type(tier), effect
 
 
+def apply_asset_strategy(scene: StoryboardScene, strategy: str) -> StoryboardScene:
+    """Return the scene with an operator-chosen asset strategy applied (D095, P13-S1).
+
+    The strategy is recorded on the scene, and asset_tier / clip_type / motion_effect
+    are realigned with it so the Studio table and the render describe the same thing:
+
+    stock_video → ("video", "hard_cut", None) — motion effects are stills-only (D089).
+    stock_image → the duration-derived still tier, floored to "still_motion"; an
+                  effect the operator already chose survives, an unset one takes the
+                  still default through normalize_motion_effect.
+    upload      → the contract is left alone; the upload endpoint re-derives it from
+                  the file the operator actually supplies (D089).
+    """
+    from src.models import normalize_motion_effect
+
+    update: dict = {"asset_strategy": strategy}
+    if strategy == "stock_video":
+        update.update(asset_tier="video", clip_type="hard_cut", motion_effect=None)
+    elif strategy == "stock_image":
+        tier = _assign_asset_tier(scene.duration_s)
+        if tier == "video":
+            tier = "still_motion"
+        clip_type = _asset_tier_to_clip_type(tier)
+        update.update(
+            asset_tier=tier,
+            clip_type=clip_type,
+            motion_effect=normalize_motion_effect(scene.motion_effect, clip_type),
+        )
+    return scene.model_copy(update=update)
+
+
 def _reify_scene(raw: dict, words: list[VoiceWordTimestamp], scene_index: int) -> dict:
     """Reconstruct Python-owned fields from a Deepgram word span (P9-S9).
 
@@ -1162,7 +1193,7 @@ def _apply_patches_and_render_options(
         "segment_type", "person_name", "person_title",
         "primary_stk", "context_stk", "concept_stk",
         "on_screen_text", "on_screen_text_type", "sfx", "sfx_timing",
-        "motion_effect",
+        "motion_effect", "asset_strategy",
     }
 
     for patch in patches:

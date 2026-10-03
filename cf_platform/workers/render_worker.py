@@ -552,6 +552,46 @@ def _build_render_script(
     return "\n\n".join(parts) + "\n"
 
 
+# ── Pre-render asset check (P13-S1) ───────────────────────────────────────────
+
+
+def missing_assets_message(storyboard, manifest) -> str | None:
+    """Return why this storyboard cannot render yet, or None when every scene has an asset.
+
+    The render script needs one acquired file per scene. Since P13 a scene can be
+    without one on purpose — an "upload" scene the operator has not filled, or the
+    second half of a split — so the gap is reported in words before any FFmpeg
+    work starts, instead of surfacing as a failed script.
+    """
+    from src.models import AWAITING_UPLOAD_STATUS
+
+    entries = {e.scene_id: e for e in manifest.entries}
+    awaiting: list[str] = []
+    missing: list[str] = []
+    for scene in storyboard.scenes:
+        entry = entries.get(scene.scene)
+        # A file is all the render needs — a failed re-acquire leaves the previous
+        # file in place with status "failed", and that still renders.
+        if entry is not None and entry.file_key:
+            continue
+        waits_for_upload = scene.asset_strategy == "upload" or (
+            entry is not None and entry.status == AWAITING_UPLOAD_STATUS
+        )
+        (awaiting if waits_for_upload else missing).append(scene.scene)
+
+    parts: list[str] = []
+    if awaiting:
+        parts.append(
+            f"Scene(s) {', '.join(awaiting)} are set to Upload and have no file yet — "
+            "upload a file or change the asset type."
+        )
+    if missing:
+        parts.append(
+            f"Scene(s) {', '.join(missing)} have no asset — acquire them in the Storyboard stage."
+        )
+    return " ".join(parts) if parts else None
+
+
 # ── Asset download ────────────────────────────────────────────────────────────
 
 
@@ -712,6 +752,10 @@ def build_render_worker(
         _, mf_body = await read_artifact(storage, state.artifacts["asset_manifest"])
         mf_art = AssetManifestArtifact.model_validate(mf_body)
         manifest = AssetManifest.model_validate(mf_art.manifest)
+
+        blocked = missing_assets_message(storyboard, manifest)
+        if blocked:
+            raise RuntimeError(f"Cannot render run {run_id}: {blocked}")
 
         # Read voice alignment (optional)
         scene_words: list | None = None

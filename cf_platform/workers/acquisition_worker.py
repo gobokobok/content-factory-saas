@@ -27,7 +27,13 @@ from cf_platform.models.visual_treatment import SceneVisualPlan, VisualTreatment
 from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
 from src.exceptions import PexelsError
 from src.footage_qa import QAResult, pick_best, qa_score
-from src.models import AssetManifest, GlobalContext, ManifestEntry, Storyboard
+from src.models import (
+    AWAITING_UPLOAD_STATUS,
+    AssetManifest,
+    GlobalContext,
+    ManifestEntry,
+    Storyboard,
+)
 from src.pexels import PexelsClient, _pick_best_video_file
 from src.pixabay_client import PixabayClient
 from src.wikimedia_client import WikimediaClient
@@ -228,6 +234,92 @@ def _asset_key(run_id: str, scene_id: str, is_video: bool, ext: str) -> str:
     return f"runs/{run_id}/{folder}/{scene_id}{ext}"
 
 
+def _asset_stem(entry: ManifestEntry) -> str:
+    """File-name stem for an entry's asset: its asset_slot when set, else its scene_id."""
+    return entry.asset_slot or entry.scene_id
+
+
+def asset_file_stem(file_key: str | None) -> str | None:
+    """Return the file-name stem of an R2 asset key (no folder, no extension)."""
+    if not file_key:
+        return None
+    return os.path.splitext(os.path.basename(file_key))[0]
+
+
+def assign_free_asset_slot(
+    entry: ManifestEntry,
+    taken_stems: set[str],
+    start_word: int | None = None,
+) -> None:
+    """Give an entry an asset_slot when its default file name is already in use.
+
+    Asset files are named after the scene id, and split / merge renumber scene ids
+    (P13-S2) while kept assets stay where they are — so the scene now called "4"
+    can still be using "5.jpg". Acquiring a new asset for scene "5" under that
+    name would silently replace the picture of scene "4". The scene's start_word
+    names it uniquely among the scenes of one storyboard.
+    """
+    if _asset_stem(entry) not in taken_stems:
+        return
+    slot = f"scene_w{start_word}" if start_word is not None else f"{entry.scene_id}_alt"
+    while slot in taken_stems:
+        slot += "x"
+    entry.asset_slot = slot
+
+
+def manifest_entry_for_scene(scene: Any) -> ManifestEntry:
+    """Build a fresh, not-yet-acquired manifest entry from a storyboard scene."""
+    return ManifestEntry(
+        scene_id=scene.scene,
+        clip_type=scene.clip_type,
+        segment_type=scene.segment_type,
+        primary_stk=scene.primary_stk,
+        context_stk=scene.context_stk,
+        concept_stk=scene.concept_stk,
+        person_name=scene.person_name,
+        person_title=scene.person_title,
+        duration_s=scene.duration_s,
+        historic=scene.historic,
+        asset_tier=scene.asset_tier,
+        semantic_context=scene.semantic_context,
+        asset_strategy=scene.asset_strategy,
+    )
+
+
+def entry_has_asset(entry: ManifestEntry | None) -> bool:
+    """True when the entry holds an acquired asset file."""
+    return bool(entry and entry.status == "acquired" and entry.file_key)
+
+
+_ACQUISITION_RESULT_FIELDS = (
+    "status", "source", "file_key", "attribution", "qa_passed", "qa_resolution_ok",
+    "qa_duration_ok", "qa_clip_score", "fallback_used", "duplicate_avoided", "asset_slot",
+)
+
+
+def _carry_over(entry: ManifestEntry, prior: ManifestEntry) -> None:
+    """Copy a previous acquisition result onto a freshly built entry, in place."""
+    for field in _ACQUISITION_RESULT_FIELDS:
+        setattr(entry, field, getattr(prior, field))
+
+
+def _wants_video(entry: ManifestEntry) -> bool:
+    """Whether a scene should be acquired as footage rather than a still.
+
+    An explicit asset_strategy (P13-S1) wins over everything. Without one the
+    asset_tier decides (P9-S9), then clip_type for manifests that predate tiers.
+    """
+    if entry.asset_strategy == "stock_video":
+        return True
+    if entry.asset_strategy == "stock_image":
+        return False
+    if entry.asset_tier == "video":
+        return True
+    if entry.asset_tier in ("still", "still_motion"):
+        return False
+    return entry.clip_type == "hard_cut"  # legacy fallback
+
+
 def _apply_fields(entry: ManifestEntry, candidate: "_Candidate", key: str, result: QAResult) -> None:
     """Write acquisition and QA fields onto a manifest entry in-place."""
     entry.source = candidate.source
@@ -419,7 +511,7 @@ async def _try_candidates(
             continue
         result = qa_score(candidate, entry, image_data=data)
         if result.passed:
-            key = _asset_key(run_id, entry.scene_id, is_video, candidate.ext)
+            key = _asset_key(run_id, _asset_stem(entry), is_video, candidate.ext)
             await storage.put_bytes(key, data, content_type=candidate.content_type)
             _apply_fields(entry, candidate, key, result)
             # Key stays reserved — it is now committed to this scene.
@@ -453,7 +545,7 @@ async def _accept_best(
     if collected:
         best = pick_best([(c, r) for c, _, r in collected])
         best_data, best_result = next((d, r) for c, d, r in collected if c is best)
-        key = _asset_key(run_id, entry.scene_id, is_video, best.ext)
+        key = _asset_key(run_id, _asset_stem(entry), is_video, best.ext)
         await storage.put_bytes(key, best_data, content_type=best.content_type)
         _apply_fields(entry, best, key, best_result)
         entry.qa_passed = False  # override — accepted best available, QA did not pass
@@ -468,7 +560,7 @@ async def _accept_best(
         best_by_res = max(all_seen, key=lambda c: c.resolution_score())
         try:
             data = await _download_bytes(best_by_res.url)
-            key = _asset_key(run_id, entry.scene_id, is_video, best_by_res.ext)
+            key = _asset_key(run_id, _asset_stem(entry), is_video, best_by_res.ext)
             await storage.put_bytes(key, data, content_type=best_by_res.content_type)
             entry.source = best_by_res.source
             entry.file_key = key
@@ -524,7 +616,7 @@ async def _acquire_character(
             try:
                 data = await _download_bytes(asset.url)
                 ext = _ext_from_url(asset.url)
-                key = _asset_key(run_id, entry.scene_id, is_video=False, ext=ext)
+                key = _asset_key(run_id, _asset_stem(entry), is_video=False, ext=ext)
                 await storage.put_bytes(key, data, content_type="image/jpeg")
                 entry.source = "wikimedia_person"
                 entry.file_key = key
@@ -717,14 +809,13 @@ async def _acquire_single_scene(
     dup_lock = asyncio.Lock()
 
     queries = [entry.primary_stk, entry.context_stk, entry.concept_stk]
-    if entry.asset_tier == "video":
-        is_video = True
-    elif entry.asset_tier in ("still", "still_motion"):
-        is_video = False
-    else:
-        is_video = entry.clip_type == "hard_cut"  # legacy fallback
+    is_video = _wants_video(entry)
 
-    if entry.segment_type == "Character" and entry.person_name:
+    if entry.asset_strategy == "stock_video":
+        # Operator asked for footage (P13-S1): the Character and Event routes are
+        # photo-only, so go straight to the stock video search.
+        ok = await _acquire_broll(entry, queries, True, run_id, storage, pexels, pixabay, used_source_urls, dup_lock)
+    elif entry.segment_type == "Character" and entry.person_name:
         ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
         if not ok:
             logger.warning(
@@ -773,20 +864,19 @@ async def _acquire_scene(
     resolution = resolve_entity(entry, global_context)
     queries = _build_treatment_queries(entry, scene_plan, global_context)
 
-    # Prefer asset_tier (P9-S9 timestamp-first) over clip_type for source selection.
-    if entry.asset_tier == "video":
-        is_video = True
-    elif entry.asset_tier in ("still", "still_motion"):
-        is_video = False
-    else:
-        is_video = entry.clip_type == "hard_cut"  # legacy fallback
+    # Explicit asset_strategy (P13-S1), else asset_tier (P9-S9), else clip_type.
+    is_video = _wants_video(entry)
 
     logger.debug(
         "scene=%s entity_type=%s preferred_sources=%s",
         entry.scene_id, resolution.entity_type, resolution.preferred_sources,
     )
 
-    if resolution.entity_type == "person":
+    if entry.asset_strategy == "stock_video":
+        # Operator asked for footage (P13-S1): the Character and Event routes are
+        # photo-only, so go straight to the stock video search.
+        ok = await _acquire_broll(entry, queries, True, run_id, storage, pexels, pixabay, used_source_urls, dup_lock)
+    elif resolution.entity_type == "person":
         ok = await _acquire_character(entry, queries, run_id, storage, pexels, pixabay, wikimedia, used_source_urls, dup_lock)
         if not ok:
             logger.warning(
@@ -821,6 +911,7 @@ async def _visual_dedup_pass(
     used_source_urls: set[str],
     dup_lock: asyncio.Lock,
     max_rerequeries: int = _MAX_DEDUP_REREQUERIES,
+    frozen_scene_ids: set[str] | None = None,
 ) -> None:
     """Re-acquire scenes where 3+ consecutive share the same primary visual concept.
 
@@ -828,7 +919,8 @@ async def _visual_dedup_pass(
     of consecutive scenes with matching concept substrings (case-insensitive). For each
     cluster scene beyond the first, attempts a requery using the next available
     visual_tag from semantic_context. Mutates entries in-place. Caps at
-    max_rerequeries to bound runtime.
+    max_rerequeries to bound runtime. Scenes in frozen_scene_ids (kept assets,
+    upload scenes — P13) are never requeried.
     """
     if len(entries) < _DEDUP_CLUSTER_THRESHOLD:
         return
@@ -855,6 +947,8 @@ async def _visual_dedup_pass(
             for k in range(i + 1, j):
                 if rerequeries >= max_rerequeries:
                     break
+                if frozen_scene_ids and entries[k].scene_id in frozen_scene_ids:
+                    continue
                 sc = entries[k].semantic_context
                 if not sc or not sc.visual_tags:
                     continue
@@ -903,7 +997,11 @@ def _compute_footage_summary(entries: list[ManifestEntry]) -> dict:
         "qa_failed_scenes": 0,
     }
     for entry in entries:
-        if entry.status != "acquired":
+        if entry.status == AWAITING_UPLOAD_STATUS:
+            # Key only present when there is something to report, so the summary
+            # of a run with no upload scenes is unchanged (P13-S1).
+            counts[AWAITING_UPLOAD_STATUS] = counts.get(AWAITING_UPLOAD_STATUS, 0) + 1
+        elif entry.status != "acquired":
             counts["failed"] += 1
         else:
             source = entry.source or "unknown"
@@ -931,6 +1029,28 @@ class AssetManifestArtifact(BaseModel):
     generated_at: datetime
 
 
+def build_manifest_artifact(
+    manifest: AssetManifest,
+    generated_at: datetime,
+    footage_summary: dict[str, Any] | None = None,
+) -> AssetManifestArtifact:
+    """Wrap a manifest in its artifact, with the acquired / failed counts.
+
+    Scenes awaiting an operator upload are neither acquired nor failed.
+    """
+    entries = manifest.entries
+    acquired = sum(1 for e in entries if e.status == "acquired")
+    awaiting = sum(1 for e in entries if e.status == AWAITING_UPLOAD_STATUS)
+    return AssetManifestArtifact(
+        scene_count=len(entries),
+        acquired=acquired,
+        failed=len(entries) - acquired - awaiting,
+        footage_summary=footage_summary if footage_summary is not None else _compute_footage_summary(entries),
+        manifest=manifest.model_dump(mode="json"),
+        generated_at=generated_at,
+    )
+
+
 # ── Worker factory ────────────────────────────────────────────────────────────
 
 
@@ -944,6 +1064,12 @@ def build_acquisition_worker(
     Reads state.artifacts['verified_storyboard']; routes each scene by segment_type;
     runs three-tier STK cascade with QA gate; writes asset_manifest artifact and a
     footage_summary.json side-car to R2. Emits a single AssetManifestArtifact.
+
+    P13: each scene's asset_strategy is obeyed — "upload" scenes are never fetched
+    (they keep an uploaded file from the previous manifest, or are reported as
+    awaiting upload). When state.artifacts carries the previous asset_manifest and
+    state.inputs["only_missing"] is true, scenes that already hold an asset keep it
+    and only the rest are fetched. With neither, behaviour is as before.
     """
 
     async def _worker(state: StageState) -> WorkerOutput:
@@ -978,22 +1104,43 @@ def build_acquisition_worker(
 
         # Build manifest entries from v2 storyboard scene fields
         global_context = storyboard.global_context
+        # Previous manifest (optional): source of kept assets and uploaded files.
+        prior: dict[str, ManifestEntry] = {}
+        prior_key = state.artifacts.get("asset_manifest")
+        if prior_key:
+            try:
+                _, prior_body = await read_artifact(storage, prior_key)
+                prior_manifest = AssetManifest.model_validate(prior_body["manifest"])
+                prior = {e.scene_id: e for e in prior_manifest.entries}
+            except Exception as exc:
+                logger.warning("AcquisitionWorker: previous asset_manifest not usable: %s", exc)
+        only_missing = bool(state.inputs.get("only_missing", False))
+
         entries: list[ManifestEntry] = []
-        for scene in storyboard.scenes:
-            entries.append(ManifestEntry(
-                scene_id=scene.scene,
-                clip_type=scene.clip_type,
-                segment_type=scene.segment_type,
-                primary_stk=scene.primary_stk,
-                context_stk=scene.context_stk,
-                concept_stk=scene.concept_stk,
-                person_name=scene.person_name,
-                person_title=scene.person_title,
-                duration_s=scene.duration_s,
-                historic=scene.historic,
-                asset_tier=scene.asset_tier,
-                semantic_context=scene.semantic_context,
-            ))
+        todo: list[tuple[int, ManifestEntry]] = []  # (storyboard position, entry) to fetch
+        for idx, scene in enumerate(storyboard.scenes):
+            entry = manifest_entry_for_scene(scene)
+            old = prior.get(entry.scene_id)
+            if entry.asset_strategy == "upload":
+                if entry_has_asset(old):
+                    _carry_over(entry, old)
+                else:
+                    entry.status = AWAITING_UPLOAD_STATUS
+            elif only_missing and entry_has_asset(old):
+                _carry_over(entry, old)
+            else:
+                todo.append((idx, entry))
+            entries.append(entry)
+
+        # A scene being fetched must not write over a file a kept scene still uses.
+        fetch_ids = {entry.scene_id for _, entry in todo}
+        kept_stems = {
+            stem for e in entries
+            if e.scene_id not in fetch_ids and (stem := asset_file_stem(e.file_key))
+        }
+        if kept_stems:
+            for idx, entry in todo:
+                assign_free_asset_slot(entry, kept_stems, storyboard.scenes[idx].start_word)
 
         # Build source clients
         pexels = PexelsClient(api_key=pexels_api_key)
@@ -1005,20 +1152,20 @@ def build_acquisition_worker(
         dup_lock = asyncio.Lock()
 
         # Acquire all scenes in parallel batches; capture unexpected exceptions per scene
-        for batch_start in range(0, len(entries), _BATCH_SIZE):
-            batch = entries[batch_start : batch_start + _BATCH_SIZE]
+        for batch_start in range(0, len(todo), _BATCH_SIZE):
+            batch = todo[batch_start : batch_start + _BATCH_SIZE]
             results = await asyncio.gather(
                 *[
                     _acquire_scene(
                         entry, run_id, storage, pexels, pixabay, wikimedia,
                         used_source_urls, dup_lock, global_context,
-                        scene_plan=scene_plans.get(batch_start + i),
+                        scene_plan=scene_plans.get(idx),
                     )
-                    for i, entry in enumerate(batch)
+                    for idx, entry in batch
                 ],
                 return_exceptions=True,
             )
-            for entry, result in zip(batch, results):
+            for (_, entry), result in zip(batch, results):
                 if isinstance(result, Exception):
                     logger.error("Unexpected error scene=%s: %s", entry.scene_id, result)
                     entry.status = "failed"
@@ -1027,6 +1174,7 @@ def build_acquisition_worker(
         await _visual_dedup_pass(
             entries, storyboard.scenes, run_id, storage,
             pexels, pixabay, wikimedia, used_source_urls, dup_lock,
+            frozen_scene_ids={e.scene_id for e in entries} - fetch_ids,
         )
 
         manifest = AssetManifest(run_id=run_id, entries=entries)
@@ -1040,17 +1188,7 @@ def build_acquisition_worker(
         except Exception as exc:
             logger.warning("Failed to write footage_summary side-car: %s", exc)
 
-        acquired = sum(1 for e in entries if e.status == "acquired")
-        failed = len(entries) - acquired
-
-        artifact = AssetManifestArtifact(
-            scene_count=len(entries),
-            acquired=acquired,
-            failed=failed,
-            footage_summary=footage_summary,
-            manifest=manifest.model_dump(mode="json"),
-            generated_at=datetime.now(UTC),
-        )
+        artifact = build_manifest_artifact(manifest, datetime.now(UTC), footage_summary)
         return WorkerOutput(artifact=artifact)
 
     return _worker

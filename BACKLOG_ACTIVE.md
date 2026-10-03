@@ -42,7 +42,7 @@ Second sprint of the Pipeline & Platform Update (D095, spec §10–15). The stor
 ## [P13-S1] Per-scene asset strategy — model, patch, acquisition
 **Epic:** E44 — Storyboard control
 **Sprint:** P13
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 4
 **Depends on:** —
@@ -73,14 +73,22 @@ Each scene carries an operator-editable asset strategy — stock image, stock vi
 - `DECISIONS.md` — D095, D081, D089
 
 ### Handover
-_filled on completion_
+- **Visual Director finding:** the Studio stage-by-stage flow does not run it. `build_visual_director_worker` is referenced only from `cf_platform/orchestrator/full_pipeline.py`; `POST /platform/workers/acquisition` never passes a `visual_treatment`. The asset strategy does not need it, so it was left unwired.
+- `src/models.py`: `AssetStrategy` Literal → `ASSET_STRATEGIES` (P14 adds `ai_image` there only), `effective_asset_strategy()`, `AWAITING_UPLOAD_STATUS`; `StoryboardScene.asset_strategy`; `ManifestEntry.asset_strategy` + `asset_slot`.
+- `storyboard_worker.apply_asset_strategy(scene, strategy)` realigns `asset_tier` / `clip_type` / `motion_effect`: video → `("video","hard_cut",None)`; image → still tier (floored to `still_motion`) with `normalize_motion_effect`; upload → untouched (the upload endpoint re-derives from the file, D089).
+- Scene PATCH accepts `asset_strategy` (422 on unknown). With a manifest present, `_sync_entry_with_strategy` releases an asset that no longer fits and the response lists `needs_acquisition` (D102). Storyboard GET adds `effective_asset_strategy` to every scene.
+- Acquisition: `_wants_video(entry)` replaces both tier branches; `stock_video` goes straight to the stock video search even on Character / Event scenes. The worker skips `upload` scenes (`awaiting_upload` in the manifest and, only when non-zero, in `footage_summary`), keeps an uploaded file through a full re-acquire, and with `inputs["only_missing"]` keeps every acquired entry. `build_manifest_artifact` is the one place that counts acquired / failed.
+- Render: `render_worker.missing_assets_message` — the endpoint returns 409 and the worker raises before any FFmpeg work. It checks for a file, not for `status == "acquired"` (a failed re-acquire keeps the old file).
+- The upload endpoint now starts a manifest from the storyboard when the run has none (needed for uploading at the gate).
+- Tests: `tests/cf_platform/test_p13_s1_asset_strategy.py` (57), helper `tests/cf_platform/p13_helpers.py`.
+- **Files that mattered:** `acquisition_worker.py` (worker loop, `_acquire_scene`, `_acquire_single_scene`), `studio.py` (patch, upload), `workers.py` (acquisition + render endpoints), `src/ffmpeg_builder.py` (`_scene_section` needs one entry with a file per scene).
 
 ---
 
 ## [P13-S2] Split and merge scenes
 **Epic:** E44 — Storyboard control
 **Sprint:** P13
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 4
 **Depends on:** —
@@ -111,14 +119,22 @@ The operator can split one scene into two at a word, and merge a scene with the 
 - `DECISIONS.md` — D095, D086
 
 ### Handover
-_filled on completion_
+- **The recompute helper (reused by S4):** `cf_platform/workers/storyboard_edit.py` — `replace_boundaries(storyboard, words, start_words, manifest, min_scene_s)` returns a `BoundaryEdit` (storyboard, realigned manifest or `None`, `dropped`, `needs_acquisition`). `split_scene` and `merge_scene` only build the new start-word list. Pure functions; rule and rationale in D102.
+- Timing comes from `_reify_scene`; kept scenes with an asset follow the file kind (`rederive_scene_visual_contract`), an untouched scene keeps every field, an explicit strategy is re-applied, everything else takes the duration-derived tier.
+- Routes: `POST …/storyboard/scenes/{id}/split {at_word}` (422 outside `start < at_word <= end` or below the minimum), `POST …/scenes/{id}/merge` (409 on the last scene), 404 unknown scene, 409 when the run has no voice alignment. The response carries the new storyboard, `dropped`, `needs_acquisition` (`null` before acquisition) and a one-line `summary`.
+- Words are loaded with `_normalize_deepgram_words` — the same list the StoryboardWorker indexes into.
+- Manifest: rewritten only when the run has one; always one entry per scene in scene order. `asset_slot` keeps a newly acquired file from overwriting a kept one after renumbering (worker, pencil re-acquire); uploads get a hash suffix (D102).
+- `STORYBOARD_MIN_SCENE_S` (default 1.0) in `PlatformSettings` and ENV.md; checked only on scenes whose span changed.
+- A storyboard without word indices (generated without voice timestamps) cannot be edited — 422 with a message to regenerate.
+- **Noticed, not changed:** `render_worker`'s "live start_word boundaries" block indexes the *raw* alignment words while scene indices refer to the *normalised* list (contraction tokens collapsed). Pre-existing; worth a look if scene cuts drift on scripts with many contractions.
+- Tests: `tests/cf_platform/test_p13_s2_split_merge.py` (32).
 
 ---
 
 ## [P13-S3] Storyboard stage — strategy dropdown, split / merge controls, confirm gate
 **Epic:** E44 — Storyboard control
 **Sprint:** P13
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P13-S1, P13-S2
@@ -146,14 +162,22 @@ The Storyboard table in Studio exposes the new controls, and acquisition starts 
 - `tests/cf_platform/test_p12_s2_pages.py` (pattern for static-page tests), `tests/cf_platform/test_pux2_s3_motion.py`
 
 ### Handover
-_filled on completion_
+- `src/static/studio-v2.html` only. The read-only image / video badge column is now the **Asset** dropdown (`.cf-select--sm` + `.cf-select--asset`); `onAssetChange` patches and reloads the table.
+- Split: every voiceover word after the first is a `.vo-word`; clicking opens the `#split-pop` popover ("Split here" / Cancel, closes on scroll and Escape). Merge: `⤵` under the pencil on every row but the last; `confirm()` first when the next scene has on-screen text or SFX.
+- `acquirePlan()` is the single source for the button: "Confirm storyboard & acquire →" until a stock asset exists, "Acquire N missing scene(s) →" (`only_missing: true`), else "Re-acquire All". Auto Advance still calls `acquireAssets` directly after storyboard generation, and no longer starts the render while an Upload scene awaits a file.
+- An Upload scene without a file shows an Upload control in its Preview cell (works before acquisition); other scenes without an asset show "needs asset" once a manifest exists; the summary shows "N need an asset".
+- `_applyManifestToTable` now rebuilds `state.manifestEntries` instead of merging (ids are renumbered by edits).
+- **Width at 1280px:** table 987px before and after, row heights identical (measured in the demo fixture). Asset and Motion selects are sized to their longest label to pay for the dropdown.
+- Demo mode (`?demo=1`) mocks strategy patch, split, merge and boundaries so the controls can be tried without a backend.
+- Verified in the browser preview (demo mode): split, acquire-missing, image → video (Motion becomes `—`), Upload control, merge with confirmation, no console errors beyond the demo's missing SFX library. **Not exercised locally:** real acquisition and upload — that is the DEV smoke test.
+- Tests: `tests/cf_platform/test_p13_s3_storyboard_stage.py` (20, shared with S4's UI).
 
 ---
 
 ## [P13-S4] Script view — edit scene boundaries as text
 **Epic:** E44 — Storyboard control
 **Sprint:** P13
-**Status:** planned
+**Status:** in-progress
 **Priority:** med
 **Points:** 3
 **Depends on:** P13-S2
@@ -178,7 +202,11 @@ A second view of the Storyboard stage shows the whole voiceover as text, with a 
 - `cf_platform/interfaces/routes/studio.py` — storyboard GET, voice GET (word list)
 
 ### Handover
-_filled on completion_
+- `PUT …/storyboard/boundaries` takes exactly one of `start_words` or `script_text`, plus `dry_run`. `script_text` is the Script view's text: `start_words_from_text` requires the words to equal the voiceover's in order (only paragraph breaks may differ), else 422 pointing to the Script stage.
+- Same `replace_boundaries` path as split / merge, so the keep / inherit / drop rules and manifest handling are identical (D102).
+- UI: Table / Script toggle in the Storyboard summary row (`state.sbView`). Script view is a textarea with one paragraph per scene; `onScriptViewInput` disables Apply when the words differ or nothing moved. Apply sends a dry run, shows its `summary` ("12 scenes → 14; 3 scenes need acquisition") in a confirm, then writes.
+- The Script view shows the normalised words (no punctuation) — those are the words the boundaries index.
+- Tests: `tests/cf_platform/test_p13_s4_boundaries.py` (25).
 
 ---
 

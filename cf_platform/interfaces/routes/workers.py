@@ -419,6 +419,8 @@ class AcquisitionWorkerRequest(BaseModel):
     """Request body for POST /platform/workers/acquisition."""
 
     run_id: str
+    # P13: fetch only the scenes that have no asset yet, keeping the rest.
+    only_missing: bool = False
 
 
 class AcquisitionWorkerResponse(BaseModel):
@@ -428,6 +430,8 @@ class AcquisitionWorkerResponse(BaseModel):
     footage_summary: dict
     acquired: int
     failed: int
+    # Scenes set to "upload" that have no file yet (P13-S1).
+    awaiting_upload: int = 0
 
 
 @router.post("/workers/acquisition", response_model=AcquisitionWorkerResponse)
@@ -443,8 +447,9 @@ async def acquisition_worker_endpoint(
     a QA gate, and persists the asset_manifest artifact to R2. The run must have a
     verified_storyboard artifact written by a prior /platform/workers/storyboard call.
 
-    Designed for future step-by-step manual UI and standalone testing; not wired into
-    Telegram in this story.
+    Each scene's asset_strategy is obeyed (P13-S1): "upload" scenes are skipped and
+    reported as awaiting upload. With only_missing, scenes that already hold an
+    asset in the latest manifest keep it and only the others are fetched.
     """
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
@@ -473,11 +478,15 @@ async def acquisition_worker_endpoint(
         pexels_api_key=settings.PEXELS_API_KEY,
         pixabay_api_key=settings.PIXABAY_API_KEY,
     )
+    artifacts: dict[str, str] = {"verified_storyboard": storyboard_key}
+    prior_manifest_key = await _latest_artifact_key(storage, body.run_id, "acquisition", "asset_manifest")
+    if prior_manifest_key:
+        artifacts["asset_manifest"] = prior_manifest_key
     state = StageState(
         run_id=body.run_id,
         user_id=PLATFORM_USER_ID,
-        inputs={},
-        artifacts={"verified_storyboard": storyboard_key},
+        inputs={"only_missing": body.only_missing},
+        artifacts=artifacts,
     )
     output = await worker(state)
     result_artifact = output.artifact
@@ -507,6 +516,7 @@ async def acquisition_worker_endpoint(
         footage_summary=result_artifact.footage_summary,
         acquired=result_artifact.acquired,
         failed=result_artifact.failed,
+        awaiting_upload=result_artifact.footage_summary.get("awaiting_upload", 0),
     )
 
 
@@ -624,6 +634,26 @@ async def render_worker_endpoint(
         "verified_storyboard": _latest_key(sb_keys),
         "asset_manifest": _latest_key(mf_keys),
     }
+
+    # Refuse up front, in words, when a scene has no asset (P13-S1) — an unfilled
+    # upload scene or the second half of a split. An unreadable artifact is left
+    # for the background task to report, as before.
+    try:
+        from cf_platform.core.artifact_manager import read_artifact
+        from cf_platform.workers.render_worker import missing_assets_message
+        from cf_platform.workers.storyboard_worker import _sanitize_storyboard_data
+        from src.models import AssetManifest, Storyboard
+
+        _, _sb_body = await read_artifact(storage, artifacts["verified_storyboard"])
+        _, _mf_body = await read_artifact(storage, artifacts["asset_manifest"])
+        blocked = missing_assets_message(
+            Storyboard.model_validate(_sanitize_storyboard_data(_sb_body["storyboard"])),
+            AssetManifest.model_validate(_mf_body["manifest"]),
+        )
+    except Exception:
+        blocked = None
+    if blocked:
+        raise HTTPException(status_code=409, detail=blocked)
 
     va_prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/voice/voice_alignment@v"
     va_keys = await storage.list_keys(va_prefix)

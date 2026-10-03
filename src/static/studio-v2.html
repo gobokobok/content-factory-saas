@@ -542,6 +542,41 @@
     .pencil-btn:hover:not(:disabled) { background: var(--accent-tint); color: var(--accent); }
     .pencil-btn:disabled { opacity: 0.25; cursor: not-allowed; }
 
+    /* ── Storyboard control (P13) ────────────────────────────────────── */
+    /* The Asset and Motion selects are sized to their longest label so the table
+       is no wider at 1280px than it was with the read-only image / video badge. */
+    .cf-select--asset  { min-width: 0; width: 90px; padding-left: 6px; padding-right: 17px; background-position: right 5px center; }
+    .cf-select--motion { min-width: 0; width: 90px; padding-right: 19px; background-position: right 6px center; }
+    /* ✎ and ⤵ stack inside the height the thumbnail already gives the row. */
+    .row-actions { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    /* Voiceover words are split targets: click one to split the scene there. */
+    .vo-word { cursor: pointer; border-radius: 2px; }
+    .vo-word:hover { background: var(--accent-tint); color: var(--accent); }
+    .vo-word.picked { background: var(--accent); color: #fff; }
+    .split-pop {
+      position: fixed; z-index: 150; display: none; gap: 4px; padding: 4px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm);
+      box-shadow: 0 4px 14px rgba(18,18,21,0.12);
+    }
+    .split-pop.open { display: flex; }
+    .thumb-needs { border-color: var(--red); color: var(--red); background: var(--red-tint); font-size: 9px; }
+    .row-upload {
+      width: 84px; height: 52px; border-radius: 4px; border: 1px dashed var(--accent);
+      color: var(--accent); background: var(--accent-tint); font-size: 10px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    .row-upload:hover { border-style: solid; }
+    .row-upload input { display: none; }
+    .sb-view-toggle { margin-left: auto; display: inline-flex; border: 1px solid var(--border); border-radius: var(--r-sm); overflow: hidden; }
+    .sb-view-btn {
+      border: none; background: var(--surface); color: var(--muted); font-family: var(--font);
+      font-size: 11.5px; font-weight: 500; padding: 5px 12px; cursor: pointer;
+    }
+    .sb-view-btn + .sb-view-btn { border-left: 1px solid var(--border); }
+    .sb-view-btn.active { background: var(--ink); color: #fff; }
+    .script-view-hint { font-size: 12px; color: var(--muted); margin-bottom: 10px; max-width: 720px; }
+    .script-view-msg.err { color: var(--red); }
+
     /* ── Modal ───────────────────────────────────────────────────────── */
     .modal-backdrop {
       position: fixed; inset: 0; background: rgba(18, 18, 21, 0.4);
@@ -856,7 +891,7 @@
       <div class="stage-pane" id="pane-storyboard">
         <div class="stage-content">
           <div class="stage-title">Storyboard</div>
-          <div class="stage-subtitle">Scene-by-scene plan. Click a query or on-screen text cell to edit; use ✎ to override an asset.</div>
+          <div class="stage-subtitle">Scene-by-scene plan. Pick each scene's asset type, click a word to split a scene there, ⤵ to merge it with the next. Nothing is acquired until you confirm the storyboard.</div>
           <div id="sb-error" class="error-bar" style="display:none;"></div>
         </div>
         <div class="stage-content wide" style="margin-top:0; padding-top:0;">
@@ -864,11 +899,17 @@
             <div class="muted" style="font-size:13px;">No storyboard yet — create one in the Script stage.</div>
           </div>
           <div class="stage-cta" id="sb-cta" style="display:none;">
-            <button class="btn btn-primary" id="acquire-btn" onclick="acquireAssets()">Acquire Assets →</button>
+            <button class="btn btn-primary" id="acquire-btn" onclick="acquireAssets()">Confirm storyboard &amp; acquire →</button>
             <button class="btn btn-primary" id="go-render-btn" onclick="activateStage('render')" style="display:none;">Go to Render →</button>
             <span id="sb-stage-status" class="running-msg"></span>
           </div>
         </div>
+      </div>
+
+      <!-- Split popover (P13-S3) — shown next to a clicked voiceover word -->
+      <div class="split-pop" id="split-pop">
+        <button class="btn btn-primary btn-sm" onclick="confirmSplit()">Split here</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeSplitPop()">Cancel</button>
       </div>
 
       <!-- Render stage -->
@@ -978,14 +1019,58 @@ const DEMO_SCENES = [
   { scene: "6", duration_s: 8.1, scene_start_ms: 33400, voiceover_line: "So the starter home didn't die of natural causes. It was regulated out of existence — one city council vote at a time.", segment_type: "Event",     asset_tier: "video", primary_stk: "empty lot suburban fence", motion_effect: null,          on_screen_text: "Regulated away" },
 ];
 
+// Demo word indices (P13) — so split, merge and the Script view work on the fixture.
+(function indexDemoWords() {
+  let pos = 0;
+  DEMO_SCENES.forEach((s, i) => {
+    const n = s.voiceover_line.split(' ').length;
+    s.start_word = pos; s.end_word = pos + n - 1; s._seed = `cf${i + 1}`;
+    pos += n;
+  });
+})();
+const DEMO_WORDS = DEMO_SCENES.flatMap(s => s.voiceover_line.split(' '));
+
 function demoManifest() {
-  return { entries: DEMO_SCENES.map((s, i) => ({
-    scene_id: s.scene, status: "acquired", qa_passed: true,
-    source: i % 3 === 0 ? "pexels" : i % 3 === 1 ? "wikimedia" : "pixabay",
-    asset_url: `https://picsum.photos/seed/cf${s.scene}/168/104`,
-    file_key: i % 3 === 0 ? `scene_${s.scene}.mp4` : `scene_${s.scene}.jpg`,
-    primary_stk: s.primary_stk,
-  })) };
+  return { entries: DEMO_SCENES.map((s, i) => s._noAsset
+    ? { scene_id: s.scene, status: s.asset_strategy === 'upload' ? 'awaiting_upload' : 'pending', primary_stk: s.primary_stk }
+    : {
+      scene_id: s.scene, status: "acquired", qa_passed: true,
+      source: s._uploaded ? "operator_upload" : i % 3 === 0 ? "pexels" : i % 3 === 1 ? "wikimedia" : "pixabay",
+      asset_url: `https://picsum.photos/seed/${s._seed}/168/104`,
+      file_key: s.asset_tier === 'video' ? `scene_${s._seed}.mp4` : `scene_${s._seed}.jpg`,
+      primary_stk: s.primary_stk,
+    }) };
+}
+
+// Mirrors cf_platform.workers.storyboard_edit.replace_boundaries closely enough to
+// exercise the UI: a scene whose start word is unchanged keeps its fields and
+// asset; a new one is cut from the scene that contained the word.
+function demoReplaceBoundaries(starts, dryRun) {
+  const msPerWord = 41500 / DEMO_WORDS.length;
+  const old = DEMO_SCENES.slice();
+  const next = starts.map((st, k) => {
+    const end = (k + 1 < starts.length ? starts[k + 1] : DEMO_WORDS.length) - 1;
+    const kept = old.find(o => o.start_word === st);
+    const src = kept || [...old].reverse().find(o => o.start_word <= st);
+    const dur = (end - st + 1) * msPerWord / 1000;
+    const base = kept ? { ...src } : {
+      segment_type: src.segment_type, primary_stk: src.primary_stk, asset_strategy: src.asset_strategy,
+      on_screen_text: null, asset_tier: dur >= 6 ? 'video' : 'still', motion_effect: dur >= 6 ? null : 'ken_burns',
+      _noAsset: true, _seed: `cut${st}`,
+    };
+    return { ...base, scene: String(k + 1), start_word: st, end_word: end, duration_s: dur,
+      scene_start_ms: Math.round(st * msPerWord), voiceover_line: DEMO_WORDS.slice(st, end + 1).join(' ') };
+  });
+  const dropped = old.filter(o => !starts.includes(o.start_word) && o.on_screen_text)
+    .map(o => ({ scene: o.scene, on_screen_text: o.on_screen_text, sfx: null }));
+  const needs = next.filter(n => n._noAsset).map(n => n.scene);
+  const summary = `${old.length} scenes → ${next.length}; ${needs.length} scene${needs.length === 1 ? '' : 's'} need${needs.length === 1 ? 's' : ''} acquisition`;
+  if (!dryRun) { DEMO_SCENES.length = 0; DEMO_SCENES.push(...next); }
+  return { ...(dryRun ? {} : demoStoryboard()), scene_count: next.length, scenes_before: old.length, dropped, needs_acquisition: needs, summary, dry_run: dryRun };
+}
+
+function demoStoryboard() {
+  return { storyboard: { scenes: DEMO_SCENES, summary: { total_duration_s: 41.5 }, global: { visual_style: 'documentary', aspect_ratio: '9:16' } } };
 }
 
 const DEMO_VOICE = { mp3_url: "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3", total_duration_s: 41.5, word_count: 118, alignment_method: "deepgram_nova2" };
@@ -1021,7 +1106,11 @@ function demoRoute(url, opts) {
     _demoSbPolls = (_demoSbPolls || 0) + 1;
     return demoResponse(_demoSbPolls >= 2 ? { status: 'complete', scene_count: 6 } : { status: 'running' }, 200, 250);
   }
-  if (u.includes('/platform/workers/acquisition')) return demoResponse({ acquired: 6, failed: 0 }, 200, 2600);
+  if (u.includes('/platform/workers/acquisition')) {
+    DEMO_SCENES.forEach(sc => { if (sc.asset_strategy !== 'upload') sc._noAsset = false; });
+    const awaiting = DEMO_SCENES.filter(sc => sc._noAsset).length;
+    return demoResponse({ acquired: DEMO_SCENES.length - awaiting, failed: 0, awaiting_upload: awaiting }, 200, 1800);
+  }
   if (u.includes('/platform/workers/render'))      { _demoRenderPolls = 0; return demoResponse({ queued: true }, 202, 400); }
   if (u.includes('/platform/workers/metadata'))    return demoResponse(DEMO_META, 200, 1600);
   if (u.includes('/render/status')) {
@@ -1034,13 +1123,49 @@ function demoRoute(url, opts) {
   }
   if (u.match(/\/scenes\/[^/]+\/upload/)) {
     const sid = u.match(/\/scenes\/([^/]+)\//)[1];
+    const up = DEMO_SCENES.find(sc => sc.scene === sid);
+    if (up) { up._noAsset = false; up._uploaded = true; up._seed = `up${sid}${Date.now() % 97}`; }
     return demoResponse({ preview_url: `https://picsum.photos/seed/up${sid}/168/104`, file_key: `scene_${sid}_upload.jpg` }, 200, 1200);
   }
-  if (method === 'PATCH' && u.includes('/storyboard/scenes/')) return demoResponse({ ok: true }, 200, 250);
+  if (u.match(/\/storyboard\/scenes\/[^/]+\/split$/)) {
+    const sid = u.match(/\/scenes\/([^/]+)\/split$/)[1];
+    const sc = DEMO_SCENES.find(x => x.scene === sid);
+    const at = JSON.parse(opts.body).at_word;
+    if (!sc || !(sc.start_word < at && at <= sc.end_word)) return demoResponse({ detail: 'demo: split point outside the scene' }, 422, 150);
+    return demoResponse(demoReplaceBoundaries([...DEMO_SCENES.map(x => x.start_word), at].sort((a, b) => a - b), false), 200, 300);
+  }
+  if (u.match(/\/storyboard\/scenes\/[^/]+\/merge$/)) {
+    const idx = DEMO_SCENES.findIndex(x => x.scene === u.match(/\/scenes\/([^/]+)\/merge$/)[1]);
+    if (idx < 0 || idx === DEMO_SCENES.length - 1) return demoResponse({ detail: 'demo: last scene cannot be merged' }, 409, 150);
+    return demoResponse(demoReplaceBoundaries(DEMO_SCENES.map(x => x.start_word).filter((_, i) => i !== idx + 1), false), 200, 300);
+  }
+  if (method === 'PUT' && u.endsWith('/storyboard/boundaries')) {
+    const body = JSON.parse(opts.body);
+    const paras = body.script_text.trim().split(/\n\s*\n/).map(x => x.trim().split(/\s+/).filter(Boolean)).filter(x => x.length);
+    if (paras.flat().join(' ') !== DEMO_WORDS.join(' ')) return demoResponse({ detail: 'demo: the words differ from the voiceover' }, 422, 150);
+    let pos = 0;
+    const starts = paras.map(x => { const at = pos; pos += x.length; return at; });
+    return demoResponse(demoReplaceBoundaries(starts, !!body.dry_run), 200, 300);
+  }
+  if (method === 'PATCH' && u.includes('/storyboard/scenes/')) {
+    const sc = DEMO_SCENES.find(x => x.scene === u.split('/').pop());
+    const body = JSON.parse(opts.body || '{}');
+    if (sc && body.asset_strategy) {
+      const wasVideo = sc.asset_tier === 'video';
+      sc.asset_strategy = body.asset_strategy;
+      if (body.asset_strategy === 'stock_video') { sc.asset_tier = 'video'; sc.motion_effect = null; }
+      if (body.asset_strategy === 'stock_image') { sc.asset_tier = 'still'; sc.motion_effect = sc.motion_effect || 'ken_burns'; }
+      if (body.asset_strategy === 'upload' ? !sc._uploaded : wasVideo !== (sc.asset_tier === 'video') || sc._uploaded) { sc._noAsset = true; sc._uploaded = false; }
+    } else if (sc) {
+      const { clear_on_screen_text, ...fields } = body;
+      Object.assign(sc, fields, clear_on_screen_text ? { on_screen_text: null } : {});
+    }
+    return demoResponse({ ok: true }, 200, 250);
+  }
   if (u.includes('/music'))       return demoResponse({ file_key: 'runs/demo/music/track.mp3' }, 200, 900);
   if (u.endsWith('/script'))      return demoResponse({ script: DEMO_SCRIPT }, 200, 250);
   if (u.endsWith('/voice'))       return demoResponse(DEMO_VOICE, 200, 250);
-  if (u.endsWith('/storyboard'))  return demoResponse({ storyboard: { scenes: DEMO_SCENES, summary: { total_duration_s: 41.5 }, global: { visual_style: 'documentary', aspect_ratio: '9:16' } } }, 200, 300);
+  if (u.endsWith('/storyboard'))  return demoResponse(demoStoryboard(), 200, 300);
   if (u.endsWith('/manifest'))    return demoResponse({ manifest: demoManifest() }, 200, 250);
   if (u.endsWith('/video'))       return demoResponse(DEMO_VIDEO, 200, 250);
   if (u.endsWith('/metadata'))    return demoResponse(DEMO_META, 200, 250);
@@ -1060,6 +1185,14 @@ const MOTION_EFFECTS = [
   { key: 'pan_right', label: 'Pan right →' },
   { key: 'pan_left',  label: '← Pan left' },
   { key: 'static',    label: 'Static' },
+];
+
+// Asset strategy vocabulary (D095, P13-S1). Mirrors src.models.ASSET_STRATEGIES —
+// that tuple is the source of truth and the patch endpoint validates against it.
+const ASSET_STRATEGIES = [
+  { key: 'stock_image', label: 'Stock image' },
+  { key: 'stock_video', label: 'Stock video' },
+  { key: 'upload',      label: 'Upload' },
 ];
 
 const STAGES = ['settings', 'script', 'voice', 'storyboard', 'render', 'metadata'];
@@ -1087,6 +1220,8 @@ let state = {
   settings: defaultSettings(),
   autoConfirm: false,
   manifestEntries: {},
+  sbView: 'table',   // P13-S4 — 'table' | 'script'
+  acquiring: false,  // P13-S3 — true while an acquisition request is in flight
   sfxLibrary: [],  // D076 — [{key, display_name}], fetched once in loadRun()
   project: null,     // P12 — the run's project, from /platform/studio/runs/{id}/context
   runContext: null,  // P12 — { items, idea_title, supporting_points } the run was created from
@@ -2097,10 +2232,27 @@ function resetStoryboardPane() {
   hideErr('sb-error');
 }
 
+function sbScenes() {
+  return state.stageData.storyboard?.storyboard?.scenes || [];
+}
+
+// The storyboard GET supplies effective_asset_strategy; the fallback only covers
+// data that never went through it.
+function effStrategy(s) {
+  if (s.effective_asset_strategy) return s.effective_asset_strategy;
+  if (s.asset_strategy) return s.asset_strategy;
+  if (s.asset_tier) return s.asset_tier === 'video' ? 'stock_video' : 'stock_image';
+  return s.clip_type === 'hard_cut' ? 'stock_video' : 'stock_image';
+}
+
+function sceneHasAsset(sceneId) {
+  const e = state.manifestEntries[String(sceneId)];
+  return !!(e && e.status === 'acquired' && e.file_key);
+}
+
 function renderStoryboard(data) {
   const scenes = data?.storyboard?.scenes || [];
   const summary = data?.storyboard?.summary || {};
-  const global_ = data?.storyboard?.global || {};
 
   // Prefer actual VO duration over storyboard word-span sum (which omits inter-scene silences).
   const totalDur = state.stageData.voice?.total_duration_s || summary.total_duration_s || 0;
@@ -2108,14 +2260,22 @@ function renderStoryboard(data) {
     ? `${Math.floor(totalDur/60)}m ${(totalDur%60).toFixed(1)}s`
     : `${totalDur.toFixed(1)}s`;
 
+  closeSplitPop();
+  const script = state.sbView === 'script';
   const container = document.getElementById('sb-content');
   container.innerHTML = `
     <div class="sb-summary">
       <div class="sb-stat"><strong>${scenes.length}</strong> scenes</div>
       <div class="sb-stat"><strong>${durStr}</strong> total</div>
       <div class="sb-stat"><strong id="sb-stat-acq">0</strong> / ${scenes.length} acquired</div>
+      <div class="sb-stat" id="sb-stat-need-wrap" style="display:none;"><strong id="sb-stat-need">0</strong> need an asset</div>
       <div class="sb-stat" id="sb-stat-fail-wrap" style="display:none;"><strong id="sb-stat-fail">0</strong> failed</div>
+      <div class="sb-view-toggle">
+        <button class="sb-view-btn${script ? '' : ' active'}" id="sb-view-table" onclick="setSbView('table')">Table</button>
+        <button class="sb-view-btn${script ? ' active' : ''}" id="sb-view-script" onclick="setSbView('script')">Script</button>
+      </div>
     </div>
+    ${script ? buildScriptView(scenes) : `
     <div class="tbl-wrap">
       <table>
         <thead>
@@ -2125,7 +2285,7 @@ function renderStoryboard(data) {
             <th>Dur</th>
             <th>Voiceover</th>
             <th>Type</th>
-            <th>Visual</th>
+            <th>Asset</th>
             <th>Query</th>
             <th>Motion</th>
             <th>On-Screen Text</th>
@@ -2138,11 +2298,59 @@ function renderStoryboard(data) {
           ${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1], totalDur)).join('')}
         </tbody>
       </table>
-    </div>`;
+    </div>`}`;
 
   document.getElementById('sb-cta').style.display = '';
-  document.getElementById('acquire-btn').disabled = false;
+  updateAcquisitionUi();
+  if (script) onScriptViewInput();
   hideErr('sb-error');
+}
+
+function setSbView(view) {
+  state.sbView = view;
+  if (state.stageData.storyboard) renderStoryboard(state.stageData.storyboard);
+}
+
+// One place decides the summary counts and what the acquire button says and does
+// (P13-S3). Before anything was fetched it is the storyboard gate; afterwards it
+// fetches only the scenes that still need an asset, or everything again.
+function acquirePlan() {
+  const scenes = sbScenes();
+  const stockAcquired = scenes.some(s => sceneHasAsset(s.scene) && state.manifestEntries[String(s.scene)].source !== 'operator_upload');
+  const missing = scenes.filter(s => !sceneHasAsset(s.scene) && effStrategy(s) !== 'upload');
+  const awaiting = scenes.filter(s => !sceneHasAsset(s.scene) && effStrategy(s) === 'upload');
+  if (!stockAcquired) return { label: 'Confirm storyboard & acquire →', onlyMissing: true, missing, awaiting, stockAcquired };
+  if (missing.length) {
+    return { label: `Acquire ${missing.length} missing scene${missing.length === 1 ? '' : 's'} →`, onlyMissing: true, missing, awaiting, stockAcquired };
+  }
+  return { label: 'Re-acquire All', onlyMissing: false, missing, awaiting, stockAcquired };
+}
+
+function updateAcquisitionUi() {
+  const scenes = sbScenes();
+  const plan = acquirePlan();
+  const entries = Object.values(state.manifestEntries);
+  const acquired = scenes.filter(s => sceneHasAsset(s.scene)).length;
+  const failed = entries.filter(e => e.status === 'failed' || e.status === 'error').length;
+  // "Need an asset" only means something once acquisition has run.
+  const need = plan.stockAcquired ? plan.missing.length + plan.awaiting.length : plan.awaiting.length;
+
+  const set = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+  const show = (id, on) => { const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; };
+  set('sb-stat-acq', acquired);
+  set('sb-stat-fail', failed);
+  show('sb-stat-fail-wrap', failed > 0);
+  set('sb-stat-need', need);
+  show('sb-stat-need-wrap', need > 0);
+
+  const renderBtn = document.getElementById('render-btn');
+  if (renderBtn && acquired > 0) renderBtn.disabled = false;
+
+  if (state.acquiring) return;  // the running request owns the button until it returns
+  const btn = document.getElementById('acquire-btn');
+  if (btn) { btn.textContent = plan.label; btn.disabled = scenes.length === 0; }
+  const go = document.getElementById('go-render-btn');
+  if (go) go.style.display = plan.stockAcquired ? '' : 'none';
 }
 
 function buildSceneRow(s, nextScene, totalDur) {
@@ -2167,21 +2375,30 @@ function buildSceneRow(s, nextScene, totalDur) {
       : (s.scene_end_ms != null ? (s.scene_end_ms - s.scene_start_ms) / 1000 : displayDur);
   }
 
-  // Visual badge from asset_tier (P9-S9) or clip_type fallback
-  let visCls = 'vis-image', visLabel = 'image';
-  if (s.asset_tier === 'still') { visCls = 'vis-image'; visLabel = 'image'; }
-  else if (s.asset_tier === 'video') { visCls = 'vis-video'; visLabel = 'video'; }
-  else if (!s.asset_tier) {
-    if (s.clip_type === 'hard_cut') { visCls = 'vis-video'; visLabel = 'video'; }
-    else { visCls = 'vis-image'; visLabel = 'image'; }
-  }
+  // Asset strategy (P13-S1) — replaces the read-only image / video badge: the
+  // dropdown shows the effective strategy and changing it patches the scene.
+  const strategy = effStrategy(s);
+  const assetCell = `<select class="cf-select cf-select--sm cf-select--asset" id="asset-${sceneId}" onchange="onAssetChange('${sceneId}')" title="Asset type for this scene">
+      ${ASSET_STRATEGIES.map(o => `<option value="${o.key}"${strategy === o.key ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}
+    </select>`;
+
+  // Voiceover words are split targets (P13-S3). The text itself is read-only.
+  const canEditBoundaries = s.start_word != null && s.end_word != null;
+  const voCell = canEditBoundaries
+    ? (s.voiceover_line || '').split(' ').map((w, j) => j === 0
+        ? esc(w)
+        : `<span class="vo-word" onclick="openSplitPop(event, '${sceneId}', ${s.start_word + j})" title="Split the scene before this word">${esc(w)}</span>`).join(' ')
+    : esc(s.voiceover_line || '');
+  const mergeBtn = (nextScene && canEditBoundaries)
+    ? `<button class="pencil-btn" id="merge-btn-${sceneId}" onclick="mergeScene('${sceneId}')" title="Merge with next scene">⤵</button>`
+    : '';
 
   // Motion applies to stills only — video clips are trimmed and centre-cropped with
   // no zoom/pan, so show a disabled dash rather than a control that does nothing.
   const isVideoScene = s.asset_tier === 'video' || (!s.asset_tier && s.clip_type === 'hard_cut');
   const motionCell = isVideoScene
     ? '<span class="muted" title="Motion effects apply to still images only">—</span>'
-    : `<select class="cf-select cf-select--sm" id="motion-${sceneId}" onchange="onMotionChange('${sceneId}')" title="Motion effect for this scene">
+    : `<select class="cf-select cf-select--sm cf-select--motion" id="motion-${sceneId}" onchange="onMotionChange('${sceneId}')" title="Motion effect for this scene">
         ${MOTION_EFFECTS.map(o => `<option value="${esc(o.key)}"${s.motion_effect === o.key ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}
         ${(s.motion_effect && !MOTION_EFFECTS.some(o => o.key === s.motion_effect))
           ? `<option value="${esc(s.motion_effect)}" selected>${esc(s.motion_effect)} (legacy)</option>` : ''}
@@ -2197,11 +2414,11 @@ function buildSceneRow(s, nextScene, totalDur) {
     <td class="mono narrow">${sceneId}</td>
     <td class="mono narrow" style="color:var(--muted);">${fmtMs(s.scene_start_ms)}</td>
     <td class="mono narrow">${displayDur.toFixed(1)}s</td>
-    <td class="wrap" style="max-width:220px;font-size:11px;color:var(--ink-sub);">${esc(s.voiceover_line || '')}</td>
+    <td class="wrap" style="max-width:220px;font-size:11px;color:var(--ink-sub);">${voCell}</td>
     <td class="narrow"><span class="seg-badge ${segCls}">${esc(s.segment_type || 'B-roll')}</span></td>
-    <td class="narrow"><span class="vis-badge ${visCls}">${visLabel}</span></td>
+    <td class="narrow" style="padding:4px 2px;">${assetCell}</td>
     <td class="editable-cell" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Click to edit" style="font-size:11px;max-width:180px;">${esc(s.primary_stk || '—')}</td>
-    <td class="narrow" style="padding:4px 6px;">${motionCell}</td>
+    <td class="narrow" style="padding:4px 4px;">${motionCell}</td>
     <td class="editable-cell" id="ost-${sceneId}" onclick="editOst(this, '${sceneId}')" title="Click to edit">${ostDisplay}</td>
     <td class="narrow" style="padding:4px 6px;">
       <select class="cf-select cf-select--sm" id="sfx-${sceneId}" onchange="onSfxChange('${sceneId}')" title="Sound effect for this scene">
@@ -2212,7 +2429,7 @@ function buildSceneRow(s, nextScene, totalDur) {
       </select>
     </td>
     <td class="narrow" id="thumb-cell-${sceneId}" style="padding:4px 6px;">${buildThumbCell(sceneId)}</td>
-    <td class="narrow" style="padding:4px 2px;"><button class="pencil-btn" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" disabled title="Override asset">✎</button></td>
+    <td class="narrow" style="padding:4px 2px;"><div class="row-actions"><button class="pencil-btn" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')"${state.manifestEntries[String(s.scene)] ? '' : ' disabled'} title="Override asset">✎</button>${mergeBtn}</div></td>
   </tr>`;
 }
 
@@ -2267,6 +2484,193 @@ async function onSfxChange(sceneId) {
   await patchScene(sceneId, { sfx: sel.value });
 }
 
+// ── Storyboard control (P13) ──────────────────────────────────────────────
+function sbUrl(path) {
+  return `/platform/studio/runs/${state.runId}/storyboard${path}`;
+}
+
+async function refreshManifest() {
+  let data = null;
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/manifest`);
+    if (r.ok) data = await r.json();
+  } catch { /* no manifest yet */ }
+  _applyManifestToTable(data || { entries: [] });
+}
+
+// Re-render the Storyboard stage from a storyboard body (a GET, or the response of
+// a split / merge / boundaries call) and realign the thumbnails: scene ids are
+// renumbered by those edits, so the manifest is always read again.
+async function applyStoryboardResponse(data) {
+  state.stageData.storyboard = data;
+  state.manifestEntries = {};
+  renderStoryboard(data);
+  await refreshManifest();
+}
+
+async function reloadStoryboard() {
+  const r = await fetch(sbUrl(''));
+  if (r.ok) await applyStoryboardResponse(await r.json());
+}
+
+async function onAssetChange(sceneId) {
+  const el = document.getElementById(`asset-${sceneId}`);
+  if (!el) return;
+  await patchScene(sceneId, { asset_strategy: el.value });
+  // The row follows: Motion is a dropdown for stills and a dash for video, and a
+  // scene whose asset no longer fits is marked as needing one.
+  await reloadStoryboard();
+}
+
+let _split = null;  // { sceneId, atWord, el }
+function openSplitPop(event, sceneId, atWord) {
+  closeSplitPop();
+  const el = event.currentTarget;
+  el.classList.add('picked');
+  _split = { sceneId, atWord, el };
+  const pop = document.getElementById('split-pop');
+  const rect = el.getBoundingClientRect();
+  pop.style.left = `${Math.min(rect.left, window.innerWidth - 190)}px`;
+  pop.style.top = `${rect.bottom + 4}px`;
+  pop.classList.add('open');
+}
+
+// The popover is pinned to the viewport, so it must not outlive a scroll.
+window.addEventListener('scroll', () => { if (_split) closeSplitPop(); }, true);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && _split) closeSplitPop(); });
+
+function closeSplitPop() {
+  if (_split?.el) _split.el.classList.remove('picked');
+  _split = null;
+  document.getElementById('split-pop')?.classList.remove('open');
+}
+
+async function boundaryCall(path, method, body) {
+  hideErr('sb-error');
+  try {
+    const r = await fetch(sbUrl(path), {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { showErr('sb-error', data.detail || `Error ${r.status}`); return null; }
+    return data;
+  } catch (e) {
+    showErr('sb-error', `Network error: ${e.message}`);
+    return null;
+  }
+}
+
+async function confirmSplit() {
+  if (!_split) return;
+  const { sceneId, atWord } = _split;
+  closeSplitPop();
+  const data = await boundaryCall(`/scenes/${sceneId}/split`, 'POST', { at_word: atWord });
+  if (data) await applyStoryboardResponse(data);
+}
+
+function hasSfx(s) {
+  return !!s.sfx && s.sfx.toLowerCase() !== 'silence';
+}
+
+async function mergeScene(sceneId) {
+  const scenes = sbScenes();
+  const next = scenes[scenes.findIndex(s => String(s.scene) === String(sceneId)) + 1];
+  if (!next) return;
+  // The first scene's fields win — say so before the second scene's text or SFX is lost.
+  const lost = [next.on_screen_text ? `on-screen text “${next.on_screen_text}”` : '', hasSfx(next) ? `SFX “${next.sfx}”` : ''].filter(Boolean);
+  if (lost.length && !confirm(`Merging drops scene ${next.scene}'s ${lost.join(' and ')}. Merge anyway?`)) return;
+  const data = await boundaryCall(`/scenes/${sceneId}/merge`, 'POST');
+  if (data) await applyStoryboardResponse(data);
+}
+
+async function uploadSceneFile(sceneId, input) {
+  const file = input.files?.[0];
+  if (!file || !state.runId) return;
+  const allowed = ['video/mp4','video/webm','image/jpeg','image/png','image/webp'];
+  if (!allowed.includes(file.type)) { showErr('sb-error', `Unsupported type: ${file.type}. Allowed: MP4, WebM, JPG, PNG, WebP.`); return; }
+  if (file.size > 200 * 1024 * 1024) { showErr('sb-error', `File too large (${Math.round(file.size / 1024 / 1024)} MB). Max 200 MB.`); return; }
+  const label = input.closest('.row-upload');
+  if (label) label.firstChild.textContent = 'Uploading…';
+  const formData = new FormData();
+  formData.append('file', file);
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/scenes/${sceneId}/upload`, { method: 'POST', body: formData });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      showErr('sb-error', e.detail || `Upload error ${r.status}`);
+    } else {
+      hideErr('sb-error');
+    }
+  } catch (e) {
+    showErr('sb-error', `Network error: ${e.message}`);
+  }
+  // An uploaded video turns a still scene into a video scene (D089) — reload both.
+  await reloadStoryboard();
+}
+
+// ── Script view (P13-S4) ──────────────────────────────────────────────────
+function scriptViewText(scenes) {
+  return scenes.map(s => s.voiceover_line || '').join('\n\n');
+}
+
+function buildScriptView(scenes) {
+  if (scenes.some(s => s.start_word == null)) {
+    return `<div class="muted" style="font-size:13px;">This storyboard has no word boundaries — regenerate it after the Voice stage to edit scenes as text.</div>`;
+  }
+  return `
+    <div class="script-view">
+      <div class="script-view-hint">One paragraph per scene. Move the blank lines to move the scene boundaries, then apply. The words themselves cannot be changed here.</div>
+      <textarea class="script-textarea" id="sb-script-text" rows="${Math.min(30, Math.max(12, scenes.length * 3))}" spellcheck="false" oninput="onScriptViewInput()">${esc(scriptViewText(scenes))}</textarea>
+      <div class="stage-cta" style="margin-top:12px;">
+        <button class="btn btn-secondary btn-sm" id="sb-script-apply" onclick="applyScriptView()" disabled>Apply boundaries</button>
+        <button class="btn btn-ghost btn-sm" onclick="setSbView('script')">Reset</button>
+        <span class="running-msg script-view-msg" id="sb-script-msg"></span>
+      </div>
+    </div>`;
+}
+
+function scriptViewParagraphs(text) {
+  return text.trim().split(/\n\s*\n/).map(p => p.trim().split(/\s+/).filter(Boolean)).filter(p => p.length);
+}
+
+function onScriptViewInput() {
+  const ta = document.getElementById('sb-script-text');
+  const btn = document.getElementById('sb-script-apply');
+  const msg = document.getElementById('sb-script-msg');
+  if (!ta || !btn || !msg) return;
+  const scenes = sbScenes();
+  const typed = scriptViewParagraphs(ta.value);
+  const spoken = scenes.flatMap(s => (s.voiceover_line || '').split(/\s+/).filter(Boolean));
+  const wordsChanged = typed.flat().join(' ') !== spoken.join(' ');
+  let pos = 0;
+  const starts = typed.map(p => { const at = pos; pos += p.length; return at; });
+  const unchanged = starts.join(',') === scenes.map(s => s.start_word).join(',');
+
+  msg.classList.toggle('err', wordsChanged);
+  if (wordsChanged) {
+    msg.textContent = 'The words differ from the voiceover. Change the text in the Script stage — it forces re-voicing.';
+  } else if (unchanged) {
+    msg.textContent = `${scenes.length} scenes — no boundary changes`;
+  } else {
+    msg.textContent = `${scenes.length} scenes → ${typed.length}`;
+  }
+  btn.disabled = wordsChanged || unchanged;
+}
+
+async function applyScriptView() {
+  const ta = document.getElementById('sb-script-text');
+  if (!ta) return;
+  const body = { script_text: ta.value };
+  // Ask the server what would change first, and show it before anything is written.
+  const preview = await boundaryCall('/boundaries', 'PUT', { ...body, dry_run: true });
+  if (!preview) return;
+  if (!confirm(`${preview.summary}.\n\nApply these scene boundaries?`)) return;
+  const data = await boundaryCall('/boundaries', 'PUT', body);
+  if (data) await applyStoryboardResponse(data);
+}
+
 // Inline editing — primary stock query
 let _editingStk = null;
 function editPrimaryStk(cell, sceneId) {
@@ -2316,6 +2720,15 @@ async function patchScene(sceneId, fields) {
 function buildThumbCell(sceneId) {
   const entry = state.manifestEntries[String(sceneId)];
   if (!entry || !entry.asset_url) {
+    const scene = sbScenes().find(s => String(s.scene) === String(sceneId));
+    // An Upload scene is filled from its row, before or after acquisition (P13-S3).
+    if (scene && effStrategy(scene) === 'upload') {
+      return `<label class="row-upload" id="thumb-${esc(sceneId)}" title="Upload an image or video for this scene">Upload<input type="file" accept="video/mp4,video/webm,image/jpeg,image/png,image/webp" onchange="uploadSceneFile('${esc(sceneId)}', this)"></label>`;
+    }
+    // Once the run has a manifest, a scene without an asset is one that needs acquiring.
+    if (Object.keys(state.manifestEntries).length) {
+      return `<div class="thumb-placeholder thumb-needs" id="thumb-${esc(sceneId)}" title="This scene has no asset yet">needs asset</div>`;
+    }
     return `<div class="thumb-placeholder" id="thumb-${esc(sceneId)}">—</div>`;
   }
   const isVideo = entry.file_key && /\.(mp4|webm|mov)$/i.test(entry.file_key);
@@ -2335,28 +2748,19 @@ function buildThumbCell(sceneId) {
 
 function _applyManifestToTable(data) {
   const entries = data?.manifest?.entries || data?.entries || [];
-  // Index entries by scene_id
+  // The manifest is always the whole picture: rebuild the index rather than merge,
+  // because split / merge renumber scene ids (P13-S2).
+  state.manifestEntries = {};
   entries.forEach(e => { state.manifestEntries[String(e.scene_id)] = e; });
-  // Update each thumb cell and enable pencil buttons
-  entries.forEach(e => {
-    const sid = String(e.scene_id);
+  // Every row, not only rows with an entry: a scene without one shows "needs asset".
+  sbScenes().forEach(s => {
+    const sid = String(s.scene);
     const thumbCell = document.getElementById(`thumb-cell-${sid}`);
     if (thumbCell) thumbCell.innerHTML = buildThumbCell(sid);
     const pencilBtn = document.getElementById(`pencil-btn-${sid}`);
-    if (pencilBtn) pencilBtn.disabled = false;
+    if (pencilBtn) pencilBtn.disabled = !state.manifestEntries[sid];
   });
-  // Update acquired/failed summary stats
-  const acquired = entries.filter(e => e.status === 'acquired').length;
-  const failed = entries.filter(e => e.status === 'failed' || e.status === 'error').length;
-  const acqEl = document.getElementById('sb-stat-acq');
-  if (acqEl) acqEl.textContent = acquired;
-  const failEl = document.getElementById('sb-stat-fail');
-  if (failEl) failEl.textContent = failed;
-  const failWrap = document.getElementById('sb-stat-fail-wrap');
-  if (failWrap) failWrap.style.display = failed > 0 ? '' : 'none';
-  // Enable render button once at least one asset is acquired
-  const renderBtn = document.getElementById('render-btn');
-  if (renderBtn && acquired > 0) renderBtn.disabled = false;
+  updateAcquisitionUi();
 }
 
 async function acquireAssets() {
@@ -2365,6 +2769,8 @@ async function acquireAssets() {
   const acquireBtn = document.getElementById('acquire-btn');
   const goRenderBtn = document.getElementById('go-render-btn');
   const statusEl = document.getElementById('sb-stage-status');
+  const plan = acquirePlan();
+  state.acquiring = true;
   acquireBtn.disabled = true;
   acquireBtn.textContent = 'Acquiring… (0 / ?)';
   goRenderBtn.style.display = 'none';
@@ -2391,39 +2797,34 @@ async function acquireAssets() {
     const r = await fetch('/platform/workers/acquisition', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ run_id: state.runId }),
+      body: JSON.stringify({ run_id: state.runId, only_missing: plan.onlyMissing }),
     });
     clearInterval(pollId);
+    state.acquiring = false;
 
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
       showErr('sb-error', err.detail || `Acquisition error ${r.status}`);
-      acquireBtn.disabled = false;
-      acquireBtn.textContent = 'Acquire Assets →';
+      updateAcquisitionUi();
       renderStageTrack();
       return;
     }
     const meta = await r.json();
 
-    // Final manifest load
-    const mR = await fetch(`/platform/studio/runs/${state.runId}/manifest`);
-    if (mR.ok) {
-      const mData = await mR.json();
-      _applyManifestToTable(mData);
-    }
+    // Final manifest load — also sets the button for what is left to do.
+    await refreshManifest();
 
-    acquireBtn.textContent = 'Re-acquire All';
-    acquireBtn.disabled = false;
-    goRenderBtn.style.display = '';
-    statusEl.textContent = `✓ ${meta.acquired} acquired, ${meta.failed} failed (${elapsed(start)})`;
+    const awaiting = meta.awaiting_upload ? `, ${meta.awaiting_upload} awaiting upload` : '';
+    statusEl.textContent = `✓ ${meta.acquired} acquired, ${meta.failed} failed${awaiting} (${elapsed(start)})`;
     renderStageTrack();
 
-    if (state.autoConfirm) setTimeout(renderVideo, 200);
+    // Auto Advance stops here while an Upload scene has no file — the render would be refused.
+    if (state.autoConfirm && !meta.awaiting_upload) setTimeout(renderVideo, 200);
   } catch (e) {
     clearInterval(pollId);
+    state.acquiring = false;
     showErr('sb-error', `Network error: ${e.message}`);
-    acquireBtn.disabled = false;
-    acquireBtn.textContent = 'Acquire Assets →';
+    updateAcquisitionUi();
     renderStageTrack();
   }
 }

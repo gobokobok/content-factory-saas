@@ -66,6 +66,10 @@ class PlatformSettings(BaseSettings):
     # -threads cap per concurrent per-scene libx264 encoder (D090). Same ENV var
     # name and default as src/config.py's Settings.FFMPEG_SCENE_THREADS.
     FFMPEG_SCENE_THREADS: int = 2
+    # Shortest scene the operator may create by splitting or moving a boundary
+    # in Studio (P13-S2 / P13-S4). Scenes the storyboard generator produced are
+    # not checked against it.
+    STORYBOARD_MIN_SCENE_S: float = 1.0
 
 
 def get_platform_settings() -> PlatformSettings:

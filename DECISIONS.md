@@ -5,6 +5,19 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D102 — Storyboard edits: one boundary rule, assets released on a strategy change, file names that survive renumbering
+**Date:** 2026-10-03
+**Status:** ACTIVE
+**Decision:** (1) Split, merge and the Script view are all expressed as a new list of scene start words and go through one function, `replace_boundaries` (`cf_platform/workers/storyboard_edit.py`). A scene whose start word is unchanged is the same scene and keeps its fields and asset; a scene starting at a new word is cut from the scene that contained it, inherits the visual fields, and has no on-screen text, SFX or asset; a scene whose start word disappears is merged away and its text, SFX and manifest entry are dropped. (2) Changing a scene's `asset_strategy` after acquisition releases an asset that no longer fits (still ↔ video, stock ↔ upload) so the scene is acquired again. (3) `POST /platform/workers/acquisition` takes `only_missing`; with it, scenes that hold an asset keep it. An `upload` scene is never fetched and keeps its uploaded file through a full re-acquire. (4) `ManifestEntry.asset_slot` names a scene's file when its scene id is already used by another scene's kept file.
+**Rationale for (4):** asset files are named after the scene id, and split / merge renumber ids while kept assets stay where they are — the scene now called "4" can still be using `5.jpg`. Acquiring for the new scene "5" under that name would silently replace scene 4's picture. The slot is `scene_w{start_word}`, unique within one storyboard. Operator uploads get a content-hash suffix in the same situation.
+**Rejected:** copying kept files to match the new ids on every edit (one R2 read + write per scene per edit, and its own ordering collisions); separate split / merge / boundaries implementations (three recompute paths to keep in step).
+**Also decided:** a newly cut Character scene keeps `segment_type` but not `person_name` — `_apply_patches_and_render_options` turns the name into on-screen text, and a cut scene starts with none. The minimum scene length for an edit is `STORYBOARD_MIN_SCENE_S` (default 1.0s) and is checked only on scenes whose span changed. Render is refused up front (409) while any scene has no file.
+**No new dependency.**
+**Implemented by:** P13-S1..S4.
+**See:** D095, D089, D086, D081.
+
+---
+
 ## D101 — Runs carry a name and an archive flag; idea-to-script generates into an existing run
 **Date:** 2026-10-03
 **Status:** ACTIVE

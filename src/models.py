@@ -1,7 +1,7 @@
 """Pydantic schemas for all pipeline data structures."""
 
 from enum import Enum
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -196,6 +196,38 @@ def normalize_motion_effect(motion_effect: str | None, clip_type: str = "") -> s
     return "ken_burns" if clip_type == "still_with_motion" else "static"
 
 
+# ── Asset strategy vocabulary (D095, P13-S1) ──────────────────────────────────
+# What the operator wants a scene's asset to be, set on the storyboard before
+# acquisition runs.  This Literal is the single definition: ASSET_STRATEGIES is
+# derived from it and is what the patch endpoint and the Studio dropdown validate
+# against.  P14 adds "ai_image" here and nowhere else.
+AssetStrategy = Literal["stock_image", "stock_video", "upload"]
+ASSET_STRATEGIES: tuple[str, ...] = get_args(AssetStrategy)
+
+# Manifest entry status of an "upload" scene the operator has not supplied a file for.
+AWAITING_UPLOAD_STATUS = "awaiting_upload"
+
+
+def effective_asset_strategy(
+    asset_strategy: str | None,
+    asset_tier: str | None = None,
+    clip_type: str = "",
+) -> str:
+    """Return the asset strategy a scene will be acquired with.
+
+    An explicit strategy wins.  Without one the strategy is what acquisition has
+    always derived: asset_tier first (P9-S9), then clip_type for storyboards that
+    predate tiers.
+    """
+    if asset_strategy in ASSET_STRATEGIES:
+        return asset_strategy  # type: ignore[return-value]
+    if asset_tier == "video":
+        return "stock_video"
+    if asset_tier in ("still", "still_motion"):
+        return "stock_image"
+    return "stock_video" if clip_type == "hard_cut" else "stock_image"
+
+
 class StoryboardScene(BaseModel):
     """A single scene in the production storyboard."""
 
@@ -228,6 +260,9 @@ class StoryboardScene(BaseModel):
     # Operator-set acquisition strategy — persisted in storyboard so it survives
     # before the manifest exists.  None means "derive from clip_type at manifest build".
     asset_mode: Literal["stock", "ai_generated"] | None = None
+    # Operator-chosen asset strategy (D095, P13-S1).  None means "derive from
+    # asset_tier as before" — see effective_asset_strategy.
+    asset_strategy: AssetStrategy | None = None
     # Deprecated alias — segment_type=Event is the v2 signal. Kept for R2 backward compat.
     historic: bool = False
     # Set by the storyboard prompt (v0.10) when scene depicts a named real person.
@@ -325,6 +360,12 @@ class ManifestEntry(BaseModel):
     duplicate_avoided: bool = False
     # Semantic enrichment propagated from StoryboardScene (P10-S3).
     semantic_context: SemanticContext | None = None
+    # Operator-chosen asset strategy propagated from StoryboardScene (P13-S1).
+    asset_strategy: AssetStrategy | None = None
+    # File-name stem for this scene's acquired asset when scene_id alone would
+    # collide with a file another scene still uses (ids are renumbered by
+    # split / merge, P13-S2).  None means "use scene_id", as before.
+    asset_slot: str | None = None
 
 
 class AssetManifest(BaseModel):

@@ -48,17 +48,131 @@ async def studio_get_metadata(
     return body
 
 
+def _with_effective_strategy(body: dict) -> dict:
+    """Add effective_asset_strategy to every scene of a storyboard artifact body.
+
+    The explicit asset_strategy when the operator set one, otherwise the strategy
+    derived from asset_tier / clip_type — so the UI never re-derives it (P13-S1).
+    """
+    from src.models import effective_asset_strategy
+
+    for scene in (body.get("storyboard") or {}).get("scenes", []):
+        scene["effective_asset_strategy"] = effective_asset_strategy(
+            scene.get("asset_strategy"), scene.get("asset_tier"), scene.get("clip_type") or ""
+        )
+    return body
+
+
 @router.get("/studio/runs/{run_id}/storyboard")
 async def studio_get_storyboard(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
-    """Return the latest verified_storyboard artifact body for a Studio run."""
+    """Return the latest verified_storyboard artifact body for a Studio run.
+
+    Every scene carries effective_asset_strategy (P13-S1).
+    """
     key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
     if not key:
         raise HTTPException(status_code=404, detail="No storyboard artifact found for this run.")
     _, body = await read_artifact(storage, key)
-    return body
+    return _with_effective_strategy(body)
+
+
+async def _load_storyboard(storage: ArtifactStorage, run_id: str):
+    """Return (artifact_body, Storyboard) for a run's latest storyboard, or raise 404."""
+    from cf_platform.workers.storyboard_worker import _sanitize_storyboard_data
+    from src.models import Storyboard
+
+    key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
+    if not key:
+        raise HTTPException(status_code=404, detail="No storyboard found — run storyboard generation first.")
+    _, artifact_body = await read_artifact(storage, key)
+    return artifact_body, Storyboard.model_validate(_sanitize_storyboard_data(artifact_body["storyboard"]))
+
+
+async def _write_storyboard(storage: ArtifactStorage, run_id: str, artifact_body: dict, storyboard, worker: str):
+    """Write a new verified_storyboard version; returns (r2_key, artifact body dict)."""
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+    from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact
+
+    artifact = VerifiedStoryboardArtifact(
+        prompt_version=artifact_body.get("prompt_version", "patched"),
+        scene_count=len(storyboard.scenes),
+        storyboard=storyboard.model_dump(by_alias=True, mode="json"),
+        generated_at=datetime.now(),
+    )
+    record = await write_artifact(
+        storage, artifact,
+        name="verified_storyboard", stage="storyboard",
+        run_id=run_id, user_id=PLATFORM_USER_ID,
+        lineage=LineageEnvelope(
+            run_id=run_id, worker=worker, worker_version="1.0.0",
+            prompt_version="manual", model="none", created_at=datetime.now(),
+        ),
+    )
+    return record.r2_key, artifact.model_dump(mode="json")
+
+
+async def _load_manifest(storage: ArtifactStorage, run_id: str):
+    """Return the run's latest AssetManifest, or None when there is none to work with.
+
+    None covers: no manifest yet, the emptied manifest left behind when a
+    storyboard is regenerated, and a manifest with no entries.
+    """
+    from src.models import AssetManifest
+
+    key = await _latest_artifact_key(storage, run_id, "acquisition", "asset_manifest")
+    if not key:
+        return None
+    _, body = await read_artifact(storage, key)
+    raw = body.get("manifest")
+    if not raw or not raw.get("entries"):
+        return None
+    return AssetManifest.model_validate(raw)
+
+
+async def _write_manifest(storage: ArtifactStorage, run_id: str, manifest, worker: str) -> str:
+    """Write a new asset_manifest version; returns its r2_key."""
+    from cf_platform.core.artifact_manager import write_artifact
+    from cf_platform.core.schemas import LineageEnvelope
+    from cf_platform.workers.acquisition_worker import (
+        ACQUISITION_WORKER_REGISTRATION,
+        build_manifest_artifact,
+    )
+
+    record = await write_artifact(
+        storage, build_manifest_artifact(manifest, datetime.now()),
+        name="asset_manifest", stage="acquisition",
+        run_id=run_id, user_id=PLATFORM_USER_ID,
+        lineage=LineageEnvelope(
+            run_id=run_id, worker=worker,
+            worker_version=ACQUISITION_WORKER_REGISTRATION.worker_version,
+            prompt_version="manual", model="none", created_at=datetime.now(),
+        ),
+    )
+    return record.r2_key
+
+
+async def _load_words(storage: ArtifactStorage, run_id: str) -> list:
+    """Return the run's voiceover words, normalised exactly as the StoryboardWorker does.
+
+    Scene start_word / end_word index into this list (P9-S9). Raises 409 when the
+    run has no voice alignment — boundaries cannot be recomputed without it.
+    """
+    from cf_platform.workers.storyboard_worker import _normalize_deepgram_words
+    from cf_platform.workers.voice_production import VoiceAlignmentArtifact
+
+    key = await _latest_artifact_key(storage, run_id, "voice", "voice_alignment")
+    if not key:
+        raise HTTPException(
+            status_code=409,
+            detail="No voiceover for this run — scene boundaries need the voice word timestamps.",
+        )
+    _, body = await read_artifact(storage, key)
+    alignment = VoiceAlignmentArtifact.model_validate(body)
+    return _normalize_deepgram_words([w.model_dump() for w in alignment.word_timestamps])
 
 
 @router.get("/studio/sfx-library")
@@ -243,6 +357,7 @@ class ScenePatchRequest(BaseModel):
     concept_stk: str | None = None
     sfx: str | None = None
     motion_effect: str | None = None
+    asset_strategy: str | None = None
     clear_on_screen_text: bool = False
 
 
@@ -267,22 +382,20 @@ async def studio_patch_scene(
     effect happens here — that's handled once, in bulk, at render time by
     render_worker._copy_all_scene_sfx_to_run, which covers both an AI-suggested
     SFX the operator never touched and one picked here.
+
+    asset_strategy (D095, P13-S1): validated against src.models.ASSET_STRATEGIES,
+    422 otherwise. The scene's asset_tier / clip_type / motion_effect follow the
+    strategy (apply_asset_strategy). When the run already has a manifest, an asset
+    of the wrong kind is released so the scene is acquired again; the response
+    lists the scenes that now need one in needs_acquisition.
     """
-    from cf_platform.core.artifact_manager import write_artifact
-    from cf_platform.core.schemas import LineageEnvelope
     from cf_platform.workers.storyboard_worker import (
-        VerifiedStoryboardArtifact,
         _apply_patches_and_render_options,
-        _sanitize_storyboard_data,
+        apply_asset_strategy,
     )
-    from src.models import MOTION_EFFECTS, Storyboard
+    from src.models import ASSET_STRATEGIES, MOTION_EFFECTS
 
-    key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
-    if not key:
-        raise HTTPException(status_code=404, detail="No storyboard found — run storyboard generation first.")
-
-    _, artifact_body = await read_artifact(storage, key)
-    storyboard = Storyboard.model_validate(_sanitize_storyboard_data(artifact_body["storyboard"]))
+    artifact_body, storyboard = await _load_storyboard(storage, run_id)
 
     patches: list[dict] = []
     if body.clear_on_screen_text:
@@ -310,32 +423,231 @@ async def studio_patch_scene(
                 detail=f"Unknown motion_effect {body.motion_effect!r} — expected one of {list(MOTION_EFFECTS)}",
             )
         patches.append({"scene_id": scene_id, "field": "motion_effect", "value": body.motion_effect})
+    if body.asset_strategy is not None:
+        if body.asset_strategy not in ASSET_STRATEGIES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown asset_strategy {body.asset_strategy!r} — expected one of {list(ASSET_STRATEGIES)}",
+            )
+        # Realign tier / clip type / motion with the strategy before the field
+        # patches run, so an explicit motion_effect in the same request still wins.
+        storyboard = storyboard.model_copy(update={"scenes": [
+            apply_asset_strategy(sc, body.asset_strategy) if str(sc.scene) == scene_id else sc
+            for sc in storyboard.scenes
+        ]})
+        patches.append({"scene_id": scene_id, "field": "asset_strategy", "value": body.asset_strategy})
 
     if not patches:
         raise HTTPException(status_code=400, detail="No patchable fields provided.")
 
     patched_storyboard = _apply_patches_and_render_options(storyboard, patches)
+    artifact_key, _ = await _write_storyboard(storage, run_id, artifact_body, patched_storyboard, "studio_patch")
+    response: dict = {"artifact_key": artifact_key, "scene_count": len(patched_storyboard.scenes)}
 
-    new_artifact = VerifiedStoryboardArtifact(
-        prompt_version=artifact_body.get("prompt_version", "patched"),
-        scene_count=len(patched_storyboard.scenes),
-        storyboard=patched_storyboard.model_dump(by_alias=True, mode="json"),
-        generated_at=datetime.now(),
+    if body.asset_strategy is not None:
+        scene = next((sc for sc in patched_storyboard.scenes if str(sc.scene) == scene_id), None)
+        manifest = await _load_manifest(storage, run_id)
+        if scene is not None and manifest is not None:
+            if _sync_entry_with_strategy(manifest, scene):
+                response["manifest_key"] = await _write_manifest(storage, run_id, manifest, "studio_patch")
+            response["needs_acquisition"] = [
+                e.scene_id for e in manifest.entries if not (e.status == "acquired" and e.file_key)
+            ]
+    return response
+
+
+def _sync_entry_with_strategy(manifest, scene) -> bool:
+    """Bring one manifest entry in line with its scene's new asset strategy.
+
+    Returns True when the entry changed. An asset that no longer fits is released,
+    so the scene shows as needing one and the next acquisition fetches it:
+    a still on a stock_video scene (or the reverse), a stock asset on an upload
+    scene, an operator upload on a stock scene. An asset that already fits stays.
+    """
+    from cf_platform.workers.storyboard_edit import _is_video_file
+    from src.models import AWAITING_UPLOAD_STATUS
+
+    entry = next((e for e in manifest.entries if str(e.scene_id) == str(scene.scene)), None)
+    if entry is None:
+        return False
+    before = entry.model_dump()
+
+    entry.asset_strategy = scene.asset_strategy
+    entry.asset_tier = scene.asset_tier
+    entry.clip_type = scene.clip_type
+
+    has_file = entry.status == "acquired" and bool(entry.file_key)
+    uploaded = entry.source == "operator_upload"
+    if scene.asset_strategy == "upload":
+        fits = has_file and uploaded
+        empty_status = AWAITING_UPLOAD_STATUS
+    else:
+        wants_video = scene.asset_strategy == "stock_video"
+        fits = has_file and not uploaded and _is_video_file(entry.file_key) == wants_video
+        empty_status = "pending"
+    if not fits:
+        entry.status = empty_status
+        entry.file_key = None
+        entry.source = None
+        entry.attribution = None
+        entry.qa_passed = entry.qa_resolution_ok = entry.qa_duration_ok = entry.qa_clip_score = None
+        entry.fallback_used = False
+    return entry.model_dump() != before
+
+
+# ── Scene boundary edits (P13-S2, P13-S4) ─────────────────────────────────────
+
+
+class SceneSplitRequest(BaseModel):
+    """Request body for POST …/storyboard/scenes/{scene_id}/split."""
+
+    # Index of the word that becomes the first word of the new second scene.
+    at_word: int
+
+
+class BoundariesRequest(BaseModel):
+    """Request body for PUT …/storyboard/boundaries.
+
+    Give either start_words (the first word index of every scene) or script_text
+    (the voiceover with one paragraph per scene — the Script view). dry_run
+    reports what would change without writing anything.
+    """
+
+    start_words: list[int] | None = None
+    script_text: str | None = None
+    dry_run: bool = False
+
+
+def _boundary_summary(edit) -> str:
+    """One operator-facing sentence describing a boundary edit."""
+    parts = [f"{edit.scenes_before} scenes → {edit.scenes_after}"]
+    if edit.manifest is not None:
+        n = len(edit.needs_acquisition)
+        parts.append(f"{n} scene{'' if n == 1 else 's'} need{'s' if n == 1 else ''} acquisition")
+    if edit.dropped:
+        parts.append(
+            "on-screen text / SFX dropped from merged scene(s) "
+            + ", ".join(d["scene"] for d in edit.dropped)
+        )
+    return "; ".join(parts)
+
+
+async def _run_boundary_edit(storage: ArtifactStorage, run_id: str, worker: str, edit_fn, dry_run: bool = False) -> dict:
+    """Load a run's storyboard, words and manifest, apply one boundary edit, persist it.
+
+    edit_fn(storyboard, words, manifest) returns a storyboard_edit.BoundaryEdit.
+    Writes a new storyboard version and, when the run has a manifest, a new
+    manifest version aligned with the renumbered scenes. A rejected edit is a 422
+    (409 for merging the last scene, 404 for an unknown scene) and writes nothing.
+    """
+    from cf_platform.workers.storyboard_edit import LastSceneMergeError, StoryboardEditError
+
+    artifact_body, storyboard = await _load_storyboard(storage, run_id)
+    words = await _load_words(storage, run_id)
+    manifest = await _load_manifest(storage, run_id)
+
+    try:
+        edit = edit_fn(storyboard, words, manifest)
+    except LastSceneMergeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except StoryboardEditError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Scene {exc.args[0]!r} not found in storyboard.") from exc
+
+    response: dict = {
+        "scenes_before": edit.scenes_before,
+        "scene_count": edit.scenes_after,
+        "dropped": edit.dropped,
+        "needs_acquisition": edit.needs_acquisition if edit.manifest is not None else None,
+        "summary": _boundary_summary(edit),
+        "dry_run": dry_run,
+    }
+    if dry_run:
+        return response
+
+    artifact_key, new_body = await _write_storyboard(storage, run_id, artifact_body, edit.storyboard, worker)
+    response["artifact_key"] = artifact_key
+    if edit.manifest is not None:
+        response["manifest_key"] = await _write_manifest(storage, run_id, edit.manifest, worker)
+    response.update(_with_effective_strategy(new_body))
+    return response
+
+
+@router.post("/studio/runs/{run_id}/storyboard/scenes/{scene_id}/split")
+async def studio_split_scene(
+    run_id: str,
+    scene_id: str,
+    body: SceneSplitRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> dict:
+    """Split a scene in two at a word (P13-S2).
+
+    at_word becomes the first word of the new second scene; 422 unless
+    start_word < at_word <= end_word, or when either half would be shorter than
+    STORYBOARD_MIN_SCENE_S. The first half keeps every field and its asset; the
+    second copies the visual fields, has no on-screen text or SFX, and needs an
+    asset. Returns the new storyboard so the table can re-render from it.
+    """
+    from cf_platform.workers.storyboard_edit import split_scene
+
+    return await _run_boundary_edit(
+        storage, run_id, "studio_split",
+        lambda sb, words, manifest: split_scene(
+            sb, words, scene_id, body.at_word, manifest, settings.STORYBOARD_MIN_SCENE_S
+        ),
     )
-    lineage = LineageEnvelope(
-        run_id=run_id,
-        worker="studio_patch",
-        worker_version="1.0.0",
-        prompt_version="manual",
-        model="none",
-        created_at=datetime.now(),
+
+
+@router.post("/studio/runs/{run_id}/storyboard/scenes/{scene_id}/merge")
+async def studio_merge_scene(
+    run_id: str,
+    scene_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> dict:
+    """Merge a scene with the one after it (P13-S2); 409 on the last scene.
+
+    The first scene's fields and asset win. The second scene's on-screen text and
+    SFX are dropped and listed in the response's `dropped`.
+    """
+    from cf_platform.workers.storyboard_edit import merge_scene
+
+    return await _run_boundary_edit(
+        storage, run_id, "studio_merge",
+        lambda sb, words, manifest: merge_scene(
+            sb, words, scene_id, manifest, settings.STORYBOARD_MIN_SCENE_S
+        ),
     )
-    record = await write_artifact(
-        storage, new_artifact,
-        name="verified_storyboard", stage="storyboard",
-        run_id=run_id, user_id=PLATFORM_USER_ID, lineage=lineage,
-    )
-    return {"artifact_key": record.r2_key, "scene_count": new_artifact.scene_count}
+
+
+@router.put("/studio/runs/{run_id}/storyboard/boundaries")
+async def studio_replace_boundaries(
+    run_id: str,
+    body: BoundariesRequest,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> dict:
+    """Replace all scene boundaries at once (P13-S4, the Script view).
+
+    Validated: starts at word 0, strictly increasing, within the voiceover, and no
+    new scene shorter than STORYBOARD_MIN_SCENE_S. With script_text the words must
+    equal the voiceover's — only paragraph breaks may differ; otherwise 422, and
+    the wording has to be changed in the Script stage (it forces re-voicing).
+    A scene whose start word is unchanged keeps its fields and asset.
+    """
+    from cf_platform.workers.storyboard_edit import replace_boundaries, start_words_from_text
+
+    if (body.start_words is None) == (body.script_text is None):
+        raise HTTPException(status_code=422, detail="Provide exactly one of start_words or script_text.")
+
+    def _edit(sb, words, manifest):
+        """Resolve the requested boundaries and apply them."""
+        starts = body.start_words if body.start_words is not None else start_words_from_text(words, body.script_text or "")
+        return replace_boundaries(sb, words, starts, manifest, settings.STORYBOARD_MIN_SCENE_S)
+
+    return await _run_boundary_edit(storage, run_id, "studio_boundaries", _edit, dry_run=body.dry_run)
 
 
 # ── Per-scene asset override endpoints (P10-S2) ───────────────────────────────
@@ -369,9 +681,10 @@ async def studio_reacquire_scene(
     from cf_platform.core.schemas import LineageEnvelope, TraceEvent
     from cf_platform.workers.acquisition_worker import (
         ACQUISITION_WORKER_REGISTRATION,
-        AssetManifestArtifact,
         _acquire_single_scene,
-        _compute_footage_summary,
+        asset_file_stem,
+        assign_free_asset_slot,
+        build_manifest_artifact,
     )
     from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
     from src.models import AssetManifest, ManifestEntry, Storyboard
@@ -421,6 +734,13 @@ async def studio_reacquire_scene(
 
     original_query = entry.primary_stk
     entry.primary_stk = body.query.strip()
+    # Scene ids are renumbered by split / merge (P13-S2), so this scene's default
+    # file name may belong to another scene's kept asset.
+    assign_free_asset_slot(
+        entry,
+        {stem for e in manifest.entries if e is not entry and (stem := asset_file_stem(e.file_key))},
+        scene.start_word,
+    )
 
     pexels = PexelsClient(api_key=settings.PEXELS_API_KEY)
     pixabay: PixabayClient | None = PixabayClient(api_key=settings.PIXABAY_API_KEY) if settings.PIXABAY_API_KEY else None
@@ -431,16 +751,7 @@ async def studio_reacquire_scene(
     latency_ms = int((time.monotonic() - t0) * 1000)
 
     # Write new manifest artifact version
-    footage_summary = _compute_footage_summary(manifest.entries)
-    acquired = sum(1 for e in manifest.entries if e.status == "acquired")
-    new_artifact = AssetManifestArtifact(
-        scene_count=len(manifest.entries),
-        acquired=acquired,
-        failed=len(manifest.entries) - acquired,
-        footage_summary=footage_summary,
-        manifest=manifest.model_dump(mode="json"),
-        generated_at=datetime.now(),
-    )
+    new_artifact = build_manifest_artifact(manifest, datetime.now())
     lineage = LineageEnvelope(
         run_id=run_id,
         worker="studio_reacquire",
@@ -593,7 +904,8 @@ async def studio_upload_scene_asset(
     """Upload an operator-supplied asset for a single scene.
 
     Validates MIME type and size (≤200 MB), stores to R2, patches the asset_manifest
-    entry for this scene, writes a new manifest version, re-derives the storyboard
+    entry for this scene (starting a manifest from the storyboard when the run has
+    none yet — P13-S3), writes a new manifest version, re-derives the storyboard
     scene's visual contract from the uploaded media kind, and emits an
     operator_asset_override TraceEvent. Returns the updated entry with a presigned URL.
 
@@ -603,16 +915,17 @@ async def studio_upload_scene_asset(
     MP4 leaves a short scene still labelled a still, so Studio keeps offering it a
     motion dropdown and the renderer keeps treating it as an image.
     """
+    import hashlib
     import time
 
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope, TraceEvent
     from cf_platform.workers.acquisition_worker import (
         ACQUISITION_WORKER_REGISTRATION,
-        AssetManifestArtifact,
-        _compute_footage_summary,
+        build_manifest_artifact,
+        manifest_entry_for_scene,
     )
-    from src.models import AssetManifest
+    from src.models import AWAITING_UPLOAD_STATUS, AssetManifest
 
     _ALLOWED_MIME_TYPES = {
         "video/mp4", "video/webm",
@@ -637,18 +950,34 @@ async def studio_upload_scene_asset(
     folder = "video" if is_video else "images"
     r2_key = f"runs/{run_id}/{folder}/scene_{scene_n.zfill(2)}_op{ext}"
 
-    await storage.put_bytes(r2_key, data, content_type=content_type)
-
-    # Load and patch manifest
-    mf_key = await _latest_artifact_key(storage, run_id, "acquisition", "asset_manifest")
-    if not mf_key:
-        raise HTTPException(status_code=404, detail="No asset manifest found — run acquisition first.")
-    _, mf_body = await read_artifact(storage, mf_key)
-    manifest = AssetManifest.model_validate(mf_body["manifest"])
+    # Load the manifest. Before the first acquisition there is none: an "upload"
+    # scene is filled at the storyboard gate (P13-S3), so start one from the
+    # storyboard with every other scene still to be acquired.
+    manifest = await _load_manifest(storage, run_id)
+    if manifest is None:
+        try:
+            _, storyboard = await _load_storyboard(storage, run_id)
+        except HTTPException:
+            raise HTTPException(
+                status_code=404, detail="No asset manifest found — run acquisition first."
+            ) from None
+        entries = [manifest_entry_for_scene(sc) for sc in storyboard.scenes]
+        for e in entries:
+            if e.asset_strategy == "upload":
+                e.status = AWAITING_UPLOAD_STATUS
+        manifest = AssetManifest(run_id=run_id, entries=entries)
 
     entry = next((e for e in manifest.entries if str(e.scene_id) == scene_n), None)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Scene {scene_n!r} not found in manifest.")
+
+    # Scene ids are renumbered by split / merge (P13-S2): another scene may still
+    # be using this file name for its own upload. Never write over it.
+    if any(e is not entry and e.file_key == r2_key for e in manifest.entries):
+        digest = hashlib.sha1(data).hexdigest()[:8]
+        r2_key = f"runs/{run_id}/{folder}/scene_{scene_n.zfill(2)}_op_{digest}{ext}"
+
+    await storage.put_bytes(r2_key, data, content_type=content_type)
 
     entry.file_key = r2_key
     entry.source = "operator_upload"
@@ -656,16 +985,7 @@ async def studio_upload_scene_asset(
     entry.qa_passed = True
     entry.fallback_used = False
 
-    footage_summary = _compute_footage_summary(manifest.entries)
-    acquired = sum(1 for e in manifest.entries if e.status == "acquired")
-    new_artifact = AssetManifestArtifact(
-        scene_count=len(manifest.entries),
-        acquired=acquired,
-        failed=len(manifest.entries) - acquired,
-        footage_summary=footage_summary,
-        manifest=manifest.model_dump(mode="json"),
-        generated_at=datetime.now(),
-    )
+    new_artifact = build_manifest_artifact(manifest, datetime.now())
     lineage = LineageEnvelope(
         run_id=run_id,
         worker="studio_upload",
