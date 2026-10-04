@@ -20,6 +20,13 @@ from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.acquisition_worker import AssetManifestArtifact
 from cf_platform.workers.storyboard_worker import VerifiedStoryboardArtifact, _sanitize_storyboard_data
+from cf_platform.workers.timeline import (  # noqa: F401 — missing_assets_message is re-exported
+    Timeline,
+    TimelineArtifact,
+    build_run_timeline,
+    missing_assets_message,
+    scenes_with_timeline_durations,
+)
 from cf_platform.workers.voice_production import VoiceAlignmentArtifact
 
 logger = logging.getLogger(__name__)
@@ -344,8 +351,13 @@ def _wrap_ost_text(text: str, max_width_px: float, fontsize: int = _OST_FONTSIZE
     return lines
 
 
-def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
+def _collect_overlay_filters(
+    storyboard, ost_texts: list[str | None] | None = None
+) -> tuple[list[str], list[str]]:
     """Return (preamble_lines, drawtext_filters) for lower_third + on_screen_text overlays.
+
+    ost_texts, when given (one entry per scene, from the Timeline), is the on-screen
+    text to draw; without it the text is resolved from the storyboard as before.
 
     OST text is written to $WORK/ost_NN.txt files (one per overlay) with
     expansion=none so that % and ' in the text need no filter-chain escaping.
@@ -377,18 +389,21 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
     t_offset = 0.0
     ost_idx = 0
     max_width_px = _ost_max_text_width_px()
-    for scene in storyboard.scenes:
+    for scene_idx, scene in enumerate(storyboard.scenes):
         opts = scene.render_options
         scene_start = t_offset
         scene_end = t_offset + scene.duration_s
 
-        # Prefer storyboard overlay; fall back to scene.on_screen_text for stale storyboards.
-        # lower_third overlays removed in P10-S1 — person name now appears as OST via on_screen_text.
-        ost_text = None
-        if opts and opts.on_screen_text_overlay:
-            ost_text = opts.on_screen_text_overlay.text
-        if not ost_text:
-            ost_text = scene.on_screen_text
+        if ost_texts is not None:
+            ost_text = ost_texts[scene_idx]
+        else:
+            # Prefer storyboard overlay; fall back to scene.on_screen_text for stale storyboards.
+            # lower_third overlays removed in P10-S1 — person name now appears as OST via on_screen_text.
+            ost_text = None
+            if opts and opts.on_screen_text_overlay:
+                ost_text = opts.on_screen_text_overlay.text
+            if not ost_text:
+                ost_text = scene.on_screen_text
         if ost_text:
             # Wrap long text so it doesn't run off screen; FFmpeg renders newlines as line breaks.
             lines = _wrap_ost_text(ost_text.upper(), max_width_px)
@@ -424,32 +439,34 @@ def _collect_overlay_filters(storyboard) -> tuple[list[str], list[str]]:
     return preamble, filters
 
 
-def _build_render_script(
+def build_render_script_from_timeline(
     run_id: str,
+    timeline,
     storyboard,
     manifest,
-    scene_words: list | None,
     color_grade_preset: str,
     blur_fill_enabled: bool,
-    format_track: str = "portrait",
-    captions: bool = True,
-    caption_style: str = "standard",
     scene_threads: int = 2,
 ) -> str:
-    """Assemble the complete render bash script with render_options extensions.
+    """Assemble the complete render bash script from a Timeline (P13b-S1).
+
+    The Timeline is the source for everything about timing and content: scene
+    durations, the file behind each scene, caption words, on-screen text, SFX
+    offsets, output size, caption style and the music settings. The storyboard
+    still supplies what is purely a render decision of the FFmpeg path — film look,
+    caption y-override, clip type — and the manifest entries what acquisition knew
+    about a file (its source decides blur-fill).
 
     Calls private helpers from src.ffmpeg_builder for base structure, then inserts
     film_look passes (before concat), overlays (after captions/grade), and wires
-    caption y-overrides for lower_third scenes.
-
-    `format_track` selects the output resolution: portrait → 1080×1920 (Shorts),
-    landscape → 1920×1080 (standard YouTube).
-    `captions` toggles burned-in subtitles: False forces `subtitles="none"`
-    regardless of the `VideoSettings` default.
-    `caption_style` selects the D082 presentation preset ("standard" | "punch").
-    `scene_threads` caps each concurrent per-scene libx264 encoder's thread count
-    (D090) — pass Settings.FFMPEG_SCENE_THREADS.
+    caption y-overrides for lower_third scenes. `scene_threads` caps each concurrent
+    per-scene libx264 encoder's thread count (D090).
     """
+    from cf_platform.workers.timeline import (
+        audio_settings_from_timeline,
+        scene_words_from_timeline,
+        scenes_with_timeline_durations,
+    )
     from src.captions import build_captions_ass
     from src.ffmpeg_builder import (
         _audio_section,
@@ -463,16 +480,20 @@ def _build_render_script(
         _voiceover_check,
         _write_voiceover_captions_ass,
     )
-    from src.models import VideoSettings
 
-    video_settings = VideoSettings()
-    audio = video_settings.audio
-    subtitles = video_settings.subtitles if captions else "none"
-    if format_track == "landscape":
-        out_w, out_h = 1920, 1080
-    else:
-        out_w, out_h = 1080, 1920
-    entries = {e.scene_id: e for e in manifest.entries}
+    storyboard = storyboard.model_copy(
+        update={"scenes": scenes_with_timeline_durations(storyboard, timeline)}
+    )
+    audio = audio_settings_from_timeline(timeline)
+    subtitles = timeline.subtitle_style if timeline.captions_enabled else "none"
+    out_w, out_h = timeline.width, timeline.height
+    by_id = {t.scene_id: t for t in timeline.scenes}
+    entries = {
+        e.scene_id: e.model_copy(update={"file_key": by_id[e.scene_id].asset_key})
+        for e in manifest.entries
+        if e.scene_id in by_id
+    }
+    scene_words = scene_words_from_timeline(timeline)
     n_scenes = len(manifest.entries)
 
     parts = [
@@ -503,7 +524,6 @@ def _build_render_script(
     # full video duration. A chained -vf filter handles all three in one pass.
     post_vf: list[str] = []
 
-    caption_aspect_ratio = "16:9" if format_track == "landscape" else "9:16"
     if subtitles != "none":
         if scene_words:
             ass_content = _build_captions_with_y_override(
@@ -511,12 +531,12 @@ def _build_render_script(
                 storyboard.scenes,
                 subtitles,
                 play_res_y=out_h,
-                aspect_ratio=caption_aspect_ratio,
-                caption_style=caption_style,
+                aspect_ratio=timeline.aspect_ratio,
+                caption_style=timeline.caption_style,
             )
         else:
             ass_content = build_captions_ass(
-                storyboard.scenes, subtitle_style=subtitles, aspect_ratio=caption_aspect_ratio
+                storyboard.scenes, subtitle_style=subtitles, aspect_ratio=timeline.aspect_ratio
             )
         parts.append(_write_voiceover_captions_ass(ass_content))
         post_vf.append("ass=$WORK/voiceover_captions.ass")
@@ -525,7 +545,9 @@ def _build_render_script(
     if grade_filter:
         post_vf.append(grade_filter)
 
-    ost_preamble, ost_filters = _collect_overlay_filters(storyboard)
+    ost_preamble, ost_filters = _collect_overlay_filters(
+        storyboard, [t.text.text if t.text else None for t in timeline.scenes]
+    )
     post_vf.extend(ost_filters)
 
     if post_vf:
@@ -546,50 +568,54 @@ def _build_render_script(
     else:
         video_source = "$WORK/video_padded.mp4"
 
-    parts.append(_audio_section(storyboard, audio, video_source=video_source))
+    sfx_entries = [(t.sfx_key, t.sfx_delay_ms) for t in timeline.scenes if t.sfx_key]
+    parts.append(_audio_section(storyboard, audio, video_source=video_source, sfx_entries=sfx_entries))
     parts.append(f'echo "Done: /tmp/{run_id}/output/final.mp4"')
 
     return "\n\n".join(parts) + "\n"
 
 
+def _build_render_script(
+    run_id: str,
+    storyboard,
+    manifest,
+    scene_words: list | None,
+    color_grade_preset: str,
+    blur_fill_enabled: bool,
+    format_track: str = "portrait",
+    captions: bool = True,
+    caption_style: str = "standard",
+    scene_threads: int = 2,
+) -> str:
+    """Build the render script from a storyboard whose durations are already resolved.
+
+    Kept for callers that hold resolved scenes and caption words rather than a
+    Timeline: it assembles the Timeline those imply (the same assemble_timeline the
+    real path ends in) and renders from it.
+
+    `format_track` selects the output resolution: portrait → 1080×1920 (Shorts),
+    landscape → 1920×1080 (standard YouTube).
+    `captions` toggles burned-in subtitles: False forces `subtitles="none"`.
+    `caption_style` selects the D082 presentation preset ("standard" | "punch").
+    `scene_threads` caps each concurrent per-scene libx264 encoder's thread count
+    (D090) — pass Settings.FFMPEG_SCENE_THREADS.
+    """
+    from cf_platform.workers.timeline import TimelineSettings, assemble_timeline
+
+    timeline = assemble_timeline(
+        run_id, list(storyboard.scenes), manifest, scene_words,
+        TimelineSettings(format_track=format_track, captions=captions, caption_style=caption_style),
+    )
+    return build_render_script_from_timeline(
+        run_id, timeline, storyboard, manifest, color_grade_preset, blur_fill_enabled, scene_threads,
+    )
+
+
 # ── Pre-render asset check (P13-S1) ───────────────────────────────────────────
 
 
-def missing_assets_message(storyboard, manifest) -> str | None:
-    """Return why this storyboard cannot render yet, or None when every scene has an asset.
-
-    The render script needs one acquired file per scene. Since P13 a scene can be
-    without one on purpose — an "upload" scene the operator has not filled, or the
-    second half of a split — so the gap is reported in words before any FFmpeg
-    work starts, instead of surfacing as a failed script.
-    """
-    from src.models import AWAITING_UPLOAD_STATUS
-
-    entries = {e.scene_id: e for e in manifest.entries}
-    awaiting: list[str] = []
-    missing: list[str] = []
-    for scene in storyboard.scenes:
-        entry = entries.get(scene.scene)
-        # A file is all the render needs — a failed re-acquire leaves the previous
-        # file in place with status "failed", and that still renders.
-        if entry is not None and entry.file_key:
-            continue
-        waits_for_upload = scene.asset_strategy == "upload" or (
-            entry is not None and entry.status == AWAITING_UPLOAD_STATUS
-        )
-        (awaiting if waits_for_upload else missing).append(scene.scene)
-
-    parts: list[str] = []
-    if awaiting:
-        parts.append(
-            f"Scene(s) {', '.join(awaiting)} are set to Upload and have no file yet — "
-            "upload a file or change the asset type."
-        )
-    if missing:
-        parts.append(
-            f"Scene(s) {', '.join(missing)} have no asset — acquire them in the Storyboard stage."
-        )
-    return " ".join(parts) if parts else None
+# missing_assets_message lives in cf_platform.workers.timeline (imported above) so the
+# timeline route, the zip export and the render share one definition.
 
 
 # ── Asset download ────────────────────────────────────────────────────────────
@@ -731,13 +757,7 @@ def build_render_worker(
             (default 2). See D090 — without a cap, libx264 auto-detects the host's
             full CPU count per process and the parallel scene batch oversubscribes it.
     """
-    from src.ffmpeg_builder import (
-        assign_words_to_scenes,
-        compute_scene_durations_from_alignment,
-        fill_caption_gaps,
-        redistribute_scene_durations,
-    )
-    from src.models import AssetManifest, Storyboard, WordTimestamp
+    from src.models import AssetManifest, Storyboard
 
     async def _worker(state: StageState) -> WorkerOutput:
         """Build render script, download assets, execute FFmpeg, upload final.mp4."""
@@ -757,129 +777,27 @@ def build_render_worker(
         if blocked:
             raise RuntimeError(f"Cannot render run {run_id}: {blocked}")
 
-        # Read voice alignment (optional)
-        scene_words: list | None = None
+        # Read voice alignment (optional). A run without one renders on the storyboard's
+        # own durations; an unreadable one is logged and treated the same way.
+        alignment: VoiceAlignmentArtifact | None = None
         if "voice_alignment" in state.artifacts:
             try:
-                _, va_body = await read_artifact(
-                    storage, state.artifacts["voice_alignment"]
-                )
-                va = VoiceAlignmentArtifact.model_validate(va_body)
-                if va.word_timestamps:
-                    src_timestamps = [
-                        WordTimestamp(
-                            word=w.word,
-                            start_ms=w.start_ms,
-                            end_ms=w.end_ms,
-                            confidence=w.confidence,
-                        )
-                        for w in va.word_timestamps
-                    ]
-                    has_scene_timestamps = all(
-                        s.scene_start_ms is not None for s in storyboard.scenes
-                    )
-                    logger.info(
-                        "RenderWorker timing path: method=%s has_scene_timestamps=%s",
-                        va.alignment_method, has_scene_timestamps,
-                    )
-                    if va.alignment_method == "deepgram_nova2" and has_scene_timestamps:
-                        # P9-S9 fast path.  Prefer live boundaries derived from the
-                        # current VO's word_timestamps via start_word indices — this
-                        # keeps visual timing correct even if the VO was regenerated
-                        # after the storyboard was saved (stored scene_start_ms would
-                        # be stale and cause accumulating drift).
-                        import bisect
-                        n_words = len(src_timestamps)
-                        has_start_words = (
-                            n_words > 0
-                            and all(s.start_word is not None for s in storyboard.scenes)
-                            and len({s.start_word for s in storyboard.scenes}) > 1
-                        )
-                        if has_start_words:
-                            boundaries_ms = [
-                                src_timestamps[max(0, min(s.start_word, n_words - 1))].start_ms
-                                for s in storyboard.scenes
-                            ]
-                            logger.info("RenderWorker: live start_word boundaries for %d scenes", len(storyboard.scenes))
-                        else:
-                            boundaries_ms = [s.scene_start_ms for s in storyboard.scenes]
-                            logger.info("RenderWorker: stored scene_start_ms boundaries for %d scenes", len(storyboard.scenes))
-                        raw_scene_words = [[] for _ in storyboard.scenes]
-                        for w in src_timestamps:
-                            idx = bisect.bisect_right(boundaries_ms, w.start_ms) - 1
-                            idx = max(0, min(idx, len(storyboard.scenes) - 1))
-                            raw_scene_words[idx].append(w)
-                        # Gap-based durations: scene N holds until scene N+1's first
-                        # word; last scene holds through end of audio (fixes freeze).
-                        adjusted = []
-                        n_scenes = len(storyboard.scenes)
-                        for i, scene in enumerate(storyboard.scenes):
-                            if i < n_scenes - 1:
-                                dur = (boundaries_ms[i + 1] - boundaries_ms[i]) / 1000.0
-                            else:
-                                dur = va.total_duration_s - boundaries_ms[i] / 1000.0
-                            adjusted.append(
-                                scene.model_copy(
-                                    update={"duration_s": max(0.08, round(dur, 3))}
-                                )
-                            )
-                    elif va.alignment_method == "deepgram_nova2":
-                        # Legacy two-pass path for storyboards without scene_start_ms.
-                        words_pass1 = assign_words_to_scenes(storyboard.scenes, src_timestamps)
-                        adjusted_pass1 = compute_scene_durations_from_alignment(
-                            storyboard.scenes, words_pass1
-                        )
-                        scenes_pass1 = storyboard.model_copy(
-                            update={"scenes": adjusted_pass1}
-                        ).scenes
-                        raw_scene_words = assign_words_to_scenes(scenes_pass1, src_timestamps)
-                        adjusted = compute_scene_durations_from_alignment(
-                            scenes_pass1, raw_scene_words
-                        )
-                    else:
-                        raw_scene_words = assign_words_to_scenes(
-                            storyboard.scenes, src_timestamps
-                        )
-                        adjusted = redistribute_scene_durations(
-                            storyboard.scenes, va.total_duration_s
-                        )
-                    storyboard = storyboard.model_copy(update={"scenes": adjusted})
-                    scene_words = fill_caption_gaps(storyboard.scenes, raw_scene_words)
-
-                if va.mp3_r2_key:
-                    ext = Path(va.mp3_r2_key).suffix or ".mp3"
-                    vo_local = Path(f"/tmp/{run_id}/voiceover/voiceover{ext}")
-                    vo_local.parent.mkdir(parents=True, exist_ok=True)
-                    vo_data = await storage.get_bytes(va.mp3_r2_key)
-                    vo_local.write_bytes(vo_data)
+                _, va_body = await read_artifact(storage, state.artifacts["voice_alignment"])
+                alignment = VoiceAlignmentArtifact.model_validate(va_body)
             except Exception as exc:
                 logger.warning(
                     "RenderWorker: could not load voice_alignment for run %s: %s", run_id, exc
                 )
-
-        # Build render script
-        format_track: str = state.inputs.get("format_track", "landscape")
-        captions: bool = state.inputs.get("captions", True)
-        caption_style: str = state.inputs.get("caption_style", "standard")
-        script_content = _build_render_script(
-            run_id=run_id,
-            storyboard=storyboard,
-            manifest=manifest,
-            scene_words=scene_words,
-            color_grade_preset=color_grade_preset,
-            blur_fill_enabled=blur_fill_enabled,
-            format_track=format_track,
-            captions=captions,
-            caption_style=caption_style,
-            scene_threads=ffmpeg_scene_threads,
-        )
-
-        # Persist render_script.sh to R2 BEFORE execution for debuggability
-        script_key = f"runs/{run_id}/render_script.sh"
-        await storage.put_bytes(
-            script_key, script_content.encode("utf-8"), content_type="text/plain"
-        )
-        logger.info("RenderWorker: render_script.sh written → %s", script_key)
+        if alignment is not None and alignment.mp3_r2_key:
+            try:
+                ext = Path(alignment.mp3_r2_key).suffix or ".mp3"
+                vo_local = Path(f"/tmp/{run_id}/voiceover/voiceover{ext}")
+                vo_local.parent.mkdir(parents=True, exist_ok=True)
+                vo_local.write_bytes(await storage.get_bytes(alignment.mp3_r2_key))
+            except Exception as exc:
+                logger.warning(
+                    "RenderWorker: could not load voice_alignment for run %s: %s", run_id, exc
+                )
 
         # Fall back to the shared music library only if operator selected music
         if state.inputs.get("music_enabled", True):
@@ -888,6 +806,37 @@ def build_render_worker(
         # Copy every scene's chosen curated SFX into the run (D076) — unconditional,
         # covers AI-suggested and operator-picked SFX alike.
         await _copy_all_scene_sfx_to_run(run_id, storyboard, storage)
+
+        # The timeline is the single source of timing and content (P13b-S1). The render
+        # endpoint writes it as a run artifact and passes its key; a caller without one
+        # (full_pipeline, tests) gets the same timeline built here.
+        format_track: str = state.inputs.get("format_track", "landscape")
+        captions: bool = state.inputs.get("captions", True)
+        caption_style: str = state.inputs.get("caption_style", "standard")
+        if "timeline" in state.artifacts:
+            _, tl_body = await read_artifact(storage, state.artifacts["timeline"])
+            timeline = Timeline.model_validate(TimelineArtifact.model_validate(tl_body).timeline)
+        else:
+            timeline = await build_run_timeline(
+                storage, run_id, storyboard, manifest, alignment,
+                format_track=format_track, captions=captions, caption_style=caption_style,
+            )
+        script_content = build_render_script_from_timeline(
+            run_id, timeline, storyboard, manifest,
+            color_grade_preset=color_grade_preset,
+            blur_fill_enabled=blur_fill_enabled,
+            scene_threads=ffmpeg_scene_threads,
+        )
+        storyboard = storyboard.model_copy(
+            update={"scenes": scenes_with_timeline_durations(storyboard, timeline)}
+        )
+
+        # Persist render_script.sh to R2 BEFORE execution for debuggability
+        script_key = f"runs/{run_id}/render_script.sh"
+        await storage.put_bytes(
+            script_key, script_content.encode("utf-8"), content_type="text/plain"
+        )
+        logger.info("RenderWorker: render_script.sh written → %s", script_key)
 
         # Download all scene assets to /tmp/{run_id}/
         await _download_assets(run_id, manifest, storage)

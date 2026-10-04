@@ -288,18 +288,206 @@ async def studio_get_voice_status(
     return {"status": "running"}
 
 
+@router.get("/studio/runs/{run_id}/timeline")
+async def studio_get_timeline(
+    run_id: str,
+    format_track: str = "landscape",
+    captions: bool = True,
+    caption_style: str = "standard",
+    music_enabled: bool = True,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict:
+    """Return the run's Timeline (P13b-S1): scenes with resolved timing, assets, text, captions, audio.
+
+    Built fresh from the latest artifacts and not stored — a render or an export
+    stores it. 404 without a storyboard or manifest; 409 with the missing-assets
+    message while any scene has no file.
+    """
+    if format_track not in ("portrait", "landscape"):
+        raise HTTPException(status_code=422, detail="format_track must be 'portrait' or 'landscape'.")
+    if caption_style not in ("standard", "punch"):
+        raise HTTPException(status_code=422, detail="caption_style must be 'standard' or 'punch'.")
+    from cf_platform.interfaces.routes._helpers import prepare_run_timeline
+
+    timeline, _ = await prepare_run_timeline(
+        storage, run_id, format_track=format_track, captions=captions,
+        caption_style=caption_style, music_enabled=music_enabled,
+    )
+    return timeline.model_dump(mode="json")
+
+
+@router.get("/studio/runs/{run_id}/export/capcut")
+async def studio_export_capcut(
+    run_id: str,
+    format_track: str = "portrait",
+    captions: bool = True,
+    caption_style: str = "standard",
+    music_enabled: bool = True,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+):
+    """Stream a zip of the run's timeline and media for the CapCut path (P13b-S2, D100).
+
+    timeline.json plus every file it references, under the relative paths it uses.
+    Stores the timeline as a run artifact. 409 while any scene has no file or when
+    the run has no voice alignment.
+    """
+    import time
+
+    from fastapi.responses import StreamingResponse
+
+    from cf_platform.core.schemas import TraceEvent
+    from cf_platform.interfaces.routes._helpers import prepare_run_timeline
+    from cf_platform.workers.capcut_export import iter_export_zip
+
+    if format_track not in ("portrait", "landscape"):
+        raise HTTPException(status_code=422, detail="format_track must be 'portrait' or 'landscape'.")
+    if caption_style not in ("standard", "punch"):
+        raise HTTPException(status_code=422, detail="caption_style must be 'standard' or 'punch'.")
+
+    t0 = time.monotonic()
+    timeline, timeline_key = await prepare_run_timeline(
+        storage, run_id, format_track=format_track, captions=captions,
+        caption_style=caption_style, music_enabled=music_enabled,
+        copy_media=True, write=True, require_alignment=True, existing_media_only=True,
+    )
+    # Best-effort, like the other Studio trace events: an observability write must never
+    # fail the export (Studio runs may have no `runs` row for the FK).
+    try:
+        await trace_events.record(TraceEvent(
+            run_id=run_id, worker="studio_export", source="operator", op="capcut_export",
+            latency_ms=int((time.monotonic() - t0) * 1000), status="ok",
+            meta={
+                "timeline_key": timeline_key, "scenes": len(timeline.scenes),
+                "files": len(timeline.referenced_paths()), "format_track": format_track,
+            },
+        ))
+    except Exception:
+        _logger.warning("studio_export_capcut: trace_events.record failed for run %s", run_id, exc_info=True)
+
+    return StreamingResponse(
+        iter_export_zip(storage, timeline),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="capcut_{run_id[:8]}.zip"'},
+    )
+
+
+_MP4_MIME_TYPES = {"video/mp4"}
+
+
+@router.post("/studio/runs/{run_id}/output/upload")
+async def studio_upload_output(
+    run_id: str,
+    file: UploadFile,
+    confirm_overwrite: bool = False,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_platform_settings),
+    trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+) -> dict:
+    """Store the video the operator rendered in CapCut as the run's final video (P13b-S4, D100).
+
+    Validates the type (an .mp4, MIME video/mp4, MP4 container) and size
+    (OUTPUT_UPLOAD_MAX_MB), then writes runs/{run_id}/output/final.mp4 — the key every
+    reader uses — and records that this video came from CapCut. An existing FFmpeg
+    render, or a render still marked running, is replaced only with
+    confirm_overwrite=true (409 otherwise).
+    """
+    import time
+
+    from cf_platform.core.final_video import (
+        final_video_key,
+        final_video_state,
+        record_final_source,
+    )
+    from cf_platform.core.schemas import TraceEvent
+
+    t0 = time.monotonic()
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in _MP4_MIME_TYPES or not (file.filename or "").lower().endswith(".mp4"):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Unsupported file: {file.filename!r} ({content_type or 'no type'}). Upload an .mp4 video.",
+        )
+
+    max_bytes = settings.OUTPUT_UPLOAD_MAX_MB * 1024 * 1024
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await file.read(1024 * 1024):
+        size += len(chunk)
+        if size > max_bytes:
+            raise HTTPException(
+                status_code=422,
+                detail=f"File too large. Maximum is {settings.OUTPUT_UPLOAD_MAX_MB} MB.",
+            )
+        chunks.append(chunk)
+    data = b"".join(chunks)
+    del chunks
+    if len(data) < 12 or data[4:8] != b"ftyp":
+        raise HTTPException(status_code=422, detail="That file is not an MP4 video.")
+
+    if not confirm_overwrite:
+        existing = await final_video_state(storage, run_id)
+        job = None
+        try:
+            job = await storage.get_json(f"runs/{run_id}/render/current_job.json")
+        except Exception:
+            job = None
+        if job and job.get("status") == "running":
+            raise HTTPException(
+                status_code=409,
+                detail="A render is marked as running for this run. Uploading now means its result will "
+                       "replace this video when it finishes — confirm to upload anyway.",
+            )
+        if existing["exists"] and existing["source"] == "ffmpeg":
+            raise HTTPException(
+                status_code=409,
+                detail="This run already has an FFmpeg render. Uploading replaces it — confirm to continue.",
+            )
+
+    await storage.put_bytes(final_video_key(run_id), data, content_type="video/mp4")
+    record = await record_final_source(storage, run_id, "capcut", filename=file.filename, size_bytes=len(data))
+    # The render status endpoint reads current_job.json, so a finished upload reads
+    # as a finished job — and replaces any stale "running" marker.
+    await storage.put_json(f"runs/{run_id}/render/current_job.json", {
+        "job_id": "capcut-upload", "status": "complete", "video_key": final_video_key(run_id),
+        "source": "capcut", "completed_at": record["at"],
+    })
+
+    # Best-effort observability, as for the other Studio operator actions.
+    try:
+        await trace_events.record(TraceEvent(
+            run_id=run_id, worker="studio_output_upload", source="operator", op="capcut_video_upload",
+            latency_ms=int((time.monotonic() - t0) * 1000), status="ok",
+            meta={"filename": file.filename, "size_bytes": len(data), "replaced_confirmed": confirm_overwrite},
+        ))
+    except Exception:
+        _logger.warning("studio_upload_output: trace_events.record failed for run %s", run_id, exc_info=True)
+
+    try:
+        url = await storage.generate_presigned_url(final_video_key(run_id), expires_in=86400)
+    except Exception:
+        url = None
+    return {
+        "run_id": run_id, "video_key": final_video_key(run_id), "video_url": url,
+        "source": "capcut", "source_at": record["at"], "size_bytes": len(data),
+    }
+
+
 @router.get("/studio/runs/{run_id}/video")
 async def studio_get_video_url(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
     """Return a 24-hour presigned URL for this run's final.mp4."""
+    from cf_platform.core.final_video import final_video_state
+
     video_key = f"runs/{run_id}/output/final.mp4"
     try:
         url = await storage.generate_presigned_url(video_key, expires_in=86400)
     except Exception as exc:
         raise HTTPException(status_code=404, detail=f"Video not found for this run: {exc}")
-    return {"video_url": url, "video_key": video_key}
+    state = await final_video_state(storage, run_id)
+    return {"video_url": url, "video_key": video_key, "source": state["source"], "source_at": state["at"]}
 
 
 @router.get("/studio/runs/{run_id}/render/status")
@@ -328,6 +516,8 @@ async def studio_get_render_status(
                     "video_key": video_key,
                     "scene_count": job.get("scene_count"),
                     "duration_s": job.get("duration_s"),
+                    "source": job.get("source", "ffmpeg"),
+                    "source_at": job.get("completed_at"),
                 }
             if job.get("status") == "error":
                 return {"status": "error", "error": job.get("error", "Render failed")}
@@ -340,7 +530,7 @@ async def studio_get_render_status(
     video_key = f"runs/{run_id}/output/final.mp4"
     try:
         url = await storage.generate_presigned_url(video_key, expires_in=86400)
-        return {"status": "complete", "video_url": url, "video_key": video_key}
+        return {"status": "complete", "video_url": url, "video_key": video_key, "source": "ffmpeg", "source_at": None}
     except Exception:
         pass
 

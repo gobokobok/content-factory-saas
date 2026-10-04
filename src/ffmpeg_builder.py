@@ -887,9 +887,14 @@ def _audio_section(
     storyboard: Storyboard,
     audio: AudioSettings,
     video_source: str = "$WORK/video_captioned.mp4",
+    sfx_entries: list[tuple[str, int]] | None = None,
 ) -> str:
     """
     Build the audio assembly ffmpeg command.
+
+    sfx_entries, when given, is the (sfx_name, delay_ms) list to mix — the Timeline's
+    resolved SFX offsets (P13b-S1). Without it the offsets are derived from the
+    storyboard's scene durations, which yields the same values.
 
     Music volume is computed from audio settings at script-generation time:
     - vol_factor = music_volume / 100.0
@@ -907,13 +912,14 @@ def _audio_section(
     effective_vol = vol_factor * _DUCKING_FACTOR if audio.ducking_enabled else vol_factor
     music_vol_str = f"{effective_vol:.3f}"
 
-    sfx_entries: list[tuple[str, int]] = []  # (sfx_name, delay_ms)
-    offset_s = 0.0
-    for scene in storyboard.scenes:
-        if scene.sfx and scene.sfx.lower() != "silence":
-            delay_ms = max(0, int((offset_s + _sfx_delay_within_scene_s(scene)) * 1000))
-            sfx_entries.append((scene.sfx, delay_ms))
-        offset_s += scene.duration_s
+    if sfx_entries is None:
+        sfx_entries = []  # (sfx_name, delay_ms)
+        offset_s = 0.0
+        for scene in storyboard.scenes:
+            if scene.sfx and scene.sfx.lower() != "silence":
+                delay_ms = max(0, int((offset_s + _sfx_delay_within_scene_s(scene)) * 1000))
+                sfx_entries.append((scene.sfx, delay_ms))
+            offset_s += scene.duration_s
 
     lines = [
         "# ── Audio assembly ─────────────────────────────────────────",

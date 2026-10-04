@@ -155,6 +155,7 @@ class P13Env:
     client: TestClient
     storage: InMemoryArtifactStorage
     words: list[VoiceWordTimestamp]
+    settings: SimpleNamespace
 
     def storyboard(self) -> dict:
         """Return the latest storyboard (with effective strategies) through the API."""
@@ -202,6 +203,8 @@ def p13_env(
 
     platform_settings = SimpleNamespace(
         STORYBOARD_MIN_SCENE_S=MIN_SCENE_S, PEXELS_API_KEY="fake-pexels", PIXABAY_API_KEY="",
+        OUTPUT_UPLOAD_MAX_MB=500, COLOR_GRADE_PRESET="neutral", BLUR_FILL_ENABLED=True,
+        FFMPEG_TIMEOUT_SECONDS=60, FFMPEG_SCENE_THREADS=2,
     )
     trace_repo = InMemoryTraceEventRepository()
     overrides = {
@@ -212,7 +215,10 @@ def p13_env(
     }
     app.dependency_overrides.update(overrides)
     try:
-        yield P13Env(client=TestClient(app, raise_server_exceptions=True), storage=storage, words=words)
+        yield P13Env(
+            client=TestClient(app, raise_server_exceptions=True), storage=storage, words=words,
+            settings=platform_settings,
+        )
     finally:
         for dependency in overrides:
             app.dependency_overrides.pop(dependency, None)

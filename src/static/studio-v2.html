@@ -923,8 +923,12 @@
           </div>
           <div class="stage-cta" id="render-cta">
             <button class="btn btn-primary" id="render-btn" onclick="renderVideo()" disabled>Render Video →</button>
+            <button class="btn btn-secondary" id="capcut-export-btn" onclick="downloadCapcutExport(this)" disabled>Download for CapCut</button>
+            <button class="btn btn-secondary" id="capcut-upload-btn" onclick="document.getElementById('capcut-upload-input').click()" disabled>Upload video from CapCut</button>
+            <input type="file" id="capcut-upload-input" accept="video/mp4,.mp4" style="display:none;" onchange="uploadCapcutVideo(this)">
             <span id="render-stage-status" class="running-msg"></span>
           </div>
+          <div class="muted" id="capcut-hint" style="font-size:12px;margin-top:10px;">CapCut path: download the zip, run one command on your laptop, edit and render in CapCut, then upload the video here.</div>
         </div>
       </div>
 
@@ -1111,6 +1115,8 @@ function demoRoute(url, opts) {
     const awaiting = DEMO_SCENES.filter(sc => sc._noAsset).length;
     return demoResponse({ acquired: DEMO_SCENES.length - awaiting, failed: 0, awaiting_upload: awaiting }, 200, 1800);
   }
+  if (u.includes('/export/capcut')) return Promise.resolve(new Response(new Blob(['demo zip']), { status: 200, headers: { 'Content-Type': 'application/zip' } }));
+  if (u.includes('/output/upload')) return demoResponse({ ...DEMO_VIDEO, source: 'capcut', source_at: new Date().toISOString() }, 200, 900);
   if (u.includes('/platform/workers/render'))      { _demoRenderPolls = 0; return demoResponse({ queued: true }, 202, 400); }
   if (u.includes('/platform/workers/metadata'))    return demoResponse(DEMO_META, 200, 1600);
   if (u.includes('/render/status')) {
@@ -2345,6 +2351,13 @@ function updateAcquisitionUi() {
 
   const renderBtn = document.getElementById('render-btn');
   if (renderBtn && acquired > 0) renderBtn.disabled = false;
+  // The CapCut path opens under the same conditions as rendering.
+  if (acquired > 0) {
+    for (const id of ['capcut-export-btn', 'capcut-upload-btn']) {
+      const b = document.getElementById(id);
+      if (b) b.disabled = false;
+    }
+  }
 
   if (state.acquiring) return;  // the running request owns the button until it returns
   const btn = document.getElementById('acquire-btn');
@@ -3067,6 +3080,10 @@ function renderMetadataResult(data) {
 async function renderVideo() {
   if (!state.runId) return;
 
+  // An uploaded CapCut video is never replaced silently (P13b-S4).
+  const fromCapcut = state.stageData.render && state.stageData.render.source === 'capcut';
+  if (fromCapcut && !confirm("This run's video was uploaded from CapCut. Rendering with FFmpeg replaces it. Continue?")) return;
+
   const btn = document.getElementById('render-btn');
   btn.disabled = true;
   state.stageStatus.render = 'running';
@@ -3096,6 +3113,7 @@ async function renderVideo() {
         captions: state.settings.captions,
         music_enabled: !!state.settings.musicKey,
         caption_style: state.settings.captionStyle || 'standard',
+        confirm_overwrite: !!fromCapcut,
       }),
     });
     if (!r.ok) {
@@ -3174,8 +3192,86 @@ function renderVideoResult(data) {
     <div class="render-stats">
       <div class="render-stat">Duration: <strong>${dur}</strong></div>
       <div class="render-stat">Scenes: <strong>${sc}</strong></div>
+      <div class="render-stat">Source: <strong>${videoSourceLabel(data)}</strong></div>
     </div>`;
   hideErr('render-error');
+}
+
+function videoSourceLabel(data) {
+  const name = data.source === 'capcut' ? 'CapCut upload' : 'FFmpeg render';
+  const when = data.source_at ? new Date(data.source_at) : null;
+  return when && !isNaN(when) ? `${name}, ${when.toLocaleString()}` : name;
+}
+
+// ── CapCut path (P13b, D100) ──────────────────────────────────────────────
+async function downloadCapcutExport(btn) {
+  if (!state.runId) return;
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Preparing zip…';
+  hideErr('render-error');
+  try {
+    const q = new URLSearchParams({
+      format_track: state.settings.aspectRatio,
+      captions: state.settings.captions,
+      caption_style: state.settings.captionStyle || 'standard',
+      music_enabled: !!state.settings.musicKey,
+    });
+    const r = await fetch(`/platform/studio/runs/${state.runId}/export/capcut?${q}`);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `Export error ${r.status}`);
+    }
+    const blob = await r.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl; a.download = `capcut_${state.runId.slice(0, 8)}.zip`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(blobUrl);
+  } catch (e) {
+    showErr('render-error', `CapCut export failed: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+  }
+}
+
+async function uploadCapcutVideo(input, confirmed = false) {
+  const file = input.files && input.files[0];
+  if (!file || !state.runId) return;
+  const btn = document.getElementById('capcut-upload-btn');
+  const label = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  hideErr('render-error');
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    const q = confirmed ? '?confirm_overwrite=true' : '';
+    const r = await fetch(`/platform/studio/runs/${state.runId}/output/upload${q}`, { method: 'POST', body: fd });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 409 && !confirmed) {
+      // An FFmpeg render (or a running one) exists: ask before replacing it.
+      if (confirm(`${data.detail || 'This run already has a video.'}\n\nReplace it with the uploaded video?`)) {
+        btn.textContent = label;
+        return uploadCapcutVideo(input, true);
+      }
+      return;
+    }
+    if (!r.ok) throw new Error(data.detail || `Upload error ${r.status}`);
+    state.stageData.render = data;
+    state.stageStatus.render = 'done';
+    renderVideoResult(data);
+    renderStageTrack();
+    saveLocalRun(state.runId, {});
+  } catch (e) {
+    showErr('render-error', `Upload failed: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = label;
+    input.value = '';
+  }
 }
 
 // ── URL hash routing ──────────────────────────────────────────────────────

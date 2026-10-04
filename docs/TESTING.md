@@ -36,6 +36,14 @@ Always mock at the import boundary (patch the name where it's used, not where it
 | Service module | Happy path, API error handling, fallback logic |
 | Parsing/validation | Valid input, invalid/malformed input, edge cases |
 
+### Golden render scripts (P13b)
+
+`tests/golden/render/*.sh` pin the exact FFmpeg script the RenderWorker produces for a spread of runs
+(motion effects, footage, captions, SFX, overlays, timing paths). `test_p13b_s1_golden_render.py` runs the
+whole worker with FFmpeg stubbed. A golden changes only on purpose: regenerate with
+`UPDATE_GOLDEN=1 pytest tests/cf_platform/test_p13b_s1_golden_render.py`, review the diff, and state it in
+the story Handover. The `# generated_at` line is masked.
+
 ## Minimum test cases per function
 1. Happy path — expected input, expected output
 2. One failure case — API down, invalid response, missing field

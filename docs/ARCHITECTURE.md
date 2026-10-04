@@ -72,6 +72,26 @@ first time a browser that knows them opens the project list (or opens the run by
 once a script is generated into it). Per-stage pipeline progress is still derived from R2
 artifacts when the run is opened in Studio; nothing writes it to the row yet.
 
+## 0b. Two render paths from one Timeline (Sprint P13b, D100, D103)
+
+```
+voice_alignment + verified_storyboard + asset_manifest
+        │  build_timeline()  ← the only place scene timing is resolved (cf_platform/workers/timeline.py)
+        ▼
+   Timeline  (artifact render/timeline@vN, schema_version 1)
+        ├── build_render_script_from_timeline() → render_script.sh → FFmpeg on Railway → output/final.mp4
+        └── GET …/export/capcut → zip(timeline.json + referenced media)
+                 └── laptop: tools/capcut/export_capcut.py → CapCut draft → render in CapCut
+                          └── POST …/output/upload → output/final.mp4  (+ output/final_source.json)
+```
+
+The Timeline holds scenes (start / end / duration, the file by `file_key`, motion, on-screen text, SFX
+offset), caption words, voiceover, music and its volume settings, and the output size. Both renderers
+read it, so a cut lands in the same place in the FFmpeg video and in the CapCut draft. `final.mp4` is the
+run's final video whichever path wrote it; `final_source.json` says `ffmpeg` or `capcut` and neither path
+replaces the other without confirmation. `tools/capcut/` is laptop-only (own `requirements.txt`, no
+platform dependency). Golden render-script tests (`tests/golden/render/`) pin the FFmpeg output.
+
 ---
 
 ## Document status

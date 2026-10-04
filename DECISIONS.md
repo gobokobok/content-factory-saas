@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D103 — The Timeline is the single source of render timing; the CapCut path reads it, and the final video records its source
+**Date:** 2026-10-04
+**Status:** ACTIVE
+**Decision:** (1) `build_timeline(storyboard, manifest, voice_alignment, settings)` (`cf_platform/workers/timeline.py`) is the only place scene timing is resolved for rendering. It returns a versioned `Timeline` (`schema_version`, currently 1) holding scenes with start / end / duration, the file behind each scene (by manifest `file_key`, never by scene id — D102), canonical motion effect, on-screen text with its window, SFX key and offset, caption words (with the spelled-out display text), voiceover, music and its volume settings, output size. The FFmpeg script is built from it (`build_render_script_from_timeline`); the render endpoint stores it as the run artifact `render/timeline@vN` and passes its key to the worker, which builds its own only when none is passed. What stays storyboard-side is what is purely an FFmpeg-path decision (film look, caption y-override, clip type). The golden render-script tests (`tests/golden/render/`) pin the script byte for byte. (2) Scene boundaries are resolved against the **normalised** word list (`_normalize_deepgram_words`), the list the StoryboardWorker's `start_word` indexes; captions keep using the raw words. Before, a script with Deepgram contraction splits cut each scene early by one word per preceding contraction. (3) `GET /platform/studio/runs/{id}/export/capcut` streams a zip of `timeline.json` and exactly the files it references; `tools/capcut/export_capcut.py` reads only that zip (no R2, no credentials). The mapping from timeline to draft is a pure module (`draft_plan.py`) so it is tested without CapCut or pycapcut. (4) The laptop script writes `draft_info.json` only: CapCut 8.9.1 re-saved `draft_info.json` in the spike's draft while `draft_content.json` stayed as written, and drafts CapCut creates itself contain no `draft_content.json`. `--both-files` keeps the old name as a fallback. (5) A run's final video is always `runs/{id}/output/final.mp4`; `output/final_source.json` records `ffmpeg` or `capcut` and the time. Neither path replaces the other without a confirmation, in the UI and enforced by the API.
+**Rejected:** deriving the CapCut timing on the laptop from the storyboard and voice alignment (a second implementation of the timing rules, which would drift from the FFmpeg render); building the zip in memory (a run's footage can be hundreds of MB).
+**Not covered by the timeline (known limits):** the FFmpeg blur-fill for wikimedia person portraits (a platform setting, not part of the run); Standard captions' per-word highlight (a CapCut text clip takes one style); the legacy `build_ffmpeg_script` (`/legacy`) still reads the storyboard directly.
+**No new dependency** on the platform. `pycapcut` stays confined to `tools/capcut/requirements.txt` (D100).
+**Implemented by:** P13b-S1..S4.
+**See:** D100, D102, D091, D089, D087.
+
+---
+
 ## D102 — Storyboard edits: one boundary rule, assets released on a strategy change, file names that survive renumbering
 **Date:** 2026-10-03
 **Status:** ACTIVE

@@ -529,6 +529,9 @@ class RenderWorkerRequest(BaseModel):
     music_enabled: bool = True
     # D082 — "standard" (5-word rolling line) | "punch" (one word at a time, caps).
     caption_style: str = "standard"
+    # P13b-S4 — required when the run's final video came from CapCut, so an FFmpeg
+    # render never replaces an uploaded video silently.
+    confirm_overwrite: bool = False
 
 
 class RenderWorkerResponse(BaseModel):
@@ -574,12 +577,17 @@ async def _run_render_background(
             user_id=PLATFORM_USER_ID,
             lineage=render_lineage,
         )
+        from cf_platform.core.final_video import record_final_source
+
+        record = await record_final_source(storage, run_id, "ffmpeg")
         await storage.put_json(job_key, {
             "job_id": job_id,
             "status": "complete",
             "video_key": result_artifact.video_key,
             "scene_count": result_artifact.scene_count,
             "duration_s": result_artifact.duration_s,
+            "source": "ffmpeg",
+            "completed_at": record["at"],
         })
         _logger.info("RenderWorker background task complete for run %s job %s", run_id, job_id)
     except Exception as exc:
@@ -655,10 +663,37 @@ async def render_worker_endpoint(
     if blocked:
         raise HTTPException(status_code=409, detail=blocked)
 
+    from cf_platform.core.final_video import final_video_state
+
+    existing_video = await final_video_state(storage, body.run_id)
+    if existing_video["source"] == "capcut" and not body.confirm_overwrite:
+        raise HTTPException(
+            status_code=409,
+            detail="This run's video was uploaded from CapCut. Rendering with FFmpeg replaces it — "
+                   "confirm to continue.",
+        )
+
     va_prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/voice/voice_alignment@v"
     va_keys = await storage.list_keys(va_prefix)
     if va_keys:
         artifacts["voice_alignment"] = _latest_key(va_keys)
+
+    # Resolve the run into a Timeline and store it as a versioned artifact (P13b-S1);
+    # the worker renders from it. A run the timeline cannot be built for (unreadable
+    # artifacts) is left for the worker to report, as before.
+    from cf_platform.interfaces.routes._helpers import prepare_run_timeline
+
+    try:
+        _timeline, timeline_key = await prepare_run_timeline(
+            storage, body.run_id, format_track=body.format_track, captions=body.captions,
+            caption_style=body.caption_style, music_enabled=body.music_enabled,
+            copy_media=True, write=True,
+        )
+        artifacts["timeline"] = timeline_key
+    except HTTPException:
+        raise
+    except Exception:
+        _logger.exception("Timeline could not be built for run %s — the worker will build its own", body.run_id)
 
     worker = build_render_worker(
         storage,

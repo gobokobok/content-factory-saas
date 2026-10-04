@@ -62,10 +62,10 @@ Legacy Script→Video stays untouched and operable (D047).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P13b-S1 | Neutral timeline artifact + render regression tests | 4 | todo |
-| P13b-S2 | "Download for CapCut" — zip of media and timeline | 2 | todo |
-| P13b-S3 | Laptop script and setup guide | 3 | todo |
-| P13b-S4 | Return path — upload the CapCut-rendered video into the run | 2 | todo |
+| P13b-S1 | Neutral timeline artifact + render regression tests | 4 | in-progress |
+| P13b-S2 | "Download for CapCut" — zip of media and timeline | 2 | in-progress |
+| P13b-S3 | Laptop script and setup guide | 3 | in-progress |
+| P13b-S4 | Return path — upload the CapCut-rendered video into the run | 2 | in-progress |
 
 **Execution order:** S1 → (S2 ∥ S3) → S4.
 

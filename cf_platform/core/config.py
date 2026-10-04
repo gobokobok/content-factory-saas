@@ -70,6 +70,9 @@ class PlatformSettings(BaseSettings):
     # in Studio (P13-S2 / P13-S4). Scenes the storyboard generator produced are
     # not checked against it.
     STORYBOARD_MIN_SCENE_S: float = 1.0
+    # Largest .mp4 the operator may upload as a run's final video — the video rendered
+    # in CapCut (P13b-S4, D100).
+    OUTPUT_UPLOAD_MAX_MB: int = 500
 
 
 def get_platform_settings() -> PlatformSettings:

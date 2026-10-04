@@ -42,7 +42,7 @@ Third sprint of the Pipeline & Platform Update (D100). A second render path from
 ## [P13b-S1] Neutral timeline artifact + render regression tests
 **Epic:** E49 — CapCut export
 **Sprint:** P13b
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 4
 **Depends on:** —
@@ -75,7 +75,7 @@ One artifact — the timeline — describes everything a renderer needs for a fi
 ## [P13b-S2] "Download for CapCut" — zip of media and timeline
 **Epic:** E49 — CapCut export
 **Sprint:** P13b
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 2
 **Depends on:** P13b-S1
@@ -107,7 +107,7 @@ From a run whose storyboard is finalized and whose assets are all in place, the 
 ## [P13b-S3] Laptop script and setup guide
 **Epic:** E49 — CapCut export
 **Sprint:** P13b
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P13b-S1
@@ -143,7 +143,7 @@ One command on the operator's laptop turns the downloaded zip into a CapCut proj
 ## [P13b-S4] Return path — upload the CapCut-rendered video into the run
 **Epic:** E49 — CapCut export
 **Sprint:** P13b
-**Status:** todo
+**Status:** in-progress
 **Priority:** high
 **Points:** 2
 **Depends on:** P13b-S2
