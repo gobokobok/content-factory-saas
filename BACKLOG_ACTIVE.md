@@ -21,6 +21,8 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 **EPIC 48 — Server-side Auto Advance (P17, spec §22).** The Studio toggle hands the run to the server-side pipeline (`full_pipeline.py`, HITL gates from P6-S3) so it continues with the browser closed. First task: confirm that pipeline writes the same artifacts in the same places as the stage-by-stage Studio flow, so an auto-advanced run opens cleanly for review. Define which stages may run unattended, where it stops on error or missing input, and add OpenAI direct as the image fallback (D096). Optional: one-way Telegram notifications (D093). **From the 2026-10-03 prod check:** the PROD service sleeps after 6–10 idle minutes (Railway app sleeping) and pipeline work runs as in-process background tasks, so a run with the browser closed would be stopped mid-flight — settle this first (keep the service awake while a run is active, or move the work off the web process).
 
+**EPIC 50 — Word-anchored overlays and a curated SFX library (unplanned, proposed 2026-10-04).** Select a word in a scene to say where the on-screen text appears and where an SFX plays, instead of the fixed rules (text 0.3 s into the scene, SFX at scene start or +0.7 s — D076). Plus a small SFX library of good-quality sounds. Stories E50-S1..S3 in the EPIC 50 section below; not placed in a sprint.
+
 **Parked by D099:** P11-S2 motion presets (EPIC 39), P11-S3 sub-scene asset timeline (EPIC 38), Format tracks, Analytics & attribution.
 
 ---
@@ -359,6 +361,117 @@ A second view of the Storyboard stage shows the whole voiceover as text, with a 
 - UI: Table / Script toggle in the Storyboard summary row (`state.sbView`). Script view is a textarea with one paragraph per scene; `onScriptViewInput` disables Apply when the words differ or nothing moved. Apply sends a dry run, shows its `summary` ("12 scenes → 14; 3 scenes need acquisition") in a confirm, then writes.
 - The Script view shows the normalised words (no punctuation) — those are the words the boundaries index.
 - Tests: `tests/cf_platform/test_p13_s4_boundaries.py` (25).
+
+---
+
+## EPIC 50 — Word-anchored overlays and a curated SFX library (backlog)
+
+**Why:** the on-screen text and the SFX of a scene follow fixed rules today: text appears 0.3 s after the scene starts, and an SFX plays at the scene start (or 0.7 s in when the scene has text — D076). The operator wants to point at the word where each should land. The same anchors then reach the CapCut draft for free, because the Timeline (D103) already carries the text window and the SFX offset. SFX positions in CapCut were never going to be hand-placed by script; this makes them right at the source. The library half is a separate problem: the Freesound auto-seed was rejected by the operator (D078), so good sounds need to be chosen by ear.
+
+**Suggested order:** E50-S3 (library) can start any time and is independent. E50-S1 → E50-S2 follow. Needs a sprint slot; none proposed. Natural neighbours: before or after P14 (both touch the Storyboard stage).
+
+---
+
+## [E50-S1] Word anchors for on-screen text and SFX — model, timeline, render
+**Epic:** E50 — Word-anchored overlays and a curated SFX library
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Points:** 5
+**Depends on:** P13b (Timeline, D103)
+
+### Goal
+A scene can say *at which word* its on-screen text appears and *at which word* its SFX plays. Scenes without an anchor behave exactly as today.
+
+### Acceptance Criteria
+- [ ] `StoryboardScene` gains optional `on_screen_text_word` and `sfx_word`: indices into the **normalised** voiceover words (the list `start_word` / `end_word` index — `_normalize_deepgram_words`), each required to lie inside the scene's `start_word..end_word`
+- [ ] `build_timeline` resolves an anchor to a time from that word's start (`TimelineText.start_ms`, `TimelineScene.sfx_delay_ms`); text still lasts to the scene end. No anchor → today's rule, so the existing golden render scripts stay byte-identical
+- [ ] The FFmpeg overlay window and SFX `adelay` read the anchored values from the Timeline; the SFX auto-offset rule (D076) applies only to unanchored scenes
+- [ ] The CapCut export needs no change: a test shows an anchored text clip and SFX clip land at the word's time in the draft plan
+- [ ] `PATCH …/storyboard/scenes/{id}` accepts both anchors (and `null` to clear); 422 when the word is outside the scene
+- [ ] Anchors survive and follow edits (D102): split / merge / Script-view boundary changes keep an anchor whose word is still in the scene, clear one whose word left it, and report what was cleared; a regenerated voiceover clears all anchors (word indices no longer mean the same words)
+- [ ] The word-index fix from P13b-S1 is relied on, not repeated: a test with contractions puts the anchor on the intended word
+- [ ] Tests: anchor resolution with and without alignment; golden scripts unchanged for unanchored scenes; one new golden for an anchored scene; the edit-survival rules
+
+### Open question
+Anchor text to a word's **start** only, or allow an end word (text disappears early)? Proposed: start only for now — text runs to the scene end, as today.
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Files to read
+- `cf_platform/workers/timeline.py` — `assemble_timeline` (text window, SFX offset), `resolve_scene_timing`
+- `src/ffmpeg_builder.py` — `_sfx_delay_within_scene_s`, `_audio_section`; `cf_platform/workers/render_worker.py` — `_collect_overlay_filters`
+- `src/models.py` — `StoryboardScene`; `cf_platform/workers/storyboard_edit.py` — `replace_boundaries`
+- `cf_platform/interfaces/routes/studio.py` — `ScenePatchRequest`, `studio_patch_scene`
+- `tests/cf_platform/test_p13b_s1_golden_render.py`, `tools/capcut/draft_plan.py`
+- `DECISIONS.md` — D076, D074, D075, D102, D103
+
+---
+
+## [E50-S2] Studio — click a word to set on-screen text or SFX there
+**Epic:** E50 — Word-anchored overlays and a curated SFX library
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Points:** 3
+**Depends on:** E50-S1
+
+### Goal
+In the Storyboard stage, the operator clicks a word of a scene and chooses *On-screen text here* or *SFX here*; the choice is shown on the word and can be changed or removed.
+
+### Acceptance Criteria
+- [ ] Clicking a word opens the small popover already used for split (D102 UI), now with three actions: Split here · On-screen text here · SFX here. Split stays where it is
+- [ ] *On-screen text here* asks for the text (prefilled with the scene's current text) and the type, then PATCHes text + anchor; *SFX here* shows the SFX dropdown (with audition, see E50-S3) and PATCHes key + anchor
+- [ ] Anchored words are marked in the scene's words (a small T / ♪ marker with a tooltip); clicking a marked word offers *Move*, *Edit*, *Remove*
+- [ ] The scene row's existing text and SFX cells keep working; changing them there keeps the anchor, clearing them clears it
+- [ ] An edit that clears an anchor (E50-S1) says so in the same message the split / merge / boundaries edits already show
+- [ ] Demo mode mocks it; works at phone width
+- [ ] Static-page tests pin the popover actions and the routes they call
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] Human touchpoint: the operator anchors a text and an SFX in two scenes, renders with FFmpeg, and downloads for CapCut; both land on the chosen words
+
+### Files to read
+- `src/static/studio-v2.html` — Storyboard stage: word-click split (`confirmSplit`, `split-pop`), `buildSceneRow`, SFX cell
+- `tests/cf_platform/test_p13_s3_storyboard_stage.py` (static-page test pattern)
+- `docs/UI_GUIDELINES.md`
+
+---
+
+## [E50-S3] A curated SFX library of good sounds
+**Epic:** E50 — Word-anchored overlays and a curated SFX library
+**Sprint:** unassigned
+**Status:** backlog
+**Priority:** medium
+**Points:** 5
+**Depends on:** —
+
+### Goal
+The SFX dropdown offers a small set of sounds that sound right for punchy Shorts, each checked by ear and licensed for use, and the operator can hear one before choosing it.
+
+### Acceptance Criteria
+- [ ] A decision (`/decide`) on the source: operator-picked files from a licensed pack or site (CC0 / royalty-free, licence recorded per file) rather than an automated Freesound query — D078 showed ranking by downloads and ratings does not find good sounds. Free-tier rule (CLAUDE.md) checked for any paid pack
+- [ ] The manifest (`cf_platform/core/sfx_library.py`) grows beyond the first 8 keys to the sounds the operator actually uses (target 15–25: hits, whooshes, risers, UI sounds, money, alerts), each with `display_name`, `prompt_hint` for the AI suggestion, **source and licence**
+- [ ] Files are normalised to one loudness and trimmed (short, no tail noise, no silence at the start) by a script before upload, so every sound sits at the same level against the voiceover and music
+- [ ] Upload goes through the existing manual path (`scripts/upload_sfx.py`, D078); `seed_sfx_library.py` and the Freesound search queries are removed from the manifest if unused
+- [ ] Studio: an audition button (▶) beside the SFX dropdown plays the sound; presigned URL, no download
+- [ ] The AI suggestion prompt keeps working from the manifest (D076); with a larger vocabulary, a check that the prompt stays within its size budget and that "silence" is still the common answer
+- [ ] Tests: manifest entries all have licence + source; every key has a backing file in a seeded storage; audition route returns a URL only for present keys
+
+### Open question
+Where to find the sounds — the operator picks. Candidates to evaluate: Pixabay audio (free licence), a one-off paid pack, CapCut's own library downloaded by hand (check its licence terms before bundling in a product).
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] Human touchpoint: the operator opens the dropdown on DEV, auditions each sound, and renders a run with two of them
+
+### Files to read
+- `cf_platform/core/sfx_library.py`, `scripts/upload_sfx.py`, `scripts/seed_sfx_library.py`
+- `cf_platform/workers/render_worker.py` — `list_available_sfx`, `_copy_all_scene_sfx_to_run`
+- `cf_platform/interfaces/routes/studio.py` — `studio_get_sfx_library`
+- `DECISIONS.md` — D076, D078
 
 ---
 
