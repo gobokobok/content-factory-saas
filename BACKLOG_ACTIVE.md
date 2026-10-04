@@ -393,8 +393,8 @@ A scene can say *at which word* its on-screen text appears and *at which word* i
 - [ ] The word-index fix from P13b-S1 is relied on, not repeated: a test with contractions puts the anchor on the intended word
 - [ ] Tests: anchor resolution with and without alignment; golden scripts unchanged for unanchored scenes; one new golden for an anchored scene; the edit-survival rules
 
-### Open question
-Anchor text to a word's **start** only, or allow an end word (text disappears early)? Proposed: start only for now — text runs to the scene end, as today.
+### Decision (2026-10-04)
+On-screen text anchors to a word's **start** only and stays until the end of the scene. An end word (text disappearing early) is not part of this story; it could be added later as an optional `on_screen_text_end_word`.
 
 ### Definition of Done
 - [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
