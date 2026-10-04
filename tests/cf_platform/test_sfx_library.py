@@ -4,8 +4,8 @@ from cf_platform.core.sfx_library import SFX_LIBRARY, sfx_vocab_prompt_line, sfx
 
 
 class TestSfxLibraryManifest:
-    def test_manifest_has_eight_curated_entries(self):
-        assert len(SFX_LIBRARY) == 8
+    def test_manifest_has_the_five_chosen_entries(self):
+        assert len(SFX_LIBRARY) == 5
 
     def test_keys_are_unique(self):
         keys = [e.key for e in SFX_LIBRARY]
@@ -13,17 +13,13 @@ class TestSfxLibraryManifest:
 
     def test_expected_keys_present(self):
         keys = {e.key for e in SFX_LIBRARY}
-        assert keys == {
-            "cash_register", "checkmark", "error", "whoosh",
-            "pop", "notification", "drumroll", "impact",
-        }
+        assert keys == {"whoosh", "impact", "cash_register", "error", "typing"}
 
     def test_every_entry_has_all_fields_populated(self):
         for entry in SFX_LIBRARY:
             assert entry.key
             assert entry.display_name
             assert entry.prompt_hint
-            assert entry.search_query
 
 
 class TestSfxVocabPromptLine:

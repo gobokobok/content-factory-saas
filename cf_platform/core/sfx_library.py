@@ -29,53 +29,37 @@ class SfxLibraryEntry(BaseModel):
 
 
 SFX_LIBRARY: list[SfxLibraryEntry] = [
-    SfxLibraryEntry(
-        key="cash_register",
-        display_name="Cash register",
-        prompt_hint="scene mentions a dollar amount, price, or cost",
-        search_query="cash register cha ching",
-    ),
-    SfxLibraryEntry(
-        key="checkmark",
-        display_name="Checkmark",
-        prompt_hint="scene lists or confirms an item (a habit, step, or rule)",
-        search_query="correct answer ding",
-    ),
-    SfxLibraryEntry(
-        key="error",
-        display_name="Error / buzz",
-        prompt_hint="scene highlights a mistake, misconception, or wrongdoing",
-        search_query="error buzzer wrong",
-    ),
+    # The operator-chosen set (2026-10-04). Source files and licences: assets/sfx_source/SOURCES.md.
+    # search_query is unused for these (hand-picked, not Freesound-seeded); the field stays required.
     SfxLibraryEntry(
         key="whoosh",
         display_name="Whoosh",
         prompt_hint="scene is a topic or section transition",
-        search_query="whoosh transition swipe",
-    ),
-    SfxLibraryEntry(
-        key="pop",
-        display_name="Pop",
-        prompt_hint="a lighter bullet-point reveal, alternative to checkmark",
-        search_query="soft pop bubble",
-    ),
-    SfxLibraryEntry(
-        key="notification",
-        display_name="Notification ding",
-        prompt_hint="a neutral alert/attention cue, distinct from checkmark's success framing",
-        search_query="notification ding bell",
-    ),
-    SfxLibraryEntry(
-        key="drumroll",
-        display_name="Drumroll riser",
-        prompt_hint="tension build-up in the scene right before a big-number reveal",
-        search_query="drum roll sting",
+        search_query="",
     ),
     SfxLibraryEntry(
         key="impact",
-        display_name="Impact / thud",
+        display_name="Impact / boom",
         prompt_hint="emphasis moment on a shocking or dramatic stat",
-        search_query="impact thud hit",
+        search_query="",
+    ),
+    SfxLibraryEntry(
+        key="cash_register",
+        display_name="Cash register",
+        prompt_hint="scene mentions a dollar amount, price, or cost",
+        search_query="",
+    ),
+    SfxLibraryEntry(
+        key="error",
+        display_name="Error / buzzer",
+        prompt_hint="scene highlights a mistake, misconception, or wrongdoing",
+        search_query="",
+    ),
+    SfxLibraryEntry(
+        key="typing",
+        display_name="Typing",
+        prompt_hint="scene is about searching, looking something up, researching, or writing",
+        search_query="",
     ),
 ]
 
