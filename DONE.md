@@ -14,6 +14,7 @@ _This file holds the last two sprints (P13b, P13) plus every older entry whose s
 - **Known limits (D103):** wikimedia-portrait blur-fill, Standard captions' per-word highlight, and the legacy `build_ffmpeg_script` are not in the timeline. Candidate for E50: word-anchored text and SFX reach the CapCut draft through the timeline for free.
 - New ENV var: `OUTPUT_UPLOAD_MAX_MB` (default 500). No new platform dependency. Tests: 5 new files plus the golden suite; CI 2526 passed on `fa6a3f0`.
 - Decision logged: **D103**.
+- **Post-close (2026-10-04):** the SFX library was cut to five operator-chosen sounds — `whoosh`, `impact`, `cash_register`, `error`, `typing` (`cf_platform/core/sfx_library.py`). Sources and licences (Pixabay Content License) are in `assets/sfx_source/SOURCES.md`; the trimmed, loudness-matched files are uploaded to the DEV `sfx-library/`, not PROD. Scenes that still hold an old key (`checkmark`, `pop`, `notification`, `drumroll`) show "none" in the dropdown. The CapCut draft carries no SFX clips in the operator's smoke run (SFX are placed by hand; word-anchored placement is E50-S1).
 **Smoke test:** PASSED — 2026-10-04 on Railway DEV, operator reported the CapCut path complete in chat (download, laptop command, CapCut edit, upload back). Individual steps were not itemised.
 **Promoted to backlog:** none. EPIC 50 (E50-S1..S3, word-anchored overlays and SFX library) was proposed the same day, unplaced.
 
