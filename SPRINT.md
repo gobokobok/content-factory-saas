@@ -4,7 +4,7 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04); next sprint to be set at the P13b review.
+> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04). **Current sprint:** P14 — AI Created style, stories P14-S1..S4.
 
 ---
 
@@ -32,7 +32,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P12 | Projects & shortlist | 16 | done | Open Studio → project list → add a shortlist idea by hand → create a run from it |
 | P13 | Storyboard control | 14 | done | Change a scene from image to video, split and merge scenes, then acquire |
 | P13b | CapCut export (second render path) | 11 | done | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
-| P14 | AI Created style | ~13 | planned | Pick AI Created, write a mood prompt, get a generated image on every scene |
+| P14 | AI Created style | 13 | current | Pick AI Created, write a mood prompt, get a generated image on every scene |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
 | P17 | Server-side Auto Advance | ~10 | planned | Pick a shortlist idea, close the tab, come back to a scheduled video |
@@ -54,24 +54,32 @@ Legacy Script→Video stays untouched and operable (D047).
 
 ---
 
-# Sprint P13b — CapCut export
+# Sprint P14 — AI Created style
 
-**Goal:** A finalized storyboard can leave Studio as a CapCut project: one download, one command on the laptop, and the full edit opens in CapCut; the video rendered there comes back into the run (D100). The FFmpeg render on Railway keeps working unchanged.
-**Status:** done 2026-10-04 (`fa6a3f0`), operator smoke test passed on DEV. Built in one pass (`/start-story P13b-S1..S4`).
-**Points:** 11
+**Goal:** A run can use AI-generated images instead of stock footage: the operator picks the AI Created style and a mood prompt and gets a generated image on every scene, or switches single scenes to AI image in any style (D096). Stock acquisition and both render paths keep working unchanged.
+**Status:** current — planned 2026-10-04 at the Sprint P13b review. Built in one pass (`/start-story P14-S1..S4`).
+**Points:** 13
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P13b-S1 | Neutral timeline artifact + render regression tests | 4 | done |
-| P13b-S2 | "Download for CapCut" — zip of media and timeline | 2 | done |
-| P13b-S3 | Laptop script and setup guide | 3 | done |
-| P13b-S4 | Return path — upload the CapCut-rendered video into the run | 2 | done |
+| P14-S1 | Provider side-by-side test, `ImageProvider` interface and kie.ai client | 4 | todo |
+| P14-S2 | "AI Created" style, mood prompt in Settings, Visual Director prompt branch | 4 | todo |
+| P14-S3 | Per-scene "AI image" strategy with an editable prompt, usable in any style | 3 | todo |
+| P14-S4 | Per-run spend cap and cost display in Studio | 2 | todo |
 
-**Execution order:** S1 → (S2 ∥ S3) → S4.
+**Execution order:** S1 → S2 → S3 → S4 (S3 and S4 can swap).
 
-**Why S1 carries render hardening:** render is a recurring-fix area (7 untracked fixes, 2026-08-16 → 09-19, three releases on a wrong diagnosis — D090/D091). S1 rewires what the FFmpeg builder reads, so the golden render-script tests are written first and must stay byte-identical.
+**Open questions — decide at the start of the sprint, before S1 is built** (they are recorded in BACKLOG_ACTIVE.md, EPIC 45, and each answer goes to DECISIONS.md):
+1. Which OpenAI quality tier kie.ai's price corresponds to (D096: unverified) — settled by the S1 side-by-side test on five real scene prompts.
+2. A consistent look across scenes: a style reference image, or the prompt alone.
+3. How Studio reaches the Visual Director, which only `full_pipeline.py` runs today (P13 handover).
+4. The spend cap: its default, whether it is per run or per project, and what happens when it is hit (stop, or ask).
 
-**Human touchpoint:** on DEV, the operator downloads a finalized storyboard, runs one command on the laptop, opens the full edit in CapCut, renders it there and uploads the result back into the run.
+**Why a spend cap is in the sprint:** this is the first paid path in the project (D096 narrows the free-tier rule). It was an open question in the outline; S4 settles it before the cap matters.
+
+**Human touchpoint:** the operator picks AI Created, writes a mood prompt and gets a generated image on every scene; then switches one scene to "AI image" in a stock-style run and edits its prompt.
+
+**Operator actions beside the sprint (not stories):** `/prod-check` then `/release` of P12 + P13 + P13b (timing not yet decided); provision the new image-provider ENV keys on DEV before S1 and on PROD at release; `/audit` before P16 at the latest.
 
 ## Scope changes
 

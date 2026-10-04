@@ -1,6 +1,6 @@
 # Sprint Archive — Content Factory
 
-_Historical sprints S1–S19 and Platform P0–P13 (incl. P-UX1, P-UX2), oldest first. Moved here to slim SPRINT.md._
+_Historical sprints S1–S19 and Platform P0–P13b (incl. P-UX1, P-UX2), oldest first. Moved here to slim SPRINT.md._
 _Active sprints: SPRINT.md. Full story details: BACKLOG.md._
 
 ---
@@ -997,3 +997,24 @@ _(new threshold: 3 outstanding triggers integration session)_
 **Operator decisions (2026-10-03):** voiceover text is read-only at the storyboard stage; on split, the first half keeps an already-acquired asset and the second half needs acquisition.
 
 **Human touchpoint:** change a scene from image to video, split and merge scenes, then acquire — and swap one scene's asset afterwards (clears the P10-S2 deferral).
+
+# Sprint P13b — CapCut export
+
+**Goal:** A finalized storyboard can leave Studio as a CapCut project: one download, one command on the laptop, and the full edit opens in CapCut; the video rendered there comes back into the run (D100). The FFmpeg render on Railway keeps working unchanged.
+**Status:** done 2026-10-04 (`fa6a3f0`), operator smoke test passed on DEV. Built in one pass (`/start-story P13b-S1..S4`).
+**Points:** 11
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P13b-S1 | Neutral timeline artifact + render regression tests | 4 | done |
+| P13b-S2 | "Download for CapCut" — zip of media and timeline | 2 | done |
+| P13b-S3 | Laptop script and setup guide | 3 | done |
+| P13b-S4 | Return path — upload the CapCut-rendered video into the run | 2 | done |
+
+**Execution order:** S1 → (S2 ∥ S3) → S4.
+
+**Why S1 carries render hardening:** render is a recurring-fix area (7 untracked fixes, 2026-08-16 → 09-19, three releases on a wrong diagnosis — D090/D091). S1 rewires what the FFmpeg builder reads, so the golden render-script tests are written first and must stay byte-identical.
+
+**Human touchpoint:** on DEV, the operator downloads a finalized storyboard, runs one command on the laptop, opens the full edit in CapCut, renders it there and uploads the result back into the run.
+
+**Scope changes:** none.
