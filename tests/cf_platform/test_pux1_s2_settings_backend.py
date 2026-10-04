@@ -468,14 +468,15 @@ class TestSfxLibraryEndpoint:
     def test_returns_only_present_keys(self, client):
         mock_storage = MagicMock()
         mock_storage.list_keys = AsyncMock(
-            return_value=["sfx-library/checkmark.mp3", "sfx-library/error.mp3"]
+            return_value=["sfx-library/checkmark.mp3", "sfx-library/error.mp3", "sfx-library/whoosh.mp3"]
         )
         app.dependency_overrides[get_artifact_storage] = lambda: mock_storage
 
         r = client.get("/platform/studio/sfx-library")
 
         assert r.status_code == 200
-        assert {o["key"] for o in r.json()} == {"checkmark", "error"}
+        # checkmark has a file but is no longer in the curated manifest, so it is not offered
+        assert {o["key"] for o in r.json()} == {"error", "whoosh"}
 
     def test_empty_library_returns_empty_list(self, client):
         mock_storage = MagicMock()

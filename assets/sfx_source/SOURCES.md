@@ -1,6 +1,6 @@
 # SFX source files (Pixabay Content License — free commercial use, no attribution; no standalone redistribution)
 
-Downloaded 2026-10-04. Raw originals, untrimmed. Library key = where it is meant to go.
+Downloaded 2026-10-04. Originals are in this folder; processed/ holds the files uploaded to the DEV sfx-library (trimmed to 1.2-2.0 s, faded out, about -18 LUFS). Library key = where it is meant to go.
 
 | File | Library key | Title | Uploader | Page | AI-generated |
 |---|---|---|---|---|---|
