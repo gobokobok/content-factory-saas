@@ -29,6 +29,7 @@ from src.exceptions import PexelsError
 from src.footage_qa import QAResult, pick_best, qa_score
 from src.models import (
     AWAITING_UPLOAD_STATUS,
+    OPERATOR_SUPPLIED_STRATEGIES,
     AssetManifest,
     GlobalContext,
     ManifestEntry,
@@ -283,6 +284,7 @@ def manifest_entry_for_scene(scene: Any) -> ManifestEntry:
         asset_tier=scene.asset_tier,
         semantic_context=scene.semantic_context,
         asset_strategy=scene.asset_strategy,
+        ai_prompt=scene.ai_prompt,
     )
 
 
@@ -1121,7 +1123,7 @@ def build_acquisition_worker(
         for idx, scene in enumerate(storyboard.scenes):
             entry = manifest_entry_for_scene(scene)
             old = prior.get(entry.scene_id)
-            if entry.asset_strategy == "upload":
+            if entry.asset_strategy in OPERATOR_SUPPLIED_STRATEGIES:
                 if entry_has_asset(old):
                     _carry_over(entry, old)
                 else:

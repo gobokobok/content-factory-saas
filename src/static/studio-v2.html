@@ -980,6 +980,15 @@
         </div>
         <div class="modal-msg" id="pencil-upload-msg"></div>
       </div>
+      <div>
+        <div class="modal-section-label">Or generate with AI <span id="pencil-ai-spend" style="font-weight:400;color:var(--faint);"></span></div>
+        <textarea class="modal-input" id="pencil-ai-prompt" rows="3" style="width:100%;resize:vertical;font-family:inherit;" placeholder="Describe the image: subject, setting, light, composition. No text in the picture."></textarea>
+        <div class="modal-row" style="margin-top:8px;">
+          <button class="btn btn-secondary btn-sm" id="pencil-generate-btn" onclick="generateSceneImage()">Generate</button>
+          <span style="font-size:11px;color:var(--faint);">Uses your image provider key from Settings. The project's AI image style, if set, is added automatically. Replaces this scene's asset.</span>
+        </div>
+        <div class="modal-msg" id="pencil-generate-msg"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closePencilModal()">Close</button>
@@ -1036,10 +1045,10 @@ const DEMO_WORDS = DEMO_SCENES.flatMap(s => s.voiceover_line.split(' '));
 
 function demoManifest() {
   return { entries: DEMO_SCENES.map((s, i) => s._noAsset
-    ? { scene_id: s.scene, status: s.asset_strategy === 'upload' ? 'awaiting_upload' : 'pending', primary_stk: s.primary_stk }
+    ? { scene_id: s.scene, status: ['upload', 'ai_image'].includes(s.asset_strategy) ? 'awaiting_upload' : 'pending', primary_stk: s.primary_stk }
     : {
       scene_id: s.scene, status: "acquired", qa_passed: true,
-      source: s._uploaded ? "operator_upload" : i % 3 === 0 ? "pexels" : i % 3 === 1 ? "wikimedia" : "pixabay",
+      source: s._ai ? "ai_generated" : s._uploaded ? "operator_upload" : i % 3 === 0 ? "pexels" : i % 3 === 1 ? "wikimedia" : "pixabay",
       asset_url: `https://picsum.photos/seed/${s._seed}/168/104`,
       file_key: s.asset_tier === 'video' ? `scene_${s._seed}.mp4` : `scene_${s._seed}.jpg`,
       primary_stk: s.primary_stk,
@@ -1127,6 +1136,17 @@ function demoRoute(url, opts) {
     const sid = u.match(/\/scenes\/([^/]+)\//)[1];
     return demoResponse({ preview_url: `https://picsum.photos/seed/re${sid}${Date.now() % 97}/168/104`, file_key: `scene_${sid}.jpg`, source: 'pexels', qa_passed: true }, 200, 1400);
   }
+  if (u.endsWith('/ai-spend')) {
+    return demoResponse({ spent_usd: 0.03 * (window._demoAi || 0), cap_usd: 2, remaining_usd: 2 - 0.03 * (window._demoAi || 0), images: window._demoAi || 0, cost_per_image_usd: 0.03 }, 200, 150);
+  }
+  if (u.match(/\/scenes\/[^/]+\/generate/)) {
+    const sid = u.match(/\/scenes\/([^/]+)\//)[1];
+    const g = DEMO_SCENES.find(sc => sc.scene === sid);
+    const prompt = JSON.parse(opts.body).prompt;
+    window._demoAi = (window._demoAi || 0) + 1;
+    if (g) { g._noAsset = false; g._uploaded = true; g._seed = `ai${sid}${Date.now() % 97}`; g.asset_strategy = 'ai_image'; g.ai_prompt = prompt; g._ai = true; }
+    return demoResponse({ preview_url: `https://picsum.photos/seed/ai${sid}${Date.now() % 97}/168/104`, file_key: `scene_${sid}_ai.png`, source: 'ai_generated', ai_prompt: prompt, spend: { spent_usd: 0.03 * window._demoAi, cap_usd: 2, remaining_usd: 2 - 0.03 * window._demoAi, images: window._demoAi, cost_per_image_usd: 0.03 } }, 200, 2000);
+  }
   if (u.match(/\/scenes\/[^/]+\/upload/)) {
     const sid = u.match(/\/scenes\/([^/]+)\//)[1];
     const up = DEMO_SCENES.find(sc => sc.scene === sid);
@@ -1160,8 +1180,11 @@ function demoRoute(url, opts) {
       const wasVideo = sc.asset_tier === 'video';
       sc.asset_strategy = body.asset_strategy;
       if (body.asset_strategy === 'stock_video') { sc.asset_tier = 'video'; sc.motion_effect = null; }
-      if (body.asset_strategy === 'stock_image') { sc.asset_tier = 'still'; sc.motion_effect = sc.motion_effect || 'ken_burns'; }
-      if (body.asset_strategy === 'upload' ? !sc._uploaded : wasVideo !== (sc.asset_tier === 'video') || sc._uploaded) { sc._noAsset = true; sc._uploaded = false; }
+      if (body.asset_strategy === 'stock_image' || body.asset_strategy === 'ai_image') { sc.asset_tier = 'still'; sc.motion_effect = sc.motion_effect || 'ken_burns'; }
+      const fits = body.asset_strategy === 'upload' ? sc._uploaded && !sc._ai
+        : body.asset_strategy === 'ai_image' ? sc._ai
+        : wasVideo === (sc.asset_tier === 'video') && !sc._uploaded;
+      if (!fits) { sc._noAsset = true; sc._uploaded = false; sc._ai = false; }
     } else if (sc) {
       const { clear_on_screen_text, ...fields } = body;
       Object.assign(sc, fields, clear_on_screen_text ? { on_screen_text: null } : {});
@@ -1199,6 +1222,7 @@ const ASSET_STRATEGIES = [
   { key: 'stock_image', label: 'Stock image' },
   { key: 'stock_video', label: 'Stock video' },
   { key: 'upload',      label: 'Upload' },
+  { key: 'ai_image',    label: 'AI image' },
 ];
 
 const STAGES = ['settings', 'script', 'voice', 'storyboard', 'render', 'metadata'];
@@ -2276,6 +2300,7 @@ function renderStoryboard(data) {
       <div class="sb-stat"><strong id="sb-stat-acq">0</strong> / ${scenes.length} acquired</div>
       <div class="sb-stat" id="sb-stat-need-wrap" style="display:none;"><strong id="sb-stat-need">0</strong> need an asset</div>
       <div class="sb-stat" id="sb-stat-fail-wrap" style="display:none;"><strong id="sb-stat-fail">0</strong> failed</div>
+      <div class="sb-stat" id="sb-stat-ai-wrap" style="display:none;" title="AI image spend for this run (estimate) against its cap"><strong id="sb-stat-ai"></strong> AI images</div>
       <div class="sb-view-toggle">
         <button class="sb-view-btn${script ? '' : ' active'}" id="sb-view-table" onclick="setSbView('table')">Table</button>
         <button class="sb-view-btn${script ? ' active' : ''}" id="sb-view-script" onclick="setSbView('script')">Script</button>
@@ -2308,6 +2333,7 @@ function renderStoryboard(data) {
 
   document.getElementById('sb-cta').style.display = '';
   updateAcquisitionUi();
+  refreshAiSpend();
   if (script) onScriptViewInput();
   hideErr('sb-error');
 }
@@ -2322,9 +2348,10 @@ function setSbView(view) {
 // fetches only the scenes that still need an asset, or everything again.
 function acquirePlan() {
   const scenes = sbScenes();
-  const stockAcquired = scenes.some(s => sceneHasAsset(s.scene) && state.manifestEntries[String(s.scene)].source !== 'operator_upload');
-  const missing = scenes.filter(s => !sceneHasAsset(s.scene) && effStrategy(s) !== 'upload');
-  const awaiting = scenes.filter(s => !sceneHasAsset(s.scene) && effStrategy(s) === 'upload');
+  const stockAcquired = scenes.some(s => sceneHasAsset(s.scene) && !['operator_upload', 'ai_generated'].includes(state.manifestEntries[String(s.scene)].source));
+  const operatorFilled = s => ['upload', 'ai_image'].includes(effStrategy(s));
+  const missing = scenes.filter(s => !sceneHasAsset(s.scene) && !operatorFilled(s));
+  const awaiting = scenes.filter(s => !sceneHasAsset(s.scene) && operatorFilled(s));
   if (!stockAcquired) return { label: 'Confirm storyboard & acquire →', onlyMissing: true, missing, awaiting, stockAcquired };
   if (missing.length) {
     return { label: `Acquire ${missing.length} missing scene${missing.length === 1 ? '' : 's'} →`, onlyMissing: true, missing, awaiting, stockAcquired };
@@ -2442,7 +2469,7 @@ function buildSceneRow(s, nextScene, totalDur) {
       </select>
     </td>
     <td class="narrow" id="thumb-cell-${sceneId}" style="padding:4px 6px;">${buildThumbCell(sceneId)}</td>
-    <td class="narrow" style="padding:4px 2px;"><div class="row-actions"><button class="pencil-btn" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')"${state.manifestEntries[String(s.scene)] ? '' : ' disabled'} title="Override asset">✎</button>${mergeBtn}</div></td>
+    <td class="narrow" style="padding:4px 2px;"><div class="row-actions"><button class="pencil-btn" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" title="Edit image — re-acquire, upload or generate with AI">✎</button>${mergeBtn}</div></td>
   </tr>`;
 }
 
@@ -2738,6 +2765,10 @@ function buildThumbCell(sceneId) {
     if (scene && effStrategy(scene) === 'upload') {
       return `<label class="row-upload" id="thumb-${esc(sceneId)}" title="Upload an image or video for this scene">Upload<input type="file" accept="video/mp4,video/webm,image/jpeg,image/png,image/webp" onchange="uploadSceneFile('${esc(sceneId)}', this)"></label>`;
     }
+    // An AI image scene is filled by Generate, from the edit-image dialog (D104).
+    if (scene && effStrategy(scene) === 'ai_image') {
+      return `<button class="row-upload" id="thumb-${esc(sceneId)}" onclick="openPencilModal('${esc(sceneId)}')" title="Write a prompt and generate an image for this scene">Generate</button>`;
+    }
     // Once the run has a manifest, a scene without an asset is one that needs acquiring.
     if (Object.keys(state.manifestEntries).length) {
       return `<div class="thumb-placeholder thumb-needs" id="thumb-${esc(sceneId)}" title="This scene has no asset yet">needs asset</div>`;
@@ -2770,8 +2801,6 @@ function _applyManifestToTable(data) {
     const sid = String(s.scene);
     const thumbCell = document.getElementById(`thumb-cell-${sid}`);
     if (thumbCell) thumbCell.innerHTML = buildThumbCell(sid);
-    const pencilBtn = document.getElementById(`pencil-btn-${sid}`);
-    if (pencilBtn) pencilBtn.disabled = !state.manifestEntries[sid];
   });
   updateAcquisitionUi();
 }
@@ -2827,7 +2856,7 @@ async function acquireAssets() {
     // Final manifest load — also sets the button for what is left to do.
     await refreshManifest();
 
-    const awaiting = meta.awaiting_upload ? `, ${meta.awaiting_upload} awaiting upload` : '';
+    const awaiting = meta.awaiting_upload ? `, ${meta.awaiting_upload} awaiting upload / AI image` : '';
     statusEl.textContent = `✓ ${meta.acquired} acquired, ${meta.failed} failed${awaiting} (${elapsed(start)})`;
     renderStageTrack();
 
@@ -2855,6 +2884,12 @@ function openPencilModal(sceneId) {
 
   // Pre-fill query
   document.getElementById('pencil-query').value = entry?.primary_stk || scene?.primary_stk || '';
+
+  // Pre-fill the AI prompt: the scene's saved prompt, else its voiceover as a starting point.
+  document.getElementById('pencil-ai-prompt').value = scene?.ai_prompt || scene?.voiceover_line || '';
+  document.getElementById('pencil-generate-msg').textContent = '';
+  document.getElementById('pencil-generate-msg').className = 'modal-msg';
+  refreshAiSpend();
 
   // Show current thumbnail
   const thumbImg = document.getElementById('pencil-thumb');
@@ -2884,6 +2919,74 @@ function openPencilModal(sceneId) {
 function closePencilModal() {
   document.getElementById('pencil-modal').style.display = 'none';
   _pencilSceneId = null;
+}
+
+// ── AI image generation (P14, D104) ──────────────────────────────────────
+// Manual and per scene: nothing generates until the operator presses Generate.
+async function refreshAiSpend() {
+  if (!state.runId) return null;
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/ai-spend`);
+    if (!r.ok) return null;
+    const sp = await r.json();
+    state.aiSpend = sp;
+    const wrap = document.getElementById('sb-stat-ai-wrap');
+    const el = document.getElementById('sb-stat-ai');
+    if (wrap && el) {
+      wrap.style.display = sp.images > 0 ? '' : 'none';
+      el.textContent = `${sp.images} · $${sp.spent_usd.toFixed(2)} / $${sp.cap_usd.toFixed(2)}`;
+    }
+    const modal = document.getElementById('pencil-ai-spend');
+    if (modal) modal.textContent = `· ~$${sp.cost_per_image_usd.toFixed(2)} per image · $${sp.spent_usd.toFixed(2)} of $${sp.cap_usd.toFixed(2)} used`;
+    return sp;
+  } catch (e) { return null; }
+}
+
+async function generateSceneImage() {
+  if (!_pencilSceneId || !state.runId) return;
+  const sceneId = _pencilSceneId;
+  const prompt = document.getElementById('pencil-ai-prompt').value.trim();
+  const msg = document.getElementById('pencil-generate-msg');
+  const btn = document.getElementById('pencil-generate-btn');
+  msg.className = 'modal-msg';
+  if (!prompt) { msg.textContent = 'Write a prompt first.'; msg.className = 'modal-msg err'; return; }
+  btn.disabled = true;
+  btn.textContent = 'Generating… (up to a minute)';
+  msg.textContent = '';
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/scenes/${sceneId}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      msg.textContent = e.detail || `Error ${r.status}`;
+      msg.className = 'modal-msg err';
+      return;
+    }
+    const data = await r.json();
+    const entry = state.manifestEntries[sceneId] || {};
+    Object.assign(entry, { scene_id: sceneId, asset_url: data.preview_url, file_key: data.file_key, source: data.source, qa_passed: true, status: 'acquired', ai_prompt: prompt });
+    state.manifestEntries[sceneId] = entry;
+    if (data.preview_url) {
+      const thumbImg = document.getElementById('pencil-thumb');
+      thumbImg.src = data.preview_url;
+      thumbImg.style.display = '';
+      document.getElementById('pencil-thumb-placeholder').style.display = 'none';
+    }
+    msg.textContent = `✓ Image generated · $${data.spend.spent_usd.toFixed(2)} of $${data.spend.cap_usd.toFixed(2)} used this run`;
+    msg.className = 'modal-msg ok';
+    // The scene is now an AI image scene: the row, its Motion cell and the counts follow.
+    await reloadStoryboard();
+    refreshAiSpend();
+  } catch (e) {
+    msg.textContent = `Network error: ${e.message}`;
+    msg.className = 'modal-msg err';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Generate';
+  }
 }
 
 async function reacquireScene() {

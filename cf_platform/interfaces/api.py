@@ -30,7 +30,9 @@ from cf_platform.interfaces.routes import (
     projects,
     runs,
     studio,
+    studio_ai,
     telegram_webhook,
+    tenant_settings,
     workers,
 )
 from cf_platform.interfaces.routes.blocks import IdeaToScriptRequest, IdeaToScriptResponse  # noqa: F401
@@ -65,7 +67,9 @@ router.include_router(echo.router)
 router.include_router(blocks.router)
 router.include_router(workers.router)
 router.include_router(studio.router)
+router.include_router(studio_ai.router)
 router.include_router(runs.router)
 router.include_router(projects.router)
+router.include_router(tenant_settings.router)
 router.include_router(pipeline.router)
 router.include_router(telegram_webhook.router)

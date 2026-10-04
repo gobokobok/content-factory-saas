@@ -84,6 +84,17 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | `FFMPEG_SCENE_THREADS` | No | `-threads` cap per concurrent per-scene libx264 encoder (up to 4 run in parallel — see `_MAX` in `_scene_section`). Left unset, libx264 auto-detects the host's full CPU count per process, which can starve the other concurrent encodes on a resource-limited container (D090). Default: `2`. |
 | `STORYBOARD_MIN_SCENE_S` | No | Shortest scene (seconds of voiceover) the operator may create by splitting a scene or moving a boundary in Studio (P13). Scenes produced by storyboard generation are not checked against it. Default: `1.0`. |
 | `OUTPUT_UPLOAD_MAX_MB` | No | Largest `.mp4` (in MB) the operator may upload as a run's final video — the video rendered in CapCut (P13b-S4, D100). The upload is read into memory before it is stored, so keep it below the container's RAM headroom. Default: `500`. |
+| `SETTINGS_ENCRYPTION_KEY` | P14 | Fernet key that encrypts tenant-level API keys stored in Postgres (D104). Generate once with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` and never change it — keys saved under the old value become unreadable. Without it the Settings page cannot save a key (the Railway keys below still work). |
+| `IMAGE_PROVIDER` | No | Fallback image provider when the tenant has not chosen one: `kie` or `openai`. Default: `kie`. |
+| `KIE_API_KEY` | No | kie.ai key, fallback when the tenant has not saved one in Settings (D096, D104). |
+| `OPENAI_API_KEY` | No | OpenAI key, fallback when the tenant has not saved one in Settings. |
+| `KIE_IMAGE_MODEL` / `OPENAI_IMAGE_MODEL` | No | Default model per provider. Defaults: `gpt-image-2-text-to-image` / `gpt-image-1`. A tenant model setting wins. |
+| `IMAGE_QUALITY` | No | OpenAI quality tier (`low` / `medium` / `high`). Default: `medium`. |
+| `IMAGE_RESOLUTION` | No | kie.ai resolution (`1K` / `2K` / `4K`). Default: `1K`. |
+| `IMAGE_DEFAULT_ASPECT_RATIO` | No | Aspect used when the run has no `settings.json`. Default: `9:16`. |
+| `IMAGE_TIMEOUT_S` / `IMAGE_POLL_INTERVAL_S` | No | How long one generation may take and how often kie.ai is polled. Defaults: `180` / `3`. |
+| `IMAGE_COST_USD` | No | Estimated cost of one generated image, used for the cost display and the cap. Not read from the provider. Default: `0.03`. |
+| `IMAGE_RUN_SPEND_CAP_USD` | No | Per-run spend cap for generated images; at the cap Generate is refused. Default: `2.00`. |
 | `CLIP_RERANK_ENABLED` | No | Enable CLIP semantic reranking of Pexels results (E4-S4). Loads a ~340MB model at startup. Default: `False`. |
 | `COLOR_GRADE_PRESET` | No | FFmpeg colour grade applied to the final render (P8-S6). Options: `neutral` (no change), `vivid`, `warm`, `cinematic`, `muted`. Default: `neutral`. |
 | `BLUR_FILL_ENABLED` | No | When `true` (default), landscape still images use blur-fill compositing (blurred full-frame behind, sharp subject scaled to fit) instead of cropping. Gated on aspect ratio > 9:16 detected at render time (P8-S6). Default: `true`. |

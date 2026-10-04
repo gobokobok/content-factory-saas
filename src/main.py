@@ -171,6 +171,12 @@ def project_ui() -> FileResponse:
     return FileResponse(_STATIC_DIR / "project.html", headers=_NO_CACHE)
 
 
+@app.get("/settings", include_in_schema=False)
+def settings_ui() -> FileResponse:
+    """Serve the tenant settings page — image provider, model and API key (P14, D104)."""
+    return FileResponse(_STATIC_DIR / "settings.html", headers=_NO_CACHE)
+
+
 @app.get("/studio", include_in_schema=False)
 def studio_ui() -> FileResponse:
     """Serve the Studio pipeline UI for one run (`/studio#run/<run_id>/<stage>`)."""

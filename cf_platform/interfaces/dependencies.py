@@ -27,10 +27,12 @@ from cf_platform.core.postgres_repos import (
     PostgresRunRepository,
     PostgresTraceEventRepository,
 )
+from cf_platform.core.postgres_tenant_settings import PostgresTenantSettingsRepository
 from cf_platform.core.projects import InMemoryProjectRepository, ProjectRepository
 from cf_platform.core.run_manager import InMemoryRunRepository, RunRepository
 from cf_platform.core.schemas import SourceAdapter
 from cf_platform.core.shortlist import InMemoryShortlistRepository, ShortlistRepository
+from cf_platform.core.tenant_settings import InMemoryTenantSettingsRepository, TenantSettingsRepository
 from cf_platform.core.trace_repo import InMemoryTraceEventRepository, TraceEventRepository
 from cf_platform.core.worker_registry import (
     ExecutionRepository,
@@ -55,6 +57,7 @@ _artifact_repository = InMemoryArtifactRepository()
 _trace_event_repository = InMemoryTraceEventRepository()
 _project_repository = InMemoryProjectRepository(PLATFORM_USER_ID)
 _shortlist_repository = InMemoryShortlistRepository()
+_tenant_settings_repository = InMemoryTenantSettingsRepository()
 _worker_registry = WorkerRegistry()
 _worker_registry.register("echo", ECHO_REGISTRATION)
 register_niche_to_ideas_workers(_worker_registry)
@@ -86,6 +89,14 @@ def get_shortlist_repository() -> ShortlistRepository:
     if pool is not None:
         return PostgresShortlistRepository(pool)
     return _shortlist_repository
+
+
+def get_tenant_settings_repository() -> TenantSettingsRepository:
+    """Return a Postgres-backed TenantSettingsRepository when DATABASE_URL is set, else the in-memory fallback (D048, D104)."""
+    pool = get_pool(get_platform_settings().DATABASE_URL)
+    if pool is not None:
+        return PostgresTenantSettingsRepository(pool)
+    return _tenant_settings_repository
 
 
 def get_execution_repository() -> ExecutionRepository:

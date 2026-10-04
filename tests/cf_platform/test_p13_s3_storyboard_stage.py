@@ -46,7 +46,7 @@ class TestAssetColumn:
     def test_vocabulary_matches_the_backend(self):
         block = re.search(r"const ASSET_STRATEGIES = \[(.*?)\];", _PAGE, re.S).group(1)
         assert tuple(re.findall(r"key: '(\w+)'", block)) == ASSET_STRATEGIES
-        assert re.findall(r"label: '([^']+)'", block) == ["Stock image", "Stock video", "Upload"]
+        assert re.findall(r"label: '([^']+)'", block) == ["Stock image", "Stock video", "Upload", "AI image"]
 
     def test_asset_column_replaces_the_visual_badge(self):
         render = _function("renderStoryboard")

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Projects — Content Factory</title>
+  <title>Settings — Content Factory</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
@@ -86,6 +86,14 @@
     .error-bar { padding: 10px 14px; border: 1px solid #F4C6C2; border-radius: var(--r-sm); background: var(--red-tint); color: var(--red); font-size: 13px; margin-bottom: 16px; }
     .notice { padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--accent-tint); color: var(--accent); font-size: 13px; margin-bottom: 16px; }
     .muted { color: var(--muted); }
+    .back { display: inline-block; font-size: 13px; color: var(--muted); text-decoration: none; margin-bottom: 18px; }
+    .back:hover { color: var(--ink); }
+    .card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .card-sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
+    .select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 13px; background: var(--surface); color: var(--ink); }
+    .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
+    .saved-msg { font-size: 12px; color: var(--muted); margin-left: 10px; }
+    .key-state { font-family: var(--mono); font-size: 12px; }
 
     @media (max-width: 600px) {
       .topbar { padding: 12px 16px; }
@@ -101,172 +109,146 @@
   <div class="brand-mark" aria-hidden="true"></div>
   <div class="brand-name">CF <span>Studio</span></div>
   <div class="spacer"></div>
-  <a class="btn btn-ghost" href="/settings" style="text-decoration:none;">Settings</a>
   <button class="btn btn-ghost" onclick="logOut()">Log out</button>
 </header>
 
 <main class="page">
+  <a class="back" href="/">← All projects</a>
   <div class="page-head">
-    <h1 class="page-title">Projects</h1>
-    <span class="page-count" id="project-count"></span>
-    <div class="spacer"></div>
-    <button class="btn btn-primary" id="new-project-btn" onclick="toggleNewProject()">+ New project</button>
+    <h1 class="page-title">Settings</h1>
   </div>
 
   <div id="error" class="error-bar" style="display:none;"></div>
   <div id="notice" class="notice" style="display:none;"></div>
 
-  <form class="card" id="new-project-form" style="display:none;" onsubmit="createProject(event)">
+  <form class="card" id="image-form" onsubmit="saveImageSettings(event)">
+    <div class="card-title">AI image generation</div>
+    <div class="card-sub">Used by Generate in a scene's edit-image dialog. Images are only generated when you press Generate — never automatically.</div>
     <div class="form-row">
       <div>
-        <label class="label" for="np-name">Project name</label>
-        <input class="input" id="np-name" maxlength="120" placeholder="The Housing Equation" required>
+        <label class="label" for="img-provider">Provider</label>
+        <select class="select" id="img-provider" onchange="renderKeyState()">
+          <option value="kie">kie.ai</option>
+          <option value="openai">OpenAI</option>
+        </select>
       </div>
       <div>
-        <label class="label" for="np-niche">Niche (optional)</label>
-        <input class="input" id="np-niche" maxlength="200" placeholder="american housing economics">
+        <label class="label" for="img-model">Model (optional)</label>
+        <input class="input" id="img-model" maxlength="120" autocomplete="off" spellcheck="false">
+        <div class="hint" id="img-model-hint"></div>
       </div>
     </div>
-    <button class="btn btn-primary" type="submit" id="np-submit">Create project</button>
-    <button class="btn btn-ghost" type="button" onclick="toggleNewProject()">Cancel</button>
+    <div class="form-row">
+      <div>
+        <label class="label" for="img-key">API key</label>
+        <input class="input" id="img-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Paste a key to save or replace it">
+        <div class="hint"><span class="key-state" id="key-state"></span></div>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit" id="img-save">Save</button>
+    <button class="btn btn-ghost" type="button" id="img-clear" onclick="clearKey()" style="display:none;">Remove saved key</button>
+    <span class="saved-msg" id="img-msg"></span>
   </form>
-
-  <div id="project-list"><div class="muted">Loading…</div></div>
 </main>
 
 <script>
-// A bookmarked run link from before P12 (`/#run/<id>/<stage>`) still opens the run.
-// Also on hashchange: pasting such a link while already on this page does not reload it.
-function forwardRunBookmark() {
-  if (location.hash.startsWith('#run/')) location.replace('/studio' + location.hash);
-}
-forwardRunBookmark();
-window.addEventListener('hashchange', forwardRunBookmark);
+const API = '/platform/tenant/settings/image';
+let current = null;
 
-const DEFAULT_PROJECT_ID = 'default';
-
-function esc(v) {
-  return String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function showMsg(id, msg) {
-  const el = document.getElementById(id);
-  el.textContent = msg; el.style.display = msg ? '' : 'none';
+function showErr(msg) {
+  const el = document.getElementById('error');
+  el.textContent = msg || '';
+  el.style.display = msg ? '' : 'none';
 }
 async function api(url, opts) {
   const r = await fetch(url, opts);
   if (r.status === 401) { window.location.href = '/login'; throw new Error('Unauthorized'); }
   return r;
 }
+async function errorDetail(r) {
+  const e = await r.json().catch(() => ({}));
+  return typeof e.detail === 'string' ? e.detail : `Error ${r.status}`;
+}
 async function logOut() {
   await fetch('/auth/logout', { method: 'POST' });
   window.location.href = '/login';
 }
 
-// ── One-time import of this browser's local run history ───────────────────
-// Before P12 Studio kept its run list in localStorage.studio_runs, and a run
-// started from a pasted script never got a server-side row. Register them in the
-// default project so they are not lost. The local list itself is left in place.
-async function importLocalRuns() {
-  let local = [];
-  try {
-    if (localStorage.getItem('studio_runs_imported')) return;
-    local = JSON.parse(localStorage.getItem('studio_runs') || '[]');
-  } catch { return; }
-  const runs = local
-    .filter(r => r && typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.id))
-    .map(r => ({ id: r.id, name: String(r.name || r.scriptPreview || '').slice(0, 200), ts: Number(r.ts) || null }));
-  if (!runs.length) {
-    try { localStorage.setItem('studio_runs_imported', '1'); } catch { /* private mode */ }
-    return;
-  }
-  try {
-    const r = await api(`/platform/projects/${DEFAULT_PROJECT_ID}/runs/import`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ runs }),
-    });
-    if (!r.ok) return;  // leave the flag unset — the import is retried on the next visit
-    const data = await r.json();
-    localStorage.setItem('studio_runs_imported', '1');
-    if (data.imported > 0) {
-      showMsg('notice', `${data.imported} run${data.imported === 1 ? '' : 's'} from this browser's history moved into "Default project".`);
-    }
-  } catch { /* retried on the next visit */ }
+// What the selected provider's key looks like right now: a key saved here, the
+// Railway variable, or nothing. The key itself is never sent to the browser.
+function renderKeyState() {
+  const provider = document.getElementById('img-provider').value;
+  const p = current.providers[provider];
+  const el = document.getElementById('key-state');
+  if (p.key_source === 'tenant') el.textContent = `Saved key ending ${p.key_hint || '••••'}`;
+  else if (p.key_source === 'env') el.textContent = 'Using the key from the Railway variable';
+  else el.textContent = 'No key yet';
+  document.getElementById('img-clear').style.display = p.key_source === 'tenant' ? '' : 'none';
+  document.getElementById('img-model').placeholder = current.default_models[provider] || '';
+  document.getElementById('img-model-hint').textContent = `Empty uses ${current.default_models[provider] || 'the provider default'}.`;
 }
 
-// ── Project list ──────────────────────────────────────────────────────────
-function renderProjects(projects) {
-  document.getElementById('project-count').textContent = projects.length ? String(projects.length) : '';
-  const el = document.getElementById('project-list');
-  if (!projects.length) {
-    el.innerHTML = `
-      <div class="empty">
-        <div class="empty-glyph">[ · · · ]</div>
-        <div class="empty-title">No projects yet</div>
-        <div class="empty-sub">Create a project to start collecting ideas and producing videos.</div>
-      </div>`;
-    return;
+function render() {
+  document.getElementById('img-provider').value = current.provider;
+  document.getElementById('img-model').value = current.model || '';
+  document.getElementById('img-key').value = '';
+  renderKeyState();
+  const notice = document.getElementById('notice');
+  if (!current.can_save_keys) {
+    notice.textContent = 'Keys cannot be saved yet: SETTINGS_ENCRYPTION_KEY is not set on Railway. A Railway key variable still works.';
+    notice.style.display = '';
+  } else {
+    notice.style.display = 'none';
   }
-  el.innerHTML = projects.map(p => `
-    <a class="row" href="/project?id=${encodeURIComponent(p.project_id)}">
-      <div class="row-main">
-        <div class="row-name">${esc(p.name)}</div>
-        <div class="row-meta">${p.niche ? esc(p.niche) : 'No niche set'}</div>
-      </div>
-      <span class="row-count">${p.run_count} run${p.run_count === 1 ? '' : 's'}</span>
-      <svg class="row-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-    </a>`).join('');
 }
 
-async function loadProjects() {
+async function load() {
   try {
-    const r = await api('/platform/projects');
-    if (!r.ok) throw new Error(`Error ${r.status}`);
-    renderProjects(await r.json());
-    showMsg('error', '');
+    const r = await api(API);
+    if (!r.ok) throw new Error(await errorDetail(r));
+    current = await r.json();
+    render();
+    showErr('');
   } catch (e) {
-    document.getElementById('project-list').innerHTML = '';
-    showMsg('error', `Could not load projects: ${e.message}`);
+    showErr(`Could not load settings: ${e.message}`);
   }
 }
 
-// ── New project ───────────────────────────────────────────────────────────
-function toggleNewProject() {
-  const form = document.getElementById('new-project-form');
-  const open = form.style.display === 'none';
-  form.style.display = open ? '' : 'none';
-  if (open) document.getElementById('np-name').focus();
-}
-
-async function createProject(event) {
-  event.preventDefault();
-  const name = document.getElementById('np-name').value.trim();
-  const niche = document.getElementById('np-niche').value.trim();
-  if (!name) return;
-  const btn = document.getElementById('np-submit');
+async function put(body) {
+  const btn = document.getElementById('img-save');
   btn.disabled = true;
+  document.getElementById('img-msg').textContent = '';
   try {
-    const r = await api('/platform/projects', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, niche }),
-    });
-    if (!r.ok) {
-      const err = await r.json().catch(() => ({}));
-      throw new Error(typeof err.detail === 'string' ? err.detail : `Error ${r.status}`);
-    }
-    const project = await r.json();
-    window.location.href = `/project?id=${encodeURIComponent(project.project_id)}`;
+    const r = await api(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(await errorDetail(r));
+    current = await r.json();
+    render();
+    document.getElementById('img-msg').textContent = '✓ saved';
+    showErr('');
   } catch (e) {
-    showMsg('error', `Could not create the project: ${e.message}`);
+    showErr(`Could not save: ${e.message}`);
+  } finally {
     btn.disabled = false;
   }
 }
 
-(async function init() {
-  await importLocalRuns();
-  await loadProjects();
-})();
+function saveImageSettings(event) {
+  event.preventDefault();
+  const body = {
+    provider: document.getElementById('img-provider').value,
+    model: document.getElementById('img-model').value.trim(),
+  };
+  const key = document.getElementById('img-key').value.trim();
+  if (key) body.api_key = key;
+  return put(body);
+}
+
+function clearKey() {
+  if (!confirm('Remove the saved key for this provider?')) return;
+  return put({ clear_key_for: document.getElementById('img-provider').value });
+}
+
+load();
 </script>
 </body>
 </html>

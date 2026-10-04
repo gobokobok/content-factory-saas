@@ -35,6 +35,7 @@ from cf_platform.workers.storyboard_worker import (
 from cf_platform.workers.voice_production import VoiceWordTimestamp
 from src.models import (
     AWAITING_UPLOAD_STATUS,
+    OPERATOR_SUPPLIED_STRATEGIES,
     AssetManifest,
     ManifestEntry,
     Storyboard,
@@ -208,7 +209,7 @@ def replace_boundaries(
             scene = scene.model_copy(update={
                 "asset_tier": tier, "clip_type": clip_type, "motion_effect": effect,
             })
-        elif scene.asset_strategy in ("stock_image", "stock_video"):
+        elif scene.asset_strategy in ("stock_image", "stock_video", "ai_image"):
             if kept:
                 scene = scene.model_copy(update={"motion_effect": source.motion_effect})
             scene = apply_asset_strategy(scene, scene.asset_strategy)
@@ -227,7 +228,7 @@ def replace_boundaries(
                 })
             else:
                 entry = manifest_entry_for_scene(scene)
-                if scene.asset_strategy == "upload":
+                if scene.asset_strategy in OPERATOR_SUPPLIED_STRATEGIES:
                     entry.status = AWAITING_UPLOAD_STATUS
             new_entries.append(entry)
 

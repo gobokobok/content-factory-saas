@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 from cf_platform.workers.voice_production import VoiceAlignmentArtifact
 from src.models import (
     AWAITING_UPLOAD_STATUS,
+    OPERATOR_SUPPLIED_STRATEGIES,
     AssetManifest,
     AudioSettings,
     Storyboard,
@@ -192,6 +193,7 @@ def missing_assets_message(storyboard, manifest) -> str | None:
     """
     entries = {e.scene_id: e for e in manifest.entries}
     awaiting: list[str] = []
+    awaiting_ai: list[str] = []
     missing: list[str] = []
     for scene in storyboard.scenes:
         entry = entries.get(scene.scene)
@@ -199,16 +201,24 @@ def missing_assets_message(storyboard, manifest) -> str | None:
         # file in place with status "failed", and that still renders.
         if entry is not None and entry.file_key:
             continue
-        waits_for_upload = scene.asset_strategy == "upload" or (
+        waits_for_upload = scene.asset_strategy in OPERATOR_SUPPLIED_STRATEGIES or (
             entry is not None and entry.status == AWAITING_UPLOAD_STATUS
         )
-        (awaiting if waits_for_upload else missing).append(scene.scene)
+        if scene.asset_strategy == "ai_image":
+            awaiting_ai.append(scene.scene)
+        else:
+            (awaiting if waits_for_upload else missing).append(scene.scene)
 
     parts: list[str] = []
     if awaiting:
         parts.append(
             f"Scene(s) {', '.join(awaiting)} are set to Upload and have no file yet — "
             "upload a file or change the asset type."
+        )
+    if awaiting_ai:
+        parts.append(
+            f"Scene(s) {', '.join(awaiting_ai)} are set to AI image and have no image yet — "
+            "generate one in the Storyboard stage or change the asset type."
         )
     if missing:
         parts.append(

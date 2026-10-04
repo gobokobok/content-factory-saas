@@ -12,13 +12,13 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint P14 — AI Created style** (D096): a run can use AI-generated images — an AI Created style with a mood prompt, and a per-scene "AI image" option usable in any style. P12, P13 and P13b are complete. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
+**Sprint P14 — AI Created style** (D096, D104): the operator generates an AI image per scene from the storyboard's edit-image dialog (prompt field + Generate) — manual only, never automatic. Provider, model and API key are tenant settings (`/settings`, encrypted); an optional project-level `ai_image_style` is prepended to every prompt; a per-run spend cap guards cost. P12, P13 and P13b are complete. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
 _Backlog order: P14 → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50 (E50-S1..S3 word-anchored overlays, SFX library)._
 
 ## Active story
-**P14-S1..S4**, built in one pass — `/start-story P14-S1..S4` (BACKLOG_ACTIVE.md, EPIC 45). **Decide the four open questions first** (listed in SPRINT.md, Sprint P14): provider tier, cross-scene look, Studio ↔ Visual Director, spend cap. Order: S1 provider test + interface → S2 style → S3 per-scene → S4 spend cap.
+**P14-S1..S4** — built in one pass, code complete on `main`'s working tree (CI-equivalent suite green), **not yet pushed**. Next: commit and push, wait for the DEV deploy, then the smoke test (SPRINT.md, Sprint P14); then `/finish-story`.
 
-**Blockers / operator actions:** none. PROD stays on v0.24.0 on purpose — the operator releases DEV to PROD only when DEV is complete and smoke tested (no `/release` pending). Image-provider keys needed on DEV before P14-S1. `/audit` never run (no `docs/SECURITY.md`). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
+**Blockers / operator actions:** none. PROD stays on v0.24.0 on purpose — the operator releases DEV to PROD only when DEV is complete and smoke tested (no `/release` pending). Before the P14 smoke test: set `SETTINGS_ENCRYPTION_KEY` on Railway DEV, then save a kie.ai key in Settings. `/audit` never run (no `docs/SECURITY.md`). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
 
 ## Environments
 

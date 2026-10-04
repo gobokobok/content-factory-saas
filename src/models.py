@@ -200,11 +200,20 @@ def normalize_motion_effect(motion_effect: str | None, clip_type: str = "") -> s
 # What the operator wants a scene's asset to be, set on the storyboard before
 # acquisition runs.  This Literal is the single definition: ASSET_STRATEGIES is
 # derived from it and is what the patch endpoint and the Studio dropdown validate
-# against.  P14 adds "ai_image" here and nowhere else.
-AssetStrategy = Literal["stock_image", "stock_video", "upload"]
+# against.  "ai_image" (P14, D104) is generated per scene by the operator.
+AssetStrategy = Literal["stock_image", "stock_video", "upload", "ai_image"]
 ASSET_STRATEGIES: tuple[str, ...] = get_args(AssetStrategy)
 
-# Manifest entry status of an "upload" scene the operator has not supplied a file for.
+# Strategies whose file the operator supplies (an upload, or a Generate click):
+# acquisition never fetches these scenes, it waits for the operator.
+OPERATOR_SUPPLIED_STRATEGIES: tuple[str, ...] = ("upload", "ai_image")
+
+# ManifestEntry.source values of files the operator made, as opposed to stock.
+OPERATOR_UPLOAD_SOURCE = "operator_upload"
+AI_GENERATED_SOURCE = "ai_generated"
+OPERATOR_SOURCES: tuple[str, ...] = (OPERATOR_UPLOAD_SOURCE, AI_GENERATED_SOURCE)
+
+# Manifest entry status of an "upload" or "ai_image" scene the operator has not supplied a file for.
 AWAITING_UPLOAD_STATUS = "awaiting_upload"
 
 
@@ -263,6 +272,9 @@ class StoryboardScene(BaseModel):
     # Operator-chosen asset strategy (D095, P13-S1).  None means "derive from
     # asset_tier as before" — see effective_asset_strategy.
     asset_strategy: AssetStrategy | None = None
+    # Prompt the operator generated this scene's AI image from (D104).  The
+    # project's ai_image_style is prepended at generation time, not stored here.
+    ai_prompt: str | None = None
     # Deprecated alias — segment_type=Event is the v2 signal. Kept for R2 backward compat.
     historic: bool = False
     # Set by the storyboard prompt (v0.10) when scene depicts a named real person.
@@ -362,6 +374,8 @@ class ManifestEntry(BaseModel):
     semantic_context: SemanticContext | None = None
     # Operator-chosen asset strategy propagated from StoryboardScene (P13-S1).
     asset_strategy: AssetStrategy | None = None
+    # Propagated from StoryboardScene (D104).
+    ai_prompt: str | None = None
     # File-name stem for this scene's acquired asset when scene_id alone would
     # collide with a file another scene still uses (ids are renumbered by
     # split / merge, P13-S2).  None means "use scene_id", as before.

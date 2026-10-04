@@ -933,7 +933,7 @@ def apply_asset_strategy(scene: StoryboardScene, strategy: str) -> StoryboardSce
     are realigned with it so the Studio table and the render describe the same thing:
 
     stock_video → ("video", "hard_cut", None) — motion effects are stills-only (D089).
-    stock_image → the duration-derived still tier, floored to "still_motion"; an
+    stock_image / ai_image → the duration-derived still tier, floored to "still_motion"; an
                   effect the operator already chose survives, an unset one takes the
                   still default through normalize_motion_effect.
     upload      → the contract is left alone; the upload endpoint re-derives it from
@@ -944,7 +944,7 @@ def apply_asset_strategy(scene: StoryboardScene, strategy: str) -> StoryboardSce
     update: dict = {"asset_strategy": strategy}
     if strategy == "stock_video":
         update.update(asset_tier="video", clip_type="hard_cut", motion_effect=None)
-    elif strategy == "stock_image":
+    elif strategy in ("stock_image", "ai_image"):
         tier = _assign_asset_tier(scene.duration_s)
         if tier == "video":
             tier = "still_motion"
@@ -1193,7 +1193,7 @@ def _apply_patches_and_render_options(
         "segment_type", "person_name", "person_title",
         "primary_stk", "context_stk", "concept_stk",
         "on_screen_text", "on_screen_text_type", "sfx", "sfx_timing",
-        "motion_effect", "asset_strategy",
+        "motion_effect", "asset_strategy", "ai_prompt",
     }
 
     for patch in patches:

@@ -54,7 +54,7 @@ _WORKER = "cf_platform.workers.acquisition_worker"
 
 class TestVocabulary:
     def test_one_definition(self):
-        assert ASSET_STRATEGIES == ("stock_image", "stock_video", "upload")
+        assert ASSET_STRATEGIES == ("stock_image", "stock_video", "upload", "ai_image")
         assert ASSET_STRATEGIES == get_args(AssetStrategy)
 
     def test_scene_field_defaults_to_none_and_rejects_unknown(self):
@@ -136,10 +136,10 @@ class TestPatchAndGet:
 
     def test_unknown_strategy_is_rejected(self):
         with p13_env() as env:
-            r = env.client.patch(f"{_SCENE_URL}/2", json={"asset_strategy": "ai_image"})
+            r = env.client.patch(f"{_SCENE_URL}/2", json={"asset_strategy": "hologram"})
 
             assert r.status_code == 422
-            assert "ai_image" in r.json()["detail"]
+            assert "hologram" in r.json()["detail"]
             assert env.versions("storyboard", "verified_storyboard") == 1
 
     def test_image_to_video_and_back_resets_motion(self):

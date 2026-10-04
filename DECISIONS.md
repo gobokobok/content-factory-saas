@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D104 — AI images are generated per scene on demand; provider keys live at tenant level, encrypted; `cryptography` added
+**Date:** 2026-10-04
+**Status:** ACTIVE
+**Decision:** (1) **Manual, per scene.** No style generates images automatically. A storyboard scene gets an AI image only when the operator types a prompt in its row and presses Generate; the scene then carries `asset_strategy = "ai_image"` and the prompt (`ai_prompt`). Stock acquisition never fetches an `ai_image` scene (it waits for the operator, like `upload`). (2) **Look across scenes** is an optional project setting, `config.ai_image_style`: when set it is prepended to every scene prompt at generation time; when empty nothing is added. No reference image. (3) **Provider, model and API key are tenant settings**, stored in a new `tenant_settings` table (migration 0003), editable in Studio (`/settings`). The key is encrypted with Fernet using the new Railway variable `SETTINGS_ENCRYPTION_KEY`; the API never returns it, only its last four characters. Resolution order: tenant setting, then the Railway ENV key (`KIE_API_KEY` / `OPENAI_API_KEY`). (4) **Spend cap:** per run, `IMAGE_RUN_SPEND_CAP_USD` (default 2.00). Spend is recorded per generation in `runs/{run_id}/ai_spend.json` using the configured estimate `IMAGE_COST_USD`; at the cap, generation is refused with a message and the scene is left as it was. (5) Visual Director is not involved: "Suggest prompt" is an optional prefill and generation never depends on it.
+**Dependency added:** `cryptography>=42,<49` (already present transitively through google-auth; now pinned because the code imports it directly). Plain Fernet, no custom crypto.
+**Rejected:** a generate-everything "AI Created" style (operator wants control per scene); storing keys in plain text; a style reference image (provider-specific, extra upload step); the side-by-side provider test (skipped by the operator, kie.ai is the default and the model is a setting). Tenant-level keys without encryption.
+**Narrows:** D096's "provider selector by ENV" — ENV is now the fallback, tenant settings win.
+**Not verified:** kie.ai's price per image. `IMAGE_COST_USD` is an estimate (kie.ai quoted about $0.03 at 1K in D096) until the first real invoice.
+**See:** D096, D092, D095.
+
+---
+
 ## D103 — The Timeline is the single source of render timing; the CapCut path reads it, and the final video records its source
 **Date:** 2026-10-04
 **Status:** ACTIVE

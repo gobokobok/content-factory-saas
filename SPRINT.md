@@ -32,7 +32,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P12 | Projects & shortlist | 16 | done | Open Studio → project list → add a shortlist idea by hand → create a run from it |
 | P13 | Storyboard control | 14 | done | Change a scene from image to video, split and merge scenes, then acquire |
 | P13b | CapCut export (second render path) | 11 | done | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
-| P14 | AI Created style | 13 | current | Pick AI Created, write a mood prompt, get a generated image on every scene |
+| P14 | AI Created style | 14 | current | Write a prompt in a scene's edit-image dialog, press Generate, get an AI image for that scene |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
 | P17 | Server-side Auto Advance | ~10 | planned | Pick a shortlist idea, close the tab, come back to a scheduled video |
@@ -56,30 +56,26 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Sprint P14 — AI Created style
 
-**Goal:** A run can use AI-generated images instead of stock footage: the operator picks the AI Created style and a mood prompt and gets a generated image on every scene, or switches single scenes to AI image in any style (D096). Stock acquisition and both render paths keep working unchanged.
-**Status:** current — planned 2026-10-04 at the Sprint P13b review. Built in one pass (`/start-story P14-S1..S4`).
-**Points:** 13
+**Goal:** The operator can generate an AI image for any scene from the storyboard: open the scene's edit-image dialog, write a prompt, press Generate (D104). Nothing is generated automatically. Stock acquisition and both render paths keep working unchanged.
+**Status:** current — planned 2026-10-04 at the Sprint P13b review; **re-scoped 2026-10-04 at `/start-story`** (operator: manual per-scene generation, optional project-level style, provider keys at tenant level, side-by-side test skipped). Built in one pass.
+**Points:** 14
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P14-S1 | Provider side-by-side test, `ImageProvider` interface and kie.ai client | 4 | todo |
-| P14-S2 | "AI Created" style, mood prompt in Settings, Visual Director prompt branch | 4 | todo |
-| P14-S3 | Per-scene "AI image" strategy with an editable prompt, usable in any style | 3 | todo |
-| P14-S4 | Per-run spend cap and cost display in Studio | 2 | todo |
+| P14-S1 | `ImageProvider` interface, kie.ai + OpenAI clients, tenant-level provider settings with encrypted API keys (migration 0003, `/settings`) | 6 | in-progress |
+| P14-S2 | Settings: provider / model / key page, optional project `ai_image_style` | 3 | in-progress |
+| P14-S3 | Per-scene Generate in the storyboard edit-image dialog (prompt field + button), `ai_image` strategy usable in any style | 3 | in-progress |
+| P14-S4 | Per-run spend cap, cost display in Studio | 2 | in-progress |
 
-**Execution order:** S1 → S2 → S3 → S4 (S3 and S4 can swap).
+**Execution order:** S1 → S2 → S3 → S4.
 
-**Open questions — decide at the start of the sprint, before S1 is built** (they are recorded in BACKLOG_ACTIVE.md, EPIC 45, and each answer goes to DECISIONS.md):
-1. Which OpenAI quality tier kie.ai's price corresponds to (D096: unverified) — settled by the S1 side-by-side test on five real scene prompts.
-2. A consistent look across scenes: a style reference image, or the prompt alone.
-3. How Studio reaches the Visual Director, which only `full_pipeline.py` runs today (P13 handover).
-4. The spend cap: its default, whether it is per run or per project, and what happens when it is hit (stop, or ask).
+**Decisions (all in D104):** (1) the side-by-side provider test is skipped, kie.ai is the default and the model is a setting; (2) look across scenes = optional `ai_image_style` on the project, prepended to every prompt, no reference image; (3) Studio does not call the Visual Director — the prompt field is prefilled from the scene's voiceover and edited by hand; (4) spend cap per run, `IMAGE_RUN_SPEND_CAP_USD` default 2.00, at the cap Generate is refused; (5) provider, model and key are tenant settings (encrypted with `SETTINGS_ENCRYPTION_KEY`), Railway ENV keys are the fallback; (6) new dependency `cryptography` (Fernet).
 
-**Why a spend cap is in the sprint:** this is the first paid path in the project (D096 narrows the free-tier rule). It was an open question in the outline; S4 settles it before the cap matters.
+**Operator actions before the smoke test:** set `SETTINGS_ENCRYPTION_KEY` on Railway DEV (generate command in ENV.md); then paste a kie.ai key in Settings (or set `KIE_API_KEY`).
 
-**Human touchpoint:** the operator picks AI Created, writes a mood prompt and gets a generated image on every scene; then switches one scene to "AI image" in a stock-style run and edits its prompt.
+**Human touchpoint:** the operator saves a kie.ai key in Settings, opens a scene's edit-image dialog in a stock run, writes a prompt, presses Generate and sees the image replace the scene's asset, with the run's spend shown against the cap.
 
-**Operator actions beside the sprint (not stories):** `/prod-check` then `/release` of P12 + P13 + P13b (timing not yet decided); provision the new image-provider ENV keys on DEV before S1 and on PROD at release; `/audit` before P16 at the latest.
+**Operator actions beside the sprint (not stories):** `/prod-check` then `/release` of P12 + P13 + P13b (timing not yet decided); set `SETTINGS_ENCRYPTION_KEY` (and the operator's image key in Settings) on PROD at release; `/audit` before P16 at the latest.
 
 ## Scope changes
 

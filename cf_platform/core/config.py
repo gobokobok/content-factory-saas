@@ -73,6 +73,21 @@ class PlatformSettings(BaseSettings):
     # Largest .mp4 the operator may upload as a run's final video — the video rendered
     # in CapCut (P13b-S4, D100).
     OUTPUT_UPLOAD_MAX_MB: int = 500
+    # AI image generation (P14, D096, D104). Provider, model and key are tenant
+    # settings first; these are the fallbacks and the tunables.
+    SETTINGS_ENCRYPTION_KEY: str = ""
+    IMAGE_PROVIDER: str = "kie"
+    KIE_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""
+    KIE_IMAGE_MODEL: str = "gpt-image-2-text-to-image"
+    OPENAI_IMAGE_MODEL: str = "gpt-image-1"
+    IMAGE_QUALITY: str = "medium"
+    IMAGE_RESOLUTION: str = "1K"
+    IMAGE_DEFAULT_ASPECT_RATIO: str = "9:16"
+    IMAGE_TIMEOUT_S: int = 180
+    IMAGE_POLL_INTERVAL_S: float = 3.0
+    IMAGE_COST_USD: float = 0.03
+    IMAGE_RUN_SPEND_CAP_USD: float = 2.0
 
 
 def get_platform_settings() -> PlatformSettings:

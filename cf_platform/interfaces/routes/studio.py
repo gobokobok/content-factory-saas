@@ -115,6 +115,37 @@ async def _write_storyboard(storage: ArtifactStorage, run_id: str, artifact_body
     return record.r2_key, artifact.model_dump(mode="json")
 
 
+async def _apply_scene_edit_to_storyboard(
+    storage: ArtifactStorage,
+    run_id: str,
+    scene_id: str,
+    *,
+    asset_strategy: str,
+    ai_prompt: str | None,
+    worker: str,
+) -> str:
+    """Give one scene an asset strategy (and AI prompt) and write a new storyboard version.
+
+    The scene's asset_tier / clip_type / motion_effect follow the strategy
+    (apply_asset_strategy) and render_options are recomputed, exactly as the
+    PATCH route does. Returns the new artifact key.
+    """
+    from cf_platform.workers.storyboard_worker import (
+        _apply_patches_and_render_options,
+        apply_asset_strategy,
+    )
+
+    artifact_body, storyboard = await _load_storyboard(storage, run_id)
+    scenes = [
+        apply_asset_strategy(sc, asset_strategy).model_copy(update={"ai_prompt": ai_prompt})
+        if str(sc.scene) == scene_id else sc
+        for sc in storyboard.scenes
+    ]
+    patched = _apply_patches_and_render_options(storyboard.model_copy(update={"scenes": scenes}), [])
+    key, _ = await _write_storyboard(storage, run_id, artifact_body, patched, worker)
+    return key
+
+
 async def _load_manifest(storage: ArtifactStorage, run_id: str):
     """Return the run's latest AssetManifest, or None when there is none to work with.
 
@@ -548,6 +579,7 @@ class ScenePatchRequest(BaseModel):
     sfx: str | None = None
     motion_effect: str | None = None
     asset_strategy: str | None = None
+    ai_prompt: str | None = None
     clear_on_screen_text: bool = False
 
 
@@ -606,6 +638,8 @@ async def studio_patch_scene(
         patches.append({"scene_id": scene_id, "field": "concept_stk", "value": body.concept_stk})
     if body.sfx is not None:
         patches.append({"scene_id": scene_id, "field": "sfx", "value": body.sfx or "silence"})
+    if body.ai_prompt is not None:
+        patches.append({"scene_id": scene_id, "field": "ai_prompt", "value": body.ai_prompt.strip() or None})
     if body.motion_effect is not None:
         if body.motion_effect not in MOTION_EFFECTS:
             raise HTTPException(
@@ -655,7 +689,12 @@ def _sync_entry_with_strategy(manifest, scene) -> bool:
     scene, an operator upload on a stock scene. An asset that already fits stays.
     """
     from cf_platform.workers.storyboard_edit import _is_video_file
-    from src.models import AWAITING_UPLOAD_STATUS
+    from src.models import (
+        AI_GENERATED_SOURCE,
+        AWAITING_UPLOAD_STATUS,
+        OPERATOR_SOURCES,
+        OPERATOR_UPLOAD_SOURCE,
+    )
 
     entry = next((e for e in manifest.entries if str(e.scene_id) == str(scene.scene)), None)
     if entry is None:
@@ -663,13 +702,17 @@ def _sync_entry_with_strategy(manifest, scene) -> bool:
     before = entry.model_dump()
 
     entry.asset_strategy = scene.asset_strategy
+    entry.ai_prompt = scene.ai_prompt
     entry.asset_tier = scene.asset_tier
     entry.clip_type = scene.clip_type
 
     has_file = entry.status == "acquired" and bool(entry.file_key)
-    uploaded = entry.source == "operator_upload"
+    uploaded = entry.source in OPERATOR_SOURCES
     if scene.asset_strategy == "upload":
-        fits = has_file and uploaded
+        fits = has_file and entry.source == OPERATOR_UPLOAD_SOURCE
+        empty_status = AWAITING_UPLOAD_STATUS
+    elif scene.asset_strategy == "ai_image":
+        fits = has_file and entry.source == AI_GENERATED_SOURCE
         empty_status = AWAITING_UPLOAD_STATUS
     else:
         wants_video = scene.asset_strategy == "stock_video"
@@ -1115,7 +1158,7 @@ async def studio_upload_scene_asset(
         build_manifest_artifact,
         manifest_entry_for_scene,
     )
-    from src.models import AWAITING_UPLOAD_STATUS, AssetManifest
+    from src.models import AWAITING_UPLOAD_STATUS, OPERATOR_SUPPLIED_STRATEGIES, AssetManifest
 
     _ALLOWED_MIME_TYPES = {
         "video/mp4", "video/webm",
@@ -1153,7 +1196,7 @@ async def studio_upload_scene_asset(
             ) from None
         entries = [manifest_entry_for_scene(sc) for sc in storyboard.scenes]
         for e in entries:
-            if e.asset_strategy == "upload":
+            if e.asset_strategy in OPERATOR_SUPPLIED_STRATEGIES:
                 e.status = AWAITING_UPLOAD_STATUS
         manifest = AssetManifest(run_id=run_id, entries=entries)
 
