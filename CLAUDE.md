@@ -18,7 +18,7 @@ _Backlog order: P14 → P15 Research → P16 Publishing via n8n → P17 Server-s
 ## Active story
 **P14-S1..S4**, built in one pass — `/start-story P14-S1..S4` (BACKLOG_ACTIVE.md, EPIC 45). **Decide the four open questions first** (listed in SPRINT.md, Sprint P14): provider tier, cross-scene look, Studio ↔ Visual Director, spend cap. Order: S1 provider test + interface → S2 style → S3 per-scene → S4 spend cap.
 
-**Blockers / operator actions:** PROD is on v0.24.0, without P12 / P13 / P13b — `/release` pending (run `/prod-check` first; last one 2026-10-04); release timing relative to P14 undecided. Image-provider keys needed on DEV before S1. `/audit` never run (no `docs/SECURITY.md`). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
+**Blockers / operator actions:** none. PROD stays on v0.24.0 on purpose — the operator releases DEV to PROD only when DEV is complete and smoke tested (no `/release` pending). Image-provider keys needed on DEV before P14-S1. `/audit` never run (no `docs/SECURITY.md`). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
 
 ## Environments
 
