@@ -13,6 +13,20 @@ Entries are newest first.
 
 ---
 
+## Prod check — 2026-10-04 (Sprint P13b review)
+**Range:** the same live deployment as the 2026-10-03 check (v0.24.0, `edc92ba`). The log holds 359 lines and ends 2026-10-03 15:43 UTC — no traffic and no new container start since the previous check.
+
+**Errors:** none. The only warnings are the five langgraph deprecation notices at start-up, the Railway config-as-code deprecation (existing files keep working until 2026-12-01), and the 2026-10-02 caption coverage warning already recorded below.
+**Silent failures:** none seen. Still could not look at stuck runs in the database (PROD has no P12).
+**Usage:** nothing new. P13b (CapCut export) is DEV-only, so PROD says nothing about it.
+**New since last check:** nothing deployed. PROD is still two sprints behind DEV, now three with P13b.
+
+**Top issues:** unchanged — release backlog (P12 + P13 + P13b), no PROD error surface beyond the live log, service sleep vs. P17, misheard-caption candidate.
+**Stories opened:** none.
+**Next check due:** before the release of P12 + P13 + P13b to PROD.
+
+---
+
 ## Prod check — 2026-10-03
 **Range:** 2026-10-02 13:16 UTC → 2026-10-03 15:49 UTC — the live deployment only (v0.24.0, `edc92ba`, Railway deployment `bafcc504`). First check on this project; nothing earlier was read.
 

@@ -12,13 +12,13 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint P13b — CapCut export** (D100): a second render path from a finalized storyboard — zip from Studio, one command on the laptop, full edit in CapCut, rendered video uploaded back. P12 (Projects & shortlist) and P13 (Storyboard control) are complete. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Backlog order: P13b CapCut export → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance._
+**Sprint P13b — CapCut export** (D100, D103) is complete (2026-10-04, smoke test passed on DEV). P12, P13 and P13b are done; the Sprint P13b review is in progress and the next sprint is being planned. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
+_Backlog order: P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50 (E50-S1..S3 word-anchored overlays, SFX library)._
 
 ## Active story
-**P13b-S1..S4**, built in one pass — `/start-story P13b-S1..S4` (BACKLOG_ACTIVE.md, EPIC 49). Order: S1 timeline artifact + golden render tests → (S2 download zip ∥ S3 laptop script) → S4 return upload.
+None — set by the sprint review (`/sprint-review`), then `/start-story <range>`.
 
-**Blockers / operator actions:** PROD is on v0.24.0, without P12 / P13 — `/release` pending (run `/prod-check` first). `/audit` never run (no `docs/SECURITY.md`). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
+**Blockers / operator actions:** PROD is on v0.24.0, without P12 / P13 / P13b — `/release` pending (run `/prod-check` first; last one 2026-10-04). `/audit` never run (no `docs/SECURITY.md`). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
 
 ## Environments
 

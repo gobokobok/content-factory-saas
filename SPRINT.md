@@ -4,7 +4,7 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprints P12 and P13 complete** (2026-10-03). **Current sprint:** P13b — CapCut export (D100), stories P13b-S1..S4.
+> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04); next sprint to be set at the P13b review.
 
 ---
 
@@ -31,7 +31,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P11 | Visual Director + motion effects | 6 | closed | Visual Director agent (S1). S2/S3 parked (D099) |
 | P12 | Projects & shortlist | 16 | done | Open Studio → project list → add a shortlist idea by hand → create a run from it |
 | P13 | Storyboard control | 14 | done | Change a scene from image to video, split and merge scenes, then acquire |
-| P13b | CapCut export (second render path) | 11 | current | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
+| P13b | CapCut export (second render path) | 11 | done | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
 | P14 | AI Created style | ~13 | planned | Pick AI Created, write a mood prompt, get a generated image on every scene |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
@@ -46,7 +46,7 @@ Legacy Script→Video stays untouched and operable (D047).
 # Open items carried from closed sprints
 
 - **Deferred smoke tests: 0.**
-- **PROD is two sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12 and P13 (including migration `0002_projects_shortlist.sql`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
+- **PROD is three sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13 and P13b (including migration `0002_projects_shortlist.sql`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
 - **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
 - **Google API audit application** (P12 lead-time task) — in progress; operator will submit. Needed for P16.
@@ -57,15 +57,15 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P13b — CapCut export
 
 **Goal:** A finalized storyboard can leave Studio as a CapCut project: one download, one command on the laptop, and the full edit opens in CapCut; the video rendered there comes back into the run (D100). The FFmpeg render on Railway keeps working unchanged.
-**Status:** current — planned 2026-10-03 at the Sprint P13 review. Built in one pass (`/start-story P13b-S1..S4`).
+**Status:** done 2026-10-04 (`fa6a3f0`), operator smoke test passed on DEV. Built in one pass (`/start-story P13b-S1..S4`).
 **Points:** 11
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P13b-S1 | Neutral timeline artifact + render regression tests | 4 | in-progress |
-| P13b-S2 | "Download for CapCut" — zip of media and timeline | 2 | in-progress |
-| P13b-S3 | Laptop script and setup guide | 3 | in-progress |
-| P13b-S4 | Return path — upload the CapCut-rendered video into the run | 2 | in-progress |
+| P13b-S1 | Neutral timeline artifact + render regression tests | 4 | done |
+| P13b-S2 | "Download for CapCut" — zip of media and timeline | 2 | done |
+| P13b-S3 | Laptop script and setup guide | 3 | done |
+| P13b-S4 | Return path — upload the CapCut-rendered video into the run | 2 | done |
 
 **Execution order:** S1 → (S2 ∥ S3) → S4.
 
