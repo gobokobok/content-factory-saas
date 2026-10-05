@@ -13,6 +13,7 @@ import hashlib
 import logging
 from datetime import datetime
 
+import psycopg
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -110,7 +111,7 @@ async def studio_generate_scene_image(
     so a failure after the paid call never loses the ledger entry. The scene
     becomes an `ai_image` scene carrying the prompt; any previous asset is replaced.
     Responses: 409 no key / cap reached / key unreadable, 422 empty prompt,
-    404 unknown scene, 502 the provider failed (nothing is changed or charged).
+    404 unknown scene, 503 settings database unreachable, 502 the provider failed (nothing is changed or charged).
     """
     from cf_platform.workers.acquisition_worker import manifest_entry_for_scene
     from src.models import AI_GENERATED_SOURCE, AWAITING_UPLOAD_STATUS, OPERATOR_SUPPLIED_STRATEGIES, AssetManifest
@@ -128,6 +129,11 @@ async def studio_generate_scene_image(
         config = await resolve_image_config(tenant_repo, PLATFORM_USER_ID, settings)
     except SecretBoxError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (psycopg.Error, OSError) as exc:
+        _logger.warning("studio_generate: tenant settings unavailable for run %s", run_id, exc_info=True)
+        raise HTTPException(
+            status_code=503, detail="Settings database is not reachable right now — try again in a moment."
+        ) from exc
     if not config.api_key:
         raise HTTPException(
             status_code=409,

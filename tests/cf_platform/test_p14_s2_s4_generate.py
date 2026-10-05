@@ -257,6 +257,40 @@ class TestGenerate:
                 _cleanup()
 
 
+class TestDatabaseOutage:
+    def test_an_unreachable_settings_database_is_503_with_a_message_not_a_500(self):
+        import psycopg
+
+        class Broken:
+            async def get(self, tenant_id):
+                raise psycopg.errors.AdminShutdown("terminating connection due to administrator command")
+
+            async def save(self, settings):
+                raise AssertionError("not called")
+
+        with p13_env() as env:
+            try:
+                _configure(env)
+                app.dependency_overrides[get_tenant_settings_repository] = lambda: Broken()
+                r = env.client.post(f"{_GEN}/2/generate", json={"prompt": "x"})
+                assert r.status_code == 503 and "try again" in r.json()["detail"]
+                assert FakeProvider.calls == []
+                assert env.client.get(_SPEND).json()["images"] == 0
+            finally:
+                _cleanup()
+
+    def test_the_pools_check_connections_before_handing_them_out(self):
+        import cf_platform.core.db as db
+
+        db._pool = None
+        db._checkpoint_pool = None
+        try:
+            pool = db.get_pool("postgresql://u:p@localhost/x")
+            assert pool._check is not None  # replaces connections Postgres closed meanwhile
+        finally:
+            db._pool = None
+
+
 class TestSpendCap:
     def test_the_cap_stops_generation_before_the_provider_is_called(self):
         with p13_env() as env:

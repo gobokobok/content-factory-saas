@@ -30,7 +30,12 @@ def get_pool(database_url: str) -> AsyncConnectionPool | None:
     if not database_url:
         return None
     if _pool is None:
-        _pool = AsyncConnectionPool(conninfo=database_url, open=False)
+        # check: a connection is tested as it is handed out, so one that Postgres
+        # closed meanwhile (a Railway database restart) is replaced instead of
+        # failing the request that happened to receive it.
+        _pool = AsyncConnectionPool(
+            conninfo=database_url, open=False, check=AsyncConnectionPool.check_connection
+        )
     return _pool
 
 
@@ -76,6 +81,7 @@ def get_checkpointer(database_url: str) -> BaseCheckpointSaver:
         _checkpoint_pool = AsyncConnectionPool(
             conninfo=database_url,
             open=False,
+            check=AsyncConnectionPool.check_connection,
             kwargs={"autocommit": True, "row_factory": dict_row},
         )
     return AsyncPostgresSaver(_checkpoint_pool)
