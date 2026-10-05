@@ -1,7 +1,25 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last two sprints (P13b, P13) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last two sprints (P14, P13b) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P14] AI images per scene — S1 provider interface + tenant-level keys, S2 Settings page + project style, S3 Generate in the edit-image dialog, S4 spend cap
+**Completed:** 2026-10-05
+**Handover:**
+- **Generation is manual and per scene (D104).** `POST /platform/studio/runs/{id}/scenes/{n}/generate {prompt}` (`cf_platform/interfaces/routes/studio_ai.py`) generates, stores `runs/{id}/images/scene_NN_ai_<hash>.png`, records the spend, then makes the scene an `ai_image` scene (storyboard version + manifest version). Nothing generates during acquisition. The order is deliberate: validate and cap-check, generate, record spend, only then write storyboard and manifest.
+- **`ai_image` is a strategy, not a style.** `src/models.py`: `AssetStrategy` gains `ai_image`; `OPERATOR_SUPPLIED_STRATEGIES = ("upload", "ai_image")` is what acquisition, split / merge and the render guard test; `OPERATOR_SOURCES` / `AI_GENERATED_SOURCE = "ai_generated"` mark the file. `StoryboardScene.ai_prompt` and `ManifestEntry.ai_prompt` hold the operator's prompt. An empty AI scene reuses status `awaiting_upload`; `timeline.missing_assets_message` words it separately ("set to AI image"). Changing a scene's strategy releases an asset that no longer fits (an AI image does not fit a stock scene, and the reverse).
+- **Providers:** `cf_platform/core/image_provider.py` — `ImageProvider` protocol, `KieImageProvider` (createTask, poll recordInfo, download; the key is not sent to the file host) and `OpenAIImageProvider`; `build_image_provider`. Plain httpx.
+- **Tenant settings:** table `tenant_settings` (migration `0003`), `core/tenant_settings.py` (resolve: tenant setting, then Railway ENV), `core/secret_box.py` (Fernet), `core/postgres_tenant_settings.py`. `GET/PUT /platform/tenant/settings/image` never returns a key, only `key_hint`. Page `/settings` (`src/static/settings.html`), linked from the project pages. Changing `SETTINGS_ENCRYPTION_KEY` makes saved keys unreadable: resolution raises `SecretBoxError` (409) and the operator saves the key again.
+- **Style:** optional `project.config.ai_image_style`, prepended at generation time (the stored `ai_prompt` is the operator's own words). Aspect ratio comes from the run's `settings.json`, else `IMAGE_DEFAULT_ASPECT_RATIO`.
+- **Spend:** ledger `runs/{id}/ai_spend.json` (`core/ai_images.py`), appended per paid generation; `GET …/ai-spend`; the storyboard header shows `N · $spent / $cap AI images`. Cost per image is the configured estimate `IMAGE_COST_USD`, not read from the provider.
+- **Studio:** the ✎ dialog has a third section (prompt textarea, Generate, spend line); the ✎ button is enabled before acquisition; an empty AI scene shows a dashed Generate button in its row; `acquirePlan` ignores `ai_generated` files when deciding "Re-acquire All". Demo mode mocks all of it.
+- **New ENV vars** (ENV.md): `SETTINGS_ENCRYPTION_KEY`, `IMAGE_PROVIDER`, `KIE_API_KEY`, `OPENAI_API_KEY`, `KIE_IMAGE_MODEL`, `OPENAI_IMAGE_MODEL`, `IMAGE_QUALITY`, `IMAGE_RESOLUTION`, `IMAGE_DEFAULT_ASPECT_RATIO`, `IMAGE_TIMEOUT_S`, `IMAGE_POLL_INTERVAL_S`, `IMAGE_COST_USD`, `IMAGE_RUN_SPEND_CAP_USD`. **New dependency:** `cryptography` (Fernet; already present transitively). Decision logged: **D104**.
+- **Post-close fix (2026-10-05, `fix(P14-S3)`):** the Postgres pools (`cf_platform/core/db.py`) now test a connection before handing it out. A DEV Postgres restart left dead connections in the pool and the first Generate returned a bare 500 (`AdminShutdown`); this applies to every database route. Generate also answers 503 with a message when the settings database is unreachable.
+- **Known limits:** the kie.ai path is covered by mocked tests only — the smoke test used an OpenAI key; the spend cap was verified by automated tests, not on DEV; a replaced AI image stays in R2 (orphan files are not deleted); re-acquire on an AI scene fetches stock while the scene stays `ai_image`; no "Suggest prompt" (the prompt is prefilled from the voiceover). Tests: three new files plus edits; 2583 passing.
+**Smoke test:** PASSED — 2026-10-05 on Railway DEV, operator ran steps 1–8: OpenAI key saved in Settings, edit-image dialog with prefilled prompt and cost line, first image, regenerate, empty AI scene with its Generate button, stock acquisition leaving AI scenes alone, render with AI images. The cap step was not run (covered by automated tests).
+**Promoted to backlog:** none. Open item carried: API keys appear in DEV logs (SPRINT.md, open items).
 
 ---
 
@@ -19,19 +37,3 @@ _This file holds the last two sprints (P13b, P13) plus every older entry whose s
 **Promoted to backlog:** none. EPIC 50 (E50-S1..S3, word-anchored overlays and SFX library) was proposed the same day, unplaced.
 
 ---
-
-## [P13] Storyboard control — S1 asset strategy, S2 split / merge, S3 Storyboard stage controls + confirm gate, S4 script view
-**Completed:** 2026-10-03
-**Handover:**
-- **The storyboard is the gate (D095).** Each scene carries `asset_strategy` (`stock_image` / `stock_video` / `upload`, or `None` = derive from `asset_tier` as before). The vocabulary is one Literal in `src/models.py` (`AssetStrategy` → `ASSET_STRATEGIES`) — P14 adds `ai_image` there. The storyboard GET returns `effective_asset_strategy` per scene.
-- **Acquisition obeys it.** `stock_video` goes straight to the stock video search (even on Character / Event scenes); `upload` scenes are never fetched — they keep an uploaded file or are reported as `awaiting_upload` (manifest status, and `footage_summary` only when non-zero). `POST /platform/workers/acquisition {only_missing}` keeps every scene that already holds an asset. `build_manifest_artifact` is the one place that counts acquired / failed.
-- **Boundary edits** live in `cf_platform/workers/storyboard_edit.py`: `replace_boundaries` (plus `split_scene`, `merge_scene`, `start_words_from_text`). One rule — unchanged start word keeps fields and asset; a new start word is cut from the scene that contained it; a vanished start word is merged away (D102). Routes: `POST …/storyboard/scenes/{id}/split {at_word}`, `POST …/scenes/{id}/merge`, `PUT …/storyboard/boundaries {start_words | script_text, dry_run}`. Each writes a new storyboard version and, when the run has a manifest, a realigned manifest version.
-- **Scene ids are renumbered by edits; asset files are not moved.** `ManifestEntry.asset_slot` (and a hash suffix on uploads) keeps a new file from overwriting one another scene still uses. Anything that writes a scene asset must go through `_asset_stem(entry)` / `assign_free_asset_slot` — P13b's CapCut export should read `file_key`, never rebuild a path from the scene id.
-- **Render** is refused up front (409 from the endpoint, `RuntimeError` in the worker) while any scene has no file: `render_worker.missing_assets_message`.
-- **The upload endpoint starts a manifest** from the storyboard when the run has none, so a manifest can now exist before acquisition with `pending` entries.
-- **Studio:** Asset dropdown (replaces the image / video badge), word-click split, `⤵` merge, row upload, "needs asset" marking, `acquirePlan()` deciding the button ("Confirm storyboard & acquire →" / "Acquire N missing scenes →" / "Re-acquire All"), Table / Script toggle. Demo mode mocks all of it.
-- **Visual Director is not run by the Studio stage-by-stage flow** — only by `full_pipeline.py`. Relevant to P14 (its prompt branch) and P17.
-- New ENV var: `STORYBOARD_MIN_SCENE_S` (default 1.0). No new dependencies. Tests: 134 new (`test_p13_s1_asset_strategy.py`, `test_p13_s2_split_merge.py`, `test_p13_s3_storyboard_stage.py`, `test_p13_s4_boundaries.py`, helper `p13_helpers.py`). 2435 passing.
-- Decision logged: **D102**.
-**Smoke test:** PASSED — 2026-10-03 on Railway DEV (`1e5ff4b`), operator ran all 17 steps: gate before acquisition, image ↔ video with Motion following, split with the minimum-length rejection, merge with the dropped-text confirmation, upload at the gate, render refused for an empty Upload scene, only-missing acquisition after a split with every other asset untouched, Script view apply and changed-word block, pencil re-acquire and upload, final render.
-**Promoted to backlog:** none. Noted for later, not a story yet: `render_worker`'s live-boundary block indexes raw alignment words while scene indices refer to the normalised list.

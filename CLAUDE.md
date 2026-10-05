@@ -12,13 +12,13 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint P14 — AI Created style** (D096, D104): the operator generates an AI image per scene from the storyboard's edit-image dialog (prompt field + Generate) — manual only, never automatic. Provider, model and API key are tenant settings (`/settings`, encrypted); an optional project-level `ai_image_style` is prepended to every prompt; a per-run spend cap guards cost. P12, P13 and P13b are complete. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Backlog order: P14 → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50 (E50-S1..S3 word-anchored overlays, SFX library)._
+**Sprint P14 — AI images per scene** (D096, D104) is complete and smoke tested on DEV (2026-10-05). Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline; `/settings` holds the tenant's image provider and API key. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
+_Backlog order: P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50 (E50-S1..S3 word-anchored overlays, SFX library)._
 
 ## Active story
-**P14-S1..S4** — built in one pass, code complete on `main`'s working tree (CI-equivalent suite green), **not yet pushed**. Next: commit and push, wait for the DEV deploy, then the smoke test (SPRINT.md, Sprint P14); then `/finish-story`.
+No story is active. Next: `/sprint-review` for Sprint P14, which plans Sprint P15 (Research: trend + competitor research into the shortlist).
 
-**Blockers / operator actions:** none. PROD stays on v0.24.0 on purpose — the operator releases DEV to PROD only when DEV is complete and smoke tested (no `/release` pending). Before the P14 smoke test: set `SETTINGS_ENCRYPTION_KEY` on Railway DEV, then save a kie.ai key in Settings. `/audit` never run (no `docs/SECURITY.md`). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
+**Blockers / operator actions:** none. PROD stays on v0.24.0 on purpose — the operator releases DEV to PROD only when DEV is complete and smoke tested (no `/release` pending; at release set a new `SETTINGS_ENCRYPTION_KEY` on PROD). Open decision: API keys appear in DEV logs (SPRINT.md open items). `/audit` never run (no `docs/SECURITY.md`). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
 
 ## Environments
 

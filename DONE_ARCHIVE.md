@@ -4,6 +4,24 @@ _Completed-story entries older than the last two sprints, newest first. Recent e
 
 ---
 
+## [P13] Storyboard control — S1 asset strategy, S2 split / merge, S3 Storyboard stage controls + confirm gate, S4 script view
+**Completed:** 2026-10-03
+**Handover:**
+- **The storyboard is the gate (D095).** Each scene carries `asset_strategy` (`stock_image` / `stock_video` / `upload`, or `None` = derive from `asset_tier` as before). The vocabulary is one Literal in `src/models.py` (`AssetStrategy` → `ASSET_STRATEGIES`) — P14 adds `ai_image` there. The storyboard GET returns `effective_asset_strategy` per scene.
+- **Acquisition obeys it.** `stock_video` goes straight to the stock video search (even on Character / Event scenes); `upload` scenes are never fetched — they keep an uploaded file or are reported as `awaiting_upload` (manifest status, and `footage_summary` only when non-zero). `POST /platform/workers/acquisition {only_missing}` keeps every scene that already holds an asset. `build_manifest_artifact` is the one place that counts acquired / failed.
+- **Boundary edits** live in `cf_platform/workers/storyboard_edit.py`: `replace_boundaries` (plus `split_scene`, `merge_scene`, `start_words_from_text`). One rule — unchanged start word keeps fields and asset; a new start word is cut from the scene that contained it; a vanished start word is merged away (D102). Routes: `POST …/storyboard/scenes/{id}/split {at_word}`, `POST …/scenes/{id}/merge`, `PUT …/storyboard/boundaries {start_words | script_text, dry_run}`. Each writes a new storyboard version and, when the run has a manifest, a realigned manifest version.
+- **Scene ids are renumbered by edits; asset files are not moved.** `ManifestEntry.asset_slot` (and a hash suffix on uploads) keeps a new file from overwriting one another scene still uses. Anything that writes a scene asset must go through `_asset_stem(entry)` / `assign_free_asset_slot` — P13b's CapCut export should read `file_key`, never rebuild a path from the scene id.
+- **Render** is refused up front (409 from the endpoint, `RuntimeError` in the worker) while any scene has no file: `render_worker.missing_assets_message`.
+- **The upload endpoint starts a manifest** from the storyboard when the run has none, so a manifest can now exist before acquisition with `pending` entries.
+- **Studio:** Asset dropdown (replaces the image / video badge), word-click split, `⤵` merge, row upload, "needs asset" marking, `acquirePlan()` deciding the button ("Confirm storyboard & acquire →" / "Acquire N missing scenes →" / "Re-acquire All"), Table / Script toggle. Demo mode mocks all of it.
+- **Visual Director is not run by the Studio stage-by-stage flow** — only by `full_pipeline.py`. Relevant to P14 (its prompt branch) and P17.
+- New ENV var: `STORYBOARD_MIN_SCENE_S` (default 1.0). No new dependencies. Tests: 134 new (`test_p13_s1_asset_strategy.py`, `test_p13_s2_split_merge.py`, `test_p13_s3_storyboard_stage.py`, `test_p13_s4_boundaries.py`, helper `p13_helpers.py`). 2435 passing.
+- Decision logged: **D102**.
+**Smoke test:** PASSED — 2026-10-03 on Railway DEV (`1e5ff4b`), operator ran all 17 steps: gate before acquisition, image ↔ video with Motion following, split with the minimum-length rejection, merge with the dropped-text confirmation, upload at the gate, render refused for an empty Upload scene, only-missing acquisition after a split with every other asset untouched, Script view apply and changed-word block, pencil re-acquire and upload, final render.
+**Promoted to backlog:** none. Noted for later, not a story yet: `render_worker`'s live-boundary block indexes raw alignment words while scene indices refer to the normalised list.
+
+---
+
 ## [P12] Projects & Shortlist — S1 data model + API, S2 project landing + server-side run list, S3 persistent shortlist, S4 runs from shortlist items
 **Completed:** 2026-10-03
 **Handover:**
