@@ -13,6 +13,19 @@ Entries are newest first.
 
 ---
 
+## Prod check — 2026-10-05 (Sprint P14 review)
+**Range:** the same live deployment as the two earlier checks (v0.24.0, `edc92ba`). The log holds 353 lines and ends with a clean shutdown; the only warning is still the 2026-10-02 caption coverage one. No new container start and no traffic.
+
+**Errors:** none. **Silent failures:** none seen; stuck runs still cannot be listed (PROD has no P12 tables). **Usage:** nothing new. P14 is DEV-only, so PROD says nothing about it.
+**API keys in logs:** zero `key=` matches in the PROD log. The DEV finding (httpx INFO logging prints the Pixabay key) cannot be confirmed or ruled out on PROD from this log — no Pixabay request was made in range. Re-check after the fix lands and before `/release`.
+**New since last check:** nothing deployed. PROD is four sprints behind DEV (P12, P13, P13b, P14).
+
+**Top issues:** unchanged — release backlog, no PROD error surface beyond the live log, service sleep vs. P17, misheard-caption candidate; plus the keys-in-logs decision carried from DEV.
+**Stories opened:** none.
+**Next check due:** before the release of P12–P14 to PROD.
+
+---
+
 ## Prod check — 2026-10-04 (Sprint P13b review)
 **Range:** the same live deployment as the 2026-10-03 check (v0.24.0, `edc92ba`). The log holds 359 lines and ends 2026-10-03 15:43 UTC — no traffic and no new container start since the previous check.
 

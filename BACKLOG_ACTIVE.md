@@ -1,11 +1,11 @@
 # Backlog — Active Stories
 
-_Contains the last completed sprint (P13b), the outlines for P14–P17, and open unassigned stories. Everything older is in BACKLOG.md._
+_Contains the current and next sprints (P14b, P-UX3), the outlines for P15–P17, and open unassigned stories. Everything completed is in BACKLOG.md._
 _Updated at each sprint boundary: move the completed sprint's block to BACKLOG.md._
 
 ---
 
-## Platform Update outlines — Sprints P14–P17 (not yet detailed)
+## Platform Update outlines — Sprints P14b–P17
 
 Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & Platform Update specification (2026-10-03).
 
@@ -14,6 +14,8 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 **EPIC 49 — CapCut export (P13b, D100)** — done 2026-10-04: stories P13b-S1..S4 in the EPIC 49 section below.
 
 **EPIC 45 — AI images per scene (P14, D096, D104) — DONE 2026-10-05, stories P14-S1..S4 (handover in DONE.md); re-scoped at `/start-story` 2026-10-04.** Manual per-scene generation from the storyboard edit-image dialog (prompt field + Generate); no style generates images automatically. `ImageProvider` interface with kie.ai (default) and OpenAI clients, selected by tenant settings. Provider, model and API key live at tenant level (`tenant_settings`, migration 0003, Fernet-encrypted with `SETTINGS_ENCRYPTION_KEY`; Railway keys are the fallback) and are edited at `/settings`. Optional project-level `ai_image_style` prepended to every prompt. Per-run spend cap (`IMAGE_RUN_SPEND_CAP_USD`, default 2.00) with a cost readout. Files that mattered: `cf_platform/interfaces/routes/studio_ai.py`, `cf_platform/core/{image_provider,tenant_settings,secret_box,ai_images}.py`, `src/models.py` (strategy vocabulary), `cf_platform/workers/{acquisition_worker,timeline,storyboard_edit}.py` (operator-supplied scenes), `src/static/studio-v2.html` (pencil modal, `acquirePlan`), `ENV.md`. Not built (candidate follow-up): a "Suggest prompt" button that asks the Visual Director / Claude for a scene prompt, and the provider side-by-side test (skipped by the operator).
+
+**EPIC 51 — Uploaded voiceover (P14b, new 2026-10-05)** and **EPIC 52 — UI/UX redesign (P-UX3 and the build sprint(s), new 2026-10-05)** go ahead of P15; their stories are below.
 
 **EPIC 46 — Research (P15, D094, D097, spec §2–5).** Project research page. Trend research: existing Google Trends, Reddit and YouTube adapters (D050) plus Google News, over a chosen time window, producing ~10 topics each with a summary and the evidence for why it is trending. Competitor research: port from `content-researcher` (D097), project-level channel list, publications from the last 24/48 hours with likes per 1,000 views and outlier score, daily snapshot job. Results are ticked into the shortlist with their evidence. Open: orchestrator-with-specialists vs. parallel agents with a synthesis step (spec §26 D); **X.com** — ENV.md records it as excluded under the free-tier constraint, so including it needs a decision on a paid source.
 
@@ -27,182 +29,265 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 ---
 
-## EPIC 49 — CapCut export (Sprint P13b)
+## EPIC 51 — Uploaded voiceover (Sprint P14b)
 
-Third sprint of the Pipeline & Platform Update (D100). A second render path from a finalized storyboard: Studio hands over a zip, a script on the operator's laptop writes a CapCut desktop project, and the video rendered in CapCut is uploaded back into the run. Delivered as one sprint (`/start-story P13b-S1..S4`).
+Operator request at the Sprint P14 review (2026-10-05). A second way into a run: upload a finished voiceover instead of writing a script and generating one. The existing `voice_alignment` artifact (`mp3_r2_key`, `word_timestamps`, `alignment_method`) is the seam — an uploaded VO writes the same artifact, so the storyboard worker, timeline, FFmpeg render and CapCut export read it exactly as they read a generated voice. Delivered as one sprint.
 
-**Design rules for the whole epic**
-- The FFmpeg render on Railway is Path 1 and stays as it is: same endpoint, same output, same render script for the same inputs.
-- One neutral timeline describes a finalized run. Both render paths read it; neither path re-derives timing, motion or captions on its own.
-- Assets are addressed by the manifest's `file_key`. A path is never rebuilt from a scene id — scene ids are renumbered by split / merge and files are not moved (P13 Handover, D102).
-- `pycapcut` is used only by the laptop script, with its own requirements file. It is not added to `requirements.txt` or the Docker image (D100).
-- CapCut has no official API and its draft format is undocumented (D100, Risks). The laptop script states which CapCut version it was tested with and fails with a clear message rather than writing a draft it cannot vouch for.
-- Path 2 has no Auto Advance. Studio / REST only (D093). Plain HTML/JS.
+**Timing-safe edit rule (decision, 2026-10-05).** Word timings come from Deepgram and everything downstream (storyboard `start_word`/`end_word`, captions, timeline) keys off them. So transcript edits keep every word tied to audio: replace a word (it keeps its time slot); turn one word into several or several into one (the new words share the combined slot, split evenly); deleting a spoken word and adding an unspoken one are refused (text that must appear without being said is the scene's on-screen text). Scene boundaries move only through the Storyboard controls.
 
 ---
 
-## [P13b-S1] Neutral timeline artifact + render regression tests
-**Epic:** E49 — CapCut export
-**Sprint:** P13b
-**Status:** done
-**Completed:** 2026-10-04
+## [P14b-S1] Run creation choice, VO upload, Deepgram transcript as the script
+**Epic:** E51 — Uploaded voiceover
+**Sprint:** P14b
+**Status:** planned
 **Priority:** high
-**Points:** 4
+**Points:** 3
 **Depends on:** —
 
 ### Goal
-One artifact — the timeline — describes everything a renderer needs for a finalized run: scenes with timing, the asset per scene, motion, on-screen text, caption words, voiceover, music and SFX. The FFmpeg script builder is rewired to read it. Before that rewiring, golden render-script tests pin today's output so the change is provably neutral.
+When the operator creates a run, they choose "Script → generated voice" or "Upload voiceover". For an upload, the audio is stored, Deepgram transcribes and aligns it, and the transcript becomes the run's script.
 
 ### Acceptance Criteria
-- [x] **Golden tests first.** Fixtures and expected render scripts for at least: still with each motion effect, stock video scene, operator-uploaded video on a still scene (D089), pan on a portrait still narrower than 9:16 (D091), 16:9, captions Standard and Punch, on-screen text, SFX and music present / absent. They are committed and green *before* the builder is changed
-- [x] `Timeline` model (Pydantic) with a `schema_version`, covering per scene: scene id, start / end in ms, duration, asset `file_key` and kind (image / video), motion effect, on-screen text with its type and timing, SFX key and delay; and per run: aspect ratio and output size, caption style and caption words with timestamps, voiceover key and duration, music key and volume settings
-- [x] `build_timeline(storyboard, manifest, voice_alignment, settings)` is a pure function (D040) and is the only place scene timing is resolved for rendering
-- [x] The timeline is written as a versioned run artifact when a render is started and whenever it is requested by P13b-S2; `GET /platform/studio/runs/{run_id}/timeline` returns it, and 409 with `missing_assets_message` while any scene has no file
-- [x] `_build_render_script` / `build_ffmpeg_script` take the timeline as their source for timing, assets, motion and overlays. **Every golden render script is byte-identical before and after**
-- [x] **Word-index fix (noted in P13-S2):** the "live start_word boundaries" block resolves scene boundaries against the same normalised word list the StoryboardWorker indexes (`_normalize_deepgram_words`), not the raw alignment words. A test with a contraction-heavy script shows the scene cuts land on the storyboard's boundaries. If this changes a golden script, the difference is stated in the Handover
-- [x] Tests: timeline from a storyboard with split / merged scenes and an `asset_slot`; `upload` scene without a file → 409; schema round-trip; the golden suite
+- [ ] Run creation (from a shortlist idea, and from the project page) offers the two entry modes; the mode is stored on the run (`voice_source`: `generated` | `uploaded`) and the default stays `generated`, so every existing run and flow is unchanged
+- [ ] `POST /platform/studio/runs/{run_id}/voice/upload` accepts mp3, wav and m4a, validated for MIME type, extension and size (limit from an ENV var documented in ENV.md); the file is stored under the run's voice prefix; 409 if the run already has a storyboard (re-upload rules are P14b-S4)
+- [ ] Deepgram transcription runs as a background job (the same pattern and polling as voice generation, `voice/status`), reusing `_align_audio` / `_normalize_word`; it writes a `voice_alignment` artifact with `alignment_method` marking it as an uploaded VO
+- [ ] The transcript text is stored as the run's script artifact with `source: uploaded_vo`, so `GET …/script` returns it and nothing else reads a different place
+- [ ] The Script and Voice stages are not shown for an uploaded run; Studio shows Upload → Transcript → Storyboard → …
+- [ ] A TraceEvent records the upload and the transcription (duration, word count, Deepgram cost if known)
+- [ ] Tests: each validation failure; happy path with Deepgram mocked; default mode unchanged; artifact shape equals a generated run's `voice_alignment`
 
 ### Definition of Done
-- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
-- `cf_platform/workers/render_worker.py` — `_build_render_script`, the "live start_word boundaries" block, `_build_captions_with_y_override`, `_collect_overlay_filters`, `missing_assets_message`, `_copy_music_to_run`, `_copy_all_scene_sfx_to_run`
-- `src/ffmpeg_builder.py` — `build_ffmpeg_script`, `_scene_section`, `_motion_vf_prefix`, `_zoompan_filter`, `_audio_section`, `_local_path`
-- `src/models.py` — `StoryboardScene`, `ManifestEntry` (`file_key`, `asset_slot`), `MOTION_EFFECTS`
-- `cf_platform/interfaces/routes/workers.py` — render endpoint; `cf_platform/interfaces/routes/studio.py` — storyboard / manifest GET
-- `tests/test_ffmpeg_builder.py`, `tests/cf_platform/p13_helpers.py`
-- `DECISIONS.md` — D100, D102, D081, D087, D089, D091, D086
-
-
-### Handover
-- `cf_platform/workers/timeline.py`: `Timeline` model (`schema_version` 1) and `build_timeline(storyboard, manifest, voice_alignment, settings)`, the only place scene timing is resolved for rendering (D103). `render_worker` builds its script from the timeline (`build_render_script_from_timeline`); the timeline is written as run artifact `render/timeline@vN`. `GET /platform/studio/runs/{run_id}/timeline` returns it (409 with `missing_assets_message` while a scene has no file).
-- Assets are addressed by manifest `file_key`, never by scene id (D102).
-- 22 golden render scripts in `tests/golden/render/` (`test_p13b_s1_golden_render.py`, FFmpeg stubbed) were committed before the builder was rewired. Regenerate only on purpose: `UPDATE_GOLDEN=1 pytest tests/cf_platform/test_p13b_s1_golden_render.py` (docs/TESTING.md).
-- Word-index fix: scene boundaries now resolve against the normalised word list (`_normalize_deepgram_words`). The contraction-heavy golden was pinned before the fix and changes on purpose; unchanged goldens stayed byte-identical.
-- Known limits (D103): blur-fill for wikimedia portraits, Standard captions' per-word highlight, and the legacy `build_ffmpeg_script` still reads the storyboard directly.
-- Files that mattered: `cf_platform/workers/timeline.py`, `cf_platform/workers/render_worker.py`, `src/ffmpeg_builder.py`, `tests/cf_platform/test_p13b_s1_golden_render.py`, `docs/ARCHITECTURE.md#0b`.
+- `cf_platform/workers/voice_production.py` — `VoiceAlignmentArtifact`, `_align_audio`, `_normalize_word`, `build_voice_production_worker`
+- `cf_platform/interfaces/routes/studio.py` — `studio_get_voice`, `studio_get_voice_status`, `studio_get_script`, the scene upload routes (validation pattern)
+- `cf_platform/interfaces/routes/projects.py` — `create_run_from_shortlist`
+- `src/static/studio-v2.html` — run creation and stage list; `src/static/project.html`
+- `ENV.md`, `DECISIONS.md` — D104 (settings pattern), D093
 
 ---
 
-## [P13b-S2] "Download for CapCut" — zip of media and timeline
-**Epic:** E49 — CapCut export
-**Sprint:** P13b
-**Status:** done
-**Completed:** 2026-10-04
-**Priority:** high
-**Points:** 2
-**Depends on:** P13b-S1
-
-### Goal
-From a run whose storyboard is finalized and whose assets are all in place, the operator downloads one zip holding the run's media and the timeline file.
-
-### Acceptance Criteria
-- [x] `GET /platform/studio/runs/{run_id}/export/capcut` returns a zip: `timeline.json` plus every file the timeline references (scene assets, voiceover, music, SFX), stored under the relative paths the timeline uses
-- [x] The zip is streamed; it is not built in memory in one piece
-- [x] 409 with the `missing_assets_message` text while any scene has no file; 409 when the run has no voice alignment
-- [x] Studio: "Download for CapCut" next to the render action, enabled under the same conditions as rendering, using the blob-fetch download pattern (docs/UI_GUIDELINES.md, "File downloads")
-- [x] The control states in one line that this path is rendered in CapCut on the laptop and the result is uploaded back
-- [x] A TraceEvent records the export
-- [x] Tests: zip contents match the timeline's references exactly; each 409; static-page test pins the control and the route it calls
-
-### Definition of Done
-- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
-
-### Files to read
-- P13b-S1 Handover (timeline model and route)
-- `cf_platform/workers/render_worker.py` — `_download_assets` (which files a render pulls)
-- `cf_platform/interfaces/routes/studio.py` — video URL endpoints, scene upload (TraceEvent pattern)
-- `src/static/studio-v2.html` — Render stage
-- `docs/UI_GUIDELINES.md` — "File downloads"
-
-
-### Handover
-- `GET /platform/studio/runs/{run_id}/export/capcut` streams a zip of `timeline.json` plus every referenced file (`cf_platform/workers/capcut_export.py`, route in `studio.py`); 409 for missing assets or no voice alignment; a TraceEvent records the export. Studio: "Download for CapCut" next to Render (blob-fetch pattern).
-- Files that mattered: `cf_platform/workers/capcut_export.py`, `cf_platform/interfaces/routes/studio.py`, `src/static/studio-v2.html` (Render stage), `tests/cf_platform/test_p13b_s2_export.py`.
-
----
-
-## [P13b-S3] Laptop script and setup guide
-**Epic:** E49 — CapCut export
-**Sprint:** P13b
-**Status:** done
-**Completed:** 2026-10-04
+## [P14b-S2] Transcript review stage with timing-safe word edits
+**Epic:** E51 — Uploaded voiceover
+**Sprint:** P14b
+**Status:** planned
 **Priority:** high
 **Points:** 3
-**Depends on:** P13b-S1
+**Depends on:** P14b-S1
 
 ### Goal
-One command on the operator's laptop turns the downloaded zip into a CapCut project that opens with the whole edit in place. It replaces the spike, which read R2 directly and covered stills at 9:16 only.
+Before the storyboard is built, the operator reads the transcript against the audio and corrects misheard words without being able to break the timing.
 
 ### Acceptance Criteria
-- [x] `tools/capcut/export_capcut.py <zip>` unpacks the zip and writes a CapCut draft from `timeline.json` alone — no R2 access, no credentials on the laptop
-- [x] `tools/capcut/requirements.txt` holds `pycapcut` (pinned); nothing is added to the platform's requirements or image (D100)
-- [x] Tracks: footage with scene timing, motion as keyframes (zoom in / out, Ken Burns, pan left / right), voiceover, on-screen text, captions as editable text clips in the run's caption style (Standard and Punch), **music, and SFX at their scene offsets**
-- [x] **Video clips** are placed and trimmed to the scene duration, muted; no motion keyframes on video (D089)
-- [x] **16:9** as well as 9:16: canvas size and cover scaling come from the timeline
-- [x] The script checks the timeline's `schema_version` and reports the CapCut version it was tested with; on an unknown schema version it stops with a clear message
-- [x] **Settle the spike's open point:** which of `draft_content.json` / `draft_info.json` CapCut 8.x reads. Record the finding in the Handover and write only what is needed (or both, with the reason)
-- [x] `tools/capcut/README.md`: one-time setup (Python, virtual environment, requirements, where CapCut keeps drafts on macOS), the one command, and what to do when CapCut updates and the draft no longer opens
-- [x] `tools/capcut_spike/` is removed once the new script covers it
-- [x] Tests (run in CI without CapCut and without `pycapcut` installed in the platform image): the timeline → draft mapping is unit-tested on plain data — timing in microseconds, cover scale, keyframe values per motion effect, caption clip boundaries, SFX offsets
-- [x] **Human touchpoint (with S2):** the operator downloads a zip from DEV, runs the command and opens the full edit in CapCut — one 9:16 run with a video clip, music and SFX, and one 16:9 run
+- [ ] A Transcript stage plays the uploaded audio and shows the words; clicking a word seeks the audio to it
+- [ ] `PATCH /platform/studio/runs/{run_id}/transcript` applies the edit rule: replace one word; replace one with several or several with one (new words share the combined slot, split evenly, monotonic); the whole edit is validated and rejected as a unit (422 with the reason) if it deletes a spoken word or adds an unspoken one
+- [ ] A "Rebuild from text" check: the operator may paste corrected text; it is accepted only if it maps onto the existing words under the same rule, and the message says which words changed
+- [ ] The edited words are written back to the `voice_alignment` artifact as a new version and the script artifact is regenerated from them; word indices (`start_word`/`end_word`) therefore stay valid because the word count only changes through the shared-slot rule
+- [ ] Edits are refused once a storyboard exists (409, with the pointer to re-do the transcript step and the P14b-S4 warning about the storyboard it would invalidate)
+- [ ] The Studio explains the rule in one sentence next to the editor and, for a refused edit, says what to do instead (on-screen text for unspoken words)
+- [ ] Tests: replace; one-to-many and many-to-one slot arithmetic (monotonic, sums to the original slot); delete and add refused; punctuation and contractions; script artifact follows the words; audio untouched
 
 ### Definition of Done
-- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
-- `tools/capcut_spike/export_capcut.py`, `tools/capcut_spike/r2.py`
-- P13b-S1 Handover (timeline schema)
-- `src/ffmpeg_builder.py` — `_motion_vf_prefix`, `_zoompan_filter` (`_ZOOM_RATE_PER_S`, `_PAN_TRAVEL_FRACTION_PER_S`), `_parse_sfx_delay_ms` — the values the CapCut keyframes should match
-- `src/captions.py` — caption presets
-- `DECISIONS.md` — D100, D081, D082, D087, D076
-
-
-### Handover
-- `tools/capcut/export_capcut.py <zip>` writes a CapCut draft from `timeline.json` alone; the pure timeline → draft mapping is in `tools/capcut/draft_plan.py` (unit-tested without CapCut or pycapcut, `tests/test_p13b_s3_capcut_plan.py`). `pycapcut` is pinned in `tools/capcut/requirements.txt` only (D100). `tools/capcut_spike/` removed.
-- Tested with CapCut 8.9.1 (macOS) and pycapcut 0.0.3; unknown `schema_version` stops with a clear message.
-- **Spike's open point settled:** CapCut 8.x reads `draft_info.json`. pycapcut writes `draft_content.json` (6.x name), so the script renames it; `--both-files` keeps both. Details in `tools/capcut/README.md`.
-- Files that mattered: `tools/capcut/README.md`, `tools/capcut/draft_plan.py`, `src/ffmpeg_builder.py` (motion constants the keyframes mirror).
+- P14b-S1 Handover
+- `cf_platform/workers/storyboard_worker.py` — how `start_word`/`end_word` index `_normalize_deepgram_words`; coverage check
+- `cf_platform/workers/storyboard_edit.py`, `cf_platform/workers/timeline.py` — word list consumers
+- `src/static/studio-v2.html` — Script / Storyboard word rendering (`renderStoryboard`)
+- `docs/RUNBOOK.md` — the misheard-caption finding ("pedals are wheel")
 
 ---
 
-## [P13b-S4] Return path — upload the CapCut-rendered video into the run
-**Epic:** E49 — CapCut export
-**Sprint:** P13b
-**Status:** done
-**Completed:** 2026-10-04
+## [P14b-S3] Storyboard from the transcript; uploaded audio through timeline, render and CapCut
+**Epic:** E51 — Uploaded voiceover
+**Sprint:** P14b
+**Status:** planned
 **Priority:** high
-**Points:** 2
-**Depends on:** P13b-S2
+**Points:** 3
+**Depends on:** P14b-S2
 
 ### Goal
-The video the operator rendered in CapCut becomes the run's final video, so the Metadata stage — and later publishing (P16) — continue as they do after an FFmpeg render.
+From a reviewed transcript the operator creates the storyboard in the usual way, and everything after it behaves as for a generated voice.
 
 ### Acceptance Criteria
-- [x] `POST /platform/studio/runs/{run_id}/output/upload` accepts an `.mp4`, validated for MIME type and size (limit from an ENV var, documented in ENV.md), and stores it as the run's final video
-- [x] The run records which path produced its final video (`ffmpeg` or `capcut`) and when; the video endpoints return it
-- [x] An uploaded video is not overwritten silently: starting an FFmpeg render on a run whose final video came from CapCut asks for confirmation in Studio, and the upload asks for confirmation when an FFmpeg render exists
-- [x] The existing check that a stale `final.mp4` from a killed render is not mistaken for a finished job still holds
-- [x] Studio Render stage: "Upload video from CapCut" control; after upload the stage shows the video with its source, and the Metadata stage is reachable exactly as after an FFmpeg render
-- [x] A TraceEvent records the upload
-- [x] Tests: upload accept / reject (type, size); source recorded and returned; overwrite rules in both directions; Metadata reachable after an upload; static-page test for the control
-- [x] **Human touchpoint (closes the sprint):** the operator uploads the CapCut render into the run on DEV and generates metadata for it
+- [ ] The StoryboardWorker takes its script from the uploaded run's script artifact and its words and timing from the uploaded `voice_alignment`; its coverage check passes on a faithfully transcribed VO and still catches a mismatch
+- [ ] `build_timeline`, the FFmpeg render and the CapCut export read the uploaded audio through `mp3_r2_key` with no change to their code paths; the golden render suite is unchanged
+- [ ] TTS settings (voice, pace, register) are hidden for uploaded runs; narration regeneration controls are removed rather than disabled
+- [ ] Studio stage list for an uploaded run: Upload → Transcript → Storyboard → Acquire → Render → Metadata, reachable in order
+- [ ] Metadata generation uses the transcript as the script
+- [ ] Tests: storyboard from an uploaded run; timeline equal in shape to a generated run's; render script built from an uploaded run; CapCut zip contains the uploaded audio; stage gating
 
 ### Definition of Done
-- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
-- `cf_platform/interfaces/routes/studio.py` — the video URL / render status endpoints (stale `final.mp4` handling), scene upload (validation pattern), music upload
-- `cf_platform/interfaces/routes/workers.py` — render endpoint, metadata endpoint
-- `src/static/studio-v2.html` — Render and Metadata stages
-- `tests/cf_platform/test_p10_s2_asset_override.py` (upload test pattern)
-- `DECISIONS.md` — D100, D098
+- P14b-S1 and S2 Handovers
+- `cf_platform/workers/storyboard_worker.py`, `cf_platform/workers/timeline.py`, `cf_platform/workers/render_worker.py`, `cf_platform/workers/capcut_export.py`, `cf_platform/workers/youtube_metadata.py`
+- `src/static/studio-v2.html` — stage list and gating
 
+---
 
-### Handover
-- `POST /platform/studio/runs/{run_id}/output/upload` accepts an `.mp4` (MIME and size checked) and stores it as `output/final.mp4`; `output/final_source.json` records `ffmpeg` or `capcut` with a timestamp (`cf_platform/core/final_video.py`, `record_final_source`). Overwrite confirmation in both directions; the stale-`final.mp4` guard still holds. Studio Render stage: "Upload video from CapCut".
-- New ENV var: `OUTPUT_UPLOAD_MAX_MB` (default 500; the file is read into memory). No new platform dependency.
-- Files that mattered: `cf_platform/core/final_video.py`, `cf_platform/interfaces/routes/studio.py`, `tests/cf_platform/test_p13b_s4_output_upload.py`.
+## [P14b-S4] Guards and end-to-end tests for the upload path
+**Epic:** E51 — Uploaded voiceover
+**Sprint:** P14b
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** P14b-S3
+
+### Goal
+Bad input and re-uploads fail with a clear message instead of producing a broken run.
+
+### Acceptance Criteria
+- [ ] Unreadable or non-audio files, silent audio, audio shorter than a minimum and longer than a maximum (both from ENV vars) are refused before or right after Deepgram, with a message in Studio
+- [ ] Deepgram returning no words, or a language other than the run's, ends the job in `error` with a readable message, not a stuck `running`
+- [ ] Re-uploading on a run that already has a transcript or storyboard asks for confirmation and says what will be discarded (storyboard, acquired assets, anchors); on confirm it invalidates them, as the storyboard re-run warning already does
+- [ ] One end-to-end test: create an uploaded run, upload (Deepgram mocked), edit a word, build the storyboard, render script built, timeline valid
+- [ ] DEV smoke test steps written into the Handover for the operator: upload an mp3, correct a misheard word, storyboard, acquire, render
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] Human touchpoint (closes the sprint): the operator creates an uploaded-VO run on DEV and renders a video from it
+
+### Files to read
+- P14b-S1..S3 Handovers
+- `docs/TESTING.md`; memory note on the storyboard re-run warning (regenerating invalidates acquired assets)
+- `cf_platform/interfaces/routes/studio.py` — storyboard regenerate warning
+
+---
+
+## [P14b-S5] Stop logging API keys; rotate the Pixabay key
+**Epic:** E51 — Uploaded voiceover (rides in the sprint; unrelated to the upload path)
+**Sprint:** P14b
+**Status:** planned
+**Priority:** high
+**Points:** 2
+**Depends on:** —
+
+### Goal
+No provider API key appears in any log line, and the key that already leaked is replaced.
+
+### Acceptance Criteria
+- [ ] `httpx` / `httpcore` loggers do not print request URLs containing `key=`, `api_key=`, `token=` or `apikey=` values; either a redacting log filter on the root handlers or `httpx` raised to WARNING — whichever keeps useful request logging for other hosts (state the choice in the Handover)
+- [ ] Test: a request to a URL with `?key=SECRET` produces no log record containing `SECRET`; covers Pixabay, Pexels and Freesound URL shapes
+- [ ] Other places that can print a key (exception messages with the URL, retry logs) checked and covered by the same filter or listed in the Handover
+- [ ] Operator rotates the Pixabay key on DEV (and on PROD at release); the old key is revoked. The step is recorded as done in SPRINT.md open items
+- [ ] PROD log re-checked for `key=` at the next `/prod-check`
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+### Files to read
+- `SPRINT.md` open items (finding of 2026-10-05); the raised task chip
+- logging setup in `cf_platform/` and `src/` (find where handlers are configured), `src/` Pixabay adapter
+
+---
+
+## EPIC 52 — UI/UX redesign (Sprint P-UX3 discovery and design, then build)
+
+Operator request at the Sprint P14 review (2026-10-05). The product now has three levels the current UI grew into rather than was designed for: **project** (discovery and market analysis, idea shortlist, project settings) → **idea → run** (run settings, a pipeline of steps, each with several options). Settings exist at tenant, project and run level. Before building, understand the market and the current flow, then design and prototype. The UI stays plain HTML/JS (CLAUDE.md hard constraint).
+
+---
+
+## [P-UX3-S1] Audit of today's flow and review of comparable tools
+**Epic:** E52 — UI/UX redesign
+**Sprint:** P-UX3
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P14b (so both entry paths are in the audit)
+
+### Goal
+A written picture of where today's UI is hard to use and of what comparable products do well, so the redesign argues from evidence.
+
+### Acceptance Criteria
+- [ ] `docs/ux/AUDIT.md`: the current flow screen by screen (login, project list, project, shortlist, Studio stages for both entry modes, Settings) with friction points named, each tied to a screen and to something observed (operator reports in memory/handovers, steps needed for a task, dead ends)
+- [ ] A review of at least six comparable tools (e.g. Opus Clip, InVideo, Pictory, Descript, CapCut, VidIQ) covering: how projects and runs are structured, how ideation/research feeds production, how multi-step pipelines with options are presented, where settings live. Sources named; findings summarised in our own words
+- [ ] A short list of patterns worth adopting and mistakes worth avoiding, each traced to a finding
+- [ ] The operator's own pain points are collected in a short session or list and recorded as the first section
+
+### Definition of Done
+- [ ] All AC checked · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] Human touchpoint: the operator reads the audit and adds or corrects points
+
+---
+
+## [P-UX3-S2] Information architecture: project → idea → run, and where settings live
+**Epic:** E52 — UI/UX redesign
+**Sprint:** P-UX3
+**Status:** planned
+**Priority:** high
+**Points:** 3
+**Depends on:** P-UX3-S1
+
+### Goal
+A navigation and settings model the whole product fits into, including the pages P15 (research) and P16 (publishing) will add.
+
+### Acceptance Criteria
+- [ ] `docs/ux/IA.md`: the page map for project level (overview, discovery / market analysis, shortlist, project settings), idea, and run (pipeline steps, run settings), plus tenant-level settings and where P15 and P16 attach
+- [ ] A settings matrix: every setting that exists today (image provider, style, aspect ratio, caption style, TTS, music, SFX, channel later) placed at tenant, project or run level, with the inheritance rule (tenant → project → run) and what the operator sees when a run overrides a default
+- [ ] Pipeline-step options: a rule for how a step with several options is presented (defaults, advanced, per-scene overrides) applied to each current step
+- [ ] Both entry modes (generated and uploaded voiceover) and both render paths (FFmpeg, CapCut) shown in the flow
+- [ ] Mobile and desktop: which screens must work at phone width
+- [ ] Anything that needs a backend or data-model change is listed, not assumed
+
+### Definition of Done
+- [ ] All AC checked · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] Human touchpoint: the operator approves or corrects the page map and settings matrix
+
+---
+
+## [P-UX3-S3] Clickable static prototype of the key screens
+**Epic:** E52 — UI/UX redesign
+**Sprint:** P-UX3
+**Status:** planned
+**Priority:** high
+**Points:** 4
+**Depends on:** P-UX3-S2
+
+### Goal
+The operator clicks through the redesigned product with demo data before anything is built.
+
+### Acceptance Criteria
+- [ ] Plain HTML/CSS/JS prototype under `docs/ux/prototype/` (no framework, no backend), served the way the demo mode is served today
+- [ ] Screens: project list, project overview with discovery and shortlist, idea → create run (both entry modes), the run pipeline view with step options and run settings, Settings at tenant and project level; desktop and phone width
+- [ ] Visual direction follows `docs/UI_GUIDELINES.md` unless the audit argues for a change, in which case the guideline change is part of the S4 decision
+- [ ] Reviewed with the operator in at least one round; changes made and the decision on each recorded in `docs/ux/REVIEW.md`
+
+### Definition of Done
+- [ ] All AC checked · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] Human touchpoint: the operator clicks through it and approves or redirects
+
+---
+
+## [P-UX3-S4] Design decision and build plan
+**Epic:** E52 — UI/UX redesign
+**Sprint:** P-UX3
+**Status:** planned
+**Priority:** high
+**Points:** 1
+**Depends on:** P-UX3-S3
+
+### Goal
+The approved design is recorded and turned into stories for the build sprint(s).
+
+### Acceptance Criteria
+- [ ] D105 in DECISIONS.md: the chosen structure, settings model and any change to `docs/UI_GUIDELINES.md`
+- [ ] Build stories drafted in the `/add-story` format, sized, ordered so the pipeline stays operable throughout (the old screens are replaced behind a switch or one area at a time), with the backend changes from the IA listed as their own stories
+- [ ] The roadmap in SPRINT.md and the P15 outline updated for the new project structure
+- [ ] CLAUDE.md "Current sprint" updated
+
+### Definition of Done
+- [ ] All AC checked · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## EPIC 49 — CapCut export (P13b) — done 2026-10-04
+
+Stories P13b-S1..S4 and their handovers moved to BACKLOG.md at the P14 review (2026-10-05). Handover summary: DONE.md.
 
 ---
 

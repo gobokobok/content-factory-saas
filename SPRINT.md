@@ -1,10 +1,10 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
-> As of 2026-10-03 the roadmap is **replaced by the Pipeline & Platform Update spec** (D092–D099): **P12 Projects & shortlist → P13 Storyboard control → P13b CapCut export (D100) → P14 AI Created style → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance.**
+> As of 2026-10-03 the roadmap is **replaced by the Pipeline & Platform Update spec** (D092–D099): **P12 Projects & shortlist → P13 Storyboard control → P13b CapCut export (D100) → P14 AI images per scene → P14b Uploaded voiceover → P-UX3 UI/UX redesign → UI build → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance.**
 > - **Sprints P0–P10, P-UX1, P-UX2 complete.** P11 closed with S1 done; P11-S2 and P11-S3 are parked (D099).
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04). **Current sprint:** P14 — AI Created style, stories P14-S1..S4.
+> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then P15 Research. **Current sprint:** P14b — stories P14b-S1..S5.
 
 ---
 
@@ -32,7 +32,10 @@ Legacy Script→Video stays untouched and operable (D047).
 | P12 | Projects & shortlist | 16 | done | Open Studio → project list → add a shortlist idea by hand → create a run from it |
 | P13 | Storyboard control | 14 | done | Change a scene from image to video, split and merge scenes, then acquire |
 | P13b | CapCut export (second render path) | 11 | done | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
-| P14 | AI Created style | 14 | done | Write a prompt in a scene's edit-image dialog, press Generate, get an AI image for that scene |
+| P14 | AI images per scene | 14 | done | Write a prompt in a scene's edit-image dialog, press Generate, get an AI image for that scene |
+| P14b | Uploaded voiceover | ~13 | **current** | Upload an mp3, correct a misheard word, build the storyboard from it, render |
+| P-UX3 | UI/UX redesign — discovery and design | ~11 | planned | Click through a prototype of project → idea → run and approve or redirect it |
+| UI build | Build the redesigned UI | tbd | planned (sized in P-UX3-S4) | The new Studio, live on DEV |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
 | P17 | Server-side Auto Advance | ~10 | planned | Pick a shortlist idea, close the tab, come back to a scheduled video |
@@ -49,34 +52,35 @@ Legacy Script→Video stays untouched and operable (D047).
 - **PROD is four sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b and P14 (including migrations `0002_projects_shortlist.sql` and `0003_tenant_settings.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
 - **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
-- **Open decision (found 2026-10-05, P14 smoke): API keys appear in DEV logs.** `httpx` INFO logging prints the full Pixabay key inside request URLs (`pixabay.com/api/?key=…`), so it sits in Railway's DEV log history. Operator has chosen to carry on and decide later. To settle: (1) rotate the Pixabay key; (2) stop it recurring by redacting `key=` values in logs or raising `httpx` to WARNING — a task chip was raised ("Stop logging the Pixabay API key in INFO logs"). Check PROD logs for the same before `/release`. Fold into `/audit` if that is run first.
+- **Open decision (found 2026-10-05, P14 smoke): API keys appear in DEV logs.** `httpx` INFO logging prints the full Pixabay key inside request URLs (`pixabay.com/api/?key=…`), so it sits in Railway's DEV log history. Operator chose to carry on, then (2026-10-05, P14 review) put the fix into P14b as **P14b-S5**. To settle: (1) rotate the Pixabay key; (2) stop it recurring by redacting `key=` values in logs or raising `httpx` to WARNING — a task chip was raised ("Stop logging the Pixabay API key in INFO logs"). Check PROD logs for the same before `/release`. Fold into `/audit` if that is run first.
 - **Google API audit application** (P12 lead-time task) — in progress; operator will submit. Needed for P16.
 - **Candidate, not a story yet:** captions take their words from the Deepgram transcript, so a misheard word ("pedals are wheel" for "pedals or wheel", PROD 2026-10-02) can reach the video. See docs/RUNBOOK.md.
 
 ---
 
-# Sprint P14 — AI Created style
+---
 
-**Goal:** The operator can generate an AI image for any scene from the storyboard: open the scene's edit-image dialog, write a prompt, press Generate (D104). Nothing is generated automatically. Stock acquisition and both render paths keep working unchanged.
-**Status:** complete 2026-10-05 (smoke test passed on DEV; spend-cap step covered by automated tests only) — planned 2026-10-04 at the Sprint P13b review; **re-scoped 2026-10-04 at `/start-story`** (operator: manual per-scene generation, optional project-level style, provider keys at tenant level, side-by-side test skipped). Built in one pass.
-**Points:** 14
+# Sprint P14b — Uploaded voiceover
+
+**Goal:** A run can start from a voiceover the operator uploads instead of a script. Deepgram transcribes and aligns it; the transcript becomes the run's script; the storyboard is built from it, and render and CapCut export work unchanged.
+**Status:** planned 2026-10-05 at the Sprint P14 review (operator request). Built in one pass.
+**Points:** ~13
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P14-S1 | `ImageProvider` interface, kie.ai + OpenAI clients, tenant-level provider settings with encrypted API keys (migration 0003, `/settings`) | 6 | done |
-| P14-S2 | Settings: provider / model / key page, optional project `ai_image_style` | 3 | done |
-| P14-S3 | Per-scene Generate in the storyboard edit-image dialog (prompt field + button), `ai_image` strategy usable in any style | 3 | done |
-| P14-S4 | Per-run spend cap, cost display in Studio | 2 | done |
+| P14b-S1 | Run creation choice, VO upload, Deepgram transcript stored as the run's script | 3 | planned |
+| P14b-S2 | Transcript review stage with timing-safe word edits | 3 | planned |
+| P14b-S3 | Storyboard from the transcript; uploaded audio feeds timeline, render and CapCut export | 3 | planned |
+| P14b-S4 | Guards and end-to-end tests | 2 | planned |
+| P14b-S5 | Stop logging API keys (httpx INFO URLs), rotate the Pixabay key | 2 | planned |
 
-**Execution order:** S1 → S2 → S3 → S4.
+**Execution order:** S1 → S2 → S3 → S4; S5 is independent.
 
-**Decisions (all in D104):** (1) the side-by-side provider test is skipped, kie.ai is the default and the model is a setting; (2) look across scenes = optional `ai_image_style` on the project, prepended to every prompt, no reference image; (3) Studio does not call the Visual Director — the prompt field is prefilled from the scene's voiceover and edited by hand; (4) spend cap per run, `IMAGE_RUN_SPEND_CAP_USD` default 2.00, at the cap Generate is refused; (5) provider, model and key are tenant settings (encrypted with `SETTINGS_ENCRYPTION_KEY`), Railway ENV keys are the fallback; (6) new dependency `cryptography` (Fernet).
+**Decisions (operator, 2026-10-05):** (1) the choice is made at run creation — "Script → generated voice" or "Upload voiceover"; the upload path skips the Script and Voice stages. Switching inside an existing run is out of scope. (2) The transcript is editable before the storyboard, under the **timing-safe edit rule**: replace a word (keeps its time slot); one word to several or several to one (share the combined slot); no deleting spoken words; no adding words that are not spoken (use on-screen text). Scene boundaries move only through the Storyboard controls. (3) The keys-in-logs fix rides in this sprint so it does not wait for P15. (4) `/audit` stays ahead of P15, after the redesign settles the project and settings model.
 
-**Done on DEV:** `SETTINGS_ENCRYPTION_KEY` set, OpenAI key saved in Settings. **At release:** set a different `SETTINGS_ENCRYPTION_KEY` on PROD and save the key there (migration `0003` applies on deploy).
+**Human touchpoint:** the operator creates a run with "Upload voiceover", uploads an mp3, corrects a misheard word, builds the storyboard and renders a video.
 
-**Human touchpoint:** the operator saves a kie.ai key in Settings, opens a scene's edit-image dialog in a stock run, writes a prompt, presses Generate and sees the image replace the scene's asset, with the run's spend shown against the cap.
-
-**Operator actions beside the sprint (not stories):** `/prod-check` then `/release` of P12 + P13 + P13b (timing not yet decided); set `SETTINGS_ENCRYPTION_KEY` (and the operator's image key in Settings) on PROD at release; `/audit` before P16 at the latest.
+**Operator actions beside the sprint (not stories):** `/prod-check` then `/release` of P12–P14 (timing not decided); at release set a new `SETTINGS_ENCRYPTION_KEY` on PROD; `/audit` before P15.
 
 ## Scope changes
 

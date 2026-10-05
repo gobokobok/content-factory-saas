@@ -1,6 +1,6 @@
 # Sprint Archive — Content Factory
 
-_Historical sprints S1–S19 and Platform P0–P13b (incl. P-UX1, P-UX2), oldest first. Moved here to slim SPRINT.md._
+_Historical sprints S1–S19 and Platform P0–P14 (incl. P-UX1, P-UX2), oldest first. Moved here to slim SPRINT.md._
 _Active sprints: SPRINT.md. Full story details: BACKLOG.md._
 
 ---
@@ -1016,5 +1016,32 @@ _(new threshold: 3 outstanding triggers integration session)_
 **Why S1 carries render hardening:** render is a recurring-fix area (7 untracked fixes, 2026-08-16 → 09-19, three releases on a wrong diagnosis — D090/D091). S1 rewires what the FFmpeg builder reads, so the golden render-script tests are written first and must stay byte-identical.
 
 **Human touchpoint:** on DEV, the operator downloads a finalized storyboard, runs one command on the laptop, opens the full edit in CapCut, renders it there and uploads the result back into the run.
+
+**Scope changes:** none.
+
+---
+
+# Sprint P14 — AI Created style
+
+**Goal:** The operator can generate an AI image for any scene from the storyboard: open the scene's edit-image dialog, write a prompt, press Generate (D104). Nothing is generated automatically. Stock acquisition and both render paths keep working unchanged.
+**Status:** complete 2026-10-05 (smoke test passed on DEV; spend-cap step covered by automated tests only) — planned 2026-10-04 at the Sprint P13b review; **re-scoped 2026-10-04 at `/start-story`** (operator: manual per-scene generation, optional project-level style, provider keys at tenant level, side-by-side test skipped). Built in one pass.
+**Points:** 14
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P14-S1 | `ImageProvider` interface, kie.ai + OpenAI clients, tenant-level provider settings with encrypted API keys (migration 0003, `/settings`) | 6 | done |
+| P14-S2 | Settings: provider / model / key page, optional project `ai_image_style` | 3 | done |
+| P14-S3 | Per-scene Generate in the storyboard edit-image dialog (prompt field + button), `ai_image` strategy usable in any style | 3 | done |
+| P14-S4 | Per-run spend cap, cost display in Studio | 2 | done |
+
+**Execution order:** S1 → S2 → S3 → S4.
+
+**Decisions (all in D104):** (1) the side-by-side provider test is skipped, kie.ai is the default and the model is a setting; (2) look across scenes = optional `ai_image_style` on the project, prepended to every prompt, no reference image; (3) Studio does not call the Visual Director — the prompt field is prefilled from the scene's voiceover and edited by hand; (4) spend cap per run, `IMAGE_RUN_SPEND_CAP_USD` default 2.00, at the cap Generate is refused; (5) provider, model and key are tenant settings (encrypted with `SETTINGS_ENCRYPTION_KEY`), Railway ENV keys are the fallback; (6) new dependency `cryptography` (Fernet).
+
+**Done on DEV:** `SETTINGS_ENCRYPTION_KEY` set, OpenAI key saved in Settings. **At release:** set a different `SETTINGS_ENCRYPTION_KEY` on PROD and save the key there (migration `0003` applies on deploy).
+
+**Human touchpoint:** the operator saves a kie.ai key in Settings, opens a scene's edit-image dialog in a stock run, writes a prompt, presses Generate and sees the image replace the scene's asset, with the run's spend shown against the cap.
+
+**Operator actions beside the sprint (not stories):** `/prod-check` then `/release` of P12 + P13 + P13b (timing not yet decided); set `SETTINGS_ENCRYPTION_KEY` (and the operator's image key in Settings) on PROD at release; `/audit` before P16 at the latest.
 
 **Scope changes:** none.
