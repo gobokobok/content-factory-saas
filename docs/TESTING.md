@@ -44,6 +44,11 @@ whole worker with FFmpeg stubbed. A golden changes only on purpose: regenerate w
 `UPDATE_GOLDEN=1 pytest tests/cf_platform/test_p13b_s1_golden_render.py`, review the diff, and state it in
 the story Handover. The `# generated_at` line is masked.
 
+### Uploaded voiceover (P14b)
+- Deepgram is always mocked: patch `cf_platform.workers.voice_upload._deepgram_transcribe` with a `DeepgramTranscript`. The request itself (the `language` parameter) is tested with `httpx.MockTransport`.
+- `tests/cf_platform/test_p14b_transcript_edit.py` pins the timing-safe edit rule (slot arithmetic, refusals) on pure functions; `test_p14b_upload_routes.py` covers the routes, the guards and one end-to-end run (upload → edit → storyboard → timeline → render script).
+- `tests/test_log_redaction.py` pins that no provider key (`key=`, `token=`, `api_key=`) survives in a formatted log record.
+
 ## Minimum test cases per function
 1. Happy path — expected input, expected output
 2. One failure case — API down, invalid response, missing field

@@ -264,6 +264,14 @@
 <div class="select-bar" id="select-bar">
   <div class="select-bar-text" id="select-bar-text"></div>
   <button class="btn btn-ghost btn-sm" onclick="clearSelection()">Clear</button>
+  <select class="select" id="run-language" title="Language of this video (a per-run choice)" style="width:auto;">
+    <option value="en">English</option>
+    <option value="ru">Русский</option>
+  </select>
+  <select class="select" id="voice-source" title="How the video gets its voice" style="width:auto;">
+    <option value="generated">Script → generated voice</option>
+    <option value="uploaded">Upload voiceover</option>
+  </select>
   <button class="btn btn-primary" id="create-video-btn" onclick="createVideo()">Create video →</button>
 </div>
 
@@ -325,6 +333,11 @@ async function loadProject() {
   if (!r.ok) throw new Error(await errorDetail(r));
   project = await r.json();
   renderProject();
+  // New runs start in the project's language; the operator can still pick another per run.
+  const lang = project.config && project.config.language;
+  if (lang && [...document.getElementById('run-language').options].some(o => o.value === lang)) {
+    document.getElementById('run-language').value = lang;
+  }
   return true;
 }
 
@@ -516,7 +529,7 @@ async function createVideo() {
     const r = await api(`${BASE}/runs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ item_ids: [...selected] }),
+      body: JSON.stringify({ item_ids: [...selected], voice_source: document.getElementById('voice-source').value, language: document.getElementById('run-language').value }),
     });
     if (!r.ok) throw new Error(await errorDetail(r));
     const run = await r.json();

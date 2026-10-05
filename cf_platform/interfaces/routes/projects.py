@@ -20,7 +20,7 @@ Handlers are thin wrappers over the pure async functions in cf_platform/core
 """
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
@@ -117,6 +117,13 @@ class RunFromShortlistRequest(BaseModel):
     """Request body for POST /platform/projects/{id}/runs."""
 
     item_ids: list[str] = Field(min_length=1)
+    # "generated": Script → generated voice (default). "uploaded": the operator
+    # uploads the voiceover; Script and Voice stages are skipped (P14b).
+    voice_source: Literal["generated", "uploaded"] = "generated"
+    # ISO 639-1 language of the video (P14b-S1). Omitted: the project's
+    # config.language, else "en". A per-run choice — never locked by the project's
+    # earlier runs.
+    language: str | None = Field(default=None, pattern=r"^[a-z]{2}$")
 
 
 class ImportedRun(BaseModel):
@@ -177,6 +184,8 @@ class RunContextResponse(BaseModel):
     items: list[ShortlistItemResponse]
     idea_title: str
     supporting_points: list[str]
+    voice_source: Literal["generated", "uploaded"] = "generated"
+    language: str = "en"
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
@@ -324,7 +333,7 @@ async def create_run_from_shortlist(
     Returns 404 for an unknown project or item id, and 409 for an item that was
     removed from the shortlist or belongs to another project.
     """
-    await _project_or_404(project_id, projects)
+    project = await _project_or_404(project_id, projects)
     try:
         items = await resolve_items_for_run(project_id, body.item_ids, shortlist)
     except ShortlistItemNotFoundError as exc:
@@ -339,7 +348,12 @@ async def create_run_from_shortlist(
     run = await create_run(
         PLATFORM_USER_ID,
         STUDIO_BLOCK,
-        {"item_ids": item_ids, **context},
+        {
+            "item_ids": item_ids,
+            "voice_source": body.voice_source,
+            "language": body.language or str((project.config or {}).get("language") or "en"),
+            **context,
+        },
         runs,
         project_id=project_id,
         name=context["idea_title"][:_RUN_NAME_MAX_CHARS],
@@ -498,4 +512,6 @@ async def get_run_context(
         items=[_item_response(item) for item in items],
         idea_title=context["idea_title"],
         supporting_points=context["supporting_points"],
+        voice_source="uploaded" if run.inputs.get("voice_source") == "uploaded" else "generated",
+        language=str(run.inputs.get("language") or "en"),
     )

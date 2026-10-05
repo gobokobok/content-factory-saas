@@ -47,6 +47,8 @@ class ScriptArtifact(BaseModel):
     status: Literal["ok", "manual_review"] = "ok"
     length_ok: bool = True  # False when word_count is >20% over or under target_words (P6-S5)
     generated_at: datetime
+    # "uploaded_vo" when the script is the transcript of an uploaded voiceover (P14b).
+    source: str | None = None
 
 
 def build_script_packager_worker(storage: ArtifactStorage) -> WorkerNode:

@@ -311,6 +311,7 @@ async def studio_get_voice_status(
                     "alignment_method": job.get("alignment_method", ""),
                     "total_duration_s": job.get("total_duration_s", 0.0),
                     "word_count": job.get("word_count", 0),
+                    "language_warning": job.get("language_warning"),
                 }
             if job.get("status") == "error":
                 return {"status": "error", "error": job.get("error", "Voice generation failed")}

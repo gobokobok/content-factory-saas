@@ -73,6 +73,14 @@ class PlatformSettings(BaseSettings):
     # Largest .mp4 the operator may upload as a run's final video — the video rendered
     # in CapCut (P13b-S4, D100).
     OUTPUT_UPLOAD_MAX_MB: int = 500
+    # Uploaded voiceover (P14b). Size cap, length window, the mean word confidence
+    # below which Studio warns that the audio may not be in the run's language, and
+    # the per-minute Deepgram price used for the TraceEvent cost estimate.
+    VOICE_UPLOAD_MAX_MB: int = 50
+    VOICE_UPLOAD_MIN_S: float = 3.0
+    VOICE_UPLOAD_MAX_S: float = 180.0
+    VOICE_LOW_CONFIDENCE: float = 0.6
+    DEEPGRAM_COST_PER_MIN_USD: float = 0.0043
     # AI image generation (P14, D096, D104). Provider, model and key are tenant
     # settings first; these are the fallbacks and the tunables.
     SETTINGS_ENCRYPTION_KEY: str = ""

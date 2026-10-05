@@ -794,6 +794,13 @@ def build_render_worker(
                 vo_local = Path(f"/tmp/{run_id}/voiceover/voiceover{ext}")
                 vo_local.parent.mkdir(parents=True, exist_ok=True)
                 vo_local.write_bytes(await storage.get_bytes(alignment.mp3_r2_key))
+                # The render script takes the first audio file in voiceover/ (.mp3 before
+                # .wav before .m4a). A run whose voiceover was replaced by one of another
+                # format (P14b re-upload) still has the old file in R2 — only the file the
+                # alignment names may stay.
+                for stale in vo_local.parent.iterdir():
+                    if stale != vo_local and stale.suffix.lower() in (".mp3", ".wav", ".m4a"):
+                        stale.unlink()
             except Exception as exc:
                 logger.warning(
                     "RenderWorker: could not load voice_alignment for run %s: %s", run_id, exc

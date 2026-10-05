@@ -222,8 +222,17 @@ def _normalize_word(raw: dict) -> VoiceWordTimestamp:
     return VoiceWordTimestamp(word=word, start_ms=start_ms, end_ms=end_ms, confidence=confidence)
 
 
-async def _align_audio(audio_url: str, api_key: str) -> list[VoiceWordTimestamp]:
-    """Call Deepgram Nova-2 with a presigned URL; return word-level timestamps.
+class DeepgramTranscript(BaseModel):
+    """Result of one Deepgram call: words plus the audio duration the response reported."""
+
+    words: list[VoiceWordTimestamp]
+    duration_s: float | None = None
+
+
+async def _deepgram_transcribe(
+    audio_url: str, api_key: str, *, language: str | None = None
+) -> DeepgramTranscript:
+    """Call Deepgram Nova-2 with a presigned URL; return words and duration.
 
     smart_format=true (D045 rev): the v2 pipeline storyboard copies verbatim
     script text into voiceover_line, so numeric tokens like "15000" (from
@@ -231,18 +240,33 @@ async def _align_audio(audio_url: str, api_key: str) -> list[VoiceWordTimestamp]
     returns "15,000" (normalises to "15000") instead of "fifteen thousand"
     (never matches "15000"), eliminating the orphaned-word/missing-caption bug
     for all figure-heavy scripts.
+
+    language (P14b-S1) is the run's ISO 639-1 code, passed as Deepgram's transcription
+    language for uploaded voiceovers; omitted, Deepgram uses its default (English).
     """
     headers = {"Authorization": f"Token {api_key}", "Content-Type": "application/json"}
     params = {"model": "nova-2", "smart_format": "true"}
+    if language:
+        params["language"] = language
     async with httpx.AsyncClient(timeout=_DEEPGRAM_TIMEOUT_SECONDS) as client:
         resp = await client.post(_DEEPGRAM_URL, headers=headers, params=params, json={"url": audio_url})
     if resp.status_code != 200:
         raise RuntimeError(f"Deepgram returned {resp.status_code}: {resp.text[:300]}")
     try:
-        raw_words = resp.json()["results"]["channels"][0]["alternatives"][0]["words"]
+        data = resp.json()
+        raw_words = data["results"]["channels"][0]["alternatives"][0]["words"]
     except (KeyError, IndexError, TypeError) as exc:
         raise RuntimeError(f"Unexpected Deepgram response structure: {exc}") from exc
-    return [_normalize_word(w) for w in raw_words]
+    duration = (data.get("metadata") or {}).get("duration")
+    return DeepgramTranscript(
+        words=[_normalize_word(w) for w in raw_words],
+        duration_s=float(duration) if duration is not None else None,
+    )
+
+
+async def _align_audio(audio_url: str, api_key: str) -> list[VoiceWordTimestamp]:
+    """Call Deepgram Nova-2 with a presigned URL; return word-level timestamps."""
+    return (await _deepgram_transcribe(audio_url, api_key)).words
 
 
 # ── Proportional fallback (no src/ import, D047) ─────────────────────────────

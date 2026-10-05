@@ -3,15 +3,27 @@
 from cf_platform.core.artifact_manager import ArtifactStorage, latest_version_key
 from cf_platform.interfaces.dependencies import PLATFORM_USER_ID
 
+DISCARDED_STORYBOARD_MARKER = "runs/{run_id}/storyboard/discarded.json"
+
 
 async def latest_artifact_key(storage: ArtifactStorage, run_id: str, stage: str, name: str) -> str | None:
     """Return the R2 key for the latest version of an artifact, or None if absent.
 
     Resolution is numeric, not lexicographic — see artifact_manager.latest_version_key.
+    A storyboard the operator discarded by re-uploading the voiceover (P14b-S4) counts
+    as absent until a newer version is generated.
     """
     prefix = f"users/{PLATFORM_USER_ID}/runs/{run_id}/{stage}/{name}@v"
     keys = await storage.list_keys(prefix)
-    return latest_version_key(keys)
+    key = latest_version_key(keys)
+    if key and stage == "storyboard" and name == "verified_storyboard":
+        try:
+            marker = await storage.get_json(DISCARDED_STORYBOARD_MARKER.format(run_id=run_id))
+        except Exception:
+            marker = None
+        if marker and marker.get("key") == key:
+            return None
+    return key
 
 
 async def prepare_run_timeline(

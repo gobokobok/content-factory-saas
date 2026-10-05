@@ -12,6 +12,7 @@ from pydantic import ValidationError
 import src.clip_reranker as clip_reranker
 from src.auth import AUTH_COOKIE_NAME, verify_cookie
 from src.config import Settings, get_settings
+from src.log_redaction import install_log_redaction
 from src.routes import alignment as alignment_router
 from src.routes import assets as assets_router
 from src.routes import auth as auth_router
@@ -35,11 +36,12 @@ _STATIC_DIR = Path(__file__).parent / "static"
 
 
 def _configure_logging(log_level: str) -> None:
-    """Set root logger level from settings."""
+    """Set root logger level from settings and redact API keys from every handler."""
     logging.basicConfig(
         level=getattr(logging, log_level, logging.INFO),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
+    install_log_redaction()
 
 
 def _mount_platform_router(app: FastAPI) -> None:

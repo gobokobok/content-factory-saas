@@ -402,6 +402,19 @@
       background-position: right 7px center; max-width: 160px; min-width: 110px;
     }
 
+    .vo-dropzone { max-width: 460px; padding: 28px 18px; }
+    .vo-file-line { font-size: 12.5px; color: var(--ink-sub); margin-top: 10px; }
+    .tr-rule { font-size: 12.5px; color: var(--ink-sub); background: var(--border2); border-radius: var(--r-sm); padding: 8px 12px; margin: 10px 0; max-width: 720px; }
+    .tr-audio { width: 100%; max-width: 720px; margin-top: 6px; }
+    .tr-words { max-width: 720px; line-height: 2.1; font-size: 15px; margin: 12px 0; }
+    .tr-word { cursor: pointer; padding: 2px 3px; border-radius: 4px; }
+    .tr-word:hover { background: var(--border2); }
+    .tr-word.playing { background: var(--accent-tint); color: var(--accent); }
+    .tr-word.sel { background: var(--accent); color: #fff; }
+    .tr-edit { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; max-width: 720px; margin-bottom: 8px; }
+    .tr-edit input { flex: 1; min-width: 180px; }
+    .tr-rebuild textarea { width: 100%; max-width: 720px; box-sizing: border-box; min-height: 110px; font-family: var(--font); font-size: 13.5px; padding: 8px; border: 1px solid var(--border); border-radius: var(--r-sm); }
+    .tr-note { font-size: 12.5px; color: var(--ink-sub); margin-top: 6px; max-width: 720px; }
     .music-dropzone {
       border: 1.5px dashed var(--border); border-radius: var(--r-sm); padding: 18px;
       text-align: center; color: var(--muted); font-size: 12.5px; cursor: pointer;
@@ -801,6 +814,7 @@
             </select>
           </div>
 
+          <div id="narration-block">
           <div class="field-label" style="margin-top:20px;">Narration</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;max-width:620px;">
             <select class="cf-select" id="narration-pace" onchange="onNarrationChange()" title="Speaking rate">
@@ -813,12 +827,15 @@
               <option value="emotional">Emotional — warm, expressive</option>
             </select>
           </div>
+          </div>
 
+          <div id="subject-block">
           <div class="field-label" style="margin-top:20px;">Run subject <span style="font-size:12px;font-weight:400;color:var(--ink-sub);">— used by auto-advance to generate the script (default 90s)</span></div>
           <input class="gen-input" style="width:100%;box-sizing:border-box;" id="settings-subject" placeholder="e.g. Why starter homes disappeared from America" oninput="onSubjectInput()" onchange="saveRunSettings()">
+          </div>
 
           <div class="stage-cta">
-            <button class="btn btn-primary" onclick="onSettingsContinue()">Continue to Script →</button>
+            <button class="btn btn-primary" id="settings-continue-btn" onclick="onSettingsContinue()">Continue to Script →</button>
           </div>
         </div>
       </div>
@@ -867,6 +884,43 @@
             <button class="btn btn-primary" id="generate-vo-btn" onclick="generateVO()" disabled>Generate VO →</button>
             <button class="btn btn-ghost" id="skip-vo-btn" onclick="createStoryboard()" disabled title="Skip voiceover — storyboard will use estimated timing">Skip VO</button>
             <span id="script-stage-status" class="running-msg"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Upload voiceover stage (P14b-S1) — only for runs created with "Upload voiceover" -->
+      <div class="stage-pane" id="pane-upload">
+        <div class="stage-content">
+          <div class="stage-title">Upload voiceover</div>
+          <div class="stage-subtitle">Upload your recording (mp3, wav or m4a). It is transcribed word by word; the transcript becomes the script.</div>
+          <div id="upload-error" class="error-bar" style="display:none;"></div>
+          <div class="tr-note" id="upload-language" style="margin:0 0 10px;"></div>
+          <div class="music-dropzone vo-dropzone" id="vo-dropzone" onclick="document.getElementById('vo-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="onVoDrop(event)">
+            <input type="file" id="vo-file-input" accept=".mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/mp4,audio/x-m4a" onchange="onVoFileChosen(event)">
+            Drop an audio file, or click to choose
+          </div>
+          <div class="vo-file-line" id="vo-status"></div>
+          <div class="stage-cta" id="upload-cta" style="display:none;">
+            <button class="btn btn-primary" onclick="activateStage('transcript')">Review transcript →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transcript stage (P14b-S2) -->
+      <div class="stage-pane" id="pane-transcript">
+        <div class="stage-content">
+          <div class="stage-title">Transcript</div>
+          <div class="stage-subtitle">Listen and correct misheard words before the storyboard is built. Click a word to jump to it in the audio.</div>
+          <div class="tr-rule" id="tr-rule">You can change what a word says, not when it is spoken: replace a word, replace one word with several, or several with one. Spoken words cannot be deleted, and words that are not spoken cannot be added — put those on screen as text instead.</div>
+          <div id="transcript-error" class="error-bar" style="display:none;"></div>
+          <div id="transcript-warning" class="error-bar" style="display:none;background:#FFF6E5;color:#7A4B00;border-color:#F2D9A6;"></div>
+          <div id="transcript-content">
+            <div class="muted" style="font-size:13px;">No transcript yet — upload a voiceover first.</div>
+          </div>
+          <div class="stage-cta" id="transcript-cta" style="display:none;">
+            <button class="btn btn-primary" id="create-storyboard-btn3" onclick="createStoryboard()">Create Storyboard →</button>
+            <button class="btn btn-ghost" id="reupload-btn" onclick="activateStage('upload')">Upload a different voiceover</button>
+            <span id="transcript-stage-status" class="running-msg"></span>
           </div>
         </div>
       </div>
@@ -1225,14 +1279,30 @@ const ASSET_STRATEGIES = [
   { key: 'ai_image',    label: 'AI image' },
 ];
 
-const STAGES = ['settings', 'script', 'voice', 'storyboard', 'render', 'metadata'];
-const STAGE_LABELS = { settings: 'Settings', script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Video', metadata: 'Metadata' };
+// P14b — the stage list depends on how the run gets its voice: "generated" runs go
+// Script → Voice; "uploaded" runs go Upload → Transcript. applyVoiceSource() swaps it.
+const GENERATED_STAGES = ['settings', 'script', 'voice', 'storyboard', 'render', 'metadata'];
+const UPLOADED_STAGES = ['settings', 'upload', 'transcript', 'storyboard', 'render', 'metadata'];
+let STAGES = GENERATED_STAGES;
+const STAGE_LABELS = { settings: 'Settings', script: 'Script', voice: 'Voice', upload: 'Upload', transcript: 'Transcript', storyboard: 'Storyboard', render: 'Video', metadata: 'Metadata' };
 
 function defaultStageStatus() {
-  return { settings: 'idle', script: 'idle', voice: 'idle', storyboard: 'idle', render: 'idle', metadata: 'idle' };
+  return { settings: 'idle', script: 'idle', voice: 'idle', upload: 'idle', transcript: 'idle', storyboard: 'idle', render: 'idle', metadata: 'idle' };
 }
 function defaultStageData() {
-  return { settings: null, script: null, voice: null, storyboard: null, render: null, metadata: null };
+  return { settings: null, script: null, voice: null, upload: null, transcript: null, storyboard: null, render: null, metadata: null };
+}
+
+// Switch the run between the two entry modes: stage list, Settings pane and the
+// storyboard hint. Narration (TTS) controls are removed for uploaded runs, not disabled.
+function applyVoiceSource(source) {
+  const uploaded = source === 'uploaded';
+  state.voiceSource = uploaded ? 'uploaded' : 'generated';
+  STAGES = uploaded ? UPLOADED_STAGES : GENERATED_STAGES;
+  document.getElementById('narration-block').style.display = uploaded ? 'none' : '';
+  document.getElementById('subject-block').style.display = uploaded ? 'none' : '';
+  document.getElementById('settings-continue-btn').textContent = uploaded ? 'Continue to Upload →' : 'Continue to Script →';
+  renderStageTrack();
 }
 function defaultSettings() {
   return {
@@ -1250,6 +1320,8 @@ let state = {
   settings: defaultSettings(),
   autoConfirm: false,
   manifestEntries: {},
+  voiceSource: 'generated', // P14b — 'generated' | 'uploaded'
+  language: 'en',           // P14b-S1 — the run's ISO 639-1 language
   sbView: 'table',   // P13-S4 — 'table' | 'script'
   acquiring: false,  // P13-S3 — true while an acquisition request is in flight
   sfxLibrary: [],  // D076 — [{key, display_name}], fetched once in loadRun()
@@ -1581,6 +1653,7 @@ async function fetchRunContext(id) {
 }
 
 async function loadRunContext(id) {
+  applyVoiceSource('generated');
   state.project = null;
   state.runContext = null;
   _serverRuns = [];
@@ -1600,6 +1673,10 @@ async function loadRunContext(id) {
     if (!ctx) return;
     state.project = ctx.project;
     state.runContext = { items: ctx.items, idea_title: ctx.idea_title, supporting_points: ctx.supporting_points };
+    applyVoiceSource(ctx.voice_source);
+    state.language = ctx.language || 'en';
+    const ul = document.getElementById('upload-language');
+    if (ul) ul.textContent = `Language of this run: ${state.language}. The voiceover is transcribed in it.`;
     if (ctx.name) document.getElementById('ws-run-name').textContent = ctx.name;
     document.getElementById('info-created').textContent = new Date(ctx.created_at).toLocaleString();
 
@@ -1695,6 +1772,7 @@ async function loadRun(id) {
   enterWorkspace(id, localEntry?.ts, localEntry?.name || localEntry?.scriptPreview);
 
   resetVoicePane();
+  resetUploadPanes();
   resetStoryboardPane();
   resetRenderPane();
   resetMetadataPane();
@@ -1703,6 +1781,7 @@ async function loadRun(id) {
   activateStage('settings');
 
   await loadRunContext(id);
+  resetStoryboardPane();
 
   // Load persisted settings (aspect ratio, subject, etc.). Guarded for the same
   // reason as resetSettingsPane: setAspectRatio() below would otherwise save.
@@ -1730,6 +1809,9 @@ async function loadRun(id) {
   if (isNewRun) saveRunSettings();
   syncCaptionStyleEnabled();
 
+  if (state.voiceSource === 'uploaded') {
+    await loadUploadedVoice(id);
+  } else {
   // Try to load script artifact
   try {
     const r = await fetch(`/platform/studio/runs/${id}/script`);
@@ -1754,6 +1836,7 @@ async function loadRun(id) {
       renderVoiceResult(data);
     }
   } catch { /* ignore */ }
+  }
 
   // Load the curated SFX picker options (D076) before the storyboard renders,
   // since buildSceneRow reads state.sfxLibrary synchronously.
@@ -1863,7 +1946,7 @@ function onSettingsContinue() {
   state.stageStatus.settings = 'done';
   saveRunSettings();
   renderStageTrack();
-  activateStage('script');
+  activateStage(state.voiceSource === 'uploaded' ? 'upload' : 'script');
 }
 
 // True while stored values are being pushed INTO the controls. Without this,
@@ -2016,14 +2099,17 @@ async function generateScript() {
 
 async function createStoryboard() {
   if (!state.runId) { alert('Create a new run first.'); return; }
-  const script = document.getElementById('script-input').value.trim();
-  if (!script) { alert('Enter a script first.'); return; }
+  // An uploaded run's script is its transcript (P14b-S3); the server ignores any
+  // script sent for it, but the Studio keeps the same text for the title preview.
+  const uploaded = state.voiceSource === 'uploaded';
+  const script = uploaded ? (state.stageData.script || '').trim() : document.getElementById('script-input').value.trim();
+  if (!script) { alert(uploaded ? 'Upload a voiceover first.' : 'Enter a script first.'); return; }
 
   // Determine which trigger button and error zone to use depending on caller stage
   const fromVoice = state.activeStage === 'voice';
-  const btn = document.getElementById(fromVoice ? 'create-storyboard-btn2' : 'skip-vo-btn');
-  const errId = fromVoice ? 'voice-error' : 'script-error';
-  const statusEl = document.getElementById(fromVoice ? 'voice-stage-status' : 'script-stage-status');
+  const btn = document.getElementById(uploaded ? 'create-storyboard-btn3' : fromVoice ? 'create-storyboard-btn2' : 'skip-vo-btn');
+  const errId = uploaded ? 'transcript-error' : fromVoice ? 'voice-error' : 'script-error';
+  const statusEl = document.getElementById(uploaded ? 'transcript-stage-status' : fromVoice ? 'voice-stage-status' : 'script-stage-status');
   if (btn) btn.disabled = true;
   state.stageStatus.storyboard = 'running';
   hideErr(errId);
@@ -2086,6 +2172,7 @@ async function createStoryboard() {
     if (statusEl) statusEl.textContent = `✓ ${meta.scene_count} scenes (${elapsed(start)})`;
     state.stageStatus.script = 'done';
     state.stageData.script = script;
+    if (uploaded) state.stageStatus.transcript = 'done';
 
     // Load the artifact content to display it
     const sbR = await fetch(`/platform/studio/runs/${state.runId}/storyboard`);
@@ -2255,9 +2342,267 @@ function renderVoiceResult(data) {
   hideErr('voice-error');
 }
 
+// ── Uploaded voiceover (P14b) ─────────────────────────────────────────────
+let trSel = null;       // { a, b } — selected word indices, inclusive
+let trAudioEl = null;
+
+function resetUploadPanes() {
+  trSel = null;
+  hideErr('upload-error');
+  hideErr('transcript-error');
+  document.getElementById('transcript-warning').style.display = 'none';
+  document.getElementById('vo-status').textContent = '';
+  document.getElementById('upload-cta').style.display = 'none';
+  document.getElementById('transcript-content').innerHTML = '<div class="muted" style="font-size:13px;">No transcript yet — upload a voiceover first.</div>';
+  document.getElementById('transcript-cta').style.display = 'none';
+}
+
+// On opening an uploaded run: show its transcript, or resume a running transcription.
+async function loadUploadedVoice(id) {
+  try {
+    const r = await fetch(`/platform/studio/runs/${id}/transcript`);
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data.words && data.words.length) {
+      state.stageStatus.upload = 'done';
+      state.stageData.script = data.text;
+      renderTranscript(data);
+      state.stageStatus.transcript = data.storyboard_exists ? 'done' : 'idle';
+    } else if (data.job_status === 'running') {
+      pollTranscription();
+    } else if (data.job_status === 'error') {
+      state.stageStatus.upload = 'error';
+      showErr('upload-error', data.job_error || 'Transcription failed.');
+    }
+  } catch { /* ignore */ }
+}
+
+function onVoDrop(event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('dragover');
+  const f = event.dataTransfer.files[0];
+  if (f) uploadVoFile(f);
+}
+function onVoFileChosen(event) {
+  const f = event.target.files[0];
+  if (f) uploadVoFile(f);
+  event.target.value = '';
+}
+
+async function uploadVoFile(file, confirmed = false) {
+  hideErr('upload-error');
+  const status = document.getElementById('vo-status');
+  status.textContent = `Uploading ${file.name}…`;
+  state.stageStatus.upload = 'running';
+  renderStageTrack();
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/voice/upload${confirmed ? '?confirm_discard=true' : ''}`, { method: 'POST', body: fd });
+    if (r.status === 409) {
+      const err = await r.json().catch(() => ({}));
+      if (err.needs_confirmation && !confirmed) {
+        if (confirm(`${err.detail}\n\nReplace the voiceover?`)) return uploadVoFile(file, true);
+        state.stageStatus.upload = state.stageData.script ? 'done' : 'idle';
+        status.textContent = 'Upload cancelled — nothing changed.';
+        renderStageTrack();
+        return;
+      }
+      throw new Error(err.detail || 'Upload refused');
+    }
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.detail || `Upload failed (${r.status})`);
+    }
+    if (confirmed) {
+      // The storyboard and acquired assets were discarded server-side; mirror that here.
+      state.stageStatus.storyboard = 'idle'; state.stageData.storyboard = null;
+      state.stageStatus.transcript = 'idle';
+      resetStoryboardPane();
+    }
+    status.textContent = `Transcribing ${file.name}…`;
+    await pollTranscription();
+  } catch (e) {
+    state.stageStatus.upload = 'error';
+    showErr('upload-error', e.message);
+    status.textContent = '';
+    renderStageTrack();
+  }
+}
+
+async function pollTranscription() {
+  const start = Date.now();
+  const status = document.getElementById('vo-status');
+  state.stageStatus.upload = 'running';
+  renderStageTrack();
+  for (let i = 0; i < 150; i++) {          // up to ~5 min at 2s
+    await new Promise(res => setTimeout(res, 2000));
+    status.textContent = `Transcribing… ${elapsed(start)}`;
+    let s;
+    try { const r = await fetch(`/platform/studio/runs/${state.runId}/voice/status`); s = r.ok ? await r.json() : { status: 'running' }; }
+    catch { s = { status: 'running' }; }
+    if (s.status === 'error') {
+      state.stageStatus.upload = 'error';
+      showErr('upload-error', s.error || 'Transcription failed.');
+      status.textContent = '';
+      renderStageTrack();
+      return;
+    }
+    if (s.status === 'complete') {
+      const r = await fetch(`/platform/studio/runs/${state.runId}/transcript`);
+      const data = await r.json();
+      state.stageStatus.upload = 'done';
+      state.stageData.script = data.text;
+      status.textContent = `✓ ${s.word_count} words, ${(s.total_duration_s || 0).toFixed(1)}s`;
+      renderTranscript(data);
+      renderStageTrack();
+      document.getElementById('upload-cta').style.display = '';
+      activateStage('transcript');
+      return;
+    }
+  }
+  state.stageStatus.upload = 'error';
+  showErr('upload-error', 'Transcription is taking too long. Reload the run in a minute to check again.');
+  renderStageTrack();
+}
+
+function renderTranscript(data) {
+  state.stageData.transcript = data;
+  trSel = null;
+  const editable = !!data.editable;
+  const words = data.words.map(w =>
+    `<span class="tr-word" data-i="${w.i}" onclick="onTrWordClick(event, ${w.i})">${esc(w.word)}</span>`).join(' ');
+  const lock = editable ? '' : `<div class="tr-note">The storyboard exists, so the words are locked. To change them, upload the voiceover again — that discards the storyboard, acquired assets and scene edits.</div>`;
+  const editBox = editable ? `
+    <div class="tr-edit">
+      <input class="gen-input" id="tr-edit-input" placeholder="Click a word, then type what is actually said" disabled onkeydown="if(event.key==='Enter')applyTrEdit()">
+      <button class="btn btn-secondary btn-sm" id="tr-edit-btn" onclick="applyTrEdit()" disabled>Apply</button>
+      <span class="tr-note" id="tr-sel-note" style="margin:0;">Shift-click to select several words.</span>
+    </div>
+    <details class="tr-rebuild" style="margin-top:14px;">
+      <summary style="cursor:pointer;font-size:13px;color:var(--ink-sub);">Rebuild from text</summary>
+      <div class="tr-note">Paste the corrected transcript. It is accepted only if it maps onto the spoken words under the rule above.</div>
+      <textarea id="tr-rebuild-text" style="margin-top:8px;">${esc(data.text)}</textarea>
+      <div style="margin-top:6px;">
+        <button class="btn btn-secondary btn-sm" onclick="rebuildFromText(true)">Check</button>
+        <button class="btn btn-primary btn-sm" onclick="rebuildFromText(false)">Apply text</button>
+      </div>
+      <div class="tr-note" id="tr-rebuild-msg"></div>
+    </details>` : '';
+  document.getElementById('transcript-content').innerHTML = `
+    <audio class="tr-audio" id="tr-audio" controls ${data.audio_url ? `src="${esc(data.audio_url)}"` : ''}></audio>
+    <div class="tr-note">${data.words.length} words · ${(data.total_duration_s || 0).toFixed(1)}s</div>
+    <div class="tr-words" id="tr-words">${words}</div>
+    ${editBox}${lock}`;
+  trAudioEl = document.getElementById('tr-audio');
+  trAudioEl.addEventListener('timeupdate', onTrTimeUpdate);
+  document.getElementById('transcript-cta').style.display = '';
+  document.getElementById('create-storyboard-btn3').textContent = data.storyboard_exists ? 'Back to Storyboard →' : 'Create Storyboard →';
+  document.getElementById('create-storyboard-btn3').onclick = data.storyboard_exists ? () => activateStage('storyboard') : createStoryboard;
+  hideErr('transcript-error');
+  renderLanguageWarning(data.language_warning, data.language);
+}
+
+// S4: a transcript that may be in another language than the run's is a question, not an error.
+function renderLanguageWarning(w, language) {
+  const el = document.getElementById('transcript-warning');
+  if (!w || w.acknowledged) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const guess = w.detected ? ` It looks like <strong>${esc(w.detected)}</strong>.` : '';
+  const options = ['en', 'ru'].map(l => `<option value="${l}"${l === (w.detected || language) ? ' selected' : ''}>${l}</option>`).join('');
+  el.style.display = '';
+  el.innerHTML = `This audio may not be in <strong>${esc(language)}</strong> — ${esc(w.reason)}.${guess}
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" onclick="setRunLanguage('${esc(language)}')">Keep ${esc(language)}</button>
+      <span>or change the run language to</span>
+      <select class="cf-select cf-select--sm" id="warn-lang">${options}</select>
+      <button class="btn btn-secondary btn-sm" onclick="setRunLanguage(document.getElementById('warn-lang').value)">Change</button>
+    </div>`;
+}
+
+async function setRunLanguage(language) {
+  const r = await fetch(`/platform/studio/runs/${state.runId}/language`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ language }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { showErr('transcript-error', data.detail || `Could not set the language (${r.status})`); return; }
+  state.language = data.language;
+  const ul = document.getElementById('upload-language');
+  if (ul) ul.textContent = `Language of this run: ${state.language}. The voiceover is transcribed in it.`;
+  document.getElementById('transcript-warning').style.display = 'none';
+  if (data.transcript_stale) {
+    document.getElementById('vo-status').textContent = `Language set to ${data.language} — upload the voiceover again to transcribe it in ${data.language}.`;
+    activateStage('upload');
+  }
+}
+
+function onTrTimeUpdate() {
+  const data = state.stageData.transcript;
+  if (!data || !trAudioEl) return;
+  const ms = trAudioEl.currentTime * 1000;
+  let cur = -1;
+  for (const w of data.words) { if (ms >= w.start_ms && ms < w.end_ms) { cur = w.i; break; } }
+  document.querySelectorAll('#tr-words .tr-word').forEach(el => el.classList.toggle('playing', +el.dataset.i === cur));
+}
+
+function onTrWordClick(event, i) {
+  const data = state.stageData.transcript;
+  const w = data.words[i];
+  if (trAudioEl) trAudioEl.currentTime = w.start_ms / 1000;
+  if (!data.editable) return;
+  trSel = event.shiftKey && trSel ? { a: Math.min(trSel.a, i), b: Math.max(trSel.a, i) } : { a: i, b: i };
+  document.querySelectorAll('#tr-words .tr-word').forEach(el => {
+    const k = +el.dataset.i;
+    el.classList.toggle('sel', k >= trSel.a && k <= trSel.b);
+  });
+  const input = document.getElementById('tr-edit-input');
+  input.disabled = false;
+  document.getElementById('tr-edit-btn').disabled = false;
+  input.value = data.words.slice(trSel.a, trSel.b + 1).map(x => x.word).join(' ');
+  document.getElementById('tr-sel-note').textContent = trSel.a === trSel.b ? `Word ${trSel.a + 1}` : `Words ${trSel.a + 1}–${trSel.b + 1}`;
+  input.focus(); input.select();
+}
+
+// A refused edit says what to do instead (the server's message already does).
+async function sendTranscriptPatch(body, errId) {
+  hideErr(errId);
+  const r = await fetch(`/platform/studio/runs/${state.runId}/transcript`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) { showErr(errId, data.detail || `Edit failed (${r.status})`); return null; }
+  return data;
+}
+
+async function reloadTranscript() {
+  const r = await fetch(`/platform/studio/runs/${state.runId}/transcript`);
+  if (!r.ok) return;
+  const data = await r.json();
+  state.stageData.script = data.text;
+  renderTranscript(data);
+}
+
+async function applyTrEdit() {
+  if (!trSel) return;
+  const text = document.getElementById('tr-edit-input').value;
+  const data = await sendTranscriptPatch({ edits: [{ start: trSel.a, end: trSel.b, text }] }, 'transcript-error');
+  if (data) await reloadTranscript();
+}
+
+async function rebuildFromText(dryRun) {
+  const msg = document.getElementById('tr-rebuild-msg');
+  const data = await sendTranscriptPatch({ text: document.getElementById('tr-rebuild-text').value, dry_run: dryRun }, 'transcript-error');
+  if (!data) { msg.textContent = ''; return; }
+  const lines = data.changes.join('; ');
+  if (dryRun) { msg.textContent = `This changes: ${lines}.`; return; }
+  await reloadTranscript();
+  const m2 = document.getElementById('tr-rebuild-msg');
+  if (m2) m2.textContent = `Applied: ${lines}.`;
+}
+
 // ── Storyboard stage ──────────────────────────────────────────────────────
 function resetStoryboardPane() {
-  document.getElementById('sb-content').innerHTML = '<div class="muted" style="font-size:13px;">No storyboard yet — create one in the Script stage.</div>';
+  const where = state.voiceSource === 'uploaded' ? 'the Transcript stage' : 'the Script stage';
+  document.getElementById('sb-content').innerHTML = `<div class="muted" style="font-size:13px;">No storyboard yet — create one in ${where}.</div>`;
   document.getElementById('sb-cta').style.display = 'none';
   hideErr('sb-error');
 }

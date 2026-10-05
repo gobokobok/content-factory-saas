@@ -84,6 +84,11 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | `FFMPEG_SCENE_THREADS` | No | `-threads` cap per concurrent per-scene libx264 encoder (up to 4 run in parallel — see `_MAX` in `_scene_section`). Left unset, libx264 auto-detects the host's full CPU count per process, which can starve the other concurrent encodes on a resource-limited container (D090). Default: `2`. |
 | `STORYBOARD_MIN_SCENE_S` | No | Shortest scene (seconds of voiceover) the operator may create by splitting a scene or moving a boundary in Studio (P13). Scenes produced by storyboard generation are not checked against it. Default: `1.0`. |
 | `OUTPUT_UPLOAD_MAX_MB` | No | Largest `.mp4` (in MB) the operator may upload as a run's final video — the video rendered in CapCut (P13b-S4, D100). The upload is read into memory before it is stored, so keep it below the container's RAM headroom. Default: `500`. |
+| `VOICE_UPLOAD_MAX_MB` | No | Largest voiceover file (in MB) the operator may upload to an "Upload voiceover" run (P14b-S1). The file is read into memory before it is stored. Default: `50`. |
+| `VOICE_UPLOAD_MIN_S` | No | Shortest uploaded voiceover (seconds) accepted after Deepgram has measured it (P14b-S4). Default: `3`. |
+| `VOICE_UPLOAD_MAX_S` | No | Longest uploaded voiceover (seconds) accepted (P14b-S4). Default: `180`. |
+| `VOICE_LOW_CONFIDENCE` | No | Mean Deepgram word confidence below which an uploaded voiceover gets a "may not be in this run's language" warning in Studio (P14b-S4). A warning only — the transcript is kept. Default: `0.6`. |
+| `DEEPGRAM_COST_PER_MIN_USD` | No | Deepgram Nova-2 price per audio minute, used only for the cost shown in the upload's TraceEvent (P14b-S1). Default: `0.0043`. |
 | `SETTINGS_ENCRYPTION_KEY` | P14 | Fernet key that encrypts tenant-level API keys stored in Postgres (D104). Generate once with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` and never change it — keys saved under the old value become unreadable. Without it the Settings page cannot save a key (the Railway keys below still work). |
 | `IMAGE_PROVIDER` | No | Fallback image provider when the tenant has not chosen one: `kie` or `openai`. Default: `kie`. |
 | `KIE_API_KEY` | No | kie.ai key, fallback when the tenant has not saved one in Settings (D096, D104). |

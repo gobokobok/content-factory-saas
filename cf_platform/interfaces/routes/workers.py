@@ -119,6 +119,20 @@ async def _run_storyboard_background(
             pass
 
 
+async def _uploaded_script_key(storage: ArtifactStorage, run_id: str) -> str | None:
+    """Return the latest script artifact's key when it is an uploaded-voiceover transcript, else None."""
+    key = await _latest_artifact_key(storage, run_id, "script", "script")
+    if not key:
+        return None
+    try:
+        from cf_platform.core.artifact_manager import read_artifact
+
+        _, body = await read_artifact(storage, key)
+    except Exception:
+        return None
+    return key if body.get("source") == "uploaded_vo" else None
+
+
 @router.post("/workers/storyboard", response_model=StoryboardWorkerResponse, status_code=202)
 async def storyboard_worker_endpoint(
     body: StoryboardWorkerRequest,
@@ -137,33 +151,41 @@ async def storyboard_worker_endpoint(
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
-    script_artifact = ScriptArtifact(
-        idea_title="",
-        niche=None,
-        script=body.script,
-        word_count=len(body.script.split()),
-        status="ok",
-        generated_at=datetime.now(),
-    )
-    script_lineage = LineageEnvelope(
-        run_id=body.run_id,
-        worker="storyboard_request",
-        worker_version="1.0.0",
-        prompt_version="v1",
-        model="none",
-        created_at=datetime.now(),
-    )
-    script_record = await write_artifact(
-        storage,
-        script_artifact,
-        name="script",
-        stage="script",
-        run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
-        lineage=script_lineage,
-    )
+    uploaded_script_key = await _uploaded_script_key(storage, body.run_id)
+    if uploaded_script_key:
+        # An uploaded-voiceover run's script IS its transcript (P14b-S3): the request
+        # body's script is ignored so the words always match the voice_alignment.
+        script_key = uploaded_script_key
+    else:
+        script_artifact = ScriptArtifact(
+            idea_title="",
+            niche=None,
+            script=body.script,
+            word_count=len(body.script.split()),
+            status="ok",
+            generated_at=datetime.now(),
+        )
+        script_lineage = LineageEnvelope(
+            run_id=body.run_id,
+            worker="storyboard_request",
+            worker_version="1.0.0",
+            prompt_version="v1",
+            model="none",
+            created_at=datetime.now(),
+        )
+        script_record = await write_artifact(
+            storage,
+            script_artifact,
+            name="script",
+            stage="script",
+            run_id=body.run_id,
+            user_id=PLATFORM_USER_ID,
+            lineage=script_lineage,
+        )
 
-    state_artifacts: dict[str, str] = {"script": script_record.r2_key}
+        script_key = script_record.r2_key
+
+    state_artifacts: dict[str, str] = {"script": script_key}
     va_key = await _latest_artifact_key(storage, body.run_id, "voice", "voice_alignment")
     if va_key:
         state_artifacts["voice_alignment"] = va_key
@@ -352,6 +374,11 @@ async def voice_worker_endpoint(
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
+    if await _uploaded_script_key(storage, body.run_id):
+        raise HTTPException(
+            status_code=409,
+            detail="This run uses an uploaded voiceover — a voice cannot be generated for it.",
+        )
     script_artifact = ScriptArtifact(
         idea_title="",
         niche=None,
@@ -457,6 +484,9 @@ async def acquisition_worker_endpoint(
     # Locate the latest verified_storyboard artifact for this run
     prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/storyboard/verified_storyboard@v"
     storyboard_keys = await storage.list_keys(prefix)
+    # A storyboard discarded by re-uploading the voiceover counts as absent (P14b-S4).
+    if not await _latest_artifact_key(storage, body.run_id, "storyboard", "verified_storyboard"):
+        storyboard_keys = []
     if not storyboard_keys:
         raise HTTPException(
             status_code=404,
@@ -623,6 +653,8 @@ async def render_worker_endpoint(
 
     sb_prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/storyboard/verified_storyboard@v"
     sb_keys = await storage.list_keys(sb_prefix)
+    if not await _latest_artifact_key(storage, body.run_id, "storyboard", "verified_storyboard"):
+        sb_keys = []
     if not sb_keys:
         raise HTTPException(
             status_code=404,
