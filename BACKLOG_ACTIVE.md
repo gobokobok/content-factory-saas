@@ -17,7 +17,9 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 **EPIC 51 — Uploaded voiceover (P14b, new 2026-10-05)** and **EPIC 52 — UI/UX redesign (P-UX3 and the build sprint(s), new 2026-10-05)** go ahead of P15; their stories are below.
 
-**EPIC 46 — Research (P15, D094, D097, spec §2–5).** Project research page. Trend research: existing Google Trends, Reddit and YouTube adapters (D050) plus Google News, over a chosen time window, producing ~10 topics each with a summary and the evidence for why it is trending. Competitor research: port from `content-researcher` (D097), project-level channel list, publications from the last 24/48 hours with likes per 1,000 views and outlier score, daily snapshot job. Results are ticked into the shortlist with their evidence. Open: orchestrator-with-specialists vs. parallel agents with a synthesis step (spec §26 D); **X.com** — ENV.md records it as excluded under the free-tier constraint, so including it needs a decision on a paid source.
+**EPIC 53 — Multi-language: Russian (new 2026-10-05, after the UI build, before P15)** — see the section below.
+
+**EPIC 46 — Research (P15, D094, D097, spec §2–5).** Project research page. Trend research: existing Google Trends, Reddit and YouTube adapters (D050) plus Google News, over a chosen time window, producing ~10 topics each with a summary and the evidence for why it is trending. Competitor research: port from `content-researcher` (D097), project-level channel list, publications from the last 24/48 hours with likes per 1,000 views and outlier score, daily snapshot job. Results are ticked into the shortlist with their evidence. Research must take the project's language and region into account (Russian projects need Russian-language trend and competitor sources — the reason EPIC 53 comes first). Open: orchestrator-with-specialists vs. parallel agents with a synthesis step (spec §26 D); **X.com** — ENV.md records it as excluded under the free-tier constraint, so including it needs a decision on a paid source.
 
 **EPIC 47 — Publishing via n8n (P16, D098, spec §18–21).** `channels` table (tenant level: name, platform, n8n channel key), project default channel, per-run destinations with publish time. Endpoints `due` / `claim` / `result`; API key for n8n. n8n workflow for YouTube (upload early with YouTube's own scheduled-publish time), exported JSON committed to the repo. Publication status in Studio's Metadata stage, replacing the disabled "Upload to channel" button; fills `published_videos`. Instagram as a second destination if time allows. Depends on the Google API audit started in P12.
 
@@ -40,7 +42,7 @@ Operator request at the Sprint P14 review (2026-10-05). A second way into a run:
 ## [P14b-S1] Run creation choice, VO upload, Deepgram transcript as the script
 **Epic:** E51 — Uploaded voiceover
 **Sprint:** P14b
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** —
@@ -53,6 +55,7 @@ When the operator creates a run, they choose "Script → generated voice" or "Up
 - [ ] `POST /platform/studio/runs/{run_id}/voice/upload` accepts mp3, wav and m4a, validated for MIME type, extension and size (limit from an ENV var documented in ENV.md); the file is stored under the run's voice prefix; 409 if the run already has a storyboard (re-upload rules are P14b-S4)
 - [ ] Deepgram transcription runs as a background job (the same pattern and polling as voice generation, `voice/status`), reusing `_align_audio` / `_normalize_word`; it writes a `voice_alignment` artifact with `alignment_method` marking it as an uploaded VO
 - [ ] The transcript text is stored as the run's script artifact with `source: uploaded_vo`, so `GET …/script` returns it and nothing else reads a different place
+- [ ] **Language seed (D106 candidate, operator 2026-10-05):** the run gets a `language` field (ISO 639-1, `en` default; `ru` accepted as a value but nothing Russian-specific is built in this sprint), set at run creation next to the entry mode, defaulting to the project's `config.language` and otherwise `en`. It is a per-run choice — a project that already has English runs is not locked to English. The upload's Deepgram call passes it as the transcription language
 - [ ] The Script and Voice stages are not shown for an uploaded run; Studio shows Upload → Transcript → Storyboard → …
 - [ ] A TraceEvent records the upload and the transcription (duration, word count, Deepgram cost if known)
 - [ ] Tests: each validation failure; happy path with Deepgram mocked; default mode unchanged; artifact shape equals a generated run's `voice_alignment`
@@ -72,7 +75,7 @@ When the operator creates a run, they choose "Script → generated voice" or "Up
 ## [P14b-S2] Transcript review stage with timing-safe word edits
 **Epic:** E51 — Uploaded voiceover
 **Sprint:** P14b
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P14b-S1
@@ -104,7 +107,7 @@ Before the storyboard is built, the operator reads the transcript against the au
 ## [P14b-S3] Storyboard from the transcript; uploaded audio through timeline, render and CapCut
 **Epic:** E51 — Uploaded voiceover
 **Sprint:** P14b
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P14b-S2
@@ -133,7 +136,7 @@ From a reviewed transcript the operator creates the storyboard in the usual way,
 ## [P14b-S4] Guards and end-to-end tests for the upload path
 **Epic:** E51 — Uploaded voiceover
 **Sprint:** P14b
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 2
 **Depends on:** P14b-S3
@@ -143,7 +146,7 @@ Bad input and re-uploads fail with a clear message instead of producing a broken
 
 ### Acceptance Criteria
 - [ ] Unreadable or non-audio files, silent audio, audio shorter than a minimum and longer than a maximum (both from ENV vars) are refused before or right after Deepgram, with a message in Studio
-- [ ] Deepgram returning no words, or a language other than the run's, ends the job in `error` with a readable message, not a stuck `running`
+- [ ] Deepgram returning no words ends the job in `error` with a readable message, not a stuck `running`; if Deepgram detects a language other than the run's `language`, Studio shows a warning with the detected language and lets the operator confirm or change the run's language (not a hard failure)
 - [ ] Re-uploading on a run that already has a transcript or storyboard asks for confirmation and says what will be discarded (storyboard, acquired assets, anchors); on confirm it invalidates them, as the storyboard re-run warning already does
 - [ ] One end-to-end test: create an uploaded run, upload (Deepgram mocked), edit a word, build the storyboard, render script built, timeline valid
 - [ ] DEV smoke test steps written into the Handover for the operator: upload an mp3, correct a misheard word, storyboard, acquire, render
@@ -162,7 +165,7 @@ Bad input and re-uploads fail with a clear message instead of producing a broken
 ## [P14b-S5] Stop logging API keys; rotate the Pixabay key
 **Epic:** E51 — Uploaded voiceover (rides in the sprint; unrelated to the upload path)
 **Sprint:** P14b
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 2
 **Depends on:** —
@@ -228,7 +231,7 @@ A navigation and settings model the whole product fits into, including the pages
 
 ### Acceptance Criteria
 - [ ] `docs/ux/IA.md`: the page map for project level (overview, discovery / market analysis, shortlist, project settings), idea, and run (pipeline steps, run settings), plus tenant-level settings and where P15 and P16 attach
-- [ ] A settings matrix: every setting that exists today (image provider, style, aspect ratio, caption style, TTS, music, SFX, channel later) placed at tenant, project or run level, with the inheritance rule (tenant → project → run) and what the operator sees when a run overrides a default
+- [ ] A settings matrix: every setting that exists today (image provider, style, aspect ratio, caption style, TTS, music, SFX, channel later) plus **language** (project default, per-run override, never locked by earlier runs; shown where the operator creates a run and in the run header) placed at tenant, project or run level, with the inheritance rule (tenant → project → run) and what the operator sees when a run overrides a default
 - [ ] Pipeline-step options: a rule for how a step with several options is presented (defaults, advanced, per-scene overrides) applied to each current step
 - [ ] Both entry modes (generated and uploaded voiceover) and both render paths (FFmpeg, CapCut) shown in the flow
 - [ ] Mobile and desktop: which screens must work at phone width
@@ -282,6 +285,26 @@ The approved design is recorded and turned into stories for the build sprint(s).
 
 ### Definition of Done
 - [ ] All AC checked · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## EPIC 53 — Multi-language: Russian (planned stub; detail at the sprint boundary)
+
+Operator request 2026-10-05. A video can be made in Russian end to end: script, generated voice, uploaded voice (P14b), storyboard content, on-screen text, captions, metadata, and the rendered video. Scheduled after the UI build and before P15, because P15 research needs the project's language and region.
+
+**Decisions (operator, 2026-10-05):**
+- **Language is a per-run setting** (`language`, seeded in P14b-S1) with an optional project default. It is not locked per project: a project that already has English videos can make a Russian one. Russian content will mostly live in separate projects, but nothing blocks mixing.
+- **AI image prompts stay in English** even in a Russian video. Only what viewers read or hear is in the video's language.
+
+**Story outline (not yet detailed):**
+- **Script and storyboard prompts** take a language parameter (docs/PROMPTS.md v0.4 is English-written); voiceover lines, on-screen text and captions come out in the run's language; `ai_prompt` and visual descriptions stay English.
+- **Voice:** Gemini TTS voice choice per language; pace and duration estimate (`_estimate_duration`) calibrated for Russian.
+- **Uploaded VO:** Deepgram language from the run; coverage check and the P14b transcript edit rule tested on Cyrillic.
+- **Text handling:** `_normalize_deepgram_words` and word-index logic tested with Cyrillic (е / ё, punctuation, hyphens) — unverified as of 2026-10-05, first test to write.
+- **Render:** fonts with Cyrillic glyphs for captions (Standard, Punch) and on-screen text; a Russian case in the golden render suite; CapCut export checked with the same fonts.
+- **Metadata:** YouTube title, description and tags in the run's language.
+- **Studio:** language shown at run creation and in the run header; Studio's own labels stay as they are.
+- **Human touchpoint:** the operator creates a Russian run (generated voice, and one with an uploaded VO), and renders a video with Russian captions and on-screen text.
 
 ---
 

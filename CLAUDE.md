@@ -12,9 +12,9 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint P14b — Uploaded voiceover** (planned 2026-10-05, built in one pass): a run can start from an uploaded VO; Deepgram transcribes it, the transcript (editable under the timing-safe edit rule, see BACKLOG_ACTIVE.md EPIC 51) becomes the script, the storyboard is built from it. Includes P14b-S5 (stop logging API keys).
+**Sprint P14b — Uploaded voiceover** (planned 2026-10-05, built in one pass): a run can start from an uploaded VO; Deepgram transcribes it, the transcript (editable under the timing-safe edit rule, see BACKLOG_ACTIVE.md EPIC 51) becomes the script, the storyboard is built from it. Includes the run `language` seed and P14b-S5 (stop logging API keys).
 Sprint P14 (AI images per scene, D096/D104) is complete and smoke tested on DEV. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline; `/settings` holds the tenant's image provider and key. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Roadmap (changed 2026-10-05): P14b Uploaded voiceover → P-UX3 UI/UX redesign (discovery, design, prototype; D105) → UI build sprint(s) → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50._
+_Roadmap (changed 2026-10-05): P14b Uploaded voiceover → P-UX3 UI/UX redesign (discovery, design, prototype; D105) → UI build sprint(s) → Multi-language: Russian (EPIC 53; run-level `language`, AI image prompts stay English) → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50._
 
 ## Active story
 No story is active. Next: `/start-story P14b-S1..S5` (sprint mode).

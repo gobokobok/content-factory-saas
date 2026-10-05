@@ -1,10 +1,10 @@
 > ## ⚑ ACTIVE DIRECTION — Content Factory v2 (Platform Track)
-> As of 2026-10-03 the roadmap is **replaced by the Pipeline & Platform Update spec** (D092–D099): **P12 Projects & shortlist → P13 Storyboard control → P13b CapCut export (D100) → P14 AI images per scene → P14b Uploaded voiceover → P-UX3 UI/UX redesign → UI build → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance.**
+> As of 2026-10-03 the roadmap is **replaced by the Pipeline & Platform Update spec** (D092–D099): **P12 Projects & shortlist → P13 Storyboard control → P13b CapCut export (D100) → P14 AI images per scene → P14b Uploaded voiceover → P-UX3 UI/UX redesign → UI build → Multi-language: Russian → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance.**
 > - **Sprints P0–P10, P-UX1, P-UX2 complete.** P11 closed with S1 done; P11-S2 and P11-S3 are parked (D099).
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then P15 Research. **Current sprint:** P14b — stories P14b-S1..S5.
+> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then **Multi-language: Russian** (EPIC 53), then P15 Research. **Current sprint:** P14b — stories P14b-S1..S5.
 
 ---
 
@@ -36,6 +36,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P14b | Uploaded voiceover | ~13 | **current** | Upload an mp3, correct a misheard word, build the storyboard from it, render |
 | P-UX3 | UI/UX redesign — discovery and design | ~11 | planned | Click through a prototype of project → idea → run and approve or redirect it |
 | UI build | Build the redesigned UI | tbd | planned (sized in P-UX3-S4) | The new Studio, live on DEV |
+| P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after the UI build) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
 | P17 | Server-side Auto Advance | ~10 | planned | Pick a shortlist idea, close the tab, come back to a scheduled video |
@@ -68,15 +69,15 @@ Legacy Script→Video stays untouched and operable (D047).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| P14b-S1 | Run creation choice, VO upload, Deepgram transcript stored as the run's script | 3 | planned |
-| P14b-S2 | Transcript review stage with timing-safe word edits | 3 | planned |
-| P14b-S3 | Storyboard from the transcript; uploaded audio feeds timeline, render and CapCut export | 3 | planned |
-| P14b-S4 | Guards and end-to-end tests | 2 | planned |
-| P14b-S5 | Stop logging API keys (httpx INFO URLs), rotate the Pixabay key | 2 | planned |
+| P14b-S1 | Run creation choice and language seed, VO upload, Deepgram transcript stored as the run's script | 3 | in-progress |
+| P14b-S2 | Transcript review stage with timing-safe word edits | 3 | in-progress |
+| P14b-S3 | Storyboard from the transcript; uploaded audio feeds timeline, render and CapCut export | 3 | in-progress |
+| P14b-S4 | Guards and end-to-end tests | 2 | in-progress |
+| P14b-S5 | Stop logging API keys (httpx INFO URLs), rotate the Pixabay key | 2 | in-progress |
 
 **Execution order:** S1 → S2 → S3 → S4; S5 is independent.
 
-**Decisions (operator, 2026-10-05):** (1) the choice is made at run creation — "Script → generated voice" or "Upload voiceover"; the upload path skips the Script and Voice stages. Switching inside an existing run is out of scope. (2) The transcript is editable before the storyboard, under the **timing-safe edit rule**: replace a word (keeps its time slot); one word to several or several to one (share the combined slot); no deleting spoken words; no adding words that are not spoken (use on-screen text). Scene boundaries move only through the Storyboard controls. (3) The keys-in-logs fix rides in this sprint so it does not wait for P15. (4) `/audit` stays ahead of P15, after the redesign settles the project and settings model.
+**Decisions (operator, 2026-10-05):** (1) the choice is made at run creation — "Script → generated voice" or "Upload voiceover"; the upload path skips the Script and Voice stages. Switching inside an existing run is out of scope. (2) The transcript is editable before the storyboard, under the **timing-safe edit rule**: replace a word (keeps its time slot); one word to several or several to one (share the combined slot); no deleting spoken words; no adding words that are not spoken (use on-screen text). Scene boundaries move only through the Storyboard controls. (3) **Language seed (2026-10-05):** a run carries `language` (default `en`, per-run, never locked by the project's earlier runs); P14b passes it to Deepgram and builds nothing Russian-specific — the Russian sprint (EPIC 53) follows the UI build; AI image prompts stay English in any language. (4) The keys-in-logs fix rides in this sprint so it does not wait for P15. (5) `/audit` stays ahead of P15, after the redesign settles the project and settings model.
 
 **Human touchpoint:** the operator creates a run with "Upload voiceover", uploads an mp3, corrects a misheard word, builds the storyboard and renders a video.
 
