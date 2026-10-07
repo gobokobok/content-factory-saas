@@ -1,7 +1,23 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last two sprints (P14, P13b) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last two sprints (P14b, P14) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P14b] Uploaded voiceover — S1 run creation choice + language seed + upload + transcript as script, S2 transcript review with timing-safe edits, S3 storyboard / timeline / render / CapCut from the upload, S4 guards + end-to-end test, S5 stop logging API keys
+**Completed:** 2026-10-07 (built 2026-10-05, commit `dbec47d`)
+**Handover:**
+- **A run has two entry modes and a language.** `run.inputs.voice_source` (`generated` default | `uploaded`) and `run.inputs.language` (ISO 639-1; default the project's `config.language`, else `en`) are set at creation on the project page; no migration. Uploaded runs show Settings → Upload → Transcript → Storyboard → Video → Metadata and skip Script, Voice and the narration controls.
+- **The seam is `voice_alignment`.** `POST …/studio/runs/{id}/voice/upload` stores the audio at `runs/{id}/voiceover/uploaded.<ext>`, Deepgram transcribes it in the run's language (background job, `voice/status`), and the result is a `voice_alignment` (`alignment_method = uploaded_deepgram_nova2`) plus a `script` artifact with `source: uploaded_vo`. Timeline, render and CapCut read it through `mp3_r2_key` unchanged. Code: `cf_platform/interfaces/routes/studio_voice.py`, `cf_platform/workers/voice_upload.py`, `_deepgram_transcribe` in `voice_production.py`.
+- **Timing-safe edits** (`cf_platform/workers/transcript_edit.py`, `PATCH …/transcript`): replace a word, one to several, several to one, same-count replacement; deletions, additions and other many-to-many are refused with the reason (422). Locked (409) once a storyboard exists. Words carry no punctuation.
+- **Guards and re-upload:** no words / too short / too long / Deepgram failure end the job in `error`; a language that looks wrong is a **warning** (wrong script or low confidence) with Keep / Change (`PUT …/language`) — it cannot catch same-script mismatches. Re-upload asks for confirmation and discards the storyboard (marker `runs/{id}/storyboard/discarded.json`, honoured by `latest_artifact_key`, acquisition and render) and empties the manifest.
+- **Render:** one addition in `render_worker.py` — stale audio files in the local `voiceover/` folder are removed so a re-upload in another format cannot be picked up by the script's glob. Golden suite unchanged.
+- **Keys in logs (S5):** `src/log_redaction.py` redacts `key=` / `token=` / `api_key=` values in the final formatted text of all handlers (messages, args, tracebacks); `httpx` request logging stays at INFO.
+- **ENV vars added:** `VOICE_UPLOAD_MAX_MB`, `VOICE_UPLOAD_MIN_S`, `VOICE_UPLOAD_MAX_S`, `VOICE_LOW_CONFIDENCE`, `DEEPGRAM_COST_PER_MIN_USD`. No new dependency. Decision logged: **D106**. Tests: 62 new across three files; 2645 passing, CI green on `dbec47d`.
+- **Not verified on DEV:** the guards, the re-upload confirmation, language `ru` (including Deepgram's `language=ru` on Nova-2, only tested against a mocked request) and the `key=` log check. Operator actions still open: rotate the Pixabay key (DEV now, PROD at release) and re-check PROD logs at the next `/prod-check` — both in SPRINT.md open items.
+**Smoke test:** PASSED — the operator made two real Shorts on DEV with the uploaded-voiceover flow (commit `dbec47d`, deploy confirmed) and found no issues. The scripted steps were not run one by one; the items under "Not verified on DEV" above were not exercised.
+**Promoted to backlog:** none. Candidate: punctuation-aware transcript (store Deepgram's punctuated words) if scene breaks from an uploaded VO read worse than from a script.
 
 ---
 
@@ -22,18 +38,5 @@ _This file holds the last two sprints (P14, P13b) plus every older entry whose s
 **Promoted to backlog:** none. Open item carried: API keys appear in DEV logs (SPRINT.md, open items).
 
 ---
-
-## [P13b] CapCut export — S1 timeline artifact + golden render tests, S2 download zip, S3 laptop script, S4 return upload
-**Completed:** 2026-10-04
-**Handover:**
-- **One Timeline feeds both render paths (D103).** `cf_platform/workers/timeline.py` — `build_timeline(...)` is the only place scene timing is resolved; FFmpeg on Railway reads it (`build_render_script_from_timeline`) and so does the CapCut export. Stored as run artifact `render/timeline@vN`, `schema_version` 1; `GET /platform/studio/runs/{id}/timeline`. Assets are addressed by `file_key`, never scene id (D102).
-- **Render is pinned by 22 golden scripts** in `tests/golden/render/`; regenerate only on purpose with `UPDATE_GOLDEN=1` (docs/TESTING.md). The word-index fix (scene boundaries against the normalised word list) changed only the contraction-heavy golden, on purpose.
-- **Export / return:** `GET …/export/capcut` streams a zip (`timeline.json` + media); `tools/capcut/export_capcut.py <zip>` writes the CapCut draft on the laptop (pycapcut pinned in `tools/capcut/requirements.txt` only, tested with CapCut 8.9.1). CapCut 8.x reads `draft_info.json`; the script renames pycapcut's `draft_content.json`. `POST …/output/upload` stores the CapCut render as `output/final.mp4` with `output/final_source.json` (`ffmpeg` / `capcut`); overwrite confirmation both ways.
-- **Known limits (D103):** wikimedia-portrait blur-fill, Standard captions' per-word highlight, and the legacy `build_ffmpeg_script` are not in the timeline. Candidate for E50: word-anchored text and SFX reach the CapCut draft through the timeline for free.
-- New ENV var: `OUTPUT_UPLOAD_MAX_MB` (default 500). No new platform dependency. Tests: 5 new files plus the golden suite; CI 2526 passed on `fa6a3f0`.
-- Decision logged: **D103**.
-- **Post-close (2026-10-04):** the SFX library was cut to five operator-chosen sounds — `whoosh`, `impact`, `cash_register`, `error`, `typing` (`cf_platform/core/sfx_library.py`). Sources and licences (Pixabay Content License) are in `assets/sfx_source/SOURCES.md`; the trimmed, loudness-matched files are uploaded to the DEV `sfx-library/`, not PROD. Scenes that still hold an old key (`checkmark`, `pop`, `notification`, `drumroll`) show "none" in the dropdown. The CapCut draft carries no SFX clips in the operator's smoke run (SFX are placed by hand; word-anchored placement is E50-S1).
-**Smoke test:** PASSED — 2026-10-04 on Railway DEV, operator reported the CapCut path complete in chat (download, laptop command, CapCut edit, upload back). Individual steps were not itemised.
-**Promoted to backlog:** none. EPIC 50 (E50-S1..S3, word-anchored overlays and SFX library) was proposed the same day, unplaced.
 
 ---

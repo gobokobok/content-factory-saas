@@ -12,14 +12,14 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint P14b — Uploaded voiceover** (planned 2026-10-05, built in one pass): a run can start from an uploaded VO; Deepgram transcribes it, the transcript (editable under the timing-safe edit rule, see BACKLOG_ACTIVE.md EPIC 51) becomes the script, the storyboard is built from it. Includes the run `language` seed and P14b-S5 (stop logging API keys).
-Sprint P14 (AI images per scene, D096/D104) is complete and smoke tested on DEV. Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs → `/studio#run/<id>` pipeline; `/settings` holds the tenant's image provider and key. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Roadmap (changed 2026-10-05): P14b Uploaded voiceover → P-UX3 UI/UX redesign (discovery, design, prototype; D105) → UI build sprint(s) → Multi-language: Russian (EPIC 53; run-level `language`, AI image prompts stay English) → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50._
+**Sprint P14b — Uploaded voiceover** is complete (2026-10-07, smoke passed on two real runs on DEV): a run can start from an uploaded VO; Deepgram transcribes it in the run's `language`, the transcript (editable under the timing-safe rule) becomes the script, and the storyboard, render and CapCut export work from it. P14b-S5 stopped API keys being logged.
+Studio is the only operator interface: `/` project list → `/project?id=` shortlist + runs (entry mode and language chosen at creation) → `/studio#run/<id>` pipeline; `/settings` holds the tenant's image provider and key. Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
+_Roadmap (changed 2026-10-05): P-UX3 UI/UX redesign (discovery, design, prototype; D105) → UI build sprint(s) → Multi-language: Russian (EPIC 53; run-level `language`, AI image prompts stay English) → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50._
 
 ## Active story
-No story is active. Next: `/start-story P14b-S1..S5` (sprint mode).
+No story is active. Next: `/sprint-review` (P14b) if wanted, then `/start-story P-UX3-S1..S4` (sprint mode).
 
-**Blockers / operator actions:** none. PROD stays on v0.24.0 on purpose — release DEV to PROD only when DEV is complete and smoke tested (no `/release` pending; at release set a new `SETTINGS_ENCRYPTION_KEY` on PROD). API keys in DEV logs: fix is P14b-S5, then rotate the Pixabay key. `/audit` never run (planned before P15). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
+**Blockers / operator actions:** rotate the Pixabay key on DEV (the old one is in DEV log history) and revoke it; check the DEV log for `key=REDACTED`. PROD stays on v0.24.0 on purpose — release DEV to PROD only when DEV is complete and smoke tested (no `/release` pending; at release set a new `SETTINGS_ENCRYPTION_KEY` on PROD and re-check PROD logs for `key=`). P14b not verified on DEV: guards, re-upload confirm, language `ru` (Deepgram `language=ru` only mocked). `/audit` never run (planned before P15). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
 
 ## Environments
 

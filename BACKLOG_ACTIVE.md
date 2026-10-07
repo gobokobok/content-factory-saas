@@ -42,7 +42,8 @@ Operator request at the Sprint P14 review (2026-10-05). A second way into a run:
 ## [P14b-S1] Run creation choice, VO upload, Deepgram transcript as the script
 **Epic:** E51 — Uploaded voiceover
 **Sprint:** P14b
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-07
 **Priority:** high
 **Points:** 3
 **Depends on:** —
@@ -51,17 +52,17 @@ Operator request at the Sprint P14 review (2026-10-05). A second way into a run:
 When the operator creates a run, they choose "Script → generated voice" or "Upload voiceover". For an upload, the audio is stored, Deepgram transcribes and aligns it, and the transcript becomes the run's script.
 
 ### Acceptance Criteria
-- [ ] Run creation (from a shortlist idea, and from the project page) offers the two entry modes; the mode is stored on the run (`voice_source`: `generated` | `uploaded`) and the default stays `generated`, so every existing run and flow is unchanged
-- [ ] `POST /platform/studio/runs/{run_id}/voice/upload` accepts mp3, wav and m4a, validated for MIME type, extension and size (limit from an ENV var documented in ENV.md); the file is stored under the run's voice prefix; 409 if the run already has a storyboard (re-upload rules are P14b-S4)
-- [ ] Deepgram transcription runs as a background job (the same pattern and polling as voice generation, `voice/status`), reusing `_align_audio` / `_normalize_word`; it writes a `voice_alignment` artifact with `alignment_method` marking it as an uploaded VO
-- [ ] The transcript text is stored as the run's script artifact with `source: uploaded_vo`, so `GET …/script` returns it and nothing else reads a different place
-- [ ] **Language seed (D106 candidate, operator 2026-10-05):** the run gets a `language` field (ISO 639-1, `en` default; `ru` accepted as a value but nothing Russian-specific is built in this sprint), set at run creation next to the entry mode, defaulting to the project's `config.language` and otherwise `en`. It is a per-run choice — a project that already has English runs is not locked to English. The upload's Deepgram call passes it as the transcription language
-- [ ] The Script and Voice stages are not shown for an uploaded run; Studio shows Upload → Transcript → Storyboard → …
-- [ ] A TraceEvent records the upload and the transcription (duration, word count, Deepgram cost if known)
-- [ ] Tests: each validation failure; happy path with Deepgram mocked; default mode unchanged; artifact shape equals a generated run's `voice_alignment`
+- [x] Run creation (from a shortlist idea, and from the project page) offers the two entry modes; the mode is stored on the run (`voice_source`: `generated` | `uploaded`) and the default stays `generated`, so every existing run and flow is unchanged
+- [x] `POST /platform/studio/runs/{run_id}/voice/upload` accepts mp3, wav and m4a, validated for MIME type, extension and size (limit from an ENV var documented in ENV.md); the file is stored under the run's voice prefix; 409 if the run already has a storyboard (re-upload rules are P14b-S4)
+- [x] Deepgram transcription runs as a background job (the same pattern and polling as voice generation, `voice/status`), reusing `_align_audio` / `_normalize_word`; it writes a `voice_alignment` artifact with `alignment_method` marking it as an uploaded VO
+- [x] The transcript text is stored as the run's script artifact with `source: uploaded_vo`, so `GET …/script` returns it and nothing else reads a different place
+- [x] **Language seed (D106, operator 2026-10-05):** the run gets a `language` field (ISO 639-1, `en` default; `ru` accepted as a value but nothing Russian-specific is built in this sprint), set at run creation next to the entry mode, defaulting to the project's `config.language` and otherwise `en`. It is a per-run choice — a project that already has English runs is not locked to English. The upload's Deepgram call passes it as the transcription language
+- [x] The Script and Voice stages are not shown for an uploaded run; Studio shows Upload → Transcript → Storyboard → …
+- [x] A TraceEvent records the upload and the transcription (duration, word count, Deepgram cost if known)
+- [x] Tests: each validation failure; happy path with Deepgram mocked; default mode unchanged; artifact shape equals a generated run's `voice_alignment`
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `cf_platform/workers/voice_production.py` — `VoiceAlignmentArtifact`, `_align_audio`, `_normalize_word`, `build_voice_production_worker`
@@ -70,12 +71,21 @@ When the operator creates a run, they choose "Script → generated voice" or "Up
 - `src/static/studio-v2.html` — run creation and stage list; `src/static/project.html`
 - `ENV.md`, `DECISIONS.md` — D104 (settings pattern), D093
 
+### Handover
+- **Run entry mode and language** live in `run.inputs` (`voice_source`: `generated` | `uploaded`, `language`: ISO 639-1) — no migration. `POST /platform/projects/{id}/runs` takes both; `language` defaults to the project's `config.language`, else `en`. `GET …/studio/runs/{id}/context` returns them; `PUT …/studio/runs/{id}/language` changes the language.
+- **Upload:** `POST …/studio/runs/{id}/voice/upload` (`cf_platform/interfaces/routes/studio_voice.py`). Validation in `cf_platform/workers/voice_upload.py` (extension, MIME, size, file header). Stored at `runs/{id}/voiceover/uploaded.<ext>`. Transcription is a background job on the existing `voice/status` polling; `_deepgram_transcribe` (new, in `voice_production.py`) sends the run's `language`; `_align_audio` now delegates to it.
+- **Artifacts:** `voice_alignment` with `alignment_method = uploaded_deepgram_nova2` (same shape as a generated run's), and a `script` artifact with `source: uploaded_vo` (`ScriptArtifact.source`, new optional field). Words are collapsed like the storyboard reads them, so editor indices are storyboard indices.
+- **TraceEvents:** `voice_upload` (operator) and `transcribe` (cost from `DEEPGRAM_COST_PER_MIN_USD`).
+- **UI:** `project.html` language + entry-mode pickers; `studio-v2.html` swaps the stage list (`applyVoiceSource`): Settings → Upload → Transcript → Storyboard → Video → Metadata; narration and subject controls removed for uploaded runs.
+- **ENV vars added:** `VOICE_UPLOAD_MAX_MB`, `VOICE_UPLOAD_MIN_S`, `VOICE_UPLOAD_MAX_S`, `VOICE_LOW_CONFIDENCE`, `DEEPGRAM_COST_PER_MIN_USD`.
+- **Files that mattered:** `cf_platform/interfaces/routes/studio_voice.py`, `cf_platform/workers/voice_upload.py`, `cf_platform/workers/voice_production.py` (`_deepgram_transcribe`), `cf_platform/interfaces/routes/projects.py`, `src/static/studio-v2.html` (`applyVoiceSource`, `loadUploadedVoice`), `ENV.md`.
 ---
 
 ## [P14b-S2] Transcript review stage with timing-safe word edits
 **Epic:** E51 — Uploaded voiceover
 **Sprint:** P14b
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-07
 **Priority:** high
 **Points:** 3
 **Depends on:** P14b-S1
@@ -84,16 +94,16 @@ When the operator creates a run, they choose "Script → generated voice" or "Up
 Before the storyboard is built, the operator reads the transcript against the audio and corrects misheard words without being able to break the timing.
 
 ### Acceptance Criteria
-- [ ] A Transcript stage plays the uploaded audio and shows the words; clicking a word seeks the audio to it
-- [ ] `PATCH /platform/studio/runs/{run_id}/transcript` applies the edit rule: replace one word; replace one with several or several with one (new words share the combined slot, split evenly, monotonic); the whole edit is validated and rejected as a unit (422 with the reason) if it deletes a spoken word or adds an unspoken one
-- [ ] A "Rebuild from text" check: the operator may paste corrected text; it is accepted only if it maps onto the existing words under the same rule, and the message says which words changed
-- [ ] The edited words are written back to the `voice_alignment` artifact as a new version and the script artifact is regenerated from them; word indices (`start_word`/`end_word`) therefore stay valid because the word count only changes through the shared-slot rule
-- [ ] Edits are refused once a storyboard exists (409, with the pointer to re-do the transcript step and the P14b-S4 warning about the storyboard it would invalidate)
-- [ ] The Studio explains the rule in one sentence next to the editor and, for a refused edit, says what to do instead (on-screen text for unspoken words)
-- [ ] Tests: replace; one-to-many and many-to-one slot arithmetic (monotonic, sums to the original slot); delete and add refused; punctuation and contractions; script artifact follows the words; audio untouched
+- [x] A Transcript stage plays the uploaded audio and shows the words; clicking a word seeks the audio to it
+- [x] `PATCH /platform/studio/runs/{run_id}/transcript` applies the edit rule: replace one word; replace one with several or several with one (new words share the combined slot, split evenly, monotonic); the whole edit is validated and rejected as a unit (422 with the reason) if it deletes a spoken word or adds an unspoken one
+- [x] A "Rebuild from text" check: the operator may paste corrected text; it is accepted only if it maps onto the existing words under the same rule, and the message says which words changed
+- [x] The edited words are written back to the `voice_alignment` artifact as a new version and the script artifact is regenerated from them; word indices (`start_word`/`end_word`) therefore stay valid because the word count only changes through the shared-slot rule
+- [x] Edits are refused once a storyboard exists (409, with the pointer to re-do the transcript step and the P14b-S4 warning about the storyboard it would invalidate)
+- [x] The Studio explains the rule in one sentence next to the editor and, for a refused edit, says what to do instead (on-screen text for unspoken words)
+- [x] Tests: replace; one-to-many and many-to-one slot arithmetic (monotonic, sums to the original slot); delete and add refused; punctuation and contractions; script artifact follows the words; audio untouched
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - P14b-S1 Handover
@@ -102,12 +112,19 @@ Before the storyboard is built, the operator reads the transcript against the au
 - `src/static/studio-v2.html` — Script / Storyboard word rendering (`renderStoryboard`)
 - `docs/RUNBOOK.md` — the misheard-caption finding ("pedals are wheel")
 
+### Handover
+- **Edit rule** is pure code in `cf_platform/workers/transcript_edit.py`: `apply_word_edits`, `edits_from_text`, `describe_edits`, `TranscriptEditError`. One word to one: keeps its slot; one to several: even split of the slot (monotonic, sums to the original); several to one: combined slot; several to the same number: each keeps its slot; other many-to-many, deletions and insertions are refused. A stretch of pasted text that changes 3 words into 2 is refused with "one word at a time".
+- **Routes:** `GET/PATCH …/studio/runs/{id}/transcript`. PATCH takes `edits` or `text`, plus `dry_run`. 422 with the reason on refusal, 409 once a storyboard exists or while a transcription runs. A valid edit writes a new `voice_alignment` version and regenerates the script; the audio is untouched.
+- **Studio:** Transcript pane — audio player, clickable words (shift-click selects several), inline edit, "Rebuild from text" with Check / Apply, the rule in one sentence.
+- **Known limit:** transcript words carry no punctuation (stored like generated-run Deepgram words), so scene-break hints from sentence punctuation are weaker than with a pasted script.
+- **Files that mattered:** `cf_platform/workers/transcript_edit.py`, `cf_platform/interfaces/routes/studio_voice.py`, `cf_platform/workers/storyboard_worker.py#_normalize_deepgram_words_with_display` (why indices are collapsed at upload), `src/static/studio-v2.html` (`renderTranscript`).
 ---
 
 ## [P14b-S3] Storyboard from the transcript; uploaded audio through timeline, render and CapCut
 **Epic:** E51 — Uploaded voiceover
 **Sprint:** P14b
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-07
 **Priority:** high
 **Points:** 3
 **Depends on:** P14b-S2
@@ -116,27 +133,33 @@ Before the storyboard is built, the operator reads the transcript against the au
 From a reviewed transcript the operator creates the storyboard in the usual way, and everything after it behaves as for a generated voice.
 
 ### Acceptance Criteria
-- [ ] The StoryboardWorker takes its script from the uploaded run's script artifact and its words and timing from the uploaded `voice_alignment`; its coverage check passes on a faithfully transcribed VO and still catches a mismatch
-- [ ] `build_timeline`, the FFmpeg render and the CapCut export read the uploaded audio through `mp3_r2_key` with no change to their code paths; the golden render suite is unchanged
-- [ ] TTS settings (voice, pace, register) are hidden for uploaded runs; narration regeneration controls are removed rather than disabled
-- [ ] Studio stage list for an uploaded run: Upload → Transcript → Storyboard → Acquire → Render → Metadata, reachable in order
-- [ ] Metadata generation uses the transcript as the script
-- [ ] Tests: storyboard from an uploaded run; timeline equal in shape to a generated run's; render script built from an uploaded run; CapCut zip contains the uploaded audio; stage gating
+- [x] The StoryboardWorker takes its script from the uploaded run's script artifact and its words and timing from the uploaded `voice_alignment`; its coverage check passes on a faithfully transcribed VO and still catches a mismatch
+- [x] `build_timeline`, the FFmpeg render and the CapCut export read the uploaded audio through `mp3_r2_key` with no change to their code paths; the golden render suite is unchanged
+- [x] TTS settings (voice, pace, register) are hidden for uploaded runs; narration regeneration controls are removed rather than disabled
+- [x] Studio stage list for an uploaded run: Upload → Transcript → Storyboard → Acquire → Render → Metadata, reachable in order
+- [x] Metadata generation uses the transcript as the script
+- [x] Tests: storyboard from an uploaded run; timeline equal in shape to a generated run's; render script built from an uploaded run; CapCut zip contains the uploaded audio; stage gating
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - P14b-S1 and S2 Handovers
 - `cf_platform/workers/storyboard_worker.py`, `cf_platform/workers/timeline.py`, `cf_platform/workers/render_worker.py`, `cf_platform/workers/capcut_export.py`, `cf_platform/workers/youtube_metadata.py`
 - `src/static/studio-v2.html` — stage list and gating
 
+### Handover
+- **Storyboard:** `POST /platform/workers/storyboard` uses the uploaded run's own script artifact and ignores the request body's script (`_uploaded_script_key` in `routes/workers.py`); `voice_alignment` is passed as before. `POST /platform/workers/voice` answers 409 for an uploaded run. Metadata reads the same script artifact, so it uses the transcript.
+- **Timeline / render / CapCut** are unchanged and read the upload through `mp3_r2_key` (tests assert timeline voiceover key, render script and CapCut zip contents). One small addition in `render_worker.py`: after writing the alignment's audio, other audio files in the local `voiceover/` folder are removed, so a re-upload in a different format cannot leave the old file for the script's glob to pick up. Golden suite unchanged.
+- **Studio:** `createStoryboard()` reads the transcript for uploaded runs; stage gating follows the stage list.
+- **Files that mattered:** `cf_platform/interfaces/routes/workers.py`, `cf_platform/workers/render_worker.py`, `cf_platform/interfaces/routes/_helpers.py#prepare_run_timeline`, `tests/cf_platform/p13_helpers.py`.
 ---
 
 ## [P14b-S4] Guards and end-to-end tests for the upload path
 **Epic:** E51 — Uploaded voiceover
 **Sprint:** P14b
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-07
 **Priority:** high
 **Points:** 2
 **Depends on:** P14b-S3
@@ -145,27 +168,35 @@ From a reviewed transcript the operator creates the storyboard in the usual way,
 Bad input and re-uploads fail with a clear message instead of producing a broken run.
 
 ### Acceptance Criteria
-- [ ] Unreadable or non-audio files, silent audio, audio shorter than a minimum and longer than a maximum (both from ENV vars) are refused before or right after Deepgram, with a message in Studio
-- [ ] Deepgram returning no words ends the job in `error` with a readable message, not a stuck `running`; if Deepgram detects a language other than the run's `language`, Studio shows a warning with the detected language and lets the operator confirm or change the run's language (not a hard failure)
-- [ ] Re-uploading on a run that already has a transcript or storyboard asks for confirmation and says what will be discarded (storyboard, acquired assets, anchors); on confirm it invalidates them, as the storyboard re-run warning already does
-- [ ] One end-to-end test: create an uploaded run, upload (Deepgram mocked), edit a word, build the storyboard, render script built, timeline valid
-- [ ] DEV smoke test steps written into the Handover for the operator: upload an mp3, correct a misheard word, storyboard, acquire, render
+- [x] Unreadable or non-audio files, silent audio, audio shorter than a minimum and longer than a maximum (both from ENV vars) are refused before or right after Deepgram, with a message in Studio
+- [x] Deepgram returning no words ends the job in `error` with a readable message, not a stuck `running`; if Deepgram detects a language other than the run's `language`, Studio shows a warning with the detected language and lets the operator confirm or change the run's language (not a hard failure)
+- [x] Re-uploading on a run that already has a transcript or storyboard asks for confirmation and says what will be discarded (storyboard, acquired assets, anchors); on confirm it invalidates them, as the storyboard re-run warning already does
+- [x] One end-to-end test: create an uploaded run, upload (Deepgram mocked), edit a word, build the storyboard, render script built, timeline valid
+- [x] DEV smoke test steps written into the Handover for the operator: upload an mp3, correct a misheard word, storyboard, acquire, render
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
-- [ ] Human touchpoint (closes the sprint): the operator creates an uploaded-VO run on DEV and renders a video from it
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] Human touchpoint (closes the sprint): the operator creates an uploaded-VO run on DEV and renders a video from it
 
 ### Files to read
 - P14b-S1..S3 Handovers
 - `docs/TESTING.md`; memory note on the storyboard re-run warning (regenerating invalidates acquired assets)
 - `cf_platform/interfaces/routes/studio.py` — storyboard regenerate warning
 
+### Handover
+- **Guards:** file header check, size, min / max length (`VOICE_UPLOAD_MIN_S` / `MAX_S`, measured by Deepgram), no words, Deepgram failure and unexpected crash all end the job in `error` with a readable message. A job never stays `running`.
+- **Language mismatch is a warning, not an error** (as amended 2026-10-05). Deepgram is told the run's language, so it cannot report a mismatch; `language_warning` (in `voice_upload.py`) uses two signals: wrong script (Cyrillic vs Latin) and mean word confidence below `VOICE_LOW_CONFIDENCE`. It is stored in the job record, returned by `voice/status` and `GET …/transcript`; Studio shows a banner with "Keep" / "Change" (`PUT …/language`, which marks the warning acknowledged; a changed language means upload again). It cannot catch e.g. French audio in an English run.
+- **Re-upload:** 409 `needs_confirmation` with the list of what is discarded; with `?confirm_discard=true` the storyboard is discarded by a marker (`runs/{id}/storyboard/discarded.json`, honoured by `latest_artifact_key`, acquisition and render), the asset manifest is emptied (envelope kept), and editing unlocks.
+- **Tests:** `test_p14b_transcript_edit.py` (19), `test_p14b_upload_routes.py` (35, including the end-to-end test), `test_log_redaction.py` (8). Suite at close: 2645 passed, CI green on `dbec47d`.
+- **DEV smoke test steps (as given to the operator):** (1) create an "Upload voiceover" run (stage track has no Script / Voice); (2) upload a 20–60 s mp3 → transcript appears, no warning; (3) correct a word, split one into two, try to delete a word (refused), paste text with an added word (refused); (4) create the storyboard → words locked; (5) acquire, render and/or CapCut zip contains `voiceover/uploaded.mp3`; (6) re-upload with confirm → storyboard empty, editing works; (7) guards: renamed `.txt`, silent mp3, clip under 3 s; (8) language `ru` run with Russian audio (no warning), English audio in a `ru` run (banner); (9) a generated run still behaves as before; (10) DEV log shows `key=REDACTED`.
+- **Smoke result and what is NOT verified:** the operator made two real Shorts on DEV with the uploaded-voiceover flow and found no issues. The scripted steps were not run one by one. Not verified on DEV: the guards (step 7), the re-upload confirmation (6), language `ru` — including Deepgram's `language=ru` on Nova-2, only tested against a mocked request — and the log check (10).
 ---
 
 ## [P14b-S5] Stop logging API keys; rotate the Pixabay key
 **Epic:** E51 — Uploaded voiceover (rides in the sprint; unrelated to the upload path)
 **Sprint:** P14b
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-07
 **Priority:** high
 **Points:** 2
 **Depends on:** —
@@ -174,19 +205,24 @@ Bad input and re-uploads fail with a clear message instead of producing a broken
 No provider API key appears in any log line, and the key that already leaked is replaced.
 
 ### Acceptance Criteria
-- [ ] `httpx` / `httpcore` loggers do not print request URLs containing `key=`, `api_key=`, `token=` or `apikey=` values; either a redacting log filter on the root handlers or `httpx` raised to WARNING — whichever keeps useful request logging for other hosts (state the choice in the Handover)
-- [ ] Test: a request to a URL with `?key=SECRET` produces no log record containing `SECRET`; covers Pixabay, Pexels and Freesound URL shapes
-- [ ] Other places that can print a key (exception messages with the URL, retry logs) checked and covered by the same filter or listed in the Handover
-- [ ] Operator rotates the Pixabay key on DEV (and on PROD at release); the old key is revoked. The step is recorded as done in SPRINT.md open items
-- [ ] PROD log re-checked for `key=` at the next `/prod-check`
+- [x] `httpx` / `httpcore` loggers do not print request URLs containing `key=`, `api_key=`, `token=` or `apikey=` values; either a redacting log filter on the root handlers or `httpx` raised to WARNING — whichever keeps useful request logging for other hosts (state the choice in the Handover)
+- [x] Test: a request to a URL with `?key=SECRET` produces no log record containing `SECRET`; covers Pixabay, Pexels and Freesound URL shapes
+- [x] Other places that can print a key (exception messages with the URL, retry logs) checked and covered by the same filter or listed in the Handover
+- [ ] Operator rotates the Pixabay key on DEV (and on PROD at release); the old key is revoked. The step is recorded as done in SPRINT.md open items — **carried to SPRINT.md open items (operator action)**
+- [ ] PROD log re-checked for `key=` at the next `/prod-check` — **carried to SPRINT.md open items (operator action)**
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done` — two operator AC carried, see Handover
 
 ### Files to read
 - `SPRINT.md` open items (finding of 2026-10-05); the raised task chip
 - logging setup in `cf_platform/` and `src/` (find where handlers are configured), `src/` Pixabay adapter
 
+### Handover
+- **Choice: a redacting formatter, not `httpx` at WARNING.** `src/log_redaction.py` wraps the formatter of every root / uvicorn / httpx / httpcore handler (`install_log_redaction`, called from `_configure_logging` in `src/main.py`) and redacts `key=`, `api_key=`, `apikey=`, `token=`, `access_token=` values in the *final* text, so messages, `%s` args, exception messages and tracebacks are all covered while other request logging stays.
+- **Other places checked:** the Pixabay and Freesound clients pass the key as a query parameter (covered); Pexels sends it in an `Authorization` header (never in a URL). `requests`/urllib3 log URLs only at DEBUG, which the app does not enable; they pass through the same formatter anyway.
+- **Not done — operator actions, carried in SPRINT.md open items:** rotate the Pixabay key on DEV (and PROD at release) and revoke the old one; check DEV log for `key=` and re-check PROD at the next `/prod-check`.
+- **Files that mattered:** `src/log_redaction.py`, `src/main.py#_configure_logging`, `tests/test_log_redaction.py`.
 ---
 
 ## EPIC 52 — UI/UX redesign (Sprint P-UX3 discovery and design, then build)

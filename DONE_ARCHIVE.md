@@ -4,6 +4,21 @@ _Completed-story entries older than the last two sprints, newest first. Recent e
 
 ---
 
+## [P13b] CapCut export — S1 timeline artifact + golden render tests, S2 download zip, S3 laptop script, S4 return upload
+**Completed:** 2026-10-04
+**Handover:**
+- **One Timeline feeds both render paths (D103).** `cf_platform/workers/timeline.py` — `build_timeline(...)` is the only place scene timing is resolved; FFmpeg on Railway reads it (`build_render_script_from_timeline`) and so does the CapCut export. Stored as run artifact `render/timeline@vN`, `schema_version` 1; `GET /platform/studio/runs/{id}/timeline`. Assets are addressed by `file_key`, never scene id (D102).
+- **Render is pinned by 22 golden scripts** in `tests/golden/render/`; regenerate only on purpose with `UPDATE_GOLDEN=1` (docs/TESTING.md). The word-index fix (scene boundaries against the normalised word list) changed only the contraction-heavy golden, on purpose.
+- **Export / return:** `GET …/export/capcut` streams a zip (`timeline.json` + media); `tools/capcut/export_capcut.py <zip>` writes the CapCut draft on the laptop (pycapcut pinned in `tools/capcut/requirements.txt` only, tested with CapCut 8.9.1). CapCut 8.x reads `draft_info.json`; the script renames pycapcut's `draft_content.json`. `POST …/output/upload` stores the CapCut render as `output/final.mp4` with `output/final_source.json` (`ffmpeg` / `capcut`); overwrite confirmation both ways.
+- **Known limits (D103):** wikimedia-portrait blur-fill, Standard captions' per-word highlight, and the legacy `build_ffmpeg_script` are not in the timeline. Candidate for E50: word-anchored text and SFX reach the CapCut draft through the timeline for free.
+- New ENV var: `OUTPUT_UPLOAD_MAX_MB` (default 500). No new platform dependency. Tests: 5 new files plus the golden suite; CI 2526 passed on `fa6a3f0`.
+- Decision logged: **D103**.
+- **Post-close (2026-10-04):** the SFX library was cut to five operator-chosen sounds — `whoosh`, `impact`, `cash_register`, `error`, `typing` (`cf_platform/core/sfx_library.py`). Sources and licences (Pixabay Content License) are in `assets/sfx_source/SOURCES.md`; the trimmed, loudness-matched files are uploaded to the DEV `sfx-library/`, not PROD. Scenes that still hold an old key (`checkmark`, `pop`, `notification`, `drumroll`) show "none" in the dropdown. The CapCut draft carries no SFX clips in the operator's smoke run (SFX are placed by hand; word-anchored placement is E50-S1).
+**Smoke test:** PASSED — 2026-10-04 on Railway DEV, operator reported the CapCut path complete in chat (download, laptop command, CapCut edit, upload back). Individual steps were not itemised.
+**Promoted to backlog:** none. EPIC 50 (E50-S1..S3, word-anchored overlays and SFX library) was proposed the same day, unplaced.
+
+---
+
 ## [P13] Storyboard control — S1 asset strategy, S2 split / merge, S3 Storyboard stage controls + confirm gate, S4 script view
 **Completed:** 2026-10-03
 **Handover:**

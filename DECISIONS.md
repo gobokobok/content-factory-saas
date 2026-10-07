@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D106 — Runs carry `voice_source` and `language`; an uploaded voiceover enters through the `voice_alignment` seam; log output is redacted
+**Date:** 2026-10-07 (decided 2026-10-05, Sprint P14b)
+**Status:** ACTIVE
+**Decision:** (1) **Per-run settings in `run.inputs`, no migration:** `voice_source` (`generated` default | `uploaded`) and `language` (ISO 639-1; default the project's `config.language`, else `en`), both chosen at run creation. Language is per run — a project with English runs can make a Russian one (EPIC 53). Only `en` / `ru` are offered in the UI; nothing Russian-specific is built. (2) **Uploaded voiceover = the same artifacts as a generated one:** `voice_alignment` (`alignment_method = uploaded_deepgram_nova2`) and a `script` artifact with `source: uploaded_vo`, so timeline, render, CapCut and metadata run unchanged. Words are collapsed like the storyboard reads them, so editor indices equal storyboard indices. (3) **Timing-safe transcript edits:** a word may change what it says, not when it is spoken — replace, one to several, several to one, same-count replacement; no deletions or unspoken additions. Locked once a storyboard exists. (4) **Language mismatch is a warning, not an error:** Deepgram is told the run's language, so mismatch is inferred (wrong script or low confidence) and the operator keeps or changes it. (5) **Re-upload discards the storyboard by marker** (`runs/{id}/storyboard/discarded.json`) because artifacts are immutable; `latest_artifact_key` honours it. (6) **Keys are redacted in the formatter of every log handler** (`src/log_redaction.py`), not by silencing `httpx`, so request logging for other hosts stays.
+**Rationale:** the `voice_alignment` seam let the whole downstream pipeline stay untouched (golden render suite unchanged). Redacting the final formatted text covers messages, args and tracebacks in one place.
+**Rejected:** a `voice_source` column (migration for a two-value flag); `detect_language` with an explicit `language` (untestable against Deepgram here, and the operator asked for the run's language to be passed); a hard failure on language mismatch (operator decision 2026-10-05); raising `httpx` to WARNING.
+**Not verified:** Deepgram's `language=ru` on Nova-2 against the real API; the mismatch heuristic cannot see same-script mismatches (e.g. French in an English run).
+**No new dependency.**
+**See:** D047, D055, D103, EPIC 51, EPIC 53.
+
+---
+
 ## D104 — AI images are generated per scene on demand; provider keys live at tenant level, encrypted; `cryptography` added
 **Date:** 2026-10-04
 **Status:** ACTIVE
