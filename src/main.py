@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 import src.clip_reranker as clip_reranker
@@ -33,6 +34,8 @@ _AUTH_EXEMPT_PATHS = {
 }
 
 _STATIC_DIR = Path(__file__).parent / "static"
+# P-UX3-S3: the clickable redesign prototype — static demo pages, no backend calls.
+_PROTOTYPE_DIR = Path(__file__).parent.parent / "docs" / "ux" / "prototype"
 
 
 def _configure_logging(log_level: str) -> None:
@@ -198,6 +201,11 @@ def legacy_pipeline_ui() -> FileResponse:
 def login_page() -> FileResponse:
     """Serve the login page."""
     return FileResponse(_STATIC_DIR / "login-v2.html")
+
+
+# Served behind the same login as every other page (the auth middleware covers mounts).
+if _PROTOTYPE_DIR.is_dir():
+    app.mount("/prototype", StaticFiles(directory=_PROTOTYPE_DIR, html=True), name="prototype")
 
 
 @app.get("/health")

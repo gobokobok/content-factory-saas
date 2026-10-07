@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prototype — Content Factory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- P-UX3-S3 — clickable static prototype. Demo data only; no backend. -->
+  <div class="shell" id="shell">
+    <aside class="nav" id="nav" aria-label="Main navigation"></aside>
+    <div class="scrim" onclick="closeNav()"></div>
+    <div class="main">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" aria-label="Open navigation" onclick="openNav()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+        <span class="proto-tag" title="Nothing here is saved. Reload to reset.">Prototype · demo data</span>
+      </header>
+      <main class="page" id="page"></main>
+    </div>
+  </div>
+  <div id="overlay"></div>
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

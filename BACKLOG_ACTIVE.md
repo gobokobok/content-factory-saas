@@ -234,7 +234,7 @@ Operator request at the Sprint P14 review (2026-10-05). The product now has thre
 ## [P-UX3-S1] Audit of today's flow and review of comparable tools
 **Epic:** E52 — UI/UX redesign
 **Sprint:** P-UX3
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P14b (so both entry paths are in the audit)
@@ -257,7 +257,7 @@ A written picture of where today's UI is hard to use and of what comparable prod
 ## [P-UX3-S2] Information architecture: project → idea → run, and where settings live
 **Epic:** E52 — UI/UX redesign
 **Sprint:** P-UX3
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P-UX3-S1
@@ -282,7 +282,7 @@ A navigation and settings model the whole product fits into, including the pages
 ## [P-UX3-S3] Clickable static prototype of the key screens
 **Epic:** E52 — UI/UX redesign
 **Sprint:** P-UX3
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 4
 **Depends on:** P-UX3-S2
@@ -305,7 +305,7 @@ The operator clicks through the redesigned product with demo data before anythin
 ## [P-UX3-S4] Design decision and build plan
 **Epic:** E52 — UI/UX redesign
 **Sprint:** P-UX3
-**Status:** planned
+**Status:** in-progress
 **Priority:** high
 **Points:** 1
 **Depends on:** P-UX3-S3
