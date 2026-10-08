@@ -125,7 +125,10 @@ class TestIntegrationRoutes:
     def test_get_and_put_never_echo_a_key(self):
         repo = InMemoryTenantSettingsRepository()
         from cf_platform.core.config import get_platform_settings
+        from src.config import Settings, get_settings
+        from tests.cf_platform.p12_helpers import VALID_ENV
 
+        app.dependency_overrides[get_settings] = lambda: Settings.model_validate(VALID_ENV)
         app.dependency_overrides[get_tenant_settings_repository] = lambda: repo
         app.dependency_overrides[get_platform_settings] = lambda: _settings()
         try:
@@ -142,6 +145,7 @@ class TestIntegrationRoutes:
         finally:
             app.dependency_overrides.pop(get_tenant_settings_repository, None)
             app.dependency_overrides.pop(get_platform_settings, None)
+            app.dependency_overrides.pop(get_settings, None)
 
 
 # ── Defaults ──────────────────────────────────────────────────────────────
