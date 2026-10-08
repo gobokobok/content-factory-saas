@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/ui/shell.css">
   <style>
     /* ═══════════════════════════════════════════════════════════════════
        CONTENT FACTORY STUDIO v2 — "Monochrome Console"
@@ -689,46 +690,116 @@
       padding: 6px 14px; border-radius: 999px; z-index: 300; opacity: 0.92; pointer-events: none;
     }
 
+
+    /* ═══ P-UX build: shell, run header, arrow-shaped steps, source chooser, drawer, scene cards ═══ */
+    body { display: block; }
+    .cf-shell { height: 100vh; }
+    .cf-shell > .main { height: 100vh; min-height: 0; }
+    .ws-scroll { display: block; }
+    .cf-crumbs { padding-bottom: 0; }
+    .run-head { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; padding: 36px var(--cf-gutter) 0; }
+    .run-head-main { flex: 1; min-width: 220px; }
+    .run-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.25; overflow-wrap: anywhere; }
+    .run-facts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+    .run-head-actions { display: flex; align-items: center; gap: 8px; }
+    .chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-sub); background: var(--surface); white-space: nowrap; }
+    .chip.ink { background: var(--ink); border-color: var(--ink); color: #fff; }
+    .chip.ok { background: #EAF6F1; border-color: transparent; color: #12805C; }
+    .chip.run { background: var(--accent-tint); border-color: transparent; color: var(--accent); }
+    .chip.bad { background: var(--red-tint); border-color: transparent; color: var(--red); }
+    .stepper-outer { padding: 32px var(--cf-gutter) 0; }
+    .stage-pane { padding: 28px var(--cf-gutter) 96px; }
+    .source-bar { padding: 28px var(--cf-gutter) 0; }
+    .source-bar + .stage-pane, .source-bar ~ .stage-pane { padding-top: 20px; }
+    /* The source bar carries the Script heading; the three Script sub-views do not repeat it. */
+    #pane-script .stage-title, #pane-script .stage-subtitle, #pane-upload .stage-title, #pane-transcript .stage-title { display: none; }
+    .source-bar .stage-title { margin-bottom: 6px; }
+    .landing-inner { padding-left: var(--cf-gutter); }
+
+    /* Pipeline steps — arrow-shaped blocks with one status dot (pattern from policy-scout, its D-037) */
+    .steps { display: flex; align-items: stretch; overflow-x: auto; max-width: 820px; }
+    .step {
+      --notch: 16px; display: flex; flex: 1 1 0; align-items: center; justify-content: center; gap: 8px;
+      min-width: max-content; height: 44px; padding: 0 calc(var(--notch) + 8px) 0 calc(var(--notch) + 12px);
+      background: var(--border2); color: var(--muted); font-size: 13px; font-weight: 500; white-space: nowrap;
+      text-decoration: none; border: none; cursor: pointer; font-family: var(--font);
+      clip-path: polygon(0 0, calc(100% - var(--notch)) 0, 100% 50%, calc(100% - var(--notch)) 100%, 0 100%, var(--notch) 50%);
+    }
+    .step + .step { margin-left: calc(5px - var(--notch)); }
+    .step:first-child { padding-left: 20px; clip-path: polygon(0 0, calc(100% - var(--notch)) 0, 100% 50%, calc(100% - var(--notch)) 100%, 0 100%); }
+    .step:hover { color: var(--ink); }
+    .step.current { background: #DDDDE2; color: var(--ink); font-weight: 600; }
+    .step:focus-visible { outline-offset: -4px; }
+    .step::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); opacity: 0.4; }
+    .step-run::before { background: #E5A50A; opacity: 1; }
+    .step-done::before { background: #12805C; opacity: 1; }
+    .step-fail::before { background: var(--red); opacity: 1; }
+
+    /* Script source chooser */
+    .src-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 820px; }
+    .src-card { text-align: left; padding: 14px 16px; background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r); cursor: pointer; font-family: var(--font); }
+    .src-card:hover { border-color: var(--faint); }
+    .src-card.on { border-color: var(--accent); background: var(--accent-tint); }
+    .src-card b { display: block; font-size: 14px; margin-bottom: 2px; color: var(--ink); }
+    .src-card span { font-size: 12px; color: var(--ink-sub); }
+    .src-line { font-size: 12.5px; color: var(--muted); }
+    .src-line a { color: var(--accent); cursor: pointer; text-decoration: none; }
+    .src-line a:hover { text-decoration: underline; }
+
+    /* Run settings drawer */
+    .rs-backdrop { position: fixed; inset: 0; background: rgba(18, 18, 21, 0.38); z-index: 80; display: flex; justify-content: flex-end; }
+    .rs-drawer { background: var(--surface); width: 100%; max-width: 420px; height: 100vh; overflow-y: auto; padding: 24px; box-shadow: var(--shadow-drawer); animation: rsSlide 0.18s ease; }
+    .rs-head { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+    .rs-head > div:first-child { flex: 1; }
+    .rs-hint { font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+    .rs-hint.warn { color: #7A4B00; }
+    @keyframes rsSlide { from { transform: translateX(24px); opacity: 0; } }
+
+    /* Storyboard cards */
+    .sc-card { display: flex; gap: 16px; align-items: flex-start; padding: 16px; margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+    .sc-thumb { position: relative; flex-shrink: 0; width: 84px; }
+    .sc-thumb .scene-thumb { width: 84px; height: 112px; object-fit: cover; border-radius: 5px; display: block; }
+    .sc-thumb .thumb-placeholder, .sc-thumb .row-upload { width: 84px; height: 112px; display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 5px; font-size: 11px; }
+    .sc-card.wide .sc-pencil { top: 65px; }
+    .sc-card.wide .sc-thumb, .sc-card.wide .sc-thumb .scene-thumb, .sc-card.wide .sc-thumb .thumb-placeholder, .sc-card.wide .sc-thumb .row-upload { width: 140px; height: 79px; }
+    .sc-pencil { position: absolute; right: -9px; top: 98px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--ink-sub); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; box-shadow: 0 2px 6px rgba(18, 18, 21, 0.12); padding: 0; }
+    .sc-pencil:hover { color: var(--accent); border-color: var(--accent); }
+    .sc-main { flex: 1; min-width: 0; }
+    .sc-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .sc-top .mono { color: var(--muted); font-size: 11px; }
+    .sc-vo { font-size: 14px; line-height: 1.6; margin: 6px 0 10px; }
+    .sc-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .sc-ost { font-family: var(--font); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--faint); background: none; color: var(--ink); min-width: 0; max-width: 100%; }
+    .sc-ost::placeholder { color: var(--muted); }
+    .sc-ost.on { border-style: solid; border-color: var(--border); background: var(--border2); }
+    .sc-ost:hover { border-color: var(--ink-sub); }
+    .sc-ost:focus { outline: none; border-style: solid; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .sc-merge { margin-left: auto; font-family: var(--font); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; }
+    .sc-merge:hover { color: var(--ink); border-color: var(--ink-sub); }
+    .sc-query { font-size: 11.5px; color: var(--muted); margin-top: 8px; cursor: pointer; border-radius: 4px; padding: 1px 3px; margin-left: -3px; }
+    .sc-query:hover { background: var(--accent-tint); color: var(--accent); }
+    .sc-query.editing { background: var(--accent-tint); outline: 1.5px solid var(--accent); }
+
+    @media (max-width: 1100px) { :root { --cf-gutter: 48px; } }
+    @media (max-width: 760px) {
+      :root { --cf-gutter: 16px; }
+      .cf-shell, .cf-shell.cf-folded { display: block; }
+      .run-head { padding-top: 24px; }
+      .src-choices { grid-template-columns: 1fr; }
+      .sc-card { flex-wrap: wrap; }
+      .rs-drawer { max-width: none; }
+    }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
   </style>
 </head>
-<body>
+<body class="cf-body">
 
-<!-- ── Sidebar ──────────────────────────────────────────────────────── -->
-<aside class="sidebar" id="sidebar">
-  <div class="sb-head">
-    <div class="brand-mark" aria-hidden="true"></div>
-    <div class="brand-name">CF <span>Studio</span></div>
-    <button class="sb-collapse-btn" onclick="toggleSidebar()" title="Collapse sidebar" id="collapse-btn">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="collapse-icon"><polyline points="15 18 9 12 15 6"/></svg>
-    </button>
-  </div>
-
-  <div class="sb-section">
-    <button class="sb-new-run" onclick="newRun()" title="New run">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span class="lbl">New run</span>
-    </button>
-    <button class="sb-nav-btn" id="nav-runs" onclick="showLanding()" title="All runs">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="16" width="18" height="4" rx="1"/></svg>
-      <span class="lbl">All runs</span>
-    </button>
-  </div>
-
-  <div class="sb-recent" id="sb-recent">
-    <div class="sb-recent-label">Recent</div>
-    <div id="sb-recent-list"></div>
-  </div>
-
-  <div class="sb-foot">
-    <button class="sb-nav-btn" onclick="logOut()" title="Log out">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      <span class="lbl">Log out</span>
-    </button>
-  </div>
-</aside>
+<!-- ── Shell: the left panel is shared with every page (ui/shell.js) ───── -->
+<div class="cf-shell" id="cf-shell">
+<aside class="cf-nav" id="cf-nav"></aside>
+<div class="cf-scrim" onclick="CFShell.closeNav()"></div>
 
 <!-- ── Main ─────────────────────────────────────────────────────────── -->
 <div class="main">
@@ -747,49 +818,56 @@
   <!-- Workspace -->
   <div class="workspace" id="workspace" style="display:none;">
 
-    <div class="ws-header">
-      <a class="ws-project" id="ws-project-link" href="/" title="Back to the project">← <span id="ws-project-name">Projects</span></a>
-      <span class="ws-run-name" id="ws-run-name">—</span>
-      <span class="ws-run-id" id="run-id-display">—</span>
-      <div class="spacer"></div>
-      <button class="pill-toggle" id="auto-confirm-btn" title="Automatically advance to the next stage after each completes" onclick="toggleAutoConfirm()">
-        <span class="pt-dot"></span> Auto-advance
-      </button>
-      <button class="pill-toggle" id="log-btn" aria-label="Run details" onclick="toggleInfoPanel()">Details</button>
-      <div class="run-menu-wrap" id="run-menu-wrap">
-        <button class="run-menu-btn" id="run-menu-btn" aria-label="Run options" onclick="toggleRunMenu(event)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+    <div class="ws-scroll" id="ws-scroll">
+    <nav class="cf-crumbs" id="cf-crumbs" aria-label="Breadcrumb"></nav>
+    <div class="run-head">
+      <div class="run-head-main">
+        <h1 class="run-title" id="ws-run-name">—</h1>
+        <div class="run-facts" id="ws-facts"></div>
+      </div>
+      <div class="run-head-actions">
+        <button class="pill-toggle" id="auto-confirm-btn" title="Automatically advance to the next stage after each completes" onclick="toggleAutoConfirm()">
+          <span class="pt-dot"></span> Auto-advance
         </button>
-        <div class="run-menu-dropdown" id="run-menu-dropdown">
-          <button class="run-menu-item danger" onclick="deleteRun()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-            Delete run
+        <button class="btn btn-secondary btn-sm" id="settings-btn" onclick="openSettingsDrawer()">Run settings</button>
+        <div class="run-menu-wrap" id="run-menu-wrap">
+          <button class="run-menu-btn" id="run-menu-btn" aria-label="Run options" onclick="toggleRunMenu(event)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
           </button>
+          <div class="run-menu-dropdown" id="run-menu-dropdown">
+            <button class="run-menu-item" id="log-btn" onclick="toggleInfoPanel()">Run details</button>
+            <button class="run-menu-item danger" onclick="deleteRun()">Delete run</button>
+          </div>
         </div>
+        <span id="run-id-display" hidden></span>
       </div>
     </div>
-
-    <div class="ws-scroll" id="ws-scroll">
     <div class="stepper-outer">
-      <nav class="stage-track" id="stage-track"><!-- rendered by JS --></nav>
+      <nav class="steps" id="stage-track" aria-label="Run steps"><!-- rendered by JS --></nav>
     </div>
 
     <div class="ws-body" id="ws-body">
+      <div class="source-bar" id="script-source" style="display:none;"></div>
 
-      <!-- Settings stage -->
-      <div class="stage-pane active" id="pane-settings">
-        <div class="stage-content">
-          <div class="stage-title">Settings</div>
-          <div class="stage-subtitle">Configure the run before generating content. These apply to every downstream stage.</div>
+      <!-- Run settings: a drawer, available from every step (not a pipeline step) -->
+      <div class="rs-backdrop" id="settings-drawer" style="display:none;" onmousedown="if(event.target===this)closeSettingsDrawer()">
+        <div class="rs-drawer" id="pane-settings">
+          <div class="rs-head"><div><div class="stage-title">Run settings</div>
+            <div class="stage-subtitle" style="margin-bottom:0;">For this run only. They apply to every step.</div></div>
+            <button class="icon-btn" aria-label="Close" onclick="closeSettingsDrawer()">✕</button></div>
 
-          <div class="field-label">Aspect ratio</div>
+          <div class="field-label">Language</div>
+          <select class="cf-select" id="run-language" onchange="onRunLanguageChange()" title="Language of this video"></select>
+          <div class="rs-hint" id="run-language-hint"></div>
+
+          <div class="field-label">Format</div>
           <div class="settings-opt-row" style="margin-bottom:6px;">
             <button class="settings-opt active" id="opt-aspect-portrait" onclick="setAspectRatio('portrait')">9:16 Portrait</button>
             <button class="settings-opt" id="opt-aspect-landscape" onclick="setAspectRatio('landscape')">16:9 Landscape</button>
           </div>
 
-          <div class="field-label">Style</div>
-          <div class="settings-opt-row" style="margin-bottom:6px;">
+          <div class="field-label" style="display:none;">Style</div>
+          <div class="settings-opt-row" style="margin-bottom:6px;display:none;">
             <button class="settings-opt active" id="opt-style-realistic" onclick="setStyle('realistic')">Realistic</button>
             <button class="settings-opt disabled" disabled title="Coming soon">Animated <span class="settings-soon">Soon</span></button>
           </div>
@@ -829,13 +907,13 @@
           </div>
           </div>
 
-          <div id="subject-block">
+          <div id="subject-block" style="display:none;">
           <div class="field-label" style="margin-top:20px;">Run subject <span style="font-size:12px;font-weight:400;color:var(--ink-sub);">— used by auto-advance to generate the script (default 90s)</span></div>
           <input class="gen-input" style="width:100%;box-sizing:border-box;" id="settings-subject" placeholder="e.g. Why starter homes disappeared from America" oninput="onSubjectInput()" onchange="saveRunSettings()">
           </div>
 
           <div class="stage-cta">
-            <button class="btn btn-primary" id="settings-continue-btn" onclick="onSettingsContinue()">Continue to Script →</button>
+            <button class="btn btn-primary" id="settings-continue-btn" onclick="onSettingsContinue()">Done</button>
           </div>
         </div>
       </div>
@@ -929,8 +1007,9 @@
       <div class="stage-pane" id="pane-voice">
         <div class="stage-content">
           <div class="stage-title">Voice</div>
-          <div class="stage-subtitle">Generate TTS voiceover and align word timestamps. Accurate timing requires this step before storyboard generation.</div>
+          <div class="stage-subtitle" id="voice-subtitle">Generated from the script. Its word timings drive the storyboard.</div>
           <div id="voice-error" class="error-bar" style="display:none;"></div>
+          <div id="voice-uploaded" style="display:none;"></div>
           <div id="voice-content">
             <div class="muted" style="font-size:13px;">No voiceover yet — generate VO from the Script stage.</div>
           </div>
@@ -945,7 +1024,7 @@
       <div class="stage-pane" id="pane-storyboard">
         <div class="stage-content">
           <div class="stage-title">Storyboard</div>
-          <div class="stage-subtitle">Scene-by-scene plan. Pick each scene's asset type, click a word to split a scene there, ⤵ to merge it with the next. Nothing is acquired until you confirm the storyboard.</div>
+          <div class="stage-subtitle">Scene-by-scene plan. Pick each scene's asset type, click a word to split a scene there, merge it with the next, set its on-screen text and sound effect. Nothing is acquired until you confirm the storyboard.</div>
           <div id="sb-error" class="error-bar" style="display:none;"></div>
         </div>
         <div class="stage-content wide" style="margin-top:0; padding-top:0;">
@@ -1006,6 +1085,7 @@
     </div><!-- /.ws-scroll -->
   </div><!-- /.workspace -->
 </div><!-- /.main -->
+</div><!-- /.cf-shell -->
 
 <!-- ── Pencil override modal ────────────────────────────────────────── -->
 <div class="modal-backdrop" id="pencil-modal" style="display:none;" onclick="if(event.target===this)closePencilModal()">
@@ -1068,6 +1148,7 @@
   </div>
 </div>
 
+<script src="/ui/shell.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════════
 //  DEMO MODE — ?demo=1 serves mock data so the full flow can be reviewed
@@ -1155,9 +1236,25 @@ function demoResponse(body, status = 200, delay = 300) {
     res(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })), delay));
 }
 
+let _demoVoiceSource = 'generated';
 function demoRoute(url, opts) {
   const method = (opts?.method || 'GET').toUpperCase();
   const u = String(url);
+  if (u.includes('/voice-source')) {
+    _demoVoiceSource = JSON.parse(opts?.body || '{}').voice_source || 'generated';
+    return demoResponse({ voice_source: _demoVoiceSource, changed: true, discarded: [] }, 200, 200);
+  }
+  if (u.includes('/language') && method === 'PUT') {
+    return demoResponse({ language: JSON.parse(opts?.body || '{}').language, changed: true, transcript_stale: false }, 200, 150);
+  }
+  if (/\/studio\/runs\/[^/]+\/context$/.test(u)) {
+    return demoResponse({
+      run_id: 'demo', name: 'Why starter homes disappeared from America', status: 'created', created_at: new Date().toISOString(),
+      project: { project_id: 'demo-project', name: 'The Housing Equation', niche: 'american housing economics', config: {}, default_channel_id: null, archived: false, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), run_count: 1 },
+      items: [], idea_title: 'Why starter homes disappeared from America', supporting_points: [], voice_source: _demoVoiceSource, language: 'en', format: '9:16', brief: '',
+      tenant_defaults: { language: 'en', format: '9:16', captions: 'standard', spend_cap: 2 },
+    }, 200, 100);
+  }
   if (u.includes('/auth/logout')) return demoResponse({ ok: true }, 200, 100);
   if (u.includes('/platform/blocks/idea-to-script')) {
     const id = 'a1b2c3d4-demo-4e5f-8a9b-' + String(Date.now()).slice(-12).padStart(12, '0');
@@ -1279,12 +1376,13 @@ const ASSET_STRATEGIES = [
   { key: 'ai_image',    label: 'AI image' },
 ];
 
-// P14b — the stage list depends on how the run gets its voice: "generated" runs go
-// Script → Voice; "uploaded" runs go Upload → Transcript. applyVoiceSource() swaps it.
-const GENERATED_STAGES = ['settings', 'script', 'voice', 'storyboard', 'render', 'metadata'];
-const UPLOADED_STAGES = ['settings', 'upload', 'transcript', 'storyboard', 'render', 'metadata'];
-let STAGES = GENERATED_STAGES;
-const STAGE_LABELS = { settings: 'Settings', script: 'Script', voice: 'Voice', upload: 'Upload', transcript: 'Transcript', storyboard: 'Storyboard', render: 'Video', metadata: 'Metadata' };
+// One pipeline for every run (P-UX build): Script → Voice → Storyboard → Video → Metadata.
+// Where the script comes from — generated, pasted or taken from an uploaded voiceover —
+// is chosen in the Script step. The upload and transcript panes are the Script step's
+// sub-views for a run whose voice is an uploaded recording; they are not steps.
+const STAGES = ['script', 'voice', 'storyboard', 'render', 'metadata'];
+const STAGE_LABELS = { script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Video', metadata: 'Metadata' };
+const SUB_STAGES = { upload: 'script', transcript: 'script', settings: 'script' };
 
 function defaultStageStatus() {
   return { settings: 'idle', script: 'idle', voice: 'idle', upload: 'idle', transcript: 'idle', storyboard: 'idle', render: 'idle', metadata: 'idle' };
@@ -1293,16 +1391,17 @@ function defaultStageData() {
   return { settings: null, script: null, voice: null, upload: null, transcript: null, storyboard: null, render: null, metadata: null };
 }
 
-// Switch the run between the two entry modes: stage list, Settings pane and the
-// storyboard hint. Narration (TTS) controls are removed for uploaded runs, not disabled.
+// The run's voice source: a generated voice (default) or the operator's uploaded
+// recording. Narration (TTS) controls are removed for uploaded runs, not disabled.
 function applyVoiceSource(source) {
   const uploaded = source === 'uploaded';
   state.voiceSource = uploaded ? 'uploaded' : 'generated';
-  STAGES = uploaded ? UPLOADED_STAGES : GENERATED_STAGES;
-  document.getElementById('narration-block').style.display = uploaded ? 'none' : '';
-  document.getElementById('subject-block').style.display = uploaded ? 'none' : '';
-  document.getElementById('settings-continue-btn').textContent = uploaded ? 'Continue to Upload →' : 'Continue to Script →';
+  const nb = document.getElementById('narration-block');
+  if (nb) nb.style.display = uploaded ? 'none' : '';
   renderStageTrack();
+  renderRunFacts();
+  renderVoicePane();
+  renderScriptSource();
 }
 function defaultSettings() {
   return {
@@ -1314,7 +1413,11 @@ function defaultSettings() {
 
 let state = {
   runId: null,
-  activeStage: 'settings',
+  activeStage: 'script',
+  scriptSource: 'generate', // 'generate' | 'paste' — what a generated-voice run's Script step shows
+  restartingSource: false,  // true while the operator is choosing a different script source
+  runFormat: null,          // the format chosen when the run was created ('9:16' | '16:9')
+  tenantDefaults: {},       // Settings → Defaults, from the run context
   stageStatus: defaultStageStatus(),
   stageData: defaultStageData(),
   settings: defaultSettings(),
@@ -1352,23 +1455,6 @@ async function logOut() {
   await fetch('/auth/logout', { method: 'POST' });
   window.location.href = DEMO ? location.pathname + '?demo=1' : '/login';
 }
-
-// ── Sidebar fold ──────────────────────────────────────────────────────────
-function toggleSidebar() {
-  const collapsed = document.body.classList.toggle('sb-collapsed');
-  try { localStorage.setItem('studio_sidebar', collapsed ? 'collapsed' : 'open'); } catch { /* private mode */ }
-  document.getElementById('collapse-icon').innerHTML = collapsed
-    ? '<polyline points="9 18 15 12 9 6"/>' : '<polyline points="15 18 9 12 15 6"/>';
-  document.getElementById('collapse-btn').title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
-}
-(function restoreSidebar() {
-  try {
-    if (localStorage.getItem('studio_sidebar') === 'collapsed') {
-      document.body.classList.add('sb-collapsed');
-      document.getElementById('collapse-icon').innerHTML = '<polyline points="9 18 15 12 9 6"/>';
-    }
-  } catch { /* private mode */ }
-})();
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function esc(v) {
@@ -1465,58 +1551,203 @@ function renderRunList() {
   renderSidebarRecent();
 }
 
-function renderSidebarRecent() {
-  const el = document.getElementById('sb-recent-list');
-  const runs = getLocalRuns().slice(0, 8);
-  el.innerHTML = runs.length
-    ? runs.map(r => {
-        const label = esc((r.name || r.scriptPreview || r.id.split('-')[0]).slice(0, 30));
-        const active = r.id === state.runId ? ' active' : '';
-        return `<button class="sb-run-link${active}" onclick="loadRun('${esc(r.id)}')" title="${label}">${label}</button>`;
-      }).join('')
-    : '<div class="muted" style="font-size:11px;padding:0 12px;">No runs yet</div>';
-}
+function renderSidebarRecent() { /* the left panel is the shell's now; it lists projects, not runs */ }
 
 // ── Stage stepper ─────────────────────────────────────────────────────────
+/** The status the step shows. An uploaded recording is both the script's source and the voice. */
+function visibleStatus(stage) {
+  if (state.voiceSource === 'uploaded') {
+    if (stage === 'script') return state.stageStatus.upload || 'idle';
+    if (stage === 'voice') return state.stageStatus.upload === 'done' ? 'done' : 'idle';
+  }
+  return state.stageStatus[stage] || 'idle';
+}
+
+// Arrow-shaped steps, one status dot each — the pattern from policy-scout (its D-037).
+// grey = not started, amber = in progress or next up, green = done, red = failed.
 function renderStageTrack() {
   const el = document.getElementById('stage-track');
-  el.innerHTML = STAGES.map((s, i) => {
-    const st = state.stageStatus[s];
-    const active = s === state.activeStage ? ' active' : '';
-    const errCls = st === 'error' ? ' error' : '';
-    let marker;
-    if (st === 'done') {
-      marker = `<span class="step-marker done"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>`;
-    } else if (st === 'running') {
-      marker = `<span class="step-marker running">${i + 1}</span>`;
-    } else if (st === 'error') {
-      marker = `<span class="step-marker error">!</span>`;
-    } else {
-      marker = `<span class="step-marker">${i + 1}</span>`;
-    }
-    const connDone = st === 'done' ? ' done' : '';
-    const connector = i < STAGES.length - 1 ? `<span class="stage-connector${connDone}"></span>` : '';
-    return `<button class="stage-pill${active}${errCls}" onclick="activateStage('${s}')">${marker}${esc(STAGE_LABELS[s])}</button>${connector}`;
+  if (!el) return;
+  let nextUp = STAGES.find(s => visibleStatus(s) !== 'done');
+  el.innerHTML = STAGES.map(s => {
+    const st = visibleStatus(s);
+    const dot = st === 'done' ? 'done' : st === 'error' ? 'fail' : (st === 'running' || s === nextUp) ? 'run' : 'idle';
+    const title = { done: 'Completed', run: st === 'running' ? 'In progress' : 'Next', fail: 'Failed', idle: 'Not started' }[dot];
+    const cur = s === state.activeStage;
+    return `<button class="step step-${dot}${cur ? ' current' : ''}" title="${title}"${cur ? ' aria-current="step"' : ''} onclick="activateStage('${s}')">${esc(STAGE_LABELS[s])}</button>`;
   }).join('');
+  renderRunFacts();
+}
+
+/** The chips under the run title: voice, language, format and where the run is. */
+function renderRunFacts() {
+  const el = document.getElementById('ws-facts');
+  if (!el) return;
+  const started = STAGES.some(s => visibleStatus(s) !== 'idle');
+  const voice = !started ? 'Script not started' : state.voiceSource === 'uploaded' ? 'Uploaded voice' : 'Generated voice';
+  const fmt = state.settings.aspectRatio === 'landscape' ? '16:9' : '9:16';
+  const lang = { en: 'English', ru: 'Русский' }[state.language] || state.language;
+  const failed = STAGES.find(s => visibleStatus(s) === 'error');
+  const next = STAGES.find(s => visibleStatus(s) !== 'done');
+  const status = failed ? `<span class="chip bad">Needs attention · ${esc(STAGE_LABELS[failed])}</span>`
+    : !next ? '<span class="chip ok">Done</span>' : `<span class="chip run">At ${esc(STAGE_LABELS[next])}</span>`;
+  el.innerHTML = `<span class="chip ink">${voice}</span><span class="chip">${esc(lang)}</span><span class="chip">${fmt}</span>${status}`;
+}
+
+/** Breadcrumbs: Projects / project / Runs / this run. */
+function updateCrumbs() {
+  const p = state.project;
+  const name = document.getElementById('ws-run-name')?.textContent || 'Run';
+  const crumbs = [['Projects', '/']];
+  if (p) crumbs.push([p.name, projectUrl()], ['Runs', projectUrl() + '&tab=runs']);
+  crumbs.push([name]);
+  CFShell.update({ active: 'project', project: p ? { id: p.project_id, name: p.name } : null, projectTab: 'runs', crumbs });
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────
+/** Which pane shows for a visible step. The Script step is a sub-view for an uploaded recording. */
+function paneForStage(stage) {
+  if (stage === 'script' && state.voiceSource === 'uploaded') {
+    return state.scriptView === 'upload' || state.stageStatus.upload !== 'done' ? 'upload' : 'transcript';
+  }
+  return stage;
+}
+
 function activateStage(stage) {
+  let pane;
+  if (stage === 'upload' || stage === 'transcript') { state.scriptView = stage; stage = 'script'; pane = state.scriptView; }
+  else if (stage === 'settings') { openSettingsDrawer(); return; }
+  else { if (stage === 'script') state.scriptView = null; pane = paneForStage(stage); }
   state.activeStage = stage;
   document.querySelectorAll('.stage-pane').forEach(p => p.classList.remove('active'));
-  document.getElementById(`pane-${stage}`).classList.add('active');
+  document.getElementById(`pane-${pane}`)?.classList.add('active');
   renderStageTrack();
+  renderScriptSource();
+  renderVoicePane();
   document.getElementById('ws-scroll').scrollTo(0, 0);
   if (state.runId) {
     history.replaceState(null, '', `#run/${state.runId}/${stage}` + (DEMO ? '?d' : ''));
   }
   // Auto-generate script when auto-advance is on, subject is set, and script hasn't been generated yet
-  if (stage === 'script' && state.autoConfirm && state.settings.subject && state.stageStatus.script === 'idle') {
+  if (stage === 'script' && state.autoConfirm && state.settings.subject && state.stageStatus.script === 'idle' && state.voiceSource !== 'uploaded') {
     document.getElementById('gen-idea').value = state.settings.subject;
     document.getElementById('generate-body').classList.add('open');
     updateGenerateBtn();
     setTimeout(generateScript, 300);
   }
+}
+
+// ── Script source: generate, paste, or take it from a voiceover ───────────
+function scriptExists() {
+  return state.voiceSource === 'uploaded' ? state.stageStatus.upload === 'done' : state.stageStatus.script === 'done';
+}
+/** Where the script came from, for the compact line shown once it exists. */
+function sourceLabel() {
+  return state.voiceSource === 'uploaded' ? 'Transcribed from your voiceover' : state.scriptSource === 'paste' ? 'Pasted text' : 'Generated from the idea';
+}
+
+function renderScriptSource() {
+  const el = document.getElementById('script-source');
+  if (!el) return;
+  if (state.activeStage !== 'script') { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const active = state.voiceSource === 'uploaded' ? 'upload' : state.scriptSource;
+  if (scriptExists() && !state.restartingSource) {
+    el.innerHTML = `<div class="stage-title">Script</div><div class="src-line">${sourceLabel()} · <a onclick="restartScriptSource()">Start again from a different source</a></div>`;
+    return;
+  }
+  const card = (k, title, text) => `<button class="src-card${k === active ? ' on' : ''}" onclick="chooseScriptSource('${k}')"><b>${title}</b><span>${text}</span></button>`;
+  el.innerHTML = `<div class="stage-title">Script</div><div class="stage-subtitle" style="margin-bottom:14px;">Where does the script come from?${scriptExists() ? ' Choosing another source replaces the current one.' : ''}</div>
+    <div class="src-choices">${card('generate', 'Generate', 'From the idea, in the project\'s niche.')}${card('paste', 'Paste', 'You already have the text.')}${card('upload', 'From a voiceover', 'Upload a recording; its transcript is the script.')}</div>`;
+}
+
+function restartScriptSource() { state.restartingSource = true; renderScriptSource(); }
+
+async function chooseScriptSource(kind) {
+  if (kind === 'upload') {
+    if (state.voiceSource !== 'uploaded') {
+      const ok = await putVoiceSource('uploaded');
+      if (!ok) return;
+    }
+    state.restartingSource = false;
+    activateStage('upload');
+    return;
+  }
+  // Generate or paste: a run with an uploaded recording replaces it, after the operator confirms.
+  if (state.voiceSource === 'uploaded') {
+    if (!(await switchToGeneratedVoice())) return;
+  }
+  state.scriptSource = kind;
+  state.restartingSource = false;
+  activateStage('script');
+  if (kind === 'generate') { document.getElementById('generate-body')?.classList.add('open'); updateGenerateBtn(); }
+  else document.getElementById('script-input')?.focus();
+}
+
+/** PUT the voice source. Returns the parsed body, or null when refused or cancelled. */
+async function putVoiceSource(source, confirmDiscard = false) {
+  let r = await fetch(`/platform/studio/runs/${state.runId}/voice-source`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_source: source, confirm_discard: confirmDiscard }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 409 && data.needs_confirmation && !confirmDiscard) {
+    if (!confirm(`${data.detail}\n\nContinue?`)) return null;
+    return putVoiceSource(source, true);
+  }
+  if (!r.ok) { showErr('script-error', data.detail || `Could not change the voice source (${r.status})`); return null; }
+  applyVoiceSource(data.voice_source);
+  return data;
+}
+
+/** Replace an uploaded recording with a generated voice: the storyboard and its assets are discarded server-side. */
+async function switchToGeneratedVoice() {
+  const data = await putVoiceSource('generated');
+  if (!data) return false;
+  if (data.discarded && data.discarded.length) {
+    state.stageStatus.storyboard = 'idle'; state.stageData.storyboard = null;
+    state.stageStatus.render = 'idle'; state.stageStatus.metadata = 'idle';
+    resetStoryboardPane();
+  }
+  // The transcript becomes free text: the script can now be edited, and a voice generated from it.
+  state.stageStatus.voice = 'idle'; state.stageData.voice = null; resetVoicePane();
+  state.stageStatus.upload = 'idle';
+  const text = state.stageData.script || '';
+  document.getElementById('script-input').value = text;
+  onScriptInput();
+  if (text) { state.stageStatus.script = 'done'; document.getElementById('script-loaded-tag').style.display = ''; }
+  renderStageTrack();
+  return true;
+}
+
+// ── Voice step: the generated voice, or the uploaded recording ────────────
+function renderVoicePane() {
+  const up = document.getElementById('voice-uploaded');
+  const gen = document.getElementById('voice-content');
+  if (!up || !gen) return;
+  const uploaded = state.voiceSource === 'uploaded';
+  const sub = document.getElementById('voice-subtitle');
+  if (sub) sub.textContent = uploaded ? 'This run uses your uploaded voiceover.' : 'Generated from the script. Its word timings drive the storyboard.';
+  up.style.display = uploaded ? '' : 'none';
+  gen.style.display = uploaded ? 'none' : '';
+  const cta = document.getElementById('voice-cta');
+  if (uploaded) {
+    const t = state.stageData.transcript;
+    const ready = state.stageStatus.upload === 'done';
+    up.innerHTML = ready
+      ? `<div class="voice-result">${t && t.audio_url ? `<audio controls src="${esc(t.audio_url)}"></audio>` : ''}
+          <div class="voice-stats"><div class="voice-stat">Words: <strong>${(t && t.words ? t.words.length : '—')}</strong></div>
+          <div class="voice-stat">Source: <span class="voice-method">your upload</span></div></div></div>
+         <div class="stage-cta"><button class="btn btn-primary" id="create-storyboard-btn2u" onclick="createStoryboard()">${state.stageStatus.storyboard === 'done' ? 'Go to Storyboard →' : 'Create storyboard →'}</button>
+           <button class="btn btn-ghost" onclick="switchToGeneratedVoiceFromVoice()">Generate a voice from the script instead</button></div>`
+      : '<div class="muted" style="font-size:13px;">No recording yet — upload one in the Script step.</div>';
+    if (cta) cta.style.display = 'none';
+  } else if (cta) {
+    cta.style.display = state.stageStatus.voice === 'done' ? '' : 'none';
+  }
+}
+
+async function switchToGeneratedVoiceFromVoice() {
+  if (await switchToGeneratedVoice()) { state.scriptSource = 'paste'; activateStage('script'); }
 }
 
 // ── Landing / workspace switch ────────────────────────────────────────────
@@ -1525,7 +1756,6 @@ function showLanding() {
   document.getElementById('workspace').style.display = 'none';
   document.getElementById('landing').style.display = '';
   document.getElementById('info-panel').classList.remove('open');
-  document.getElementById('nav-runs').classList.add('active');
   const lb = document.getElementById('log-btn'); if (lb) lb.classList.remove('active');
   state.runId = null;
   history.replaceState(null, '', location.pathname + (DEMO ? '?demo=1' : ''));
@@ -1535,10 +1765,8 @@ function showLanding() {
 function enterWorkspace(id, createdTs, name) {
   document.getElementById('landing').style.display = 'none';
   document.getElementById('workspace').style.display = '';
-  document.getElementById('nav-runs').classList.remove('active');
   document.getElementById('ws-run-name').textContent = name || 'Untitled run';
   document.getElementById('run-id-display').textContent = id.split('-')[0];
-  document.getElementById('run-id-display').title = id;
   document.getElementById('auto-confirm-btn').classList.remove('active');
   state.autoConfirm = false;
   resetSettingsPane();
@@ -1624,8 +1852,7 @@ function populateInfoPanel(id, createdTs) {
 // ── Run context: project + source shortlist items (P12) ───────────────────
 function renderRunContext() {
   const project = state.project;
-  document.getElementById('ws-project-name').textContent = project ? project.name : 'Projects';
-  document.getElementById('ws-project-link').href = projectUrl();
+  updateCrumbs();
   document.getElementById('info-project').textContent = project ? project.name : '—';
 
   const items = state.runContext?.items || [];
@@ -1675,6 +1902,9 @@ async function loadRunContext(id) {
     state.runContext = { items: ctx.items, idea_title: ctx.idea_title, supporting_points: ctx.supporting_points };
     applyVoiceSource(ctx.voice_source);
     state.language = ctx.language || 'en';
+    state.runFormat = ctx.format || null;
+    state.tenantDefaults = ctx.tenant_defaults || {};
+    renderLanguageSelect();
     const ul = document.getElementById('upload-language');
     if (ul) ul.textContent = `Language of this run: ${state.language}. The voiceover is transcribed in it.`;
     if (ctx.name) document.getElementById('ws-run-name').textContent = ctx.name;
@@ -1732,7 +1962,7 @@ function newRun() {
   if (!DEMO) { window.location.href = projectUrl(); return; }
   const id = uuid();
   state.runId = id;
-  state.activeStage = 'settings';
+  state.activeStage = 'script';
   state.stageStatus = defaultStageStatus();
   state.stageData   = defaultStageData();
   state.manifestEntries = {};
@@ -1752,7 +1982,7 @@ function newRun() {
   const createdTs = Date.now();
   enterWorkspace(id, createdTs);
   saveLocalRun(id, {});
-  activateStage('settings');
+  activateStage('script');
   // enterWorkspace -> resetSettingsPane no longer persists, so seed settings.json
   // explicitly here. Otherwise a run whose Settings stage is never touched would
   // have no stored settings at all, and the voice worker would fall back to its
@@ -1763,7 +1993,7 @@ function newRun() {
 // ── Load existing run ─────────────────────────────────────────────────────
 async function loadRun(id) {
   state.runId = id;
-  state.activeStage = 'settings';
+  state.activeStage = 'script';
   state.stageStatus = defaultStageStatus();
   state.stageData   = defaultStageData();
   state.manifestEntries = {};
@@ -1778,7 +2008,7 @@ async function loadRun(id) {
   resetMetadataPane();
   hideErr('script-error');
   renderRunList();
-  activateStage('settings');
+  activateStage('script');
 
   await loadRunContext(id);
   resetStoryboardPane();
@@ -1792,8 +2022,12 @@ async function loadRun(id) {
   hydratingSettings = true;
   try {
     if (isNewRun) {
+      const td = state.tenantDefaults || {};
       applyStoredSettings({
+        ...(td.format ? { aspect_ratio: td.format } : {}),
+        ...(td.captions ? { subtitles: td.captions === 'none' ? 'none' : 'TikTok', caption_style: td.captions === 'punch' ? 'punch' : 'standard' } : {}),
         ...(state.project?.config?.run_defaults || {}),
+        ...(state.runFormat ? { aspect_ratio: state.runFormat } : {}),
         subject: state.runContext?.idea_title || '',
       });
     } else {
@@ -1831,9 +2065,13 @@ async function loadRun(id) {
     const r = await fetch(`/platform/studio/runs/${id}/voice`);
     if (r.ok) {
       const data = await r.json();
-      state.stageData.voice = data;
-      state.stageStatus.voice = 'done';
-      renderVoiceResult(data);
+      // After "Generate a voice instead" the old upload's alignment is still the latest
+      // voice artifact until a voice is generated — it does not count as this run's voice.
+      if (!String(data.alignment_method || '').startsWith('uploaded')) {
+        state.stageData.voice = data;
+        state.stageStatus.voice = 'done';
+        renderVoiceResult(data);
+      }
     }
   } catch { /* ignore */ }
   }
@@ -1907,6 +2145,7 @@ function setAspectRatio(val) {
   document.getElementById('opt-aspect-portrait').classList.toggle('active', val === 'portrait');
   document.getElementById('opt-aspect-landscape').classList.toggle('active', val === 'landscape');
   document.getElementById('info-aspect').textContent = val === 'landscape' ? '16:9' : '9:16';
+  renderRunFacts();
   saveRunSettings();
 }
 
@@ -1943,10 +2182,35 @@ function onSubjectInput() {
 }
 
 function onSettingsContinue() {
-  state.stageStatus.settings = 'done';
   saveRunSettings();
-  renderStageTrack();
-  activateStage(state.voiceSource === 'uploaded' ? 'upload' : 'script');
+  closeSettingsDrawer();
+}
+function openSettingsDrawer() {
+  renderLanguageSelect();
+  document.getElementById('settings-drawer').style.display = '';
+}
+function closeSettingsDrawer() { document.getElementById('settings-drawer').style.display = 'none'; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSettingsDrawer(); });
+
+const RUN_LANGUAGES = { en: 'English', ru: 'Русский' };
+/** Fill the language select and say what changing it costs once a transcript exists. */
+function renderLanguageSelect() {
+  const el = document.getElementById('run-language');
+  if (!el) return;
+  el.innerHTML = Object.entries(RUN_LANGUAGES).map(([k, v]) => `<option value="${k}"${k === state.language ? ' selected' : ''}>${v}</option>`).join('');
+  const hint = document.getElementById('run-language-hint');
+  const transcribed = state.voiceSource === 'uploaded' && state.stageStatus.upload === 'done';
+  hint.className = 'rs-hint' + (transcribed ? ' warn' : '');
+  hint.textContent = transcribed
+    ? 'Your voiceover is already transcribed in this language. Changing it means uploading it again.'
+    : 'A per-run choice. The voiceover is transcribed in it, and the script and metadata are written in it.';
+  renderRunFacts();
+}
+async function onRunLanguageChange() {
+  const language = document.getElementById('run-language').value;
+  if (DEMO) { state.language = language; renderLanguageSelect(); return; }
+  await setRunLanguage(language);
+  renderLanguageSelect();
 }
 
 // True while stored values are being pushed INTO the controls. Without this,
@@ -2107,9 +2371,10 @@ async function createStoryboard() {
 
   // Determine which trigger button and error zone to use depending on caller stage
   const fromVoice = state.activeStage === 'voice';
-  const btn = document.getElementById(uploaded ? 'create-storyboard-btn3' : fromVoice ? 'create-storyboard-btn2' : 'skip-vo-btn');
-  const errId = uploaded ? 'transcript-error' : fromVoice ? 'voice-error' : 'script-error';
-  const statusEl = document.getElementById(uploaded ? 'transcript-stage-status' : fromVoice ? 'voice-stage-status' : 'script-stage-status');
+  const fromTranscript = uploaded && !fromVoice;
+  const btn = document.getElementById(fromTranscript ? 'create-storyboard-btn3' : uploaded ? 'create-storyboard-btn2u' : fromVoice ? 'create-storyboard-btn2' : 'skip-vo-btn');
+  const errId = fromTranscript ? 'transcript-error' : fromVoice ? 'voice-error' : 'script-error';
+  const statusEl = document.getElementById(fromTranscript ? 'transcript-stage-status' : fromVoice ? 'voice-stage-status' : 'script-stage-status');
   if (btn) btn.disabled = true;
   state.stageStatus.storyboard = 'running';
   hideErr(errId);
@@ -2601,8 +2866,7 @@ async function rebuildFromText(dryRun) {
 
 // ── Storyboard stage ──────────────────────────────────────────────────────
 function resetStoryboardPane() {
-  const where = state.voiceSource === 'uploaded' ? 'the Transcript stage' : 'the Script stage';
-  document.getElementById('sb-content').innerHTML = `<div class="muted" style="font-size:13px;">No storyboard yet — create one in ${where}.</div>`;
+  document.getElementById('sb-content').innerHTML = `<div class="muted" style="font-size:13px;">No storyboard yet — create one from the Voice step.</div>`;
   document.getElementById('sb-cta').style.display = 'none';
   hideErr('sb-error');
 }
@@ -2647,34 +2911,12 @@ function renderStoryboard(data) {
       <div class="sb-stat" id="sb-stat-fail-wrap" style="display:none;"><strong id="sb-stat-fail">0</strong> failed</div>
       <div class="sb-stat" id="sb-stat-ai-wrap" style="display:none;" title="AI image spend for this run (estimate) against its cap"><strong id="sb-stat-ai"></strong> AI images</div>
       <div class="sb-view-toggle">
-        <button class="sb-view-btn${script ? '' : ' active'}" id="sb-view-table" onclick="setSbView('table')">Table</button>
+        <button class="sb-view-btn${script ? '' : ' active'}" id="sb-view-table" onclick="setSbView('table')">Storyboard</button>
         <button class="sb-view-btn${script ? ' active' : ''}" id="sb-view-script" onclick="setSbView('script')">Script</button>
       </div>
     </div>
     ${script ? buildScriptView(scenes) : `
-    <div class="tbl-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Start</th>
-            <th>Dur</th>
-            <th>Voiceover</th>
-            <th>Type</th>
-            <th>Asset</th>
-            <th>Query</th>
-            <th>Motion</th>
-            <th>On-Screen Text</th>
-            <th>SFX</th>
-            <th>Preview</th>
-            <th style="width:32px;"></th>
-          </tr>
-        </thead>
-        <tbody id="sb-tbody">
-          ${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1], totalDur)).join('')}
-        </tbody>
-      </table>
-    </div>`}`;
+    <div id="sb-cards">${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1], totalDur)).join('')}</div>`}`;
 
   document.getElementById('sb-cta').style.display = '';
   updateAcquisitionUi();
@@ -2775,50 +3017,61 @@ function buildSceneRow(s, nextScene, totalDur) {
         : `<span class="vo-word" onclick="openSplitPop(event, '${sceneId}', ${s.start_word + j})" title="Split the scene before this word">${esc(w)}</span>`).join(' ')
     : esc(s.voiceover_line || '');
   const mergeBtn = (nextScene && canEditBoundaries)
-    ? `<button class="pencil-btn" id="merge-btn-${sceneId}" onclick="mergeScene('${sceneId}')" title="Merge with next scene">⤵</button>`
+    ? `<button class="sc-merge" id="merge-btn-${sceneId}" onclick="mergeScene('${sceneId}')" title="Merge with the next scene">⤵ Merge with next</button>`
     : '';
 
   // Motion applies to stills only — video clips are trimmed and centre-cropped with
-  // no zoom/pan, so show a disabled dash rather than a control that does nothing.
+  // no zoom/pan, so no control is shown for them rather than one that does nothing.
   const isVideoScene = s.asset_tier === 'video' || (!s.asset_tier && s.clip_type === 'hard_cut');
-  const motionCell = isVideoScene
-    ? '<span class="muted" title="Motion effects apply to still images only">—</span>'
-    : `<select class="cf-select cf-select--sm cf-select--motion" id="motion-${sceneId}" onchange="onMotionChange('${sceneId}')" title="Motion effect for this scene">
+  const motionCell = isVideoScene ? '' : `<select class="cf-select cf-select--sm cf-select--motion" id="motion-${sceneId}" onchange="onMotionChange('${sceneId}')" title="Motion effect for this scene">
         ${MOTION_EFFECTS.map(o => `<option value="${esc(o.key)}"${s.motion_effect === o.key ? ' selected' : ''}>${esc(o.label)}</option>`).join('')}
         ${(s.motion_effect && !MOTION_EFFECTS.some(o => o.key === s.motion_effect))
           ? `<option value="${esc(s.motion_effect)}" selected>${esc(s.motion_effect)} (legacy)</option>` : ''}
       </select>`;
 
-  // OST: show text + small indicator if overlay is active
-  const ostHasOverlay = ro.on_screen_text_overlay;
-  const ostDisplay = s.on_screen_text
-    ? `<span>${esc(s.on_screen_text)}${ostHasOverlay ? '<span class="ost-icon">▶</span>' : ''}</span>`
-    : '<span class="muted">—</span>';
-
-  return `<tr data-scene="${sceneId}">
-    <td class="mono narrow">${sceneId}</td>
-    <td class="mono narrow" style="color:var(--muted);">${fmtMs(s.scene_start_ms)}</td>
-    <td class="mono narrow">${displayDur.toFixed(1)}s</td>
-    <td class="wrap" style="max-width:220px;font-size:11px;color:var(--ink-sub);">${voCell}</td>
-    <td class="narrow"><span class="seg-badge ${segCls}">${esc(s.segment_type || 'B-roll')}</span></td>
-    <td class="narrow" style="padding:4px 2px;">${assetCell}</td>
-    <td class="editable-cell" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Click to edit" style="font-size:11px;max-width:180px;">${esc(s.primary_stk || '—')}</td>
-    <td class="narrow" style="padding:4px 4px;">${motionCell}</td>
-    <td class="editable-cell" id="ost-${sceneId}" onclick="editOst(this, '${sceneId}')" title="Click to edit">${ostDisplay}</td>
-    <td class="narrow" style="padding:4px 6px;">
-      <select class="cf-select cf-select--sm" id="sfx-${sceneId}" onchange="onSfxChange('${sceneId}')" title="Sound effect for this scene">
-        <option value="">— none / silence —</option>
-        ${state.sfxLibrary.map(o => `<option value="${esc(o.key)}"${s.sfx === o.key ? ' selected' : ''}>${esc(o.display_name)}</option>`).join('')}
-        ${(s.sfx && s.sfx.toLowerCase() !== 'silence' && !state.sfxLibrary.some(o => o.key === s.sfx))
-          ? `<option value="${esc(s.sfx)}" selected>${esc(s.sfx)} (unavailable)</option>` : ''}
-      </select>
-    </td>
-    <td class="narrow" id="thumb-cell-${sceneId}" style="padding:4px 6px;">${buildThumbCell(sceneId)}</td>
-    <td class="narrow" style="padding:4px 2px;"><div class="row-actions"><button class="pencil-btn" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" title="Edit image — re-acquire, upload or generate with AI">✎</button>${mergeBtn}</div></td>
-  </tr>`;
+  const wide = state.settings.aspectRatio === 'landscape';
+  const ost = s.on_screen_text || '';
+  const pencil = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
+  return `<div class="sc-card${wide ? ' wide' : ''}" data-scene="${sceneId}">
+    <div class="sc-thumb"><div id="thumb-cell-${sceneId}">${buildThumbCell(sceneId)}</div>
+      <button class="sc-pencil" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" title="Change this scene's asset — re-acquire, upload or generate with AI" aria-label="Change the asset of scene ${sceneId}">${pencil}</button></div>
+    <div class="sc-main">
+      <div class="sc-top"><span class="mono">Scene ${sceneId} · ${fmtMs(s.scene_start_ms)} · ${displayDur.toFixed(1)}s</span>${assetCell}</div>
+      <div class="sc-vo">${voCell}</div>
+      <div class="sc-tools">
+        <input class="sc-ost${ost ? ' on' : ''}" id="ost-input-${sceneId}" value="${esc(ost)}" placeholder="+ On-screen text" size="${Math.max(16, ost.length + 2)}" maxlength="120"
+          aria-label="On-screen text of scene ${sceneId}" onchange="onOstChange('${sceneId}')" onkeydown="if(event.key==='Enter')this.blur()">
+        <select class="cf-select cf-select--sm" id="sfx-${sceneId}" onchange="onSfxChange('${sceneId}')" title="Sound effect for this scene">
+          <option value="">+ Sound effect</option>
+          ${state.sfxLibrary.map(o => `<option value="${esc(o.key)}"${s.sfx === o.key ? ' selected' : ''}>${esc(o.display_name)}</option>`).join('')}
+          ${(s.sfx && s.sfx.toLowerCase() !== 'silence' && !state.sfxLibrary.some(o => o.key === s.sfx))
+            ? `<option value="${esc(s.sfx)}" selected>${esc(s.sfx)} (unavailable)</option>` : ''}
+        </select>
+        ${motionCell}
+        ${mergeBtn}
+      </div>
+      <div class="sc-query" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Search words for stock footage — click to edit">${esc(s.primary_stk || '— search words —')}</div>
+    </div>
+  </div>`;
 }
 
-// Inline editing — on-screen text
+/** Save the on-screen text field of a scene card; an empty field removes the text. */
+async function onOstChange(sceneId) {
+  const input = document.getElementById(`ost-input-${sceneId}`);
+  if (!input) return;
+  const val = input.value.trim();
+  input.classList.toggle('on', !!val);
+  if (!val) {
+    // clear_on_screen_text is the dedicated signal: an explicit null is indistinguishable
+    // from "field omitted" to the backend's `is not None` checks (see saveOst below).
+    await patchScene(sceneId, { clear_on_screen_text: true });
+    return;
+  }
+  const scene = state.stageData.storyboard?.storyboard?.scenes?.find(sc => String(sc.scene) === String(sceneId));
+  await patchScene(sceneId, { on_screen_text: val, on_screen_text_type: scene?.on_screen_text_type || 'stat' });
+}
+
+// Inline editing — on-screen text (the table's click-to-edit cell; cards use onOstChange)
 let _editingOst = null;
 function editOst(cell, sceneId) {
   if (_editingOst === sceneId) return;
@@ -3738,14 +3991,14 @@ function parseHash() {
     b.textContent = 'DEMO MODE — mock data, no backend';
     document.body.appendChild(b);
   }
-  document.getElementById('nav-runs').classList.add('active');
   renderRunList();
   renderStageTrack();
+  CFShell.mount({ active: 'project', projectTab: 'runs', foldDefault: 'folded', crumbs: [['Projects', '/'], ['…']] });
 
   const parsed = parseHash();
   if (parsed && parsed.runId) {
     await loadRun(parsed.runId);
-    if (parsed.stage && STAGES.includes(parsed.stage)) activateStage(parsed.stage);
+    if (parsed.stage && (STAGES.includes(parsed.stage) || SUB_STAGES[parsed.stage])) activateStage(SUB_STAGES[parsed.stage] ? 'script' : parsed.stage);
   } else if (!DEMO) {
     // No run in the URL: the run list now lives on the project pages (P12-S2).
     window.location.replace('/');

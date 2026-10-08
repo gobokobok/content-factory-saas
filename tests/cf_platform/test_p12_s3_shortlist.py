@@ -159,8 +159,8 @@ class TestShortlistRoutes:
             assert env.client.delete(url).status_code == 405
             assert len(env.client.get(url).json()) == 1
 
-    def test_shortlist_routes_are_exactly_the_four_expected(self):
-        """The shortlist surface is list, add, read-one, remove-one — nothing else."""
+    def test_shortlist_routes_are_exactly_the_five_expected(self):
+        """The shortlist surface is list, add, read-one, edit-one, remove-one — nothing bulk (D094)."""
         found = {
             (method.upper(), path)
             for path, operations in app.openapi()["paths"].items()
@@ -172,6 +172,7 @@ class TestShortlistRoutes:
             ("GET", base),
             ("POST", base),
             ("GET", base + "/{item_id}"),
+            ("PATCH", base + "/{item_id}"),
             ("DELETE", base + "/{item_id}"),
         }
 

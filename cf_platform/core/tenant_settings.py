@@ -26,6 +26,8 @@ class TenantSettings(BaseModel):
     image_model: str | None = None
     # provider -> {"encrypted": Fernet token, "hint": last four characters}
     api_keys: dict[str, dict[str, str]] = Field(default_factory=dict)
+    # Tenant defaults every project inherits: language, format, captions, spend_cap.
+    defaults: dict[str, Any] = Field(default_factory=dict)
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 

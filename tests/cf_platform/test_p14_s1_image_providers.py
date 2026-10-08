@@ -300,9 +300,10 @@ class TestPostgresRepository:
     @pytest.mark.asyncio
     async def test_get_maps_a_row_and_returns_none_when_absent(self):
         now = datetime.now(UTC)
-        pool, cursor = _mock_pool(("operator", "kie", "m", {"kie": {"encrypted": "x", "hint": "1234"}}, now))
+        pool, cursor = _mock_pool(("operator", "kie", "m", {"kie": {"encrypted": "x", "hint": "1234"}}, {"language": "ru"}, now))
         row = await PostgresTenantSettingsRepository(pool).get("operator")
         assert row.image_provider == "kie" and row.api_keys["kie"]["hint"] == "1234"
+        assert row.defaults == {"language": "ru"}
         assert "FROM tenant_settings WHERE tenant_id" in cursor.execute.call_args.args[0]
 
         pool, _ = _mock_pool(None)

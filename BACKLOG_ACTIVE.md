@@ -231,6 +231,8 @@ Operator request at the Sprint P14 review (2026-10-05). The product now has thre
 
 ---
 
+**Status 2026-10-08:** the operator approved the prototype after six review rounds (`docs/ux/REVIEW.md`) and asked for it to be applied to the real DEV app, so the build sprint was folded in and S4's separate build-story drafting was skipped. Built: shell, project pages, run without an idea, idea editing, one five-step pipeline with the Script step choosing the source (`PUT …/voice-source`), run settings drawer, storyboard cards, Integrations and Defaults (migration 0004), tenant-wide Libraries, derived run progress. **Not built (listed in D105):** library "use in a scene", music from the library, per-service default models, Research / Publishing panel entries. **Open:** the operator's pain points for `docs/ux/AUDIT.md` section 1; smoke test on DEV.
+
 ## [P-UX3-S1] Audit of today's flow and review of comparable tools
 **Epic:** E52 — UI/UX redesign
 **Sprint:** P-UX3

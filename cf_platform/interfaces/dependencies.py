@@ -4,6 +4,8 @@ Split out of cf_platform/interfaces/api.py (D069) so each route module can
 import only what it needs without pulling in the whole platform surface.
 """
 
+import logging
+
 from fastapi import Depends
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
@@ -17,6 +19,7 @@ from cf_platform.core.artifact_manager import (
 )
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.db import get_checkpointer, get_pool
+from cf_platform.core.integrations import effective_platform_settings
 from cf_platform.core.postgres_project_repos import (
     PostgresProjectRepository,
     PostgresShortlistRepository,
@@ -168,3 +171,22 @@ def get_artifact_storage() -> ArtifactStorage:
         secret_access_key=settings.R2_SECRET_ACCESS_KEY,
         bucket_name=settings.R2_BUCKET_NAME,
     )
+
+
+_logger = logging.getLogger(__name__)
+
+
+async def get_effective_platform_settings(
+    settings: PlatformSettings = Depends(get_platform_settings),
+    repo: TenantSettingsRepository = Depends(get_tenant_settings_repository),
+) -> PlatformSettings:
+    """Platform settings with the tenant's saved service keys overlaid (Integrations page).
+
+    A key saved in Settings wins over the Railway variable. A settings-database outage
+    must not break the pipeline, so any error falls back to the plain Railway settings.
+    """
+    try:
+        return await effective_platform_settings(repo, PLATFORM_USER_ID, settings)
+    except Exception:
+        _logger.warning("Tenant keys unavailable — using the Railway variables", exc_info=True)
+        return settings

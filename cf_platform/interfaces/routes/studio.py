@@ -8,11 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
-from cf_platform.core.config import PlatformSettings, get_platform_settings
+from cf_platform.core.config import PlatformSettings
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.interfaces.dependencies import (
     PLATFORM_USER_ID,
     get_artifact_storage,
+    get_effective_platform_settings,
     get_trace_event_repository,
 )
 from cf_platform.interfaces.routes._helpers import latest_artifact_key as _latest_artifact_key
@@ -413,7 +414,7 @@ async def studio_upload_output(
     file: UploadFile,
     confirm_overwrite: bool = False,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
     trace_events: TraceEventRepository = Depends(get_trace_event_repository),
 ) -> dict:
     """Store the video the operator rendered in CapCut as the run's final video (P13b-S4, D100).
@@ -590,7 +591,7 @@ async def studio_patch_scene(
     scene_id: str,
     body: ScenePatchRequest,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> dict:
     """Patch one scene's editable fields and write a new storyboard artifact version.
 
@@ -814,7 +815,7 @@ async def studio_split_scene(
     scene_id: str,
     body: SceneSplitRequest,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> dict:
     """Split a scene in two at a word (P13-S2).
 
@@ -839,7 +840,7 @@ async def studio_merge_scene(
     run_id: str,
     scene_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> dict:
     """Merge a scene with the one after it (P13-S2); 409 on the last scene.
 
@@ -861,7 +862,7 @@ async def studio_replace_boundaries(
     run_id: str,
     body: BoundariesRequest,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> dict:
     """Replace all scene boundaries at once (P13-S4, the Script view).
 
@@ -899,7 +900,7 @@ async def studio_reacquire_scene(
     scene_n: str,
     body: SceneReacquireRequest,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
     trace_events: TraceEventRepository = Depends(get_trace_event_repository),
 ) -> dict:
     """Re-acquire a single scene's asset using a custom query.
@@ -1132,7 +1133,7 @@ async def studio_upload_scene_asset(
     scene_n: str,
     file: UploadFile,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
     trace_events: TraceEventRepository = Depends(get_trace_event_repository),
 ) -> dict:
     """Upload an operator-supplied asset for a single scene.

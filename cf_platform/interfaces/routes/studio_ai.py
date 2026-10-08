@@ -28,6 +28,7 @@ from cf_platform.core.ai_images import (
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.image_provider import ImageGenerationError, build_image_provider
+from cf_platform.core.integrations import resolve_defaults
 from cf_platform.core.projects import ProjectNotFoundError, ProjectRepository
 from cf_platform.core.run_manager import RunNotFoundError, RunRepository
 from cf_platform.core.secret_box import SecretBoxError
@@ -73,6 +74,15 @@ async def _project_style(runs: RunRepository, projects: ProjectRepository, run_i
     return style.strip() if isinstance(style, str) and style.strip() else None
 
 
+async def _spend_cap(tenant_repo: TenantSettingsRepository, settings: PlatformSettings) -> float:
+    """The per-run AI image cap: the tenant's default, else IMAGE_RUN_SPEND_CAP_USD (never raises)."""
+    try:
+        return float((await resolve_defaults(tenant_repo, PLATFORM_USER_ID, settings))["spend_cap"])
+    except Exception:
+        _logger.warning("studio_generate: tenant defaults unavailable — using the ENV spend cap", exc_info=True)
+        return settings.IMAGE_RUN_SPEND_CAP_USD
+
+
 async def _run_aspect(storage: ArtifactStorage, run_id: str, default: str) -> str:
     """The run's aspect ratio from settings.json, else `default`; 9:16 / 16:9 / 1:1 only."""
     try:
@@ -87,10 +97,12 @@ async def studio_get_ai_spend(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
     settings: PlatformSettings = Depends(get_platform_settings),
+    tenant_repo: TenantSettingsRepository = Depends(get_tenant_settings_repository),
 ) -> dict:
     """Return what the run has spent on AI images, its cap and the per-image estimate."""
     ledger = await read_spend(storage, run_id)
-    return spend_summary(ledger, settings.IMAGE_COST_USD, settings.IMAGE_RUN_SPEND_CAP_USD)
+    cap = await _spend_cap(tenant_repo, settings)
+    return spend_summary(ledger, settings.IMAGE_COST_USD, cap)
 
 
 @router.post("/studio/runs/{run_id}/scenes/{scene_n}/generate")
@@ -141,8 +153,9 @@ async def studio_generate_scene_image(
         )
 
     ledger = await read_spend(storage, run_id)
+    cap = await _spend_cap(tenant_repo, settings)
     try:
-        ensure_under_cap(ledger, settings.IMAGE_COST_USD, settings.IMAGE_RUN_SPEND_CAP_USD)
+        ensure_under_cap(ledger, settings.IMAGE_COST_USD, cap)
     except SpendCapReachedError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -203,6 +216,6 @@ async def studio_generate_scene_image(
         "source": AI_GENERATED_SOURCE,
         "preview_url": preview_url,
         "ai_prompt": prompt,
-        "spend": spend_summary(ledger, settings.IMAGE_COST_USD, settings.IMAGE_RUN_SPEND_CAP_USD),
+        "spend": spend_summary(ledger, settings.IMAGE_COST_USD, cap),
         "generated_at": datetime.now().isoformat(),
     }

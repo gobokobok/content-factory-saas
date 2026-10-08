@@ -12,7 +12,7 @@ from psycopg_pool import AsyncConnectionPool
 from cf_platform.core.postgres_repos import _ensure_open
 from cf_platform.core.tenant_settings import TenantSettings
 
-_COLUMNS = "tenant_id, image_provider, image_model, api_keys, updated_at"
+_COLUMNS = "tenant_id, image_provider, image_model, api_keys, defaults, updated_at"
 
 
 class PostgresTenantSettingsRepository:
@@ -33,10 +33,10 @@ class PostgresTenantSettingsRepository:
                 row = await cur.fetchone()
         if row is None:
             return None
-        tenant, provider, model, api_keys, updated_at = row
+        tenant, provider, model, api_keys, defaults, updated_at = row
         return TenantSettings(
             tenant_id=tenant, image_provider=provider, image_model=model,
-            api_keys=api_keys or {}, updated_at=updated_at,
+            api_keys=api_keys or {}, defaults=defaults or {}, updated_at=updated_at,
         )
 
     async def save(self, settings: TenantSettings) -> TenantSettings:
@@ -47,16 +47,17 @@ class PostgresTenantSettingsRepository:
                 await cur.execute(
                     f"""
                     INSERT INTO tenant_settings ({_COLUMNS})
-                    VALUES (%s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (tenant_id) DO UPDATE SET
                         image_provider = EXCLUDED.image_provider,
                         image_model = EXCLUDED.image_model,
                         api_keys = EXCLUDED.api_keys,
+                        defaults = EXCLUDED.defaults,
                         updated_at = EXCLUDED.updated_at
                     """,
                     (
                         settings.tenant_id, settings.image_provider, settings.image_model,
-                        Jsonb(settings.api_keys), settings.updated_at,
+                        Jsonb(settings.api_keys), Jsonb(settings.defaults), settings.updated_at,
                     ),
                 )
             await conn.commit()

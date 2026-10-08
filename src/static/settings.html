@@ -7,248 +7,142 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
-  <style>
-    /* Project list (P12-S2, D092). Same "Monochrome Console" tokens as studio-v2.html —
-       a separate static page, not an addition to it. */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #FAFAFA; --surface: #FFFFFF; --border: #E7E7E9; --border2: #F0F0F2;
-      --ink: #121215; --ink-sub: #55555C; --muted: #8B8B92; --faint: #B4B4BA;
-      --accent: #2E45EC; --accent-h: #1F33C9; --accent-tint: #EEF0FE; --accent-ring: rgba(46, 69, 236, 0.28);
-      --red: #D92D20; --red-tint: #FEF1F0;
-      --font: 'Schibsted Grotesk', system-ui, sans-serif; --mono: 'Fragment Mono', ui-monospace, monospace;
-      --r: 8px; --r-sm: 6px;
-    }
-    body {
-      font-family: var(--font); font-size: 14px; line-height: 1.5; color: var(--ink);
-      background: var(--bg); min-height: 100vh; -webkit-font-smoothing: antialiased;
-    }
-    button, input { font-family: var(--font); }
-    :focus-visible { outline: 2px solid var(--accent-ring); outline-offset: 2px; border-radius: 4px; }
-
-    .topbar {
-      display: flex; align-items: center; gap: 10px; padding: 14px 40px;
-      background: var(--surface); border-bottom: 1px solid var(--border);
-    }
-    .brand-mark { width: 26px; height: 26px; border-radius: 7px; background: var(--ink); position: relative; flex-shrink: 0; }
-    .brand-mark::after { content: ""; position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); right: 5px; bottom: 5px; }
-    .brand-name { font-weight: 700; letter-spacing: -0.01em; }
-    .brand-name span { color: var(--muted); font-weight: 500; }
-    .spacer { flex: 1; }
-
-    .page { max-width: 760px; padding: 56px 40px 80px; }
-    .page-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
-    .page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
-    .page-count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
-
-    .btn {
-      display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: var(--r-sm);
-      font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid transparent; line-height: 1; transition: all 0.15s;
-    }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-    .btn-primary:hover:not(:disabled) { background: var(--accent-h); border-color: var(--accent-h); }
-    .btn-secondary { background: var(--surface); color: var(--ink); border-color: var(--border); }
-    .btn-secondary:hover:not(:disabled) { border-color: var(--faint); background: var(--border2); }
-    .btn-ghost { background: transparent; color: var(--muted); font-weight: 500; }
-    .btn-ghost:hover { color: var(--ink); background: var(--border2); }
-
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; margin-bottom: 16px; }
-    .form-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-    .form-row > div { flex: 1; min-width: 200px; }
-    .label { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
-    .input {
-      width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm);
-      font-size: 13px; color: var(--ink); background: var(--surface); transition: border-color 0.12s, box-shadow 0.12s;
-    }
-    .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
-    .input::placeholder { color: var(--faint); }
-
-    .row {
-      display: flex; align-items: center; gap: 16px; width: 100%; padding: 14px 18px; margin-bottom: 8px;
-      text-align: left; text-decoration: none; color: inherit;
-      background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
-      transition: border-color 0.12s, box-shadow 0.12s;
-    }
-    .row:hover { border-color: var(--faint); box-shadow: 0 2px 8px rgba(18,18,21,0.05); }
-    .row-main { flex: 1; min-width: 0; }
-    .row-name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .row-meta { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .row-count { font-family: var(--mono); font-size: 11px; color: var(--muted); flex-shrink: 0; }
-    .row-arrow { color: var(--faint); flex-shrink: 0; }
-    .row:hover .row-arrow { color: var(--ink); }
-
-    .empty { text-align: center; padding: 72px 0 32px; }
-    .empty-glyph { font-family: var(--mono); font-size: 13px; color: var(--faint); letter-spacing: 0.3em; margin-bottom: 16px; }
-    .empty-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
-    .empty-sub { font-size: 13px; color: var(--muted); }
-
-    .error-bar { padding: 10px 14px; border: 1px solid #F4C6C2; border-radius: var(--r-sm); background: var(--red-tint); color: var(--red); font-size: 13px; margin-bottom: 16px; }
-    .notice { padding: 10px 14px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--accent-tint); color: var(--accent); font-size: 13px; margin-bottom: 16px; }
-    .muted { color: var(--muted); }
-    .back { display: inline-block; font-size: 13px; color: var(--muted); text-decoration: none; margin-bottom: 18px; }
-    .back:hover { color: var(--ink); }
-    .card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-    .card-sub { font-size: 12px; color: var(--muted); margin-bottom: 16px; }
-    .select { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); font-size: 13px; background: var(--surface); color: var(--ink); }
-    .hint { font-size: 12px; color: var(--muted); margin-top: 5px; }
-    .saved-msg { font-size: 12px; color: var(--muted); margin-left: 10px; }
-    .key-state { font-family: var(--mono); font-size: 12px; }
-
-    @media (max-width: 600px) {
-      .topbar { padding: 12px 16px; }
-      .page { padding: 28px 16px 64px; }
-      .row { padding: 12px 14px; gap: 10px; }
-    }
-    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-  </style>
+  <link rel="stylesheet" href="/ui/app.css">
+  <link rel="stylesheet" href="/ui/shell.css">
 </head>
-<body>
-
-<header class="topbar">
-  <div class="brand-mark" aria-hidden="true"></div>
-  <div class="brand-name">CF <span>Studio</span></div>
-  <div class="spacer"></div>
-  <button class="btn btn-ghost" onclick="logOut()">Log out</button>
-</header>
-
-<main class="page">
-  <a class="back" href="/">← All projects</a>
-  <div class="page-head">
-    <h1 class="page-title">Settings</h1>
+<body class="cf-body">
+<div class="cf-shell" id="cf-shell">
+  <aside class="cf-nav" id="cf-nav"></aside>
+  <div class="cf-scrim" onclick="CFShell.closeNav()"></div>
+  <div class="cf-main">
+    <nav class="cf-crumbs" id="cf-crumbs" aria-label="Breadcrumb"></nav>
+    <main class="cf-page">
+      <div id="error" class="note err" style="display:none;"></div>
+      <div class="wrap" id="view"><div class="muted">Loading…</div></div>
+    </main>
   </div>
+</div>
+<div id="overlay"></div>
+<div class="toast" id="toast" role="status"></div>
 
-  <div id="error" class="error-bar" style="display:none;"></div>
-  <div id="notice" class="notice" style="display:none;"></div>
-
-  <form class="card" id="image-form" onsubmit="saveImageSettings(event)">
-    <div class="card-title">AI image generation</div>
-    <div class="card-sub">Used by Generate in a scene's edit-image dialog. Images are only generated when you press Generate — never automatically.</div>
-    <div class="form-row">
-      <div>
-        <label class="label" for="img-provider">Provider</label>
-        <select class="select" id="img-provider" onchange="renderKeyState()">
-          <option value="kie">kie.ai</option>
-          <option value="openai">OpenAI</option>
-        </select>
-      </div>
-      <div>
-        <label class="label" for="img-model">Model (optional)</label>
-        <input class="input" id="img-model" maxlength="120" autocomplete="off" spellcheck="false">
-        <div class="hint" id="img-model-hint"></div>
-      </div>
-    </div>
-    <div class="form-row">
-      <div>
-        <label class="label" for="img-key">API key</label>
-        <input class="input" id="img-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="Paste a key to save or replace it">
-        <div class="hint"><span class="key-state" id="key-state"></span></div>
-      </div>
-    </div>
-    <button class="btn btn-primary" type="submit" id="img-save">Save</button>
-    <button class="btn btn-ghost" type="button" id="img-clear" onclick="clearKey()" style="display:none;">Remove saved key</button>
-    <span class="saved-msg" id="img-msg"></span>
-  </form>
-</main>
-
+<script src="/ui/shell.js"></script>
+<script src="/ui/app.js"></script>
 <script>
-const API = '/platform/tenant/settings/image';
-let current = null;
+/* Tenant settings — Integrations (every service's key, plus the AI image provider) and
+   Defaults (what every project inherits). Keys are never shown, only a four-character hint. */
+const TAB = new URLSearchParams(location.search).get('tab') === 'defaults' ? 'defaults' : 'integrations';
+let integrations = null, image = null, defaults = null, projects = [], keyEdit = '';
 
-function showErr(msg) {
-  const el = document.getElementById('error');
-  el.textContent = msg || '';
-  el.style.display = msg ? '' : 'none';
+// ── Integrations ───────────────────────────────────────────────────────────
+function keyState(s) {
+  if (s.key_source === 'tenant') return `<span class="dot-s ok"></span>Saved key ending ${esc(s.key_hint || '••••')}`;
+  if (s.key_source === 'env') return '<span class="dot-s env"></span>Using the Railway variable';
+  return '<span class="dot-s"></span>No key yet';
 }
-async function api(url, opts) {
-  const r = await fetch(url, opts);
-  if (r.status === 401) { window.location.href = '/login'; throw new Error('Unauthorized'); }
-  return r;
+function serviceRow(s) {
+  const imageProvider = image && image.provider === s.service_id;
+  const editing = keyEdit === s.service_id;
+  return `<div class="integ" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;">
+    <div><div class="row-name">${esc(s.name)}${imageProvider ? ' <span class="chip run" style="margin-left:6px;">image provider in use</span>' : ''}</div>
+      <div class="row-meta" style="margin-top:1px;"><span>${esc(s.use)}</span></div></div>
+    <div style="font-size:12px;">${keyState(s)}</div>
+    ${s.can_save ? `<button class="btn btn-secondary btn-sm" onclick="keyEdit=keyEdit==='${esc(s.service_id)}'?'':'${esc(s.service_id)}';render()">${s.key_source === 'tenant' ? 'Replace key' : 'Add key'}</button>`
+                 : '<span class="hint" style="margin:0;">Railway variable only</span>'}
+    ${editing ? `<div class="keyrow"><input class="input" id="key-input" type="password" autocomplete="new-password" spellcheck="false" placeholder="Paste a key — it is stored encrypted and never shown again" aria-label="API key">
+      <button class="btn btn-primary btn-sm" onclick="saveKey('${esc(s.service_id)}')">Save</button>
+      ${s.key_source === 'tenant' ? `<button class="btn btn-ghost btn-sm" onclick="removeKey('${esc(s.service_id)}')">Remove saved key</button>` : ''}</div>` : ''}
+  </div>`;
 }
-async function errorDetail(r) {
-  const e = await r.json().catch(() => ({}));
-  return typeof e.detail === 'string' ? e.detail : `Error ${r.status}`;
+function imageCard() {
+  if (!image) return '';
+  const p = image.provider;
+  return `<div class="card"><div class="card-title">AI image generation</div>
+    <div class="card-sub">Used by Generate in a scene's asset panel. Images are only generated when you press Generate — never automatically. The key for each provider is set below.</div>
+    <div class="grid2">
+      <div class="field"><label class="label" for="img-provider">Provider</label>
+        <select class="select" id="img-provider" onchange="saveImage()">${opts({ kie: 'kie.ai', openai: 'OpenAI' }, p)}</select></div>
+      <div class="field"><label class="label" for="img-model">Model (optional)</label>
+        <input class="input" id="img-model" maxlength="120" autocomplete="off" spellcheck="false" value="${esc(image.model || '')}" placeholder="${esc(image.default_models[p] || '')}" onchange="saveImage()">
+        <div class="hint">Empty uses ${esc(image.default_models[p] || 'the provider default')}.</div></div>
+    </div></div>`;
 }
-async function logOut() {
-  await fetch('/auth/logout', { method: 'POST' });
-  window.location.href = '/login';
+function viewIntegrations() {
+  return `<div class="page-head"><div><h1>Integrations</h1><div class="sub">Every service the pipeline calls, with its key, set once for the whole tenant. Projects and runs use them; they never see a key.</div></div></div>
+    ${integrations.can_save_keys ? '<div class="note">A key saved here wins over the Railway variable of the same service. Without one, the Railway variable is used.</div>'
+      : '<div class="note warn">Keys cannot be saved yet: SETTINGS_ENCRYPTION_KEY is not set on Railway. Railway key variables still work.</div>'}
+    ${imageCard()}
+    ${integrations.services.map(serviceRow).join('')}`;
 }
-
-// What the selected provider's key looks like right now: a key saved here, the
-// Railway variable, or nothing. The key itself is never sent to the browser.
-function renderKeyState() {
-  const provider = document.getElementById('img-provider').value;
-  const p = current.providers[provider];
-  const el = document.getElementById('key-state');
-  if (p.key_source === 'tenant') el.textContent = `Saved key ending ${p.key_hint || '••••'}`;
-  else if (p.key_source === 'env') el.textContent = 'Using the key from the Railway variable';
-  else el.textContent = 'No key yet';
-  document.getElementById('img-clear').style.display = p.key_source === 'tenant' ? '' : 'none';
-  document.getElementById('img-model').placeholder = current.default_models[provider] || '';
-  document.getElementById('img-model-hint').textContent = `Empty uses ${current.default_models[provider] || 'the provider default'}.`;
+async function saveKey(id) {
+  const key = $('key-input').value.trim();
+  if (!key) return toast('Paste a key first.');
+  await putService(id, { api_key: key }, 'Key saved.');
 }
-
-function render() {
-  document.getElementById('img-provider').value = current.provider;
-  document.getElementById('img-model').value = current.model || '';
-  document.getElementById('img-key').value = '';
-  renderKeyState();
-  const notice = document.getElementById('notice');
-  if (!current.can_save_keys) {
-    notice.textContent = 'Keys cannot be saved yet: SETTINGS_ENCRYPTION_KEY is not set on Railway. A Railway key variable still works.';
-    notice.style.display = '';
-  } else {
-    notice.style.display = 'none';
-  }
+async function removeKey(id) {
+  if (!confirm('Remove the saved key? The Railway variable is used again, if there is one.')) return;
+  await putService(id, { clear_key: true }, 'Saved key removed.');
 }
-
-async function load() {
+async function putService(id, body, msg) {
   try {
-    const r = await api(API);
+    const r = await api(`/platform/tenant/integrations/${encodeURIComponent(id)}`, jsonOpts('PUT', body));
     if (!r.ok) throw new Error(await errorDetail(r));
-    current = await r.json();
+    integrations = await r.json(); keyEdit = ''; showErr(''); render(); toast(msg);
+  } catch (e) { showErr(`Could not save: ${e.message}`); }
+}
+async function saveImage() {
+  try {
+    const r = await api('/platform/tenant/settings/image', jsonOpts('PUT', { provider: $('img-provider').value, model: $('img-model').value.trim() }));
+    if (!r.ok) throw new Error(await errorDetail(r));
+    image = await r.json(); showErr(''); render(); toast('Saved.');
+  } catch (e) { showErr(`Could not save: ${e.message}`); }
+}
+
+// ── Defaults ───────────────────────────────────────────────────────────────
+const overriding = key => projects.filter(p => projectOverrides(p)[key] !== undefined).length;
+function defaultField(key, label, map) {
+  const n = overriding(key);
+  return `<div class="field"><label class="label">${label}</label>
+    <select class="select" onchange="saveDefault('${key}', this.value)">${opts(map, defaults[key])}</select>
+    <div class="hint">${n ? `${n} of ${projects.length} projects override this` : 'Used by every project'}</div></div>`;
+}
+function viewDefaults() {
+  return `<div class="narrow-wrap"><div class="page-head"><div><h1>Defaults</h1><div class="sub">What every project starts from. Order of precedence: the run, then the project, then these.</div></div></div>
+    <div class="card"><div class="card-title">New projects and runs</div><div class="card-sub">Existing runs are not changed by an edit here.</div>
+      <div class="grid2">${defaultField('language', 'Language', LANGS)}${defaultField('format', 'Format', FORMATS)}${defaultField('captions', 'Captions', CAPTIONS)}</div></div>
+    <div class="card"><div class="card-title">Spend</div><div class="card-sub">A run stops generating AI images when it reaches the cap.</div>
+      <div class="grid2"><div class="field"><label class="label" for="cap">AI image cap per run (USD)</label>
+        <input class="input" id="cap" type="number" step="0.5" min="0" value="${esc(defaults.spend_cap)}" onchange="saveDefault('spend_cap', this.value)"></div></div></div></div>`;
+}
+async function saveDefault(key, value) {
+  try {
+    const r = await api('/platform/tenant/defaults', jsonOpts('PUT', { [key]: value }));
+    if (!r.ok) throw new Error(await errorDetail(r));
+    defaults = await r.json(); showErr(''); render(); toast('Saved. Projects that have not overridden it now use this.');
+  } catch (e) { showErr(`Could not save: ${e.message}`); render(); }
+}
+
+function render() { $('view').className = 'wrap' + (TAB === 'defaults' ? ' narrow' : ''); $('view').innerHTML = TAB === 'defaults' ? viewDefaults() : viewIntegrations(); }
+
+(async function init() {
+  const label = TAB === 'defaults' ? 'Defaults' : 'Integrations';
+  CFShell.mount({ active: 'settings:' + TAB, crumbs: [['Settings'], [label]] });
+  document.title = `${label} — Content Factory`;
+  try {
+    if (TAB === 'defaults') {
+      const [d, p] = await Promise.all([api('/platform/tenant/defaults'), api('/platform/projects')]);
+      if (!d.ok) throw new Error(await errorDetail(d));
+      defaults = await d.json(); projects = p.ok ? await p.json() : [];
+    } else {
+      const [i, m] = await Promise.all([api('/platform/tenant/integrations'), api('/platform/tenant/settings/image')]);
+      if (!i.ok) throw new Error(await errorDetail(i));
+      integrations = await i.json(); image = m.ok ? await m.json() : null;
+    }
     render();
-    showErr('');
   } catch (e) {
     showErr(`Could not load settings: ${e.message}`);
+    $('view').innerHTML = '';
   }
-}
-
-async function put(body) {
-  const btn = document.getElementById('img-save');
-  btn.disabled = true;
-  document.getElementById('img-msg').textContent = '';
-  try {
-    const r = await api(API, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(await errorDetail(r));
-    current = await r.json();
-    render();
-    document.getElementById('img-msg').textContent = '✓ saved';
-    showErr('');
-  } catch (e) {
-    showErr(`Could not save: ${e.message}`);
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-function saveImageSettings(event) {
-  event.preventDefault();
-  const body = {
-    provider: document.getElementById('img-provider').value,
-    model: document.getElementById('img-model').value.trim(),
-  };
-  const key = document.getElementById('img-key').value.trim();
-  if (key) body.api_key = key;
-  return put(body);
-}
-
-function clearKey() {
-  if (!confirm('Remove the saved key for this provider?')) return;
-  return put({ clear_key_for: document.getElementById('img-provider').value });
-}
-
-load();
+})();
 </script>
 </body>
 </html>

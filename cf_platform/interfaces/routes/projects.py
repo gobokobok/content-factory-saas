@@ -4,12 +4,13 @@
     POST   /projects                                  create a project
     GET    /projects/{id}                             read one
     PATCH  /projects/{id}                             name / niche / config / archive
-    GET    /projects/{id}/runs                        the project's runs, newest first
-    POST   /projects/{id}/runs                        create a run from shortlist item(s)
+    GET    /projects/{id}/runs                        the project's runs, newest first, with progress
+    POST   /projects/{id}/runs                        create a run from idea(s) or from a title alone
     POST   /projects/{id}/runs/import                 register runs known only to a browser
     DELETE /projects/{id}/runs/{run_id}               drop a run from the project's list
     GET    /projects/{id}/shortlist                   the project's shortlist
     POST   /projects/{id}/shortlist                   add an idea by hand
+    PATCH  /projects/{id}/shortlist/{item_id}         edit an idea
     GET    /projects/{id}/shortlist/{item_id}         read one item, removed or not
     DELETE /projects/{id}/shortlist/{item_id}         remove one item (soft)
     GET    /studio/runs/{run_id}/context              a run's project + source items, for Studio
@@ -19,12 +20,16 @@ Handlers are thin wrappers over the pure async functions in cf_platform/core
 (projects.py, shortlist.py, run_manager.py) — D040.
 """
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage
+from cf_platform.core.config import PlatformSettings, get_platform_settings
+from cf_platform.core.integrations import resolve_defaults, resolve_run_values
 from cf_platform.core.projects import (
     Project,
     ProjectNotFoundError,
@@ -39,6 +44,7 @@ from cf_platform.core.run_manager import (
     create_run,
     register_existing_run,
 )
+from cf_platform.core.run_progress import collect_run_progress
 from cf_platform.core.schemas import RunRecord
 from cf_platform.core.shortlist import (
     ShortlistItem,
@@ -49,12 +55,17 @@ from cf_platform.core.shortlist import (
     build_idea_context,
     remove_item,
     resolve_items_for_run,
+    update_item,
 )
+from cf_platform.core.tenant_settings import TenantSettingsRepository
 from cf_platform.interfaces.dependencies import (
     PLATFORM_USER_ID,
+    get_artifact_repository,
+    get_artifact_storage,
     get_project_repository,
     get_run_repository,
     get_shortlist_repository,
+    get_tenant_settings_repository,
 )
 
 router = APIRouter()
@@ -83,6 +94,7 @@ class ProjectResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     run_count: int = 0
+    last_activity: datetime | None = None
 
 
 class ProjectCreateRequest(BaseModel):
@@ -111,14 +123,31 @@ class ProjectRunResponse(BaseModel):
     block: str
     created_at: datetime
     updated_at: datetime
+    voice_source: Literal["generated", "uploaded"] = "generated"
+    language: str = "en"
+    format: str | None = None
+    # Derived from what the run has produced (core/run_progress.py): how many of the
+    # five steps are done, the first one that is not, and whether a final video exists.
+    steps_done: int = 0
+    current_step: str | None = None
+    has_video: bool = False
 
 
 class RunFromShortlistRequest(BaseModel):
     """Request body for POST /platform/projects/{id}/runs."""
 
-    item_ids: list[str] = Field(min_length=1)
-    # "generated": Script → generated voice (default). "uploaded": the operator
-    # uploads the voiceover; Script and Voice stages are skipped (P14b).
+    # Ideas the run is made from. May be empty: a run can start from a title alone.
+    item_ids: list[str] = Field(default_factory=list)
+    # The run's title and an optional brief. Required when there are no ideas; with
+    # ideas, a title replaces the ideas' combined title and the brief is added to the
+    # points the script covers.
+    title: str | None = Field(default=None, max_length=300)
+    brief: str | None = Field(default=None, max_length=2000)
+    # Format (aspect ratio) of the video, decides which footage is acquired. Omitted:
+    # the project's default, else the tenant's.
+    aspect_ratio: Literal["9:16", "16:9"] | None = None
+    # "generated" (default) or "uploaded". The Script step now chooses the source;
+    # this stays accepted so existing callers keep working.
     voice_source: Literal["generated", "uploaded"] = "generated"
     # ISO 639-1 language of the video (P14b-S1). Omitted: the project's
     # config.language, else "en". A per-run choice — never locked by the project's
@@ -164,6 +193,15 @@ class ShortlistItemResponse(BaseModel):
     run_count: int = 0
 
 
+class ShortlistUpdateRequest(BaseModel):
+    """Request body for PATCH /platform/projects/{id}/shortlist/{item_id} — only supplied fields change."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    summary: str | None = Field(default=None, max_length=2000)
+    source: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
 class ShortlistAddRequest(BaseModel):
     """Request body for POST /platform/projects/{id}/shortlist — a hand-entered idea."""
 
@@ -186,12 +224,17 @@ class RunContextResponse(BaseModel):
     supporting_points: list[str]
     voice_source: Literal["generated", "uploaded"] = "generated"
     language: str = "en"
+    format: str | None = None
+    brief: str = ""
+    tenant_defaults: dict[str, Any] = {}
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
 
-def _project_response(project: Project, run_count: int = 0) -> ProjectResponse:
+def _project_response(
+    project: Project, run_count: int = 0, last_activity: datetime | None = None
+) -> ProjectResponse:
     """Map a Project to its response model."""
     return ProjectResponse(
         project_id=project.project_id,
@@ -203,10 +246,13 @@ def _project_response(project: Project, run_count: int = 0) -> ProjectResponse:
         created_at=project.created_at,
         updated_at=project.updated_at,
         run_count=run_count,
+        last_activity=last_activity,
     )
 
 
-def _run_response(run: RunRecord) -> ProjectRunResponse:
+def _run_response(
+    run: RunRecord, progress: tuple[int, str | None, bool] | None = None
+) -> ProjectRunResponse:
     """Map a RunRecord to its run-list response model."""
     return ProjectRunResponse(
         run_id=run.run_id,
@@ -215,7 +261,22 @@ def _run_response(run: RunRecord) -> ProjectRunResponse:
         block=run.block,
         created_at=run.created_at,
         updated_at=run.updated_at,
+        voice_source="uploaded" if run.inputs.get("voice_source") == "uploaded" else "generated",
+        language=str(run.inputs.get("language") or "en"),
+        format=run.inputs.get("aspect_ratio"),
+        steps_done=progress[0] if progress else 0,
+        current_step=progress[1] if progress else None,
+        has_video=progress[2] if progress else False,
     )
+
+
+async def _activity_by_project(runs: RunRepository) -> dict[str, datetime]:
+    """Latest run activity (updated_at) per project, ignoring archived runs."""
+    latest: dict[str, datetime] = {}
+    for run in await runs.list_runs():
+        if run.archived_at is None and (run.project_id not in latest or run.updated_at > latest[run.project_id]):
+            latest[run.project_id] = run.updated_at
+    return latest
 
 
 def _item_response(item: ShortlistItem, run_count: int = 0) -> ShortlistItemResponse:
@@ -259,7 +320,11 @@ async def list_projects(
     """Return the operator's projects, newest first, each with its run count."""
     records = await projects.list_projects(PLATFORM_USER_ID, include_archived=include_archived)
     counts = await runs.count_by_project()
-    return [_project_response(project, counts.get(project.project_id, 0)) for project in records]
+    activity = await _activity_by_project(runs)
+    return [
+        _project_response(project, counts.get(project.project_id, 0), activity.get(project.project_id))
+        for project in records
+    ]
 
 
 @router.post("/projects", response_model=ProjectResponse, status_code=201)
@@ -286,7 +351,8 @@ async def get_project(
     """Return one project with its run count. Raises 404 if project_id is unknown."""
     project = await _project_or_404(project_id, projects)
     counts = await runs.count_by_project()
-    return _project_response(project, counts.get(project_id, 0))
+    activity = await _activity_by_project(runs)
+    return _project_response(project, counts.get(project_id, 0), activity.get(project_id))
 
 
 @router.patch("/projects/{project_id}", response_model=ProjectResponse)
@@ -314,10 +380,14 @@ async def list_project_runs(
     project_id: str,
     projects: ProjectRepository = Depends(get_project_repository),
     runs: RunRepository = Depends(get_run_repository),
+    artifacts: ArtifactRepository = Depends(get_artifact_repository),
+    storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> list[ProjectRunResponse]:
-    """Return the project's runs, newest first, with status and created date."""
+    """Return the project's runs, newest first, each with its mode, language and progress."""
     await _project_or_404(project_id, projects)
-    return [_run_response(run) for run in await runs.list_for_project(project_id)]
+    records = await runs.list_for_project(project_id)
+    progress = await asyncio.gather(*(collect_run_progress(run.run_id, artifacts, storage) for run in records))
+    return [_run_response(run, prog) for run, prog in zip(records, progress, strict=True)]
 
 
 @router.post("/projects/{project_id}/runs", response_model=ProjectRunResponse, status_code=201)
@@ -327,38 +397,61 @@ async def create_run_from_shortlist(
     projects: ProjectRepository = Depends(get_project_repository),
     runs: RunRepository = Depends(get_run_repository),
     shortlist: ShortlistRepository = Depends(get_shortlist_repository),
+    tenant_repo: TenantSettingsRepository = Depends(get_tenant_settings_repository),
+    settings: PlatformSettings = Depends(get_platform_settings),
 ) -> ProjectRunResponse:
-    """Create a run in the project from one or more shortlist items and link them.
+    """Create a run in the project from idea(s), or from a title alone, and link the ideas.
 
-    Returns 404 for an unknown project or item id, and 409 for an item that was
-    removed from the shortlist or belongs to another project.
+    A run needs at least one idea or a title (422 otherwise). The run's language and
+    format are its own choice, else the project's default, else the tenant's. Returns
+    404 for an unknown project or idea id, and 409 for an idea that was removed from
+    the shortlist or belongs to another project.
     """
     project = await _project_or_404(project_id, projects)
-    try:
-        items = await resolve_items_for_run(project_id, body.item_ids, shortlist)
-    except ShortlistItemNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-    except ShortlistItemUnavailableError as exc:
-        raise HTTPException(status_code=409, detail=str(exc))
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+    title = (body.title or "").strip()
+    brief = (body.brief or "").strip()
+    if not body.item_ids and not title:
+        raise HTTPException(status_code=422, detail="Give the run a title, or start it from an idea.")
+    items: list[ShortlistItem] = []
+    if body.item_ids:
+        try:
+            items = await resolve_items_for_run(project_id, body.item_ids, shortlist)
+        except ShortlistItemNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except ShortlistItemUnavailableError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
 
     context = build_idea_context(items)
+    if title:
+        context["idea_title"] = title
+    if brief:
+        context["supporting_points"] = [*context["supporting_points"], brief]
     item_ids = [item.item_id for item in items]
+    try:
+        tenant_defaults = await resolve_defaults(tenant_repo, PLATFORM_USER_ID, settings)
+    except Exception:
+        tenant_defaults = {"language": "en", "format": "9:16"}
+    values = resolve_run_values(
+        tenant_defaults, project.config, language=body.language, aspect_ratio=body.aspect_ratio
+    )
     run = await create_run(
         PLATFORM_USER_ID,
         STUDIO_BLOCK,
         {
             "item_ids": item_ids,
             "voice_source": body.voice_source,
-            "language": body.language or str((project.config or {}).get("language") or "en"),
+            "language": values["language"],
+            "aspect_ratio": values["format"],
             **context,
         },
         runs,
         project_id=project_id,
         name=context["idea_title"][:_RUN_NAME_MAX_CHARS],
     )
-    await shortlist.link_run(run.run_id, item_ids)
+    if item_ids:
+        await shortlist.link_run(run.run_id, item_ids)
     return _run_response(run)
 
 
@@ -464,6 +557,28 @@ async def get_shortlist_item(
     return _item_response(item, counts.get(item_id, 0))
 
 
+@router.patch("/projects/{project_id}/shortlist/{item_id}", response_model=ShortlistItemResponse)
+async def patch_shortlist_item(
+    project_id: str,
+    item_id: str,
+    body: ShortlistUpdateRequest,
+    projects: ProjectRepository = Depends(get_project_repository),
+    shortlist: ShortlistRepository = Depends(get_shortlist_repository),
+) -> ShortlistItemResponse:
+    """Edit an idea's title, summary, source or notes. 404 unknown item, 409 removed item, 422 blank title."""
+    await _project_or_404(project_id, projects)
+    try:
+        item = await update_item(project_id, item_id, shortlist, **body.model_dump(exclude_unset=True))
+    except ShortlistItemNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Shortlist item not found: {item_id}")
+    except ShortlistItemUnavailableError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    counts = await shortlist.run_counts(project_id)
+    return _item_response(item, counts.get(item_id, 0))
+
+
 @router.delete("/projects/{project_id}/shortlist/{item_id}", status_code=204)
 async def remove_shortlist_item(
     project_id: str,
@@ -489,6 +604,8 @@ async def get_run_context(
     projects: ProjectRepository = Depends(get_project_repository),
     runs: RunRepository = Depends(get_run_repository),
     shortlist: ShortlistRepository = Depends(get_shortlist_repository),
+    tenant_repo: TenantSettingsRepository = Depends(get_tenant_settings_repository),
+    settings: PlatformSettings = Depends(get_platform_settings),
 ) -> RunContextResponse:
     """Return a run's project, the shortlist items it came from, and the combined idea context.
 
@@ -503,6 +620,10 @@ async def get_run_context(
     project = await _project_or_404(run.project_id, projects)
     items = await shortlist.items_for_run(run_id)
     context = build_idea_context(items)
+    try:
+        tenant_defaults = await resolve_defaults(tenant_repo, PLATFORM_USER_ID, settings)
+    except Exception:
+        tenant_defaults = {}
     return RunContextResponse(
         run_id=run.run_id,
         name=run.name,
@@ -510,8 +631,13 @@ async def get_run_context(
         created_at=run.created_at,
         project=_project_response(project),
         items=[_item_response(item) for item in items],
-        idea_title=context["idea_title"],
-        supporting_points=context["supporting_points"],
+        # The run's own stored title and points win: they hold a title typed at creation,
+        # and are all there is for a run started without an idea.
+        idea_title=str(run.inputs.get("idea_title") or context["idea_title"]),
+        supporting_points=list(run.inputs.get("supporting_points") or context["supporting_points"]),
         voice_source="uploaded" if run.inputs.get("voice_source") == "uploaded" else "generated",
         language=str(run.inputs.get("language") or "en"),
+        format=run.inputs.get("aspect_ratio"),
+        brief="; ".join(run.inputs.get("supporting_points") or []),
+        tenant_defaults=tenant_defaults,
     )

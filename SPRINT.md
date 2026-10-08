@@ -4,7 +4,7 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Sprint P14b complete** (2026-10-07). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then **Multi-language: Russian** (EPIC 53), then P15 Research. **Current sprint:** none active — next is P-UX3 (`/start-story P-UX3-S1..S4`).
+> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Sprint P14b complete** (2026-10-07). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then **Multi-language: Russian** (EPIC 53), then P15 Research. **Current sprint:** P-UX3 — built and pushed to DEV 2026-10-08 (design, prototype and build in one pass, D105); smoke test pending.
 
 ---
 
@@ -34,8 +34,8 @@ Legacy Script→Video stays untouched and operable (D047).
 | P13b | CapCut export (second render path) | 11 | done | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
 | P14 | AI images per scene | 14 | done | Write a prompt in a scene's edit-image dialog, press Generate, get an AI image for that scene |
 | P14b | Uploaded voiceover | ~13 | done | Upload an mp3, correct a misheard word, build the storyboard from it, render |
-| P-UX3 | UI/UX redesign — discovery and design | ~11 | planned | Click through a prototype of project → idea → run and approve or redirect it |
-| UI build | Build the redesigned UI | tbd | planned (sized in P-UX3-S4) | The new Studio, live on DEV |
+| P-UX3 | UI/UX redesign — discovery, design, prototype and build | ~11 + build | built, smoke test pending | The new UI on DEV: project → idea → run, Libraries, Integrations, Defaults |
+| UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
 | P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after the UI build) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |

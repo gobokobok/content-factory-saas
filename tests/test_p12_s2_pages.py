@@ -48,20 +48,20 @@ def test_root_serves_project_list():
     assert "No projects yet" in r.text  # empty state is in the page
 
 
-def test_project_page_serves_with_empty_states():
+def test_project_page_serves_with_its_four_views():
     r = _client().get("/project", params={"id": "default"})
     assert r.status_code == 200
-    assert "Shortlist" in r.text and "Runs" in r.text
-    assert "No runs yet" in r.text
-    assert "No ideas yet" in r.text
-    assert "Create video" in r.text
+    for view in ("viewOverview", "viewIdeas", "viewRuns", "viewSettings"):
+        assert view in r.text
+    assert "No runs" in r.text and "No ideas yet" in r.text  # empty states are in the page
+    assert "New run" in r.text
 
 
 def test_studio_route_still_serves_pipeline():
     r = _client().get("/studio")
     assert r.status_code == 200
     assert "Content Factory Studio" in r.text
-    assert 'id="ws-project-link"' in r.text  # header link back to the project
+    assert 'id="cf-crumbs"' in r.text and 'id="cf-nav"' in r.text  # breadcrumbs back to the project, shared left panel
 
 
 def test_pages_are_not_cached():

@@ -187,6 +187,21 @@ class PostgresShortlistRepository:
             await conn.commit()
         return item
 
+    async def update(self, item: ShortlistItem) -> ShortlistItem:
+        """Overwrite title, summary, source and evidence. Raises ShortlistItemNotFoundError if absent."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "UPDATE shortlist_items SET title = %s, summary = %s, source = %s, evidence = %s "
+                    "WHERE item_id = %s",
+                    (item.title, item.summary, item.source, Jsonb(item.evidence), item.item_id),
+                )
+                if cur.rowcount == 0:
+                    raise ShortlistItemNotFoundError(f"Shortlist item not found: {item.item_id}")
+            await conn.commit()
+        return item
+
     async def get(self, item_id: str) -> ShortlistItem:
         """Return the item for item_id, removed or not. Raises ShortlistItemNotFoundError if absent."""
         await _ensure_open(self._pool)

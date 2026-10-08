@@ -57,23 +57,24 @@ def test_spend_readout_shows_images_spent_and_cap():
 
 
 def test_settings_page_saves_provider_model_and_key_without_ever_showing_a_key():
+    """Integrations: the image provider and model are saved here; keys are saved per service and never shown."""
     assert 'id="img-provider"' in _SETTINGS and 'id="img-model"' in _SETTINGS
-    assert 'id="img-key"' in _SETTINGS and 'type="password"' in _SETTINGS
     assert "/platform/tenant/settings/image" in _SETTINGS and "'PUT'" in _SETTINGS
+    assert 'type="password"' in _SETTINGS and "/platform/tenant/integrations" in _SETTINGS
     assert "key_hint" in _SETTINGS and "SETTINGS_ENCRYPTION_KEY" in _SETTINGS
-    assert "clear_key_for" in _SETTINGS
+    assert "clear_key" in _SETTINGS
 
 
 def test_project_settings_has_the_optional_ai_image_style():
-    assert 'id="set-ai-style"' in _PROJECT
     assert "ai_image_style" in _PROJECT
     # keeps the rest of the config when saving
-    assert "...(project.config || {})" in _PROJECT
+    assert "...(project.config||{})" in _PROJECT
 
 
 def test_settings_is_linked_from_the_project_pages_and_served():
-    assert 'href="/settings"' in (_STATIC / "projects.html").read_text(encoding="utf-8")
-    assert 'href="/settings"' in _PROJECT
+    # the shared panel links to it from every page, and the project settings point at it
+    assert "/settings?tab=integrations" in (_STATIC / "ui" / "shell.js").read_text(encoding="utf-8")
+    assert "/settings?tab=integrations" in _PROJECT
     from fastapi.testclient import TestClient
 
     from src.config import Settings, get_settings

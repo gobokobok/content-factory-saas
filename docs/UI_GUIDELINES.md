@@ -1,67 +1,38 @@
 # Operator UI Guidelines — Content Factory
 
+Rewritten 2026-10-08 (D105). The earlier version described the legacy `index.html` / `run.html` UI.
+
 ## Principles
-- **Functional over decorative.** Operator needs information and controls, not aesthetics.
-- **No frameworks.** Plain HTML + vanilla JS only.
-- **Status at a glance.** Every run's step status visible without scrolling.
+- **Functional over decorative.** The operator needs information and controls.
+- **No frameworks.** Plain HTML + vanilla JS only (CLAUDE.md hard constraint).
+- **Status at a glance.** A run's step status is visible without scrolling.
 - **Fail loud.** Errors surface immediately, never hidden.
+- **Ask little, inherit the rest.** A form asks the few things that shape the result; everything else comes from Settings → Defaults, then the project, and can be changed later.
+- **Name what a change costs.** Before an action discards work (regenerating a storyboard, replacing an uploaded voiceover, changing a format after acquisition), say what is lost and ask.
 
 ## Structure
+- **Shell** (`src/static/ui/shell.js`, `shell.css`): one foldable left panel — Projects, Libraries (Videos, Audio, Footage, AI generations, Music & SFX), Settings (Integrations, Defaults); the open project expands to Overview / Ideas / Runs / Settings. Breadcrumbs sit on the page background (no bar), scroll with the page, and are the first line of every page. The panel starts folded in a run; on a phone it is a drawer.
+- **Shared styles** (`ui/app.css`): tokens and components for the project, library and settings pages. Studio keeps its own stylesheet and uses only `ui/shell.css`.
+- **Pages:** `/` projects · `/project?id=&tab=` overview, ideas, runs, settings · `/studio#run/<id>/<step>` the run · `/library?kind=` · `/settings?tab=integrations|defaults` · `/legacy` the old pipeline UI.
+- **Spacing:** 72 px between the panel and the content (48 px under 1100 px wide, 16 px on a phone); 36 px above the breadcrumbs and between them and the title.
 
-### Pages
-- `index.html` — run list, new run creation
-- `run.html` — run detail: step status, controls, log viewer
+## The run
+- Five steps in one row of arrow-shaped blocks, all one colour, the current one darker, one status dot each: grey not started, amber in progress or next, green done, red failed. No rule under them.
+- Run facts as chips under the title: voice, language, format, where the run is.
+- **Run settings** are a drawer available from every step, not a step.
+- **Options rule for a step:** the few defaults inline, the rest under "Options", per-scene overrides on the scene.
+- **Storyboard:** one card per scene — asset with a pencil on its corner, voiceover words (click one to split), asset type, on-screen text as an inline field (empty removes it), sound effect, "Merge with next". Two views: Storyboard and Script (one paragraph per scene; moving the blank lines moves the boundaries).
 
-### Served by
-FastAPI static file mount: `GET /` → `src/static/index.html`
-
-## Step status display
-
-Each pipeline step is displayed as a row:
-
-```
-[Step Name]    [●  complete]    [Run ▶]
-[Step Name]    [✕  failed  ]    [Retry ↺]   [▼ logs]
-[Step Name]    [○  pending ]    [Run ▶]  (disabled if upstream not complete)
-```
-
-- Green dot = complete
-- Red X = failed
-- Grey circle = pending
-- Run button disabled until all upstream steps are complete
-- Retry button visible only on failed steps
-
-## Log viewer
-- Collapsible per step — closed by default, open on failed steps
-- Content: `run_log.txt` section for that step
-- Refreshes on the status poll interval (every 10 seconds)
-- Monospace font, scroll within fixed height container
-
-## Voiceover upload
-- File picker: `.mp3` only
-- Upload button enabled only after file selected
-- Progress indicator during upload
-- Clear confirmation message on success
-
-## Run creation
-- Single text input for slug
-- Slug validation: lowercase, hyphens only, no spaces
-- Real-time format hint below input
-- Submit creates run and navigates to run detail page
+## Settings fields
+Every inheritable field shows where its value comes from ("Inherited from Settings → Defaults: English") and, once changed, "Overridden for this project" with a reset link.
 
 ## Color/style
-- Dark background (#0f0f0f or similar)
-- Monospace or technical sans-serif font
-- Status colors: green (#22c55e), red (#ef4444), grey (#6b7280)
-- Minimal borders, no gradients, no animations
+- Light "Monochrome Console": background #FAFAFA, surfaces white, ink #121215, one accent #2E45EC; green #12805C, amber #E5A50A for in-progress, red #D92D20 for errors only.
+- Schibsted Grotesk and Fragment Mono. Minimal borders, no gradients.
 
 ## File downloads
 
-**Never use `<a href="..." download="filename">` for cross-origin URLs.**
-
-The HTML `download` attribute is silently ignored by all browsers when the `href` points to a different origin (e.g. presigned R2/S3 URLs). Clicking such a link opens the file inline or navigates to it instead of triggering a save dialog.
-
-**Required pattern for all file download buttons:**
+**Never use `<a href="..." download="filename">` for cross-origin URLs.** The `download` attribute is silently ignored when the `href` points to a different origin (presigned R2 URLs). Fetch the file, make a blob URL and click an anchor made for it:
 
 ```js
 async function downloadFile(btn, url, filename) {
@@ -80,5 +51,4 @@ async function downloadFile(btn, url, filename) {
   finally { btn.disabled = false; btn.textContent = label; }
 }
 ```
-
-This applies to: rendered video, generated audio, any artifact served via presigned URL.
+This applies to every rendered video, voiceover, library asset and any artifact served by a presigned URL.

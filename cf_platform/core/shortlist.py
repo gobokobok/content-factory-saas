@@ -68,6 +68,10 @@ class ShortlistRepository(Protocol):
         """Set removed_at on the item. Raises ShortlistItemNotFoundError if absent."""
         ...
 
+    async def update(self, item: ShortlistItem) -> ShortlistItem:
+        """Overwrite the editable fields (title, summary, source, evidence) of an existing item."""
+        ...
+
     async def link_run(self, run_id: str, item_ids: list[str]) -> None:
         """Record that run_id was created from item_ids, keeping their order."""
         ...
@@ -116,6 +120,12 @@ class InMemoryShortlistRepository:
         updated = item.model_copy(update={"removed_at": removed_at})
         self._items[item_id] = updated
         return updated
+
+    async def update(self, item: ShortlistItem) -> ShortlistItem:
+        """Overwrite the stored item. Raises ShortlistItemNotFoundError if absent."""
+        await self.get(item.item_id)
+        self._items[item.item_id] = item
+        return item
 
     async def link_run(self, run_id: str, item_ids: list[str]) -> None:
         """Record that run_id was created from item_ids, keeping their order."""
@@ -172,6 +182,46 @@ async def add_manual_item(
         created_at=now,
     )
     return await repository.add(item)
+
+
+async def update_item(
+    project_id: str,
+    item_id: str,
+    repository: ShortlistRepository,
+    *,
+    title: str | None = None,
+    summary: str | None = None,
+    source: str | None = None,
+    notes: str | None = None,
+) -> ShortlistItem:
+    """Edit an idea's title, summary, source or notes; only the fields supplied change.
+
+    An empty `source` or `notes` clears it. Raises ValueError for a blank title,
+    ShortlistItemNotFoundError when the item is absent or belongs to another project,
+    and ShortlistItemUnavailableError for an item removed from the shortlist.
+    """
+    item = await repository.get(item_id)
+    if item.project_id != project_id:
+        raise ShortlistItemNotFoundError(f"Shortlist item not found: {item_id}")
+    if item.removed_at is not None:
+        raise ShortlistItemUnavailableError(f"Shortlist item {item_id} was removed from the shortlist")
+    changes: dict[str, Any] = {}
+    if title is not None:
+        if not title.strip():
+            raise ValueError("A shortlist item needs a title")
+        changes["title"] = title.strip()
+    if summary is not None:
+        changes["summary"] = summary.strip()
+    if source is not None:
+        changes["source"] = source.strip() or None
+    if notes is not None:
+        evidence = dict(item.evidence)
+        if notes.strip():
+            evidence["notes"] = notes.strip()
+        else:
+            evidence.pop("notes", None)
+        changes["evidence"] = evidence
+    return await repository.update(item.model_copy(update=changes))
 
 
 async def remove_item(project_id: str, item_id: str, repository: ShortlistRepository) -> ShortlistItem:

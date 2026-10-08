@@ -13,9 +13,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage
-from cf_platform.core.config import PlatformSettings, get_platform_settings
+from cf_platform.core.config import PlatformSettings
 from cf_platform.core.schemas import StageState
-from cf_platform.interfaces.dependencies import PLATFORM_USER_ID, get_artifact_storage
+from cf_platform.interfaces.dependencies import PLATFORM_USER_ID, get_artifact_storage, get_effective_platform_settings
 from cf_platform.interfaces.routes._helpers import latest_artifact_key as _latest_artifact_key
 from cf_platform.workers.acquisition_worker import (
     ACQUISITION_WORKER_REGISTRATION,
@@ -138,7 +138,7 @@ async def storyboard_worker_endpoint(
     body: StoryboardWorkerRequest,
     background_tasks: BackgroundTasks,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> StoryboardWorkerResponse:
     """Enqueue storyboard generation (returns 202 immediately).
 
@@ -228,7 +228,7 @@ class MetadataWorkerResponse(BaseModel):
 async def metadata_worker_endpoint(
     body: MetadataWorkerRequest,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> MetadataWorkerResponse:
     """Generate suggested YouTube title/description/tags from the run's script.
 
@@ -360,7 +360,7 @@ async def voice_worker_endpoint(
     body: VoiceWorkerRequest,
     background_tasks: BackgroundTasks,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> VoiceWorkerResponse:
     """Enqueue TTS + Deepgram alignment (returns 202 immediately).
 
@@ -465,7 +465,7 @@ class AcquisitionWorkerResponse(BaseModel):
 async def acquisition_worker_endpoint(
     body: AcquisitionWorkerRequest,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> AcquisitionWorkerResponse:
     """Acquire assets for all scenes in an existing verified storyboard.
 
@@ -633,7 +633,7 @@ async def render_worker_endpoint(
     body: RenderWorkerRequest,
     background_tasks: BackgroundTasks,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> RenderWorkerResponse:
     """Enqueue an FFmpeg render for an acquired run (returns 202 immediately).
 

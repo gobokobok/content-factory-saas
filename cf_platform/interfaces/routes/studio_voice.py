@@ -17,20 +17,21 @@ import logging
 import time
 import uuid
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact, write_artifact
-from cf_platform.core.config import PlatformSettings, get_platform_settings
+from cf_platform.core.config import PlatformSettings
 from cf_platform.core.run_manager import RunNotFoundError, RunRepository
 from cf_platform.core.schemas import LineageEnvelope, RunRecord, StageState, TraceEvent
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.interfaces.dependencies import (
     PLATFORM_USER_ID,
     get_artifact_storage,
+    get_effective_platform_settings,
     get_run_repository,
     get_trace_event_repository,
 )
@@ -219,7 +220,7 @@ async def studio_upload_voice(
     background_tasks: BackgroundTasks,
     confirm_discard: bool = False,
     storage: ArtifactStorage = Depends(get_artifact_storage),
-    settings: PlatformSettings = Depends(get_platform_settings),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
     runs: RunRepository = Depends(get_run_repository),
     trace_events: TraceEventRepository = Depends(get_trace_event_repository),
 ):
@@ -347,6 +348,59 @@ class LanguageRequest(BaseModel):
     """Request body for PUT /studio/runs/{run_id}/language."""
 
     language: str = Field(pattern=r"^[a-z]{2}$")
+
+
+class VoiceSourceBody(BaseModel):
+    """Request body for PUT /studio/runs/{run_id}/voice-source."""
+
+    voice_source: Literal["generated", "uploaded"]
+    confirm_discard: bool = False
+
+
+@router.put("/studio/runs/{run_id}/voice-source")
+async def studio_put_voice_source(
+    run_id: str,
+    body: VoiceSourceBody,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    runs: RunRepository = Depends(get_run_repository),
+):
+    """Choose where the run's voice comes from: a generated voice, or the operator's uploaded recording.
+
+    Every run follows one pipeline; the Script step picks the source. Choosing
+    "uploaded" only unlocks the upload. Choosing "generated" on a run that already has
+    an uploaded recording replaces it: the word timings change, so the storyboard and
+    its acquired assets are discarded (the recording itself stays in storage and in
+    the Audio library). That answers 409 with what would be discarded until the
+    request repeats with confirm_discard=true. Setting the source the run already has
+    changes nothing.
+    """
+    try:
+        run = await runs.get(run_id)
+    except RunNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}") from None
+    current = UPLOADED_VOICE_SOURCE if run.inputs.get("voice_source") == UPLOADED_VOICE_SOURCE else "generated"
+    if body.voice_source == current:
+        return {"voice_source": current, "changed": False, "discarded": []}
+
+    discarded: list[str] = []
+    if body.voice_source == "generated":
+        storyboard_key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
+        alignment = await _current_alignment(storage, run_id)
+        uploaded_voice = alignment is not None and alignment.alignment_method == UPLOADED_ALIGNMENT_METHOD
+        if uploaded_voice:
+            discarded.append("your uploaded voiceover is replaced by a generated voice (the recording stays in the library)")
+        if storyboard_key:
+            discarded += ["the storyboard", "the acquired assets and scene edits that came with it"]
+        if discarded and not body.confirm_discard:
+            return JSONResponse(status_code=409, content={
+                "detail": "Switching to a generated voice: " + "; ".join(discarded) + ".",
+                "needs_confirmation": True,
+                "discards": discarded,
+            })
+        if storyboard_key:
+            await _discard_storyboard(storage, run_id, storyboard_key)
+    await runs.save(run.model_copy(update={"inputs": {**run.inputs, "voice_source": body.voice_source}}))
+    return {"voice_source": body.voice_source, "changed": True, "discarded": discarded}
 
 
 @router.put("/studio/runs/{run_id}/language")

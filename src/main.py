@@ -36,6 +36,8 @@ _AUTH_EXEMPT_PATHS = {
 _STATIC_DIR = Path(__file__).parent / "static"
 # P-UX3-S3: the clickable redesign prototype — static demo pages, no backend calls.
 _PROTOTYPE_DIR = Path(__file__).parent.parent / "docs" / "ux" / "prototype"
+# Shared UI assets (shell, styles) used by every page.
+_UI_DIR = _STATIC_DIR / "ui"
 
 
 def _configure_logging(log_level: str) -> None:
@@ -176,9 +178,15 @@ def project_ui() -> FileResponse:
     return FileResponse(_STATIC_DIR / "project.html", headers=_NO_CACHE)
 
 
+@app.get("/library", include_in_schema=False)
+def library_ui() -> FileResponse:
+    """Serve a tenant-wide asset library (videos, audio, footage, AI generations, music); `?kind=` picks it."""
+    return FileResponse(_STATIC_DIR / "library.html", headers=_NO_CACHE)
+
+
 @app.get("/settings", include_in_schema=False)
 def settings_ui() -> FileResponse:
-    """Serve the tenant settings page — image provider, model and API key (P14, D104)."""
+    """Serve the tenant settings pages — Integrations and Defaults; `?tab=` picks one (P14, D104, P-UX build)."""
     return FileResponse(_STATIC_DIR / "settings.html", headers=_NO_CACHE)
 
 
@@ -204,6 +212,8 @@ def login_page() -> FileResponse:
 
 
 # Served behind the same login as every other page (the auth middleware covers mounts).
+if _UI_DIR.is_dir():
+    app.mount("/ui", StaticFiles(directory=_UI_DIR), name="ui")
 if _PROTOTYPE_DIR.is_dir():
     app.mount("/prototype", StaticFiles(directory=_PROTOTYPE_DIR, html=True), name="prototype")
 

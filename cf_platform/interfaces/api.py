@@ -25,6 +25,7 @@ from cf_platform.interfaces.dependencies import (  # noqa: F401
 from cf_platform.interfaces.routes import (
     blocks,
     echo,
+    library,
     meta,
     pipeline,
     projects,
@@ -73,5 +74,6 @@ router.include_router(studio_voice.router)
 router.include_router(runs.router)
 router.include_router(projects.router)
 router.include_router(tenant_settings.router)
+router.include_router(library.router)
 router.include_router(pipeline.router)
 router.include_router(telegram_webhook.router)

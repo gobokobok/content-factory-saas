@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Library — Content Factory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/ui/app.css">
+  <link rel="stylesheet" href="/ui/shell.css">
+</head>
+<body class="cf-body">
+<div class="cf-shell" id="cf-shell">
+  <aside class="cf-nav" id="cf-nav"></aside>
+  <div class="cf-scrim" onclick="CFShell.closeNav()"></div>
+  <div class="cf-main">
+    <nav class="cf-crumbs" id="cf-crumbs" aria-label="Breadcrumb"></nav>
+    <main class="cf-page">
+      <div id="error" class="note err" style="display:none;"></div>
+      <div class="wrap" style="max-width:1180px;" id="view"><div class="muted">Loading…</div></div>
+    </main>
+  </div>
+</div>
+<div id="overlay"></div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="/ui/shell.js"></script>
+<script src="/ui/app.js"></script>
+<script>
+/* Libraries — every video, voiceover, clip and AI image in the tenant, with its ID,
+   project and run, and a download. The listing reads the run folders (core/library.py). */
+const LIBS = {
+  videos: ['Videos', 'Every final video in the tenant — server renders and videos uploaded from CapCut.'],
+  audio: ['Audio', 'Every voiceover, generated or uploaded.'],
+  footage: ['Footage', 'Every image and clip acquired for a scene or uploaded by you.'],
+  ai: ['AI generations', 'Every AI-generated image, including the ones you replaced.'],
+  music: ['Music & SFX', 'Shared tracks and sound effects. These belong to no project.'],
+};
+const KIND = LIBS[new URLSearchParams(location.search).get('kind')] ? new URLSearchParams(location.search).get('kind') : 'videos';
+const filters = { q: '', project: '', facet: '' };
+let data = { items: [], projects: [] };
+
+function preview(a) {
+  const u = a.download_url;
+  if (!u) return '<div class="thumb blank">no preview</div>';
+  if (KIND === 'videos') return `<video class="thumb" style="object-fit:cover;" src="${esc(u)}#t=0.5" preload="metadata" muted playsinline></video>`;
+  if (KIND === 'footage' && a.facet === 'video') return `<video class="thumb" style="object-fit:cover;" src="${esc(u)}#t=0.5" preload="metadata" muted playsinline></video>`;
+  if (KIND === 'footage' || KIND === 'ai') return `<img class="thumb" style="object-fit:cover;" src="${esc(u)}" loading="lazy" alt="">`;
+  return `<div style="padding:12px 12px 0;"><audio controls preload="none" src="${esc(u)}" style="width:100%;height:34px;"></audio></div>`;
+}
+
+function card(a) {
+  const project = a.project_id ? `<a class="asset-link" href="/project?id=${encodeURIComponent(a.project_id)}" title="Project">${esc(a.project_name)}</a>` : '<span class="asset-link">Shared — all projects</span>';
+  const run = a.run_id ? `<a class="asset-link" href="/studio#run/${encodeURIComponent(a.run_id)}" title="Run">↳ ${esc(a.run_name)}</a>` : '';
+  return `<div class="asset">${preview(a)}
+    <div class="asset-body"><div class="asset-name">${esc(a.name)}</div>${project}${run}
+      <div class="asset-facts">${esc(a.facts)}${a.created_at ? ' · ' + esc(fmtDate(a.created_at)) : ''}</div>
+      <div class="asset-foot"><span class="mono" title="Asset ID">${esc(a.asset_id)}</span>
+        <button class="btn btn-secondary btn-sm" onclick="download(this, '${esc(a.asset_id)}')" ${a.download_url ? '' : 'disabled'}>Download</button></div></div></div>`;
+}
+
+/** Download through a blob: the `download` attribute is ignored for cross-origin presigned URLs (UI_GUIDELINES). */
+async function download(btn, id) {
+  const a = data.items.find(x => x.asset_id === id);
+  if (!a || !a.download_url) return;
+  const label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Downloading…';
+  try {
+    const blob = await fetch(a.download_url).then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.blob(); });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = a.name.includes('.') ? a.name : `${a.name}.${a.key.split('.').pop()}`;
+    document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (e) { toast('Download failed: ' + e.message); }
+  finally { btn.disabled = false; btn.textContent = label; }
+}
+
+function visible() {
+  const q = filters.q.toLowerCase();
+  return data.items.filter(a => (!filters.project || a.project_id === filters.project) && (!filters.facet || a.facet === filters.facet)
+    && (!q || `${a.asset_id} ${a.name} ${a.facts} ${a.run_name || ''} ${a.project_name || ''}`.toLowerCase().includes(q)));
+}
+function render(keepFocus) {
+  const list = visible();
+  const facets = [...new Set(data.items.map(a => a.facet).filter(Boolean))];
+  $('view').innerHTML = `<div class="page-head"><div><h1>${LIBS[KIND][0]}</h1><div class="sub">${LIBS[KIND][1]}</div></div></div>
+    <div class="toolbar">
+      <input class="input" id="lib-q" placeholder="Search by name, ID, run or project" value="${esc(filters.q)}" oninput="filters.q=this.value;render(true)">
+      ${KIND !== 'music' ? `<select class="select" onchange="filters.project=this.value;render()" aria-label="Project"><option value="">All projects</option>${data.projects.map(p => `<option value="${esc(p.project_id)}"${filters.project === p.project_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
+      ${facets.length > 1 ? `<select class="select" onchange="filters.facet=this.value;render()" aria-label="Type"><option value="">All types</option>${facets.map(x => `<option${filters.facet === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}
+    </div>
+    <div class="count" style="margin-bottom:10px;">${list.length} of ${data.items.length}</div>
+    ${list.length ? `<div class="assets">${list.map(card).join('')}</div>`
+      : `<div class="empty"><strong>${data.items.length ? 'Nothing matches' : 'Nothing here yet'}</strong>${data.items.length ? 'Change the search or the filters.' : 'Assets appear here as runs produce them.'}</div>`}`;
+  if (keepFocus) { const q = $('lib-q'); q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+}
+
+(async function init() {
+  CFShell.mount({ active: 'lib:' + KIND, crumbs: [['Libraries'], [LIBS[KIND][0]]] });
+  document.title = `${LIBS[KIND][0]} — Content Factory`;
+  try {
+    const r = await api(`/platform/library/${KIND}`);
+    if (!r.ok) throw new Error(await errorDetail(r));
+    data = await r.json();
+    render();
+  } catch (e) {
+    showErr(`Could not load the library: ${e.message}`);
+    $('view').innerHTML = '';
+  }
+})();
+</script>
+</body>
+</html>

@@ -50,7 +50,8 @@ class TestAssetColumn:
 
     def test_asset_column_replaces_the_visual_badge(self):
         render = _function("renderStoryboard")
-        assert "<th>Asset</th>" in render and "<th>Visual</th>" not in render
+        # the storyboard is a list of scene cards now (P-UX build), not a table
+        assert 'id="sb-cards"' in render and "<th>Visual</th>" not in render
 
     def test_dropdown_is_a_small_cf_select_showing_the_effective_strategy(self):
         row = _function("buildSceneRow")
@@ -67,7 +68,8 @@ class TestAssetColumn:
 
     def test_motion_cell_still_follows_the_scene_kind(self):
         row = _function("buildSceneRow")
-        assert "Motion effects apply to still images only" in row
+        # a video scene gets no motion control at all; a still gets the picker
+        assert "isVideoScene ? ''" in row and 'id="motion-${sceneId}"' in row
 
 
 class TestSplitAndMerge:
@@ -83,7 +85,7 @@ class TestSplitAndMerge:
 
     def test_merge_button_on_every_row_but_the_last(self):
         row = _function("buildSceneRow")
-        assert 'title="Merge with next scene"' in row
+        assert 'title="Merge with the next scene"' in row
         assert "(nextScene && canEditBoundaries)" in row
 
     def test_merge_asks_before_dropping_text_or_sfx(self):
