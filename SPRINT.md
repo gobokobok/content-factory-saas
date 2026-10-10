@@ -36,7 +36,8 @@ Legacy Script→Video stays untouched and operable (D047).
 | P14b | Uploaded voiceover | ~13 | done | Upload an mp3, correct a misheard word, build the storyboard from it, render |
 | P-UX3 | UI/UX redesign — discovery, design, prototype and build | ~11 + build | built, smoke test pending | The new UI on DEV: project → idea → run, Libraries, Integrations, Defaults |
 | UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
-| P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after the UI build) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
+| P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | planned (immediately after P-UX3 closes; operator, 2026-10-11) | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
+| P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after P-AN1) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
 | P17 | Server-side Auto Advance | ~10 | planned | Pick a shortlist idea, close the tab, come back to a scheduled video |

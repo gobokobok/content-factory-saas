@@ -17,7 +17,9 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 **EPIC 51 — Uploaded voiceover (P14b, new 2026-10-05)** and **EPIC 52 — UI/UX redesign (P-UX3 and the build sprint(s), new 2026-10-05)** go ahead of P15; their stories are below.
 
-**EPIC 53 — Multi-language: Russian (new 2026-10-05, after the UI build, before P15)** — see the section below.
+**EPIC 55 — Animation mode (Sprint P-AN1, new 2026-10-11, immediately after P-UX3 closes, ahead of EPIC 53)** — AI-image videos from a Visual Director storyboard with a master style and a continuity bible; stories P-AN1-S1..S6 in the EPIC 55 section below.
+
+**EPIC 53 — Multi-language: Russian (new 2026-10-05, after P-AN1, before P15)** — see the section below.
 
 **EPIC 46 — Research (P15, D094, D097, spec §2–5).** Project research page. Trend research: existing Google Trends, Reddit and YouTube adapters (D050) plus Google News, over a chosen time window, producing ~10 topics each with a summary and the evidence for why it is trending. Competitor research: port from `content-researcher` (D097), project-level channel list, publications from the last 24/48 hours with likes per 1,000 views and outlier score, daily snapshot job. Results are ticked into the shortlist with their evidence. Research must take the project's language and region into account (Russian projects need Russian-language trend and competitor sources — the reason EPIC 53 comes first). Open: orchestrator-with-specialists vs. parallel agents with a synthesis step (spec §26 D); **X.com** — ENV.md records it as excluded under the free-tier constraint, so including it needs a decision on a paid source.
 
@@ -323,6 +325,240 @@ The approved design is recorded and turned into stories for the build sprint(s).
 
 ### Definition of Done
 - [ ] All AC checked · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
+## EPIC 55 — Animation mode: AI-image videos from a Visual Director storyboard (Sprint P-AN1)
+
+Operator request 2026-10-10, placed 2026-10-11 as the **immediate continuation after P-UX3 closes** (ahead of EPIC 53). A run can be made entirely from generated images in one consistent style: the operator picks Animation in the run settings, gives a master style, and gets a storyboard whose every scene carries a visual concept, keywords and a pre-filled image prompt, with recurring characters, props and settings held in an editable continuity bible. Reference inputs (operator's own, outside the repo): `visual_director_prompt_v4.1.md` and a 170-scene sample storyboard with five images generated from it on Nano Banana.
+
+**Scope decisions (operator, 2026-10-10 / 11):**
+- **First target is sub-minute videos in both 9:16 and 16:9.** One storyboard call is enough; chunked storyboard generation for long-form is deferred.
+- **Characters come from the Visual Director**, stored as a continuity bible on the run that the operator can edit before generating. Not part of the master style (it is appended to every scene, including scenes with no character), and not manual-only.
+- **No reference images in this sprint.** The operator's five test images held the character from text alone (same hair, glasses, sweater, scrunchie); what drifted was whatever the description left open (sweater pattern, face rendering in one shot). Tighter bible entries are the first remedy.
+- **Image model: Nano Banana.** kie.ai lists `nano-banana-2` on the same `createTask` endpoint and `input` shape the current provider uses (web check 2026-10-11, third-party documentation — confirm against kie.ai's own docs in S6). The operator's tests used "Nano Banana 2.1"; whether kie.ai offers that exact version is unverified.
+
+**Findings from the sample that shape the stories:**
+- About 1,700 of each sample prompt's 2,400 characters are the master style repeated. The model writes only the scene-specific part; code assembles the rest (S3).
+- The sample images have inconsistent letterbox bars and panel borders, and the "keep the lower 20% calm" line produced a dark band at the bottom. The fixed lines get a full-bleed instruction and the lower-20% line is added only where a scene has an overlay (S3).
+- The renderer has `ken_burns`, `zoom_in`, `zoom_out`, `pan_right`, `pan_left`, `static`. Push-ins, pullbacks, lateral drifts and holds map onto these; tilts and parallax do not (S2 keeps the free text as a note).
+
+**Decision to log at sprint start (`/decide`, next free number):** animation mode as a second storyboard path; the continuity bible; bulk generation as an operator-triggered job, which amends D104 ("generated per scene on demand").
+
+**Deferred, not in this sprint:** chunked storyboard generation for long-form (with E54-S1); character reference sheets with a reference-capable model; vertical pans; a shot-variety check in code.
+
+**Human touchpoint:** the operator makes one sub-minute run in 9:16 and one in 16:9, each from script to rendered video with generated images in the master style.
+
+---
+
+## [P-AN1-S1] Run settings: visual mode and master style
+**Epic:** E55 — Animation mode
+**Sprint:** P-AN1
+**Status:** backlog
+**Priority:** high
+**Points:** 3
+**Depends on:** P-UX3 closed
+
+### Goal
+A run says whether it is made from stock footage or from generated images, and carries the master style its images are generated in.
+
+### Acceptance Criteria
+- [ ] `settings.json` gains `visual_mode` (`stock` | `ai_animation`, default `stock`) and `master_style` (free text, default empty); existing runs load unchanged
+- [ ] The run settings drawer shows the visual mode and, when Animation is chosen, a master style text area
+- [ ] The run's master style defaults to the project's `ai_image_style` (project → run inheritance, same pattern as language and format); a value set on the run wins
+- [ ] Visual mode can be changed until a storyboard exists; after that the drawer shows it read-only with a note that changing it means regenerating the storyboard
+- [ ] The existing `visual_style` dropdown (Realistic / Cinematic / …) is checked for what it actually drives and is hidden in Animation mode if it has no effect there
+- [ ] Tests: settings round-trip, inheritance (run value, project fallback, empty), old `settings.json` without the new keys
+
+### Definition of Done
+- [ ] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
+
+### Files to read
+- `src/models.py` — `VideoSettings`
+- `src/routes/runs.py` — settings GET/POST
+- `cf_platform/core/integrations.py` — `project_run_defaults`, `resolve_run_values`
+- `src/static/studio-v2.html` — run settings drawer (`#settings-drawer`)
+- `src/static/project.html` — `ai_image_style` field
+- `DECISIONS.md` — D105 (tenant → project → run settings)
+
+### Handover
+_(blank)_
+
+---
+
+## [P-AN1-S2] Animation storyboard: the Visual Director prompt, structured
+**Epic:** E55 — Animation mode
+**Sprint:** P-AN1
+**Status:** backlog
+**Priority:** high
+**Points:** 8
+**Depends on:** P-AN1-S1
+
+### Goal
+In Animation mode the storyboard step produces scenes with a visual concept, keywords, shot description and a pre-filled image prompt, plus a continuity bible, using the Visual Director's method on the run's real voiceover timing.
+
+### Acceptance Criteria
+- [ ] The storyboard worker picks its prompt from the run's `visual_mode`; the stock path is unchanged (golden / existing tests still pass)
+- [ ] The animation prompt adapts Visual Director v4.1 sections 1–3 and 5–7 (narrative analysis, concept development, continuity bible, shot planning and variety, narration fit, prompt structure). Its timing section is replaced by the existing word-index contract: the model returns `start_word` / `end_word`, Python derives durations
+- [ ] Output is JSON, not markdown. The storyboard gains a `continuity` list (`id`, `kind`: character | prop | setting, `name`, `description`); each scene gains `visual_concept`, `visual_keywords`, `shot` (size, angle), `entities` (bible ids used), `motion_note` (free text), and `ai_prompt` holding **only the scene-specific description** — no style block, no bible text, no aspect ratio
+- [ ] Every scene is created with `asset_strategy = ai_image`; no stock queries are required in this mode
+- [ ] Scene length: 1.0–5.0 s in both formats. A scene over the limit is not split in Python by copying its prompt; it is flagged on the storyboard for the operator
+- [ ] `motion_effect` is set from the model's choice among the existing `MOTION_EFFECTS`; `motion_note` keeps the original wording
+- [ ] Overlays map to the existing `on_screen_text` / `on_screen_text_type`; the model does not invent overlay copy
+- [ ] The run's master style is passed to the model as context (so concepts fit the style) but is not echoed in the output
+- [ ] The review pass either handles the new fields or is skipped in this mode — decided and noted in the handover
+- [ ] `docs/PROMPTS.md` gets the animation prompt and a changelog entry; the prompt version is recorded on the artifact
+- [ ] Tests: prompt selection by mode, parsing and validation of the new fields, entity ids resolve to bible entries, 5 s rule, old storyboards without the new fields still load
+
+### Definition of Done
+- [ ] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
+
+### Files to read
+- `cf_platform/workers/storyboard_worker.py` — `_GENERATE_SYSTEM_PROMPT_V013`, `_generate`, `_reify_scene`, `_split_long_scenes`, `_review`, `_sanitize_storyboard_data`
+- `src/models.py` — `StoryboardScene`, `Storyboard`, `MOTION_EFFECTS`, `effective_asset_strategy`
+- `src/validators/storyboard_validator.py`
+- `docs/PROMPTS.md` — current version and changelog format
+- `cf_platform/workers/visual_director_worker.py` — the P11 worker of the same name plans stock shots; do not confuse or reuse without checking
+- `CONVENTIONS.md#async-function-discipline`, `docs/TESTING.md`
+
+### Handover
+_(blank)_
+
+---
+
+## [P-AN1-S3] Image prompt assembled in code
+**Epic:** E55 — Animation mode
+**Sprint:** P-AN1
+**Status:** backlog
+**Priority:** high
+**Points:** 3
+**Depends on:** P-AN1-S2
+
+### Goal
+The text sent to the image model is built from parts — scene prompt, bible descriptions, fixed lines, master style, aspect ratio — so the style is identical on every image and can change without regenerating the storyboard.
+
+### Acceptance Criteria
+- [ ] One pure function builds the prompt in this order: scene `ai_prompt` → descriptions of the scene's `entities`, verbatim from the bible → fixed lines → master style → aspect phrase ("Vertical 9:16" / "Horizontal 16:9")
+- [ ] Fixed lines: no readable text, letters or numerals; full-bleed, no borders, no letterbox, no panel frame. The "keep the lower part calm" line is added only when the scene has on-screen text
+- [ ] Master style resolves run → project `ai_image_style` → none
+- [ ] The per-scene Generate route uses this function for runs in Animation mode; stock-mode runs keep today's behaviour (project style, then prompt)
+- [ ] The stored `ai_prompt` stays scene-specific; the assembled text is what the scene's edit dialog shows as a read-only preview
+- [ ] Tests: ordering, each part optional, overlay-conditional line, unknown entity id ignored with a warning, stock-mode output unchanged
+
+### Definition of Done
+- [ ] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
+
+### Files to read
+- `cf_platform/core/ai_images.py` — `build_prompt`
+- `cf_platform/interfaces/routes/studio_ai.py` — `studio_generate_scene_image`, `_project_style`, `_run_aspect`
+- `DECISIONS.md` — D104
+
+### Handover
+_(blank)_
+
+---
+
+## [P-AN1-S4] Studio: scene cards and an editable continuity bible
+**Epic:** E55 — Animation mode
+**Sprint:** P-AN1
+**Status:** backlog
+**Priority:** high
+**Points:** 5
+**Depends on:** P-AN1-S2, P-AN1-S3
+
+### Goal
+The operator reviews an animation storyboard as scene cards with concept, keywords and prompt, and edits the characters, props and settings in one place before spending on images.
+
+### Acceptance Criteria
+- [ ] In Animation mode each scene card shows the visual concept, keywords, shot, the image prompt (editable) and which bible entries it uses; stock-only controls (search queries, image/video strategy) are hidden
+- [ ] A Continuity panel on the Storyboard step lists the bible entries; the operator can edit a description, add an entry and remove an unused one
+- [ ] Editing an entry marks the scenes that use it and already have an image as out of date, with one action to regenerate those scenes (uses the S5 job; shows the cost first)
+- [ ] The scene's edit-image dialog is pre-filled from `ai_prompt` (not the voiceover line) and shows the assembled prompt preview from S3
+- [ ] Regenerating the storyboard in Animation mode warns that existing generated images will no longer match their scenes
+- [ ] Split and merge keep working: a split scene's second half gets an empty prompt and is flagged; a merge keeps the first scene's prompt
+- [ ] Follows `docs/UI_GUIDELINES.md`; plain HTML/JS; demo-mode data covers an animation run
+
+### Definition of Done
+- [ ] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
+
+### Files to read
+- `src/static/studio-v2.html` — scene cards, `patchScene`, the edit-image dialog (`#pencil-ai-prompt`), demo data
+- `cf_platform/interfaces/routes/studio.py` — scene patch endpoint, `_apply_scene_edit_to_storyboard`
+- `cf_platform/workers/storyboard_edit.py` — split / merge rules (D102)
+- `docs/UI_GUIDELINES.md`
+
+### Handover
+_(blank)_
+
+---
+
+## [P-AN1-S5] Generate all images for a run
+**Epic:** E55 — Animation mode
+**Sprint:** P-AN1
+**Status:** backlog
+**Priority:** high
+**Points:** 5
+**Depends on:** P-AN1-S3
+
+### Goal
+One action generates the image for every scene that does not have one, in the background, with the cost shown before it starts.
+
+### Acceptance Criteria
+- [ ] "Generate all images" on the Storyboard step shows scene count, estimated cost and remaining cap, and starts only on confirmation
+- [ ] Runs as a background job with a concurrency limit from an ENV var; scenes that already have an image are skipped unless the operator asked for specific scenes (the S4 regenerate action)
+- [ ] Progress is visible per scene; a failed scene is retried once, then reported with its reason and a per-scene retry — the rest of the job continues
+- [ ] The job stops cleanly at the spend cap and says how many scenes are left; every paid generation is in the ledger even if a later step fails
+- [ ] Starting the job twice does not double-generate; after a server restart the job can be started again and picks up the scenes still missing
+- [ ] The per-run cap can be raised for a run from the confirmation dialog, up to a tenant maximum; documented in `ENV.md`
+- [ ] The generation logic shared with the per-scene route lives in one pure async function; both routes are thin wrappers
+- [ ] Tests: skip logic, cap stop mid-job, retry then failure, idempotent start, ledger entries
+
+### Definition of Done
+- [ ] All AC checked · CI green · decision logged (amends D104) · BACKLOG_ACTIVE.md status updated to `done`
+
+### Files to read
+- `cf_platform/interfaces/routes/studio_ai.py` — the per-scene route to factor
+- `cf_platform/core/ai_images.py` — ledger and cap
+- `cf_platform/interfaces/routes/workers.py` — the voice background task and `current_job.json` pattern
+- `cf_platform/core/integrations.py` — `resolve_defaults` (spend cap)
+- `DECISIONS.md` — D096, D104; `CONVENTIONS.md#async-function-discipline`
+
+### Handover
+_(blank)_
+
+---
+
+## [P-AN1-S6] Nano Banana as the image model, and the sprint smoke test
+**Epic:** E55 — Animation mode
+**Sprint:** P-AN1
+**Status:** backlog
+**Priority:** high
+**Points:** 2
+**Depends on:** P-AN1-S5
+
+### Goal
+Animation runs generate on the model the operator validated the look with, and the sprint ends with two rendered videos.
+
+### Acceptance Criteria
+- [ ] kie.ai's own documentation is checked for the Nano Banana model id, the accepted `aspect_ratio` values (9:16 and 16:9 must be accepted) and the price per image; findings recorded in the handover. As of 2026-10-11 third-party docs give `nano-banana-2` with `input.prompt`, `aspect_ratio`, `resolution` on `/api/v1/jobs/createTask`
+- [ ] The model is selectable in Settings → Integrations without a code change; any request field the model needs beyond today's three is added behind the provider interface
+- [ ] The per-image cost used for the estimate and the cap matches the selected model instead of one global `IMAGE_COST_USD`
+- [ ] Provider test with a mocked transport for the new model's request and response
+- [ ] Smoke test on DEV: one sub-minute run in 9:16 and one in 16:9, each from script to rendered video in Animation mode; character and style consistency noted in the handover, including any bible entries that had to be tightened
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [ ] Human touchpoint: the operator watches both videos
+
+### Files to read
+- `cf_platform/core/image_provider.py` — `KieImageProvider`, `build_image_provider`
+- `cf_platform/core/tenant_settings.py` — `resolve_image_config`
+- `cf_platform/core/config.py` — `IMAGE_*`, `KIE_IMAGE_MODEL`
+- `src/static/settings.html` — Integrations
+- `ENV.md`
+
+### Handover
+_(blank)_
 
 ---
 
