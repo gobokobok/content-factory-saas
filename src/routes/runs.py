@@ -300,15 +300,41 @@ def save_video_settings(
     body: VideoSettings,
     settings: Settings = Depends(get_settings),
 ) -> VideoSettingsResponse:
-    """Save video settings to settings.json in R2."""
+    """Save video settings to settings.json in R2.
+
+    Only the fields the request names are changed: a client that does not know a
+    newer field (visual mode, master style, the per-run image cap) leaves the
+    stored value as it is instead of resetting it to the default.
+    """
     client = _make_r2_client(settings)
     key = f"runs/{run_id}/settings.json"
+    merged = merge_video_settings(_stored_video_settings(client, key), body)
     try:
-        client.upload_json(key, body.model_dump())
+        client.upload_json(key, merged.model_dump())
     except StorageError as exc:
         logger.error("Storage error saving settings for run '%s': %s", run_id, exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return VideoSettingsResponse(status="saved", settings=body)
+    return VideoSettingsResponse(status="saved", settings=merged)
+
+
+def _stored_video_settings(client: R2Client, key: str) -> VideoSettings | None:
+    """The run's stored settings, or None when there are none or they cannot be read."""
+    try:
+        return VideoSettings.model_validate(client.get_json(key))
+    except (StorageError, ValueError):
+        return None
+
+
+def merge_video_settings(stored: VideoSettings | None, patch: VideoSettings) -> VideoSettings:
+    """Return `stored` with the fields `patch` set explicitly laid over it.
+
+    Without stored settings the patch is the result. Fields the request did not
+    name keep their stored value.
+    """
+    if stored is None:
+        return patch
+    sent = {name: getattr(patch, name) for name in patch.model_fields_set}
+    return stored.model_copy(update=sent)
 
 
 @router.get("/runs/{run_id}/settings", response_model=VideoSettingsResponse)

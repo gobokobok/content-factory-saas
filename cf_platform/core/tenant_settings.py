@@ -161,6 +161,10 @@ async def public_image_settings(
         "provider": provider,
         "model": (row.image_model if row and row.image_model else None) or "",
         "default_models": {name: _env_model(name, platform_settings) for name in IMAGE_PROVIDERS},
+        # Per-model price estimates (IMAGE_MODEL_COSTS_USD) and the fallback for any other
+        # model (IMAGE_COST_USD) — what the cost display and the spend cap count with.
+        "model_costs_usd": dict(getattr(platform_settings, "IMAGE_MODEL_COSTS_USD", None) or {}),
+        "default_cost_usd": float(getattr(platform_settings, "IMAGE_COST_USD", 0.0) or 0.0),
         "providers": providers,
         "can_save_keys": bool(platform_settings.SETTINGS_ENCRYPTION_KEY),
     }

@@ -182,7 +182,7 @@ Operator request 2026-10-10, placed 2026-10-11 as the **immediate continuation a
 ## [P-AN1-S1] Run settings: visual mode and master style
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P-UX3 closed
@@ -217,7 +217,7 @@ _(blank)_
 ## [P-AN1-S2] Animation storyboard: the Visual Director prompt, structured
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Points:** 8
 **Depends on:** P-AN1-S1
@@ -257,7 +257,7 @@ _(blank)_
 ## [P-AN1-S3] Image prompt assembled in code
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Points:** 3
 **Depends on:** P-AN1-S2
@@ -289,7 +289,7 @@ _(blank)_
 ## [P-AN1-S4] Studio: scene cards and an editable continuity bible
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Points:** 5
 **Depends on:** P-AN1-S2, P-AN1-S3
@@ -323,7 +323,7 @@ _(blank)_
 ## [P-AN1-S5] Generate all images for a run
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Points:** 5
 **Depends on:** P-AN1-S3
@@ -359,7 +359,7 @@ _(blank)_
 ## [P-AN1-S6] Nano Banana as the image model, and the sprint smoke test
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** backlog
+**Status:** in-progress
 **Priority:** high
 **Points:** 2
 **Depends on:** P-AN1-S5

@@ -582,6 +582,8 @@ class ScenePatchRequest(BaseModel):
     motion_effect: str | None = None
     asset_strategy: str | None = None
     ai_prompt: str | None = None
+    # Animation mode (D108): the ids of the continuity entries this scene uses.
+    entities: list[str] | None = None
     clear_on_screen_text: bool = False
 
 
@@ -613,13 +615,42 @@ async def studio_patch_scene(
     of the wrong kind is released so the scene is acquired again; the response
     lists the scenes that now need one in needs_acquisition.
     """
+    from cf_platform.workers.scene_images import run_lock
+
+    async with run_lock(run_id):
+        return await _patch_scene(run_id, scene_id, body, storage)
+
+
+async def _patch_scene(run_id: str, scene_id: str, body: ScenePatchRequest, storage: ArtifactStorage) -> dict:
+    """Apply a scene patch (see studio_patch_scene). The caller holds the run's lock.
+
+    Animation mode (D108): `entities` sets which bible entries the scene uses
+    (404 for an unknown id). Changing the entries or the image prompt of a scene
+    that already has an image flags it `image_out_of_date`; `needs_prompt`
+    follows whether the scene has a prompt.
+    """
+    from cf_platform.workers.animation_storyboard_worker import animation_scene_flags
+    from cf_platform.workers.continuity_edit import ContinuityEditError, set_scene_entities
+    from cf_platform.workers.scene_images import scene_has_image
     from cf_platform.workers.storyboard_worker import (
         _apply_patches_and_render_options,
         apply_asset_strategy,
     )
-    from src.models import ASSET_STRATEGIES, MOTION_EFFECTS
+    from src.models import ANIMATION_MODE, ASSET_STRATEGIES, MOTION_EFFECTS, SCENE_FLAG_IMAGE_STALE
 
     artifact_body, storyboard = await _load_storyboard(storage, run_id)
+    animation = storyboard.visual_mode == ANIMATION_MODE
+    before = next((sc for sc in storyboard.scenes if str(sc.scene) == scene_id), None)
+    manifest_for_flags = await _load_manifest(storage, run_id) if animation else None
+    entities_changed = False
+    if body.entities is not None:
+        if not animation:
+            raise HTTPException(status_code=409, detail="Only an Animation storyboard has continuity entries.")
+        try:
+            storyboard, _ = set_scene_entities(storyboard, manifest_for_flags, scene_id, body.entities)
+        except ContinuityEditError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        entities_changed = True
 
     patches: list[dict] = []
     if body.clear_on_screen_text:
@@ -663,10 +694,26 @@ async def studio_patch_scene(
         ]})
         patches.append({"scene_id": scene_id, "field": "asset_strategy", "value": body.asset_strategy})
 
-    if not patches:
+    if not patches and not entities_changed:
         raise HTTPException(status_code=400, detail="No patchable fields provided.")
 
     patched_storyboard = _apply_patches_and_render_options(storyboard, patches)
+    if animation and before is not None:
+        # Keep the scene's flags true to what it now is: no prompt → needs one; a
+        # different prompt under an existing image → that image is out of date.
+        def _reflag(sc):
+            """Return the patched scene with its animation flags recomputed."""
+            if str(sc.scene) != scene_id:
+                return sc
+            flags = animation_scene_flags(sc.duration_s, sc.ai_prompt, sc.flags)
+            prompt_changed = (sc.ai_prompt or "") != (before.ai_prompt or "")
+            if prompt_changed and scene_has_image(sc, manifest_for_flags) and SCENE_FLAG_IMAGE_STALE not in flags:
+                flags.append(SCENE_FLAG_IMAGE_STALE)
+            return sc.model_copy(update={"flags": flags})
+
+        patched_storyboard = patched_storyboard.model_copy(
+            update={"scenes": [_reflag(sc) for sc in patched_storyboard.scenes]}
+        )
     artifact_key, _ = await _write_storyboard(storage, run_id, artifact_body, patched_storyboard, "studio_patch")
     response: dict = {"artifact_key": artifact_key, "scene_count": len(patched_storyboard.scenes)}
 

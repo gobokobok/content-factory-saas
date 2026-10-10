@@ -777,6 +777,39 @@
     .sc-merge { margin-left: auto; font-family: var(--font); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; }
     .sc-merge:hover { color: var(--ink); border-color: var(--ink-sub); }
     .sc-query { font-size: 11.5px; color: var(--muted); margin-top: 8px; cursor: pointer; border-radius: 4px; padding: 1px 3px; margin-left: -3px; }
+    /* Animation mode (P-AN1) */
+    .an-block { margin-top: 10px; }
+    .an-concept { font-size: 12.5px; color: var(--ink-sub); margin-bottom: 6px; }
+    .an-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; font-size: 11px; color: var(--muted); }
+    .an-chip { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--border2); color: var(--ink-sub); }
+    .an-chip.an-entity { background: var(--accent-tint); color: var(--accent); }
+    .an-flags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+    .an-flag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #FFF4D6; color: #7A4B00; }
+    .an-prompt { width: 100%; box-sizing: border-box; resize: vertical; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--r-sm);
+      font-family: var(--font); font-size: 12.5px; line-height: 1.45; color: var(--ink); background: var(--surface); }
+    .an-prompt:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .an-note { font-size: 11.5px; color: var(--muted); margin-top: 6px; }
+    .an-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 16px; margin-bottom: 12px; }
+    .an-panel summary { cursor: pointer; font-size: 13px; }
+    .an-panel summary .muted { font-size: 12px; }
+    .an-entry { padding: 10px 0; border-top: 1px solid var(--border2); margin-top: 10px; }
+    .an-entry-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 6px; }
+    .an-entry-head .cf-select { flex: 0 0 130px; width: 130px; }
+    .an-entry-name { flex: 1 1 180px; min-width: 0; padding: 5px 10px; }
+    .an-used { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+    .an-stale, .an-job { font-size: 12.5px; padding: 8px 12px; border-radius: var(--r-sm); background: #FFF4D6; color: #7A4B00; margin-top: 10px; }
+    .an-job { background: var(--accent-tint); color: var(--ink); margin: 0 0 12px; }
+    .an-job.warn { background: #FFF4D6; color: #7A4B00; }
+    .an-job.ok { background: var(--border2); }
+    .an-job-fail { margin-top: 4px; }
+    .an-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; margin: 0 12px 6px 0; cursor: pointer; }
+    .an-preview { white-space: pre-wrap; font-size: 11.5px; line-height: 1.45; color: var(--ink-sub); background: var(--bg); border: 1px solid var(--border2);
+      border-radius: var(--r-sm); padding: 8px 10px; max-height: 180px; overflow: auto; margin: 0; font-family: var(--font); }
+    .sc-card.generating .sc-thumb { opacity: 0.45; }
+    .genall-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 10px; }
+    .genall-num { font-size: 20px; font-weight: 600; color: var(--ink); }
+    .genall-lab { font-size: 11.5px; color: var(--muted); }
+    @media (max-width: 560px) { .genall-grid { grid-template-columns: 1fr; } }
     .sc-query:hover { background: var(--accent-tint); color: var(--accent); }
     .sc-query.editing { background: var(--accent-tint); outline: 1.5px solid var(--accent); }
 
@@ -866,10 +899,18 @@
             <button class="settings-opt" id="opt-aspect-landscape" onclick="setAspectRatio('landscape')">16:9 Landscape</button>
           </div>
 
-          <div class="field-label" style="display:none;">Style</div>
-          <div class="settings-opt-row" style="margin-bottom:6px;display:none;">
-            <button class="settings-opt active" id="opt-style-realistic" onclick="setStyle('realistic')">Realistic</button>
-            <button class="settings-opt disabled" disabled title="Coming soon">Animated <span class="settings-soon">Soon</span></button>
+          <div class="field-label">Visuals</div>
+          <div class="settings-opt-row">
+            <button class="settings-opt active" id="opt-visual-stock" onclick="setVisualMode('stock')">Stock footage</button>
+            <button class="settings-opt" id="opt-visual-animation" onclick="setVisualMode('ai_animation')">Animation</button>
+          </div>
+          <div class="rs-hint" id="visual-mode-hint" style="margin-bottom:6px;"></div>
+          <div id="master-style-block" style="display:none;">
+            <div class="field-label">Master style</div>
+            <textarea class="modal-input" id="master-style" rows="5" style="width:100%;resize:vertical;font-family:inherit;box-sizing:border-box;"
+              placeholder="The look every image shares: technique, palette, lighting, mood."
+              oninput="onMasterStyleInput()" onchange="saveRunSettings()"></textarea>
+            <div class="rs-hint" id="master-style-hint" style="margin-bottom:6px;"></div>
           </div>
 
           <div class="field-label">Background music</div>
@@ -1024,7 +1065,7 @@
       <div class="stage-pane" id="pane-storyboard">
         <div class="stage-content">
           <div class="stage-title">Storyboard</div>
-          <div class="stage-subtitle">Scene-by-scene plan. Pick each scene's asset type, click a word to split a scene there, merge it with the next, set its on-screen text and sound effect. Nothing is acquired until you confirm the storyboard.</div>
+          <div class="stage-subtitle" id="sb-subtitle">Scene-by-scene plan. Pick each scene's asset type, click a word to split a scene there, merge it with the next, set its on-screen text and sound effect. Nothing is acquired until you confirm the storyboard.</div>
           <div id="sb-error" class="error-bar" style="display:none;"></div>
         </div>
         <div class="stage-content wide" style="margin-top:0; padding-top:0;">
@@ -1092,7 +1133,7 @@
   <div class="modal-box">
     <div class="modal-header" id="pencil-modal-title">Scene — override asset</div>
     <div class="modal-body">
-      <div>
+      <div id="pencil-stock-section">
         <div class="modal-section-label">Search query</div>
         <div class="modal-row">
           <img id="pencil-thumb" class="modal-thumb" src="" alt="" style="display:none;">
@@ -1115,17 +1156,35 @@
         <div class="modal-msg" id="pencil-upload-msg"></div>
       </div>
       <div>
-        <div class="modal-section-label">Or generate with AI <span id="pencil-ai-spend" style="font-weight:400;color:var(--faint);"></span></div>
-        <textarea class="modal-input" id="pencil-ai-prompt" rows="3" style="width:100%;resize:vertical;font-family:inherit;" placeholder="Describe the image: subject, setting, light, composition. No text in the picture."></textarea>
+        <div class="modal-section-label"><span id="pencil-ai-label">Or generate with AI</span> <span id="pencil-ai-spend" style="font-weight:400;color:var(--faint);"></span></div>
+        <textarea class="modal-input" id="pencil-ai-prompt" rows="4" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;" placeholder="Describe the image: subject, setting, light, composition. No text in the picture." oninput="schedulePromptPreview()"></textarea>
+        <div id="pencil-an-section" style="display:none;margin-top:10px;">
+          <div class="modal-section-label">Continuity entries in this scene</div>
+          <div id="pencil-entities"></div>
+          <div class="modal-section-label" style="margin-top:10px;">What the image model receives</div>
+          <pre class="an-preview" id="pencil-preview"></pre>
+        </div>
         <div class="modal-row" style="margin-top:8px;">
           <button class="btn btn-secondary btn-sm" id="pencil-generate-btn" onclick="generateSceneImage()">Generate</button>
-          <span style="font-size:11px;color:var(--faint);">Uses your image provider key from Settings. The project's AI image style, if set, is added automatically. Replaces this scene's asset.</span>
+          <span id="pencil-ai-note" style="font-size:11px;color:var(--faint);">Uses your image provider key from Settings. The project's AI image style, if set, is added automatically. Replaces this scene's asset.</span>
         </div>
         <div class="modal-msg" id="pencil-generate-msg"></div>
       </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closePencilModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Generate all images (P-AN1-S5) — cost shown before anything is spent ── -->
+<div class="modal-backdrop" id="genall-modal" style="display:none;" onclick="if(event.target===this)closeGenerateAll()">
+  <div class="modal-box">
+    <div class="modal-header" id="genall-title">Generate all images</div>
+    <div class="modal-body" style="gap:0;" id="genall-body"></div>
+    <div class="modal-footer" style="gap:8px;">
+      <button class="btn btn-ghost" onclick="closeGenerateAll()">Cancel</button>
+      <button class="btn btn-primary" id="genall-confirm" onclick="confirmGenerateAll()">Generate</button>
     </div>
   </div>
 </div>
@@ -1155,6 +1214,7 @@
 //  without a backend. Real deployments never hit this path.
 // ═══════════════════════════════════════════════════════════════════════
 const DEMO = new URLSearchParams(location.search).has('demo');
+const DEMO_ANIM = new URLSearchParams(location.search).get('demo') === 'animation';
 
 const DEMO_SCRIPT = "In 1980, the average first home in America cost three times the median income. Today it costs seven. But this isn't just inflation — starter homes have physically vanished. In 1982, 40% of new construction was entry-level housing. By 2020, it was 7%. Builders didn't abandon small homes by accident. Zoning laws set minimum lot sizes. Permit fees became fixed costs that only pencil out on luxury builds. And the math is brutal: a builder pays the same $40,000 in fees whether the house sells for $200k or $800k. So the starter home didn't die of natural causes. It was regulated out of existence — one city council vote at a time.";
 
@@ -1177,6 +1237,98 @@ const DEMO_SCENES = [
   });
 })();
 const DEMO_WORDS = DEMO_SCENES.flatMap(s => s.voiceover_line.split(' '));
+
+// Demo of an Animation run (P-AN1): ?demo=animation. Every scene is a generated
+// image with a concept, keywords, a shot and a prompt; two already have an image.
+const DEMO_CONTINUITY = [
+  { id: 'buyer', kind: 'character', name: 'the buyer', description: 'a woman in her early thirties with a short auburn bob, a plain forest-green raincoat over a cream sweater, and a brown leather satchel' },
+  { id: 'starter_home', kind: 'setting', name: 'the starter home', description: 'a small single-storey white clapboard house with a red front door, a low picket fence and one maple tree' },
+];
+if (DEMO_ANIM) {
+  const concepts = [
+    ['The buyer stands in front of a small house with a price tag three times her size.', ['price tag', 'small house'], 'wide', 'low', ['buyer', 'starter_home']],
+    ['The same house, now dwarfed by a tag seven times as tall.', ['towering tag', 'tiny house'], 'extreme wide', 'eye-level', ['starter_home']],
+    ['A row of ten new houses; only one is small.', ['row of houses', 'one small house'], 'wide', 'high', []],
+    ['A ruler laid across a building lot, far wider than the house on it.', ['ruler', 'empty lot'], 'close-up', 'top-down', []],
+    ['The buyer holds two identical invoices in front of a mansion and a cottage.', ['two invoices', 'mansion', 'cottage'], 'medium', 'eye-level', ['buyer']],
+    ['The small house fades as a council gavel falls.', ['gavel', 'fading house'], 'close-up', 'low', ['starter_home']],
+  ];
+  DEMO_SCENES.forEach((s, i) => {
+    const [concept, keywords, size, angle, entities] = concepts[i % concepts.length];
+    Object.assign(s, {
+      asset_strategy: 'ai_image', asset_tier: 'still', clip_type: 'still_with_motion', primary_stk: '',
+      motion_effect: ['zoom_in', 'zoom_out', 'pan_right', 'static', 'ken_burns', 'pan_left'][i % 6],
+      motion_note: ['Slow push-in on the tag.', 'Pull back to show the scale.', 'Drift right along the row.', 'Static hold.', 'Gentle push-in.', 'Drift left as the house fades.'][i % 6],
+      visual_concept: concept, visual_keywords: keywords, shot: { size, angle }, entities,
+      ai_prompt: concept.replace(/\.$/, '') + ', soft morning light, uncluttered background.',
+      flags: s.duration_s > 5 ? ['too_long'] : [],
+      _noAsset: i > 1, _ai: i <= 1, _uploaded: i <= 1,
+    });
+  });
+}
+let _demoImageJob = null;
+/** Demo answers for the Animation routes; undefined when the URL is not one of them. */
+function demoAnimationRoute(u, method, opts) {
+  const body = () => JSON.parse(opts?.body || '{}');
+  const stale = () => DEMO_SCENES.filter(s => (s.flags || []).includes('image_out_of_date')).map(s => s.scene);
+  const spent = () => 0.02 * (window._demoAi || 0);
+  if (u.includes('/images/plan')) {
+    const asked = new URL(u, location.href).searchParams.get('scene_ids');
+    const ids = asked ? asked.split(',') : DEMO_SCENES.filter(s => s._noAsset).map(s => s.scene);
+    const ok = ids.filter(id => (DEMO_SCENES.find(s => s.scene === id)?.ai_prompt || '').trim());
+    return demoResponse({ scene_ids: ok, count: ok.length, without_prompt: ids.filter(id => !ok.includes(id)), out_of_date: stale(),
+      model: 'nano-banana-2-1', cost_per_image_usd: 0.02, estimated_cost_usd: 0.02 * ok.length, spent_usd: spent(),
+      cap_usd: window._demoCap || 2, remaining_usd: (window._demoCap || 2) - spent(), cap_max_usd: 10,
+      affordable: Math.min(ok.length, Math.floor(((window._demoCap || 2) - spent()) / 0.02)), job_active: _demoImageJob?.status === 'running' }, 200, 300);
+  }
+  if (u.includes('/images/generate')) {
+    const b = body();
+    if (b.spend_cap_usd != null) window._demoCap = b.spend_cap_usd;
+    const ids = b.scene_ids || DEMO_SCENES.filter(s => s._noAsset && (s.ai_prompt || '').trim()).map(s => s.scene);
+    _demoImageJob = { job_id: 'demo', status: 'running', total: ids.length, done: 0, failed: [], left: ids.length, scenes: Object.fromEntries(ids.map(id => [id, 'pending'])), message: '' };
+    return demoResponse({ status: 'running', already_running: false, job: _demoImageJob }, 202, 300);
+  }
+  if (u.includes('/images/status')) {
+    if (!_demoImageJob) return demoResponse({ status: 'none' }, 200, 150);
+    const next = Object.keys(_demoImageJob.scenes).find(id => _demoImageJob.scenes[id] === 'pending');
+    if (next) {
+      const sc = DEMO_SCENES.find(s => s.scene === next);
+      if (sc) { sc._noAsset = false; sc._ai = true; sc._uploaded = true; sc._seed = `ai${next}${Date.now() % 97}`; sc.flags = (sc.flags || []).filter(f => f !== 'image_out_of_date'); }
+      _demoImageJob.scenes[next] = 'done'; _demoImageJob.done++; _demoImageJob.left--; window._demoAi = (window._demoAi || 0) + 1;
+    } else _demoImageJob.status = 'complete';
+    return demoResponse(_demoImageJob, 200, 200);
+  }
+  if (u.includes('/prompt-preview')) {
+    const sid = u.match(/\/scenes\/([^/]+)\//)[1];
+    const sc = DEMO_SCENES.find(s => s.scene === sid) || {};
+    const prompt = body().prompt ?? sc.ai_prompt ?? '';
+    const lines = (sc.entities || []).map(id => DEMO_CONTINUITY.find(e => e.id === id)).filter(Boolean).map(e => `${e.name[0].toUpperCase()}${e.name.slice(1)}: ${e.description}`);
+    return demoResponse({ scene_n: sid, visual_mode: 'ai_animation', text: [prompt, ...lines,
+      'No readable text, letters or numerals anywhere in the image. Full-bleed image that fills the whole frame edge to edge: no borders, no letterbox bars, no panel frame.',
+      'Flat editorial illustration, muted earth palette, clean ink outlines.', 'Vertical 9:16.'].filter(Boolean).join('\n\n') }, 200, 200);
+  }
+  if (u.includes('/storyboard/continuity')) {
+    const id = decodeURIComponent(u.split('/continuity')[1].replace(/^\//, ''));
+    const b = method === 'DELETE' ? {} : body();
+    let newly = [];
+    if (method === 'POST') {
+      if (!b.name?.trim() || !b.description?.trim()) return demoResponse({ detail: 'An entry needs a name and a description.' }, 422, 150);
+      DEMO_CONTINUITY.push({ id: b.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_'), kind: b.kind, name: b.name.trim(), description: b.description.trim() });
+    } else if (method === 'DELETE') {
+      const i = DEMO_CONTINUITY.findIndex(e => e.id === id);
+      if (i >= 0) DEMO_CONTINUITY.splice(i, 1);
+    } else {
+      const e = DEMO_CONTINUITY.find(x => x.id === id);
+      if (e) {
+        const changed = e.description !== b.description || e.name !== b.name;
+        Object.assign(e, b);
+        if (changed) DEMO_SCENES.forEach(s => { if ((s.entities || []).includes(id) && !s._noAsset && !(s.flags || []).includes('image_out_of_date')) { s.flags = [...(s.flags || []), 'image_out_of_date']; newly.push(s.scene); } });
+      }
+    }
+    return demoResponse({ ...demoStoryboard(), out_of_date: stale(), newly_out_of_date: newly }, 200, 250);
+  }
+  return undefined;
+}
 
 function demoManifest() {
   return { entries: DEMO_SCENES.map((s, i) => s._noAsset
@@ -1218,7 +1370,8 @@ function demoReplaceBoundaries(starts, dryRun) {
 }
 
 function demoStoryboard() {
-  return { storyboard: { scenes: DEMO_SCENES, summary: { total_duration_s: 41.5 }, global: { visual_style: 'documentary', aspect_ratio: '9:16' } } };
+  return { storyboard: { scenes: DEMO_SCENES, summary: { total_duration_s: 41.5 }, global: { visual_style: 'documentary', aspect_ratio: '9:16' },
+    ...(DEMO_ANIM ? { visual_mode: 'ai_animation', continuity: DEMO_CONTINUITY } : {}) } };
 }
 
 const DEMO_VOICE = { mp3_url: "https://interactive-examples.mdn.mozilla.net/media/cc0-audio/t-rex-roar.mp3", total_duration_s: 41.5, word_count: 118, alignment_method: "deepgram_nova2" };
@@ -1240,6 +1393,8 @@ let _demoVoiceSource = 'generated';
 function demoRoute(url, opts) {
   const method = (opts?.method || 'GET').toUpperCase();
   const u = String(url);
+  const animationAnswer = demoAnimationRoute(u, method, opts);
+  if (animationAnswer) return animationAnswer;
   if (u.includes('/voice-source')) {
     _demoVoiceSource = JSON.parse(opts?.body || '{}').voice_source || 'generated';
     return demoResponse({ voice_source: _demoVoiceSource, changed: true, discarded: [] }, 200, 200);
@@ -1405,7 +1560,7 @@ function applyVoiceSource(source) {
 }
 function defaultSettings() {
   return {
-    aspectRatio: 'portrait', style: 'realistic', captions: true, musicKey: null, subject: '',
+    aspectRatio: 'portrait', visualMode: DEMO_ANIM ? 'ai_animation' : 'stock', masterStyle: '', imageSpendCap: null, captions: true, musicKey: null, subject: '',
     captionStyle: 'standard',                                   // D082
     narrationPace: 'normal', narrationStyle: 'educational',     // D083
   };
@@ -1453,7 +1608,7 @@ window.fetch = async (...args) => {
 };
 async function logOut() {
   await fetch('/auth/logout', { method: 'POST' });
-  window.location.href = DEMO ? location.pathname + '?demo=1' : '/login';
+  window.location.href = DEMO ? location.pathname + (DEMO_ANIM ? '?demo=animation' : '?demo=1') : '/login';
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -1591,7 +1746,7 @@ function renderRunFacts() {
   const next = STAGES.find(s => visibleStatus(s) !== 'done');
   const status = failed ? `<span class="chip bad">Needs attention · ${esc(STAGE_LABELS[failed])}</span>`
     : !next ? '<span class="chip ok">Done</span>' : `<span class="chip run">At ${esc(STAGE_LABELS[next])}</span>`;
-  el.innerHTML = `<span class="chip ink">${voice}</span><span class="chip">${esc(lang)}</span><span class="chip">${fmt}</span>${status}`;
+  el.innerHTML = `<span class="chip ink">${voice}</span><span class="chip">${esc(lang)}</span><span class="chip">${fmt}</span>${isAnimationRun() ? '<span class="chip">Animation</span>' : ''}${status}`;
 }
 
 /** Breadcrumbs: Projects / project / Runs / this run. */
@@ -1758,7 +1913,7 @@ function showLanding() {
   document.getElementById('info-panel').classList.remove('open');
   const lb = document.getElementById('log-btn'); if (lb) lb.classList.remove('active');
   state.runId = null;
-  history.replaceState(null, '', location.pathname + (DEMO ? '?demo=1' : ''));
+  history.replaceState(null, '', location.pathname + (DEMO ? (DEMO_ANIM ? '?demo=animation' : '?demo=1') : ''));
   renderRunList();
 }
 
@@ -1780,7 +1935,8 @@ function resetSettingsPane() {
   try {
     state.settings = defaultSettings();
     setAspectRatio('portrait');
-    setStyle('realistic');
+    setVisualMode(defaultSettings().visualMode);
+    document.getElementById('master-style').value = '';
     document.getElementById('captions-toggle').checked = true;
     document.getElementById('music-status').innerHTML = '';
     document.getElementById('settings-subject').value = '';
@@ -1945,6 +2101,12 @@ function applyStoredSettings(s) {
     state.settings.narrationStyle = s.narration_style;
     document.getElementById('narration-style').value = s.narration_style;
   }
+  if (s.master_style !== undefined) {
+    state.settings.masterStyle = s.master_style || '';
+    document.getElementById('master-style').value = state.settings.masterStyle;
+  }
+  if (s.image_spend_cap_usd !== undefined) state.settings.imageSpendCap = s.image_spend_cap_usd;
+  if (s.visual_mode) setVisualMode(s.visual_mode);
 }
 
 // True once for a run just created on the project page (project.html sets the flag).
@@ -2087,6 +2249,10 @@ async function loadRun(id) {
     }
   } catch (err) { console.error('SFX library fetch failed:', err); }
 
+  // A bulk image job belongs to one run: forget the previous run's.
+  state.imageJob = null;
+  clearInterval(_imageJobTimer);
+
   // Try to load storyboard artifact
   try {
     const r = await fetch(`/platform/studio/runs/${id}/storyboard`);
@@ -2106,6 +2272,7 @@ async function loadRun(id) {
       _applyManifestToTable(data);
     }
   } catch { /* ignore */ }
+  resumeImageJob();
 
   // Try to load video URL
   try {
@@ -2149,9 +2316,54 @@ function setAspectRatio(val) {
   saveRunSettings();
 }
 
-function setStyle(val) {
-  state.settings.style = val;
-  document.getElementById('opt-style-realistic').classList.toggle('active', val === 'realistic');
+/** True when this run is made from generated images in one master style (D108). */
+function isAnimationRun() { return state.settings.visualMode === 'ai_animation'; }
+
+/** The project's AI image style, which a run's empty master style falls back to. */
+function projectImageStyle() { return (state.project?.config?.ai_image_style || '').trim(); }
+
+/** Choose stock footage or Animation. Locked once the run has a storyboard. */
+function setVisualMode(val) {
+  if (!hydratingSettings && state.stageStatus.storyboard === 'done' && val !== state.settings.visualMode) return;
+  state.settings.visualMode = val === 'ai_animation' ? 'ai_animation' : 'stock';
+  renderVisualMode();
+  renderRunFacts();
+  saveRunSettings();
+}
+
+/** Paint the Visuals controls: the chosen mode, the lock note, the master style and where it comes from. */
+function renderVisualMode() {
+  const animation = isAnimationRun();
+  const locked = state.stageStatus.storyboard === 'done';
+  const stockBtn = document.getElementById('opt-visual-stock');
+  const animBtn = document.getElementById('opt-visual-animation');
+  if (!stockBtn) return;
+  stockBtn.classList.toggle('active', !animation);
+  animBtn.classList.toggle('active', animation);
+  for (const [btn, mine] of [[stockBtn, !animation], [animBtn, animation]]) {
+    btn.disabled = locked && !mine;
+    btn.classList.toggle('disabled', locked && !mine);
+  }
+  const hint = document.getElementById('visual-mode-hint');
+  hint.className = 'rs-hint' + (locked ? ' warn' : '');
+  hint.textContent = locked
+    ? 'This run already has a storyboard. Changing how its visuals are made means regenerating the storyboard.'
+    : (animation ? 'Every scene is a generated image in one style. Images cost money; nothing is generated until you start it.'
+                 : 'Scenes are stock footage and images, with your own uploads where you choose.');
+  document.getElementById('master-style-block').style.display = animation ? '' : 'none';
+  const inherited = projectImageStyle();
+  const own = (state.settings.masterStyle || '').trim();
+  const msHint = document.getElementById('master-style-hint');
+  msHint.className = 'rs-hint' + (!own && !inherited ? ' warn' : '');
+  msHint.textContent = own
+    ? (inherited ? 'Overridden for this run. Empty it to use the project\u2019s AI image style again.' : 'Set for this run.')
+    : (inherited ? 'Inherited from the project\u2019s AI image style: ' + (inherited.length > 140 ? inherited.slice(0, 140) + '\u2026' : inherited)
+                 : 'No style yet. Without one the images will not share a look.');
+}
+
+function onMasterStyleInput() {
+  state.settings.masterStyle = document.getElementById('master-style').value;
+  renderVisualMode();
 }
 
 function onCaptionsToggle() {
@@ -2187,6 +2399,7 @@ function onSettingsContinue() {
 }
 function openSettingsDrawer() {
   renderLanguageSelect();
+  renderVisualMode();
   document.getElementById('settings-drawer').style.display = '';
 }
 function closeSettingsDrawer() { document.getElementById('settings-drawer').style.display = 'none'; }
@@ -2225,7 +2438,8 @@ async function saveRunSettings() {
   const arMap = { portrait: '9:16', landscape: '16:9' };
   const body = {
     aspect_ratio: arMap[state.settings.aspectRatio] || '9:16',
-    visual_style: 'Realistic',
+    visual_mode: state.settings.visualMode || 'stock',
+    master_style: (state.settings.masterStyle || '').trim(),
     subtitles: state.settings.captions ? 'TikTok' : 'none',
     subject: state.settings.subject || '',
     caption_style: state.settings.captionStyle || 'standard',
@@ -2368,6 +2582,13 @@ async function createStoryboard() {
   const uploaded = state.voiceSource === 'uploaded';
   const script = uploaded ? (state.stageData.script || '').trim() : document.getElementById('script-input').value.trim();
   if (!script) { alert(uploaded ? 'Upload a voiceover first.' : 'Enter a script first.'); return; }
+  // An Animation run's images were generated for the scenes of the storyboard it has
+  // now (and paid for): a new storyboard cuts new scenes, so they no longer match.
+  const paidImages = Object.values(state.manifestEntries || {}).filter(e => e.source === 'ai_generated' && e.file_key).length;
+  if (isAnimationRun() && state.stageStatus.storyboard === 'done' && paidImages
+      && !confirm(`This run has ${paidImages} generated image${paidImages === 1 ? '' : 's'}. A new storyboard cuts new scenes, so the existing images will no longer match them and will have to be generated again.
+
+Regenerate the storyboard?`)) return;
 
   // Determine which trigger button and error zone to use depending on caller stage
   const fromVoice = state.activeStage === 'voice';
@@ -2445,6 +2666,7 @@ async function createStoryboard() {
       const sbData = await sbR.json();
       state.stageData.storyboard = sbData;
       state.stageStatus.storyboard = 'done';
+      state.imageJob = null;
       renderStoryboard(sbData);
     } else {
       state.stageStatus.storyboard = 'done';
@@ -2906,7 +3128,7 @@ function renderStoryboard(data) {
     <div class="sb-summary">
       <div class="sb-stat"><strong>${scenes.length}</strong> scenes</div>
       <div class="sb-stat"><strong>${durStr}</strong> total</div>
-      <div class="sb-stat"><strong id="sb-stat-acq">0</strong> / ${scenes.length} acquired</div>
+      <div class="sb-stat"><strong id="sb-stat-acq">0</strong> / ${scenes.length} ${sbIsAnimation() ? 'with an image' : 'acquired'}</div>
       <div class="sb-stat" id="sb-stat-need-wrap" style="display:none;"><strong id="sb-stat-need">0</strong> need an asset</div>
       <div class="sb-stat" id="sb-stat-fail-wrap" style="display:none;"><strong id="sb-stat-fail">0</strong> failed</div>
       <div class="sb-stat" id="sb-stat-ai-wrap" style="display:none;" title="AI image spend for this run (estimate) against its cap"><strong id="sb-stat-ai"></strong> AI images</div>
@@ -2915,11 +3137,16 @@ function renderStoryboard(data) {
         <button class="sb-view-btn${script ? ' active' : ''}" id="sb-view-script" onclick="setSbView('script')">Script</button>
       </div>
     </div>
+    ${sbIsAnimation() ? '<div id="sb-image-job" class="an-job" style="display:none;"></div>' + (script ? '' : buildContinuityPanel()) : ''}
     ${script ? buildScriptView(scenes) : `
     <div id="sb-cards">${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1], totalDur)).join('')}</div>`}`;
 
   document.getElementById('sb-cta').style.display = '';
+  document.getElementById('sb-subtitle').textContent = sbIsAnimation()
+    ? "Scene-by-scene plan for generated images. Check each scene's concept and prompt, tighten the continuity entries, split a scene on a word or merge it with the next. Nothing is generated, and nothing is spent, until you start it."
+    : "Scene-by-scene plan. Pick each scene's asset type, click a word to split a scene there, merge it with the next, set its on-screen text and sound effect. Nothing is acquired until you confirm the storyboard.";
   updateAcquisitionUi();
+  if (sbIsAnimation()) applyImageJob(state.imageJob);
   refreshAiSpend();
   if (script) onScriptViewInput();
   hideErr('sb-error');
@@ -2961,7 +3188,7 @@ function updateAcquisitionUi() {
   set('sb-stat-fail', failed);
   show('sb-stat-fail-wrap', failed > 0);
   set('sb-stat-need', need);
-  show('sb-stat-need-wrap', need > 0);
+  show('sb-stat-need-wrap', need > 0 && !sbIsAnimation());
 
   const renderBtn = document.getElementById('render-btn');
   if (renderBtn && acquired > 0) renderBtn.disabled = false;
@@ -2975,8 +3202,19 @@ function updateAcquisitionUi() {
 
   if (state.acquiring) return;  // the running request owns the button until it returns
   const btn = document.getElementById('acquire-btn');
-  if (btn) { btn.textContent = plan.label; btn.disabled = scenes.length === 0; }
   const go = document.getElementById('go-render-btn');
+  if (sbIsAnimation()) {
+    // Animation mode: nothing is acquired — the one action generates the missing images.
+    const missing = scenes.filter(s => !sceneHasAsset(s.scene)).length;
+    const running = state.imageJob?.status === 'running';
+    if (btn) {
+      btn.textContent = running ? 'Generating images…' : missing ? `Generate ${missing} image${missing === 1 ? '' : 's'}…` : 'All scenes have an image';
+      btn.disabled = running || !missing;
+    }
+    if (go) go.style.display = acquired > 0 && !missing ? '' : 'none';
+    return;
+  }
+  if (btn) { btn.textContent = plan.label; btn.disabled = scenes.length === 0; }
   if (go) go.style.display = plan.stockAcquired ? '' : 'none';
 }
 
@@ -3030,13 +3268,14 @@ function buildSceneRow(s, nextScene, totalDur) {
       </select>`;
 
   const wide = state.settings.aspectRatio === 'landscape';
+  const animation = sbIsAnimation();
   const ost = s.on_screen_text || '';
   const pencil = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>';
   return `<div class="sc-card${wide ? ' wide' : ''}" data-scene="${sceneId}">
     <div class="sc-thumb"><div id="thumb-cell-${sceneId}">${buildThumbCell(sceneId)}</div>
-      <button class="sc-pencil" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" title="Change this scene's asset — re-acquire, upload or generate with AI" aria-label="Change the asset of scene ${sceneId}">${pencil}</button></div>
+      <button class="sc-pencil" id="pencil-btn-${sceneId}" onclick="openPencilModal('${sceneId}')" title="${animation ? "Edit this scene's image — prompt, continuity entries, regenerate or upload" : "Change this scene's asset — re-acquire, upload or generate with AI"}" aria-label="Change the asset of scene ${sceneId}">${pencil}</button></div>
     <div class="sc-main">
-      <div class="sc-top"><span class="mono">Scene ${sceneId} · ${fmtMs(s.scene_start_ms)} · ${displayDur.toFixed(1)}s</span>${assetCell}</div>
+      <div class="sc-top"><span class="mono">Scene ${sceneId} · ${fmtMs(s.scene_start_ms)} · ${displayDur.toFixed(1)}s</span>${animation ? '' : assetCell}</div>
       <div class="sc-vo">${voCell}</div>
       <div class="sc-tools">
         <input class="sc-ost${ost ? ' on' : ''}" id="ost-input-${sceneId}" value="${esc(ost)}" placeholder="+ On-screen text" size="${Math.max(16, ost.length + 2)}" maxlength="120"
@@ -3050,7 +3289,7 @@ function buildSceneRow(s, nextScene, totalDur) {
         ${motionCell}
         ${mergeBtn}
       </div>
-      <div class="sc-query" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Search words for stock footage — click to edit">${esc(s.primary_stk || '— search words —')}</div>
+      ${animation ? buildAnimationBlock(s) : `<div class="sc-query" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Search words for stock footage — click to edit">${esc(s.primary_stk || '— search words —')}</div>`}
     </div>
   </div>`;
 }
@@ -3405,6 +3644,7 @@ function _applyManifestToTable(data) {
 
 async function acquireAssets() {
   if (!state.runId) return;
+  if (sbIsAnimation()) return openGenerateAll();
 
   const acquireBtn = document.getElementById('acquire-btn');
   const goRenderBtn = document.getElementById('go-render-btn');
@@ -3469,6 +3709,330 @@ async function acquireAssets() {
   }
 }
 
+// ── Animation mode (P-AN1, D108) ─────────────────────────────────────────
+// An Animation storyboard is made of generated images in one master style. Its
+// scenes carry a visual concept, keywords, a shot and an image prompt; recurring
+// characters, props and settings live in the continuity bible, whose descriptions
+// are added to the prompt of every scene that uses them.
+
+/** True when the loaded storyboard was made by the animation path. */
+function sbIsAnimation() {
+  return state.stageData.storyboard?.storyboard?.visual_mode === 'ai_animation';
+}
+function sbContinuity() {
+  return state.stageData.storyboard?.storyboard?.continuity || [];
+}
+const SCENE_FLAG_LABELS = {
+  too_long: ['Over 5 s', 'Longer than an animation scene should be. Split it on a word and give the new half its own prompt.'],
+  needs_prompt: ['Needs a prompt', 'This scene has no image prompt yet.'],
+  image_out_of_date: ['Image out of date', 'Its prompt or a continuity entry changed after this image was generated.'],
+};
+const CONTINUITY_KINDS = { character: 'Character', prop: 'Prop', setting: 'Setting' };
+
+/** The animation part of a scene card: concept, keywords, shot, bible entries, flags and the editable prompt. */
+function buildAnimationBlock(s) {
+  const sceneId = esc(s.scene);
+  const byId = Object.fromEntries(sbContinuity().map(e => [e.id, e]));
+  const flags = (s.flags || []).filter(f => SCENE_FLAG_LABELS[f])
+    .map(f => `<span class="an-flag" title="${esc(SCENE_FLAG_LABELS[f][1])}">${esc(SCENE_FLAG_LABELS[f][0])}</span>`).join('');
+  const shot = [s.shot?.size, s.shot?.angle].filter(Boolean).join(' · ');
+  const keywords = (s.visual_keywords || []).map(k => `<span class="an-chip">${esc(k)}</span>`).join('');
+  const entities = (s.entities || []).map(id => `<span class="an-chip an-entity" title="${esc(byId[id]?.description || '')}">${esc(byId[id]?.name || id)}</span>`).join('');
+  return `<div class="an-block">
+      ${flags ? `<div class="an-flags">${flags}</div>` : ''}
+      ${s.visual_concept ? `<div class="an-concept">${esc(s.visual_concept)}</div>` : ''}
+      <div class="an-meta">${shot ? `<span class="mono">${esc(shot)}</span>` : ''}${keywords}${entities}</div>
+      <textarea class="an-prompt" id="an-prompt-${sceneId}" rows="3" placeholder="Image prompt: what is in this frame. The style and the continuity entries are added for you."
+        aria-label="Image prompt of scene ${sceneId}" onchange="onScenePromptChange('${sceneId}')">${esc(s.ai_prompt || '')}</textarea>
+      ${s.motion_note ? `<div class="an-note">Motion: ${esc(s.motion_note)}</div>` : ''}
+    </div>`;
+}
+
+/** Save a scene's image prompt from its card. */
+async function onScenePromptChange(sceneId) {
+  const el = document.getElementById(`an-prompt-${sceneId}`);
+  if (!el) return;
+  await patchScene(sceneId, { ai_prompt: el.value });
+  await reloadStoryboard();
+}
+
+/** The Continuity panel: every bible entry, editable, with add and remove. */
+function buildContinuityPanel() {
+  const scenes = sbScenes();
+  const stale = scenes.filter(s => (s.flags || []).includes('image_out_of_date')).map(s => String(s.scene));
+  const rows = sbContinuity().map(e => {
+    const used = scenes.filter(s => (s.entities || []).includes(e.id)).length;
+    const id = esc(e.id);
+    return `<div class="an-entry">
+        <div class="an-entry-head">
+          <select class="cf-select cf-select--sm" id="ct-kind-${id}" onchange="saveContinuityEntry('${id}')" title="Kind">
+            ${Object.entries(CONTINUITY_KINDS).map(([k, v]) => `<option value="${k}"${e.kind === k ? ' selected' : ''}>${v}</option>`).join('')}</select>
+          <input class="modal-input an-entry-name" id="ct-name-${id}" value="${esc(e.name)}" maxlength="80" aria-label="Name" onchange="saveContinuityEntry('${id}')">
+          <span class="an-used">${used ? `used in ${used} scene${used === 1 ? '' : 's'}` : 'not used'}</span>
+          ${used ? '' : `<button class="btn btn-ghost btn-sm" onclick="removeContinuityEntry('${id}')">Remove</button>`}
+        </div>
+        <textarea class="an-prompt" id="ct-desc-${id}" rows="2" aria-label="Description of ${esc(e.name)}" onchange="saveContinuityEntry('${id}')">${esc(e.description)}</textarea>
+      </div>`;
+  }).join('');
+  return `<details class="an-panel" id="sb-continuity"${state.continuityOpen === false ? '' : ' open'} ontoggle="state.continuityOpen=this.open">
+      <summary><strong>Continuity</strong> <span class="muted">— ${sbContinuity().length} recurring character${sbContinuity().length === 1 ? '' : 's'}, props and settings. A description is added word for word to the prompt of every scene that uses the entry, so close every detail that must not change.</span></summary>
+      ${stale.length ? `<div class="an-stale">${stale.length} scene image${stale.length === 1 ? ' is' : 's are'} out of date (scene${stale.length === 1 ? '' : 's'} ${esc(stale.join(', '))}).
+        <button class="btn btn-secondary btn-sm" onclick="openGenerateAll(${esc(JSON.stringify(stale))})">Regenerate ${stale.length === 1 ? 'it' : 'those'}…</button></div>` : ''}
+      ${rows || '<div class="muted" style="font-size:12.5px;margin:8px 0;">No recurring subjects in this storyboard.</div>'}
+      <div class="an-entry an-add">
+        <div class="an-entry-head">
+          <select class="cf-select cf-select--sm" id="ct-new-kind">${Object.entries(CONTINUITY_KINDS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+          <input class="modal-input an-entry-name" id="ct-new-name" maxlength="80" placeholder="Name, e.g. the red bicycle">
+          <button class="btn btn-secondary btn-sm" onclick="addContinuityEntry()">Add entry</button>
+        </div>
+        <textarea class="an-prompt" id="ct-new-desc" rows="2" placeholder="Fixed description: shape, colours, materials, every distinguishing detail."></textarea>
+      </div>
+      <div class="modal-msg" id="ct-msg"></div>
+    </details>`;
+}
+
+/** Send one continuity edit and repaint the storyboard from the answer. */
+async function continuityRequest(method, path, body) {
+  const msg = document.getElementById('ct-msg');
+  try {
+    const r = await fetch(sbUrl('/continuity' + path), {
+      method, headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { if (msg) { msg.textContent = data.detail || `Error ${r.status}`; msg.className = 'modal-msg err'; } return null; }
+    await applyStoryboardResponse(data);
+    return data;
+  } catch (e) {
+    if (msg) { msg.textContent = `Network error: ${e.message}`; msg.className = 'modal-msg err'; }
+    return null;
+  }
+}
+async function saveContinuityEntry(id) {
+  const data = await continuityRequest('PATCH', '/' + encodeURIComponent(id), {
+    kind: document.getElementById(`ct-kind-${id}`).value,
+    name: document.getElementById(`ct-name-${id}`).value,
+    description: document.getElementById(`ct-desc-${id}`).value,
+  });
+  const n = data?.newly_out_of_date?.length || 0;
+  const msg = document.getElementById('ct-msg');
+  if (data && msg) {
+    msg.textContent = n ? `Saved. ${n} scene image${n === 1 ? ' is' : 's are'} now out of date.` : 'Saved.';
+    msg.className = 'modal-msg ok';
+  }
+}
+async function addContinuityEntry() {
+  await continuityRequest('POST', '', {
+    kind: document.getElementById('ct-new-kind').value,
+    name: document.getElementById('ct-new-name').value,
+    description: document.getElementById('ct-new-desc').value,
+  });
+}
+async function removeContinuityEntry(id) {
+  await continuityRequest('DELETE', '/' + encodeURIComponent(id));
+}
+
+// Edit-image dialog, Animation mode: which bible entries the scene uses, and the
+// exact text the image model will receive (assembled on the server, costs nothing).
+let _previewTimer = null;
+function renderPencilAnimation(scene) {
+  const animation = sbIsAnimation();
+  document.getElementById('pencil-stock-section').style.display = animation ? 'none' : '';
+  document.getElementById('pencil-an-section').style.display = animation ? '' : 'none';
+  document.getElementById('pencil-ai-label').textContent = animation ? 'Image prompt' : 'Or generate with AI';
+  document.getElementById('pencil-ai-note').textContent = animation
+    ? 'Generates this scene again with the text below. Replaces its image.'
+    : "Uses your image provider key from Settings. The project's AI image style, if set, is added automatically. Replaces this scene's asset.";
+  if (!animation) return;
+  const used = new Set(scene?.entities || []);
+  document.getElementById('pencil-entities').innerHTML = sbContinuity().length
+    ? sbContinuity().map(e => `<label class="an-check" title="${esc(e.description)}"><input type="checkbox" value="${esc(e.id)}"${used.has(e.id) ? ' checked' : ''} onchange="onPencilEntitiesChange()"> ${esc(e.name)}</label>`).join('')
+    : '<span class="muted" style="font-size:12px;">No continuity entries yet — add one in the Continuity panel.</span>';
+  refreshPromptPreview();
+}
+async function onPencilEntitiesChange() {
+  if (!_pencilSceneId) return;
+  const ids = [...document.querySelectorAll('#pencil-entities input:checked')].map(i => i.value);
+  const sceneId = _pencilSceneId;
+  await patchScene(sceneId, { entities: ids });
+  await reloadStoryboard();
+  refreshPromptPreview();
+}
+function schedulePromptPreview() {
+  if (!sbIsAnimation()) return;
+  clearTimeout(_previewTimer);
+  _previewTimer = setTimeout(refreshPromptPreview, 400);
+}
+async function refreshPromptPreview() {
+  const box = document.getElementById('pencil-preview');
+  if (!box || !_pencilSceneId || !state.runId) return;
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/scenes/${_pencilSceneId}/prompt-preview`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: document.getElementById('pencil-ai-prompt').value }),
+    });
+    box.textContent = r.ok ? (await r.json()).text : 'Preview unavailable.';
+  } catch { box.textContent = 'Preview unavailable.'; }
+}
+
+// ── Generate all images (P-AN1-S5) ───────────────────────────────────────
+// One confirmed action generates every scene that has no image, in the background.
+let _genAllIds = null;      // null = every missing scene; an array = exactly those scenes
+let _imageJobTimer = null;
+const money = v => `$${Number(v || 0).toFixed(2)}`;
+
+async function openGenerateAll(sceneIds) {
+  if (!state.runId) return;
+  _genAllIds = Array.isArray(sceneIds) && sceneIds.length ? sceneIds.map(String) : null;
+  const body = document.getElementById('genall-body');
+  const btn = document.getElementById('genall-confirm');
+  document.getElementById('genall-title').textContent = _genAllIds ? 'Regenerate images' : 'Generate all images';
+  body.innerHTML = '<div class="muted" style="font-size:13px;">Working out the cost…</div>';
+  btn.disabled = true;
+  document.getElementById('genall-modal').style.display = '';
+  try {
+    const q = _genAllIds ? `?scene_ids=${encodeURIComponent(_genAllIds.join(','))}` : '';
+    const r = await fetch(`/platform/studio/runs/${state.runId}/images/plan${q}`);
+    const p = await r.json().catch(() => ({}));
+    if (!r.ok) { body.innerHTML = `<div class="modal-msg err">${esc(p.detail || `Error ${r.status}`)}</div>`; return; }
+    renderGenerateAll(p);
+  } catch (e) {
+    body.innerHTML = `<div class="modal-msg err">Network error: ${esc(e.message)}</div>`;
+  }
+}
+function renderGenerateAll(p) {
+  const body = document.getElementById('genall-body');
+  const btn = document.getElementById('genall-confirm');
+  state.imagePlan = p;
+  if (p.job_active) {
+    body.innerHTML = '<div style="font-size:13px;">Images are already being generated for this run. Wait for that to finish.</div>';
+    btn.disabled = true; btn.textContent = 'Generate';
+    return;
+  }
+  const noPrompt = p.without_prompt?.length
+    ? `<div class="rs-hint warn">Scene${p.without_prompt.length === 1 ? '' : 's'} ${esc(p.without_prompt.join(', '))} ${p.without_prompt.length === 1 ? 'has' : 'have'} no image prompt and will be skipped.</div>` : '';
+  if (!p.count) {
+    body.innerHTML = `<div style="font-size:13px;">Every scene with a prompt already has an image.</div>${noPrompt}`;
+    btn.disabled = true; btn.textContent = 'Generate';
+    return;
+  }
+  const short = p.affordable < p.count;
+  body.innerHTML = `
+    <div class="genall-grid">
+      <div><div class="genall-num">${p.count}</div><div class="genall-lab">scene${p.count === 1 ? '' : 's'}</div></div>
+      <div><div class="genall-num">~${money(p.estimated_cost_usd)}</div><div class="genall-lab">estimated · $${Number(p.cost_per_image_usd).toFixed(3)} per image</div></div>
+      <div><div class="genall-num">${money(p.remaining_usd)}</div><div class="genall-lab">left of the ${money(p.cap_usd)} cap · ${money(p.spent_usd)} spent</div></div>
+    </div>
+    <div class="rs-hint">Model: ${esc(p.model || 'the provider default')}. The cost is an estimate; every generated image is recorded, including ones you later replace.</div>
+    ${noPrompt}
+    ${short ? `<div class="rs-hint warn" style="margin-top:10px;">The cap allows ${p.affordable} of ${p.count}. The job stops cleanly when it is reached and says how many scenes are left.</div>` : ''}
+    <div class="modal-row" style="margin-top:12px;">
+      <label for="genall-cap" style="font-size:12.5px;white-space:nowrap;">Cap for this run</label>
+      <input class="modal-input" id="genall-cap" type="number" min="0" step="0.5" max="${esc(p.cap_max_usd)}" value="${esc(p.cap_usd)}" style="max-width:110px;" oninput="onGenAllCapInput()">
+      <span style="font-size:11.5px;color:var(--faint);">up to ${money(p.cap_max_usd)}</span>
+    </div>
+    <div class="modal-msg" id="genall-msg"></div>`;
+  btn.disabled = false;
+  btn.textContent = `Generate ${p.count} image${p.count === 1 ? '' : 's'}`;
+  onGenAllCapInput();
+}
+/** Say what the typed cap allows before anything is spent. */
+function onGenAllCapInput() {
+  const p = state.imagePlan, el = document.getElementById('genall-cap'), msg = document.getElementById('genall-msg');
+  const btn = document.getElementById('genall-confirm');
+  if (!p || !el || !msg) return;
+  const cap = Number(el.value);
+  if (!(cap >= 0) || cap > p.cap_max_usd + 1e-9) {
+    msg.textContent = `The cap for one run can be at most ${money(p.cap_max_usd)}.`; msg.className = 'modal-msg err'; btn.disabled = true; return;
+  }
+  const can = p.cost_per_image_usd > 0 ? Math.min(p.count, Math.floor((cap - p.spent_usd + 1e-9) / p.cost_per_image_usd)) : p.count;
+  btn.disabled = can <= 0;
+  msg.className = 'modal-msg' + (can < p.count ? ' err' : '');
+  msg.textContent = can >= p.count ? '' : can > 0 ? `With this cap ${can} of ${p.count} will be generated.` : 'This cap leaves no room for another image.';
+}
+function closeGenerateAll() { document.getElementById('genall-modal').style.display = 'none'; }
+
+async function confirmGenerateAll() {
+  const p = state.imagePlan;
+  if (!p || !state.runId) return;
+  const btn = document.getElementById('genall-confirm'), msg = document.getElementById('genall-msg');
+  const cap = Number(document.getElementById('genall-cap').value);
+  const body = {};
+  if (_genAllIds) body.scene_ids = _genAllIds;
+  if (Math.abs(cap - p.cap_usd) > 1e-9) body.spend_cap_usd = cap;
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/images/generate`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { msg.textContent = data.detail || `Error ${r.status}`; msg.className = 'modal-msg err'; btn.disabled = false; return; }
+    closeGenerateAll();
+    if (data.job) applyImageJob(data.job);
+    startImageJobPolling();
+  } catch (e) {
+    msg.textContent = `Network error: ${e.message}`; msg.className = 'modal-msg err'; btn.disabled = false;
+  }
+}
+
+function startImageJobPolling() {
+  clearInterval(_imageJobTimer);
+  _imageJobTimer = setInterval(pollImageJob, DEMO ? 700 : 3000);
+}
+async function pollImageJob() {
+  if (!state.runId) { clearInterval(_imageJobTimer); return; }
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/images/status`);
+    if (!r.ok) return;
+    const job = await r.json();
+    applyImageJob(job);
+    await refreshManifest();
+    if (job.status !== 'running') {
+      clearInterval(_imageJobTimer);
+      await reloadStoryboard();
+      applyImageJob(job);
+      refreshAiSpend();
+    }
+  } catch { /* keep polling */ }
+}
+/** Paint a job document: the status line, per-scene state on the cards, failures with a retry. */
+function applyImageJob(job) {
+  state.imageJob = job && job.status !== 'none' ? job : null;
+  const box = document.getElementById('sb-image-job');
+  if (!box) return;
+  if (!state.imageJob) { box.style.display = 'none'; updateAcquisitionUi(); return; }
+  const failed = job.failed || [];
+  const head = {
+    running: `Generating images… ${job.done} of ${job.total}`,
+    complete: failed.length ? `Generated ${job.done} of ${job.total} images.` : `All ${job.total} image${job.total === 1 ? '' : 's'} generated.`,
+    stopped_at_cap: job.message || 'Stopped at the spend cap.',
+    interrupted: job.message || 'Generation was interrupted.',
+    error: `Generation failed: ${job.message || 'unknown error'}`,
+  }[job.status] || '';
+  const left = Object.entries(job.scenes || {}).filter(([, st]) => st === 'not_started').map(([id]) => id);
+  box.className = 'an-job' + (job.status === 'running' ? '' : failed.length || job.status !== 'complete' ? ' warn' : ' ok');
+  box.style.display = '';
+  box.innerHTML = `<div>${job.status === 'running' ? '<span class="dot dot-running"></span> ' : ''}${esc(head)}</div>
+    ${failed.map(f => `<div class="an-job-fail">Scene ${esc(f.scene)}: ${esc(f.reason || 'failed')}
+      ${job.status === 'running' ? '' : `<button class="btn btn-ghost btn-sm" onclick="openGenerateAll(['${esc(f.scene)}'])">Retry</button>`}</div>`).join('')}
+    ${job.status !== 'running' && left.length ? `<div style="margin-top:6px;"><button class="btn btn-secondary btn-sm" onclick="openGenerateAll()">Continue with the ${left.length} left…</button></div>` : ''}`;
+  for (const [id, st] of Object.entries(job.scenes || {})) {
+    const card = document.querySelector(`.sc-card[data-scene="${CSS.escape(id)}"]`);
+    if (card) card.classList.toggle('generating', job.status === 'running' && (st === 'running' || st === 'pending'));
+  }
+  updateAcquisitionUi();
+}
+/** On opening an Animation storyboard: pick up a job that is running or was cut short. */
+async function resumeImageJob() {
+  if (!sbIsAnimation() || !state.runId) return;
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/images/status`);
+    if (!r.ok) return;
+    const job = await r.json();
+    if (job.status === 'running') { applyImageJob(job); startImageJobPolling(); }
+    else if (job.status === 'interrupted' || job.status === 'stopped_at_cap') applyImageJob(job);
+  } catch { /* ignore */ }
+}
+
 // ── Pencil modal ──────────────────────────────────────────────────────────
 let _pencilSceneId = null;
 
@@ -3483,8 +4047,10 @@ function openPencilModal(sceneId) {
   // Pre-fill query
   document.getElementById('pencil-query').value = entry?.primary_stk || scene?.primary_stk || '';
 
-  // Pre-fill the AI prompt: the scene's saved prompt, else its voiceover as a starting point.
-  document.getElementById('pencil-ai-prompt').value = scene?.ai_prompt || scene?.voiceover_line || '';
+  // Pre-fill the AI prompt: the scene's saved prompt. A stock scene without one starts from
+  // its voiceover; an Animation scene never does — narration is not an image description.
+  document.getElementById('pencil-ai-prompt').value = scene?.ai_prompt || (sbIsAnimation() ? '' : scene?.voiceover_line) || '';
+  renderPencilAnimation(scene);
   document.getElementById('pencil-generate-msg').textContent = '';
   document.getElementById('pencil-generate-msg').className = 'modal-msg';
   refreshAiSpend();

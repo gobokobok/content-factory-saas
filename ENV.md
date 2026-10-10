@@ -98,8 +98,11 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | `IMAGE_RESOLUTION` | No | kie.ai resolution (`1K` / `2K` / `4K`). Default: `1K`. |
 | `IMAGE_DEFAULT_ASPECT_RATIO` | No | Aspect used when the run has no `settings.json`. Default: `9:16`. |
 | `IMAGE_TIMEOUT_S` / `IMAGE_POLL_INTERVAL_S` | No | How long one generation may take and how often kie.ai is polled. Defaults: `180` / `3`. |
-| `IMAGE_COST_USD` | No | Estimated cost of one generated image, used for the cost display and the cap. Not read from the provider. Default: `0.03`. |
+| `IMAGE_COST_USD` | No | Estimated cost of one generated image on a model that has no entry in `IMAGE_MODEL_COSTS_USD`, used for the cost display and the cap. Not read from the provider. Default: `0.03`. |
 | `IMAGE_RUN_SPEND_CAP_USD` | No | Per-run spend cap for generated images; at the cap Generate is refused. Default: `2.00`. |
+| `IMAGE_MODEL_COSTS_USD` | No | Estimated price of one image per model, as a JSON object (`{"nano-banana-2-1": 0.02}`). Used for the cost shown before generating, the spend cap and the ledger. A model without an entry costs `IMAGE_COST_USD`. Default: `{"nano-banana-2-1": 0.02}` — kie.ai's price at 1K, checked 2026-10-11 (2K is 0.03, 4K 0.045: change the entry when `IMAGE_RESOLUTION` changes). |
+| `IMAGE_RUN_SPEND_CAP_MAX_USD` | No | The highest AI image cap the operator may set for one run from the Generate all images dialog (P-AN1, D108). The run's own cap is stored in its `settings.json` and wins over the tenant default. Default: `10.00`. |
+| `IMAGE_JOB_CONCURRENCY` | No | How many images the Generate all images job generates at once. Default: `3`. |
 | `CLIP_RERANK_ENABLED` | No | Enable CLIP semantic reranking of Pexels results (E4-S4). Loads a ~340MB model at startup. Default: `False`. |
 | `COLOR_GRADE_PRESET` | No | FFmpeg colour grade applied to the final render (P8-S6). Options: `neutral` (no change), `vivid`, `warm`, `cinematic`, `muted`. Default: `neutral`. |
 | `BLUR_FILL_ENABLED` | No | When `true` (default), landscape still images use blur-fill compositing (blurred full-frame behind, sharp subject scaled to fit) instead of cropping. Gated on aspect ratio > 9:16 detected at render time (P8-S6). Default: `true`. |

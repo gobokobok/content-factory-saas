@@ -17,6 +17,10 @@ One rule decides what a scene keeps (operator decisions, 2026-10-03):
 - a scene whose start word disappears was merged into the one before it: its
   on-screen text and SFX are dropped, and so is its manifest entry.
 
+In an Animation storyboard (D108) the same rule gives: a merge keeps the first
+scene's image prompt; the second half of a split keeps the bible entries, starts
+with no prompt and is flagged `needs_prompt`; `too_long` follows the new length.
+
 Voiceover text is never changed here (D095): changing words forces re-voicing.
 Pure functions — no storage, no HTTP (D040).
 """
@@ -26,6 +30,7 @@ import re
 from dataclasses import dataclass, field
 
 from cf_platform.workers.acquisition_worker import entry_has_asset, manifest_entry_for_scene
+from cf_platform.workers.animation_storyboard_worker import animation_scene_flags
 from cf_platform.workers.storyboard_worker import (
     _apply_patches_and_render_options,
     _reify_scene,
@@ -34,6 +39,7 @@ from cf_platform.workers.storyboard_worker import (
 )
 from cf_platform.workers.voice_production import VoiceWordTimestamp
 from src.models import (
+    ANIMATION_MODE,
     AWAITING_UPLOAD_STATUS,
     OPERATOR_SUPPLIED_STRATEGIES,
     AssetManifest,
@@ -50,6 +56,12 @@ _INHERITED_FIELDS = (
     "segment_type", "primary_stk", "context_stk", "concept_stk", "visual_prompts",
     "historic", "semantic_context", "asset_strategy", "asset_mode",
 )
+
+# In an Animation storyboard (D108) a cut scene also keeps the bible entries of the
+# scene it was cut from — the same character is still on screen. It does NOT keep
+# the image prompt: one prompt on two scenes would produce the same image twice, so
+# the new scene starts without one and is flagged for the operator.
+_ANIMATION_INHERITED_FIELDS = ("entities",)
 
 # Fields _reify_scene owns; cleared before it runs so nothing stale survives.
 _REIFIED_FIELDS = (
@@ -161,6 +173,8 @@ def replace_boundaries(
 
     new_scenes: list[StoryboardScene] = []
     new_entries: list[ManifestEntry] = []
+    animation = storyboard.visual_mode == ANIMATION_MODE
+    inherited = _INHERITED_FIELDS + (_ANIMATION_INHERITED_FIELDS if animation else ())
 
     for k, start in enumerate(start_words):
         end = (start_words[k + 1] - 1) if k + 1 < len(start_words) else n_words - 1
@@ -185,7 +199,7 @@ def replace_boundaries(
             raw = source.model_dump(by_alias=True, mode="json")
         else:
             full = source.model_dump(by_alias=True, mode="json")
-            raw = {name: full.get(name) for name in _INHERITED_FIELDS}
+            raw = {name: full.get(name) for name in inherited}
         for name in _REIFIED_FIELDS:
             raw.pop(name, None)
         raw.pop("render_options", None)
@@ -215,6 +229,10 @@ def replace_boundaries(
             scene = apply_asset_strategy(scene, scene.asset_strategy)
         elif kept and source.motion_effect and scene.clip_type == "still_with_motion":
             scene = scene.model_copy(update={"motion_effect": source.motion_effect})
+        if animation:
+            scene = scene.model_copy(update={
+                "flags": animation_scene_flags(scene.duration_s, scene.ai_prompt, scene.flags),
+            })
         new_scenes.append(scene)
 
         if old_entries:

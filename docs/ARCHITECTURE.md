@@ -94,6 +94,29 @@ platform dependency). Golden render-script tests (`tests/golden/render/`) pin th
 
 ---
 
+## 0c. Animation mode — a second storyboard path (Sprint P-AN1, D108)
+
+A run's `visual_mode` (`settings.json`) is `stock` or `ai_animation`. The pipeline steps are the same five; three things differ for an Animation run.
+
+```
+                         visual_mode = stock                      visual_mode = ai_animation
+Storyboard step   storyboard_worker                        animation_storyboard_worker
+                  generate → review → patch → split        generate (Sonnet 5.5) → validate → flag
+                  prompt v0.17                             prompt an-v0.1, continuity bible
+                            └──────── both emit verified_storyboard ────────┘
+Assets            acquisition worker (Pexels / Pixabay)    Generate all images — bulk job, operator-started
+Image prompt      project style + prompt (D104)            scene prompt + bible + fixed lines + master style + aspect
+```
+
+- **Worker choice** is made by the storyboard endpoint (`routes/workers.py`) from `core/run_visuals.py`, outside both worker bodies (D056). The storyboard itself records `visual_mode`, and everything downstream reads the mode from the storyboard, not from the settings — changing the setting later cannot mislabel an existing storyboard.
+- **Continuity bible:** `Storyboard.continuity` (`id`, `kind`, `name`, `description`); scenes list the ids they use in `entities`. Edits go through `workers/continuity_edit.py` (pure) and `routes/studio_animation.py`.
+- **One place pays for an image:** `workers/scene_images.generate_scene_image`. The per-scene route and the bulk job (`run_image_job`) wrap it. Order: cap check counting generations under way → generate → ledger → store → storyboard and manifest. Commits for one run are serialised by a process-local lock; only provider calls run in parallel (`IMAGE_JOB_CONCURRENCY`).
+- **Job state** is `runs/{run_id}/images/current_job.json`. A stored `running` job with no live job in the process means the server restarted: it reads as `interrupted`, and starting again generates only the scenes still missing.
+- **Scene flags** (`StoryboardScene.flags`): `too_long`, `needs_prompt`, `image_out_of_date`. They are advisory; nothing blocks on them.
+- **Not in this mode:** the Haiku review pass, stock queries, automatic splitting of long scenes, reference images.
+
+---
+
 ## Document status
 This document tracks three layers:
 1. **Current state** — what is deployed and working today

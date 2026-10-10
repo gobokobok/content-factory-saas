@@ -14,13 +14,27 @@ from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings
+from cf_platform.core.projects import ProjectRepository
+from cf_platform.core.run_manager import RunRepository
+from cf_platform.core.run_visuals import load_run_visuals
 from cf_platform.core.schemas import StageState
-from cf_platform.interfaces.dependencies import PLATFORM_USER_ID, get_artifact_storage, get_effective_platform_settings
+from cf_platform.core.worker_registry import WorkerRegistration
+from cf_platform.interfaces.dependencies import (
+    PLATFORM_USER_ID,
+    get_artifact_storage,
+    get_effective_platform_settings,
+    get_project_repository,
+    get_run_repository,
+)
 from cf_platform.interfaces.routes._helpers import latest_artifact_key as _latest_artifact_key
 from cf_platform.workers.acquisition_worker import (
     ACQUISITION_WORKER_REGISTRATION,
     AssetManifestArtifact,
     build_acquisition_worker,
+)
+from cf_platform.workers.animation_storyboard_worker import (
+    ANIMATION_STORYBOARD_WORKER_REGISTRATION,
+    build_animation_storyboard_worker,
 )
 from cf_platform.workers.render_worker import (
     RENDER_WORKER_REGISTRATION,
@@ -65,8 +79,14 @@ async def _run_storyboard_background(
     state: StageState,
     worker: Any,
     storage: ArtifactStorage,
+    registration: WorkerRegistration = STORYBOARD_WORKER_REGISTRATION,
+    worker_name: str = "storyboard_worker",
 ) -> None:
-    """Background task: generates storyboard and updates storyboard/current_job.json."""
+    """Background task: generates storyboard and updates storyboard/current_job.json.
+
+    `registration` and `worker_name` say which worker ran (stock or animation, D108)
+    so the artifact's lineage names the right version, prompt and model.
+    """
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
@@ -79,10 +99,10 @@ async def _run_storyboard_background(
 
         storyboard_lineage = LineageEnvelope(
             run_id=run_id,
-            worker="storyboard_worker",
-            worker_version=STORYBOARD_WORKER_REGISTRATION.worker_version,
-            prompt_version=STORYBOARD_WORKER_REGISTRATION.prompt_version,
-            model=STORYBOARD_WORKER_REGISTRATION.model,
+            worker=worker_name,
+            worker_version=registration.worker_version,
+            prompt_version=registration.prompt_version,
+            model=registration.model,
             created_at=datetime.now(),
         )
         storyboard_record = await write_artifact(
@@ -139,12 +159,18 @@ async def storyboard_worker_endpoint(
     background_tasks: BackgroundTasks,
     storage: ArtifactStorage = Depends(get_artifact_storage),
     settings: PlatformSettings = Depends(get_effective_platform_settings),
+    runs: RunRepository = Depends(get_run_repository),
+    projects: ProjectRepository = Depends(get_project_repository),
 ) -> StoryboardWorkerResponse:
     """Enqueue storyboard generation (returns 202 immediately).
 
     Writes the script artifact synchronously, resolves any existing voice_alignment,
     then hands off the Claude generate→review→patch cycle to a background task.
     Poll GET /platform/studio/runs/{run_id}/storyboard/status for progress.
+
+    The worker is chosen by the run's `visual_mode` (settings.json, D108): a stock
+    run gets the stock storyboard worker, unchanged; an Animation run gets the
+    animation worker, which needs the voiceover's timing (409 without it).
     """
     import uuid as _uuid_mod
 
@@ -191,11 +217,25 @@ async def storyboard_worker_endpoint(
         state_artifacts["voice_alignment"] = va_key
         _logger.info("Voice alignment found for run %s — using Deepgram timestamps", body.run_id)
 
-    worker = build_storyboard_worker(storage, settings.ANTHROPIC_API_KEY)
+    visuals = await load_run_visuals(storage, body.run_id, runs, projects)
+    inputs: dict[str, Any] = {"format_track": body.format_track}
+    if visuals.is_animation:
+        if "voice_alignment" not in state_artifacts:
+            raise HTTPException(
+                status_code=409,
+                detail="An Animation storyboard is cut on the voiceover's timing — "
+                "generate or upload the voiceover first.",
+            )
+        worker = build_animation_storyboard_worker(storage, settings.ANTHROPIC_API_KEY)
+        registration, worker_name = ANIMATION_STORYBOARD_WORKER_REGISTRATION, "animation_storyboard_worker"
+        inputs["master_style"] = visuals.master_style or ""
+    else:
+        worker = build_storyboard_worker(storage, settings.ANTHROPIC_API_KEY)
+        registration, worker_name = STORYBOARD_WORKER_REGISTRATION, "storyboard_worker"
     state = StageState(
         run_id=body.run_id,
         user_id=PLATFORM_USER_ID,
-        inputs={"format_track": body.format_track},
+        inputs=inputs,
         artifacts=state_artifacts,
     )
 
@@ -204,7 +244,9 @@ async def storyboard_worker_endpoint(
         f"runs/{body.run_id}/storyboard/current_job.json",
         {"job_id": job_id, "status": "running"},
     )
-    background_tasks.add_task(_run_storyboard_background, body.run_id, job_id, state, worker, storage)
+    background_tasks.add_task(
+        _run_storyboard_background, body.run_id, job_id, state, worker, storage, registration, worker_name
+    )
     _logger.info("StoryboardWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return StoryboardWorkerResponse(status="accepted", run_id=body.run_id)
 

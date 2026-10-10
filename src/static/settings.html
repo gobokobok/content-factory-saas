@@ -56,14 +56,21 @@ function serviceRow(s) {
 function imageCard() {
   if (!image) return '';
   const p = image.provider;
+  const costs = image.model_costs_usd || {};
+  const model = image.model || image.default_models[p] || '';
+  const known = Object.prototype.hasOwnProperty.call(costs, model);
+  const cost = known ? costs[model] : image.default_cost_usd;
+  const costHint = cost == null ? '' : `Estimated $${Number(cost).toFixed(3)} per image${known ? '' : ' (the general estimate — this model has no price of its own)'}.`;
+  const suggestions = [...new Set([...Object.keys(costs), ...Object.values(image.default_models || {})])].filter(Boolean);
   return `<div class="card"><div class="card-title">AI image generation</div>
-    <div class="card-sub">Used by Generate in a scene's asset panel. Images are only generated when you press Generate — never automatically. The key for each provider is set below.</div>
+    <div class="card-sub">Used by Generate on a scene and by Generate all images in an Animation run. Images are only generated when you start it — never automatically. The key for each provider is set below.</div>
     <div class="grid2">
       <div class="field"><label class="label" for="img-provider">Provider</label>
         <select class="select" id="img-provider" onchange="saveImage()">${opts({ kie: 'kie.ai', openai: 'OpenAI' }, p)}</select></div>
       <div class="field"><label class="label" for="img-model">Model (optional)</label>
-        <input class="input" id="img-model" maxlength="120" autocomplete="off" spellcheck="false" value="${esc(image.model || '')}" placeholder="${esc(image.default_models[p] || '')}" onchange="saveImage()">
-        <div class="hint">Empty uses ${esc(image.default_models[p] || 'the provider default')}.</div></div>
+        <input class="input" id="img-model" maxlength="120" autocomplete="off" spellcheck="false" value="${esc(image.model || '')}" placeholder="${esc(image.default_models[p] || '')}" list="img-model-list" onchange="saveImage()">
+        <datalist id="img-model-list">${suggestions.map(m => `<option value="${esc(m)}"></option>`).join('')}</datalist>
+        <div class="hint">Empty uses ${esc(image.default_models[p] || 'the provider default')}. ${esc(costHint)}</div></div>
     </div></div>`;
 }
 function viewIntegrations() {

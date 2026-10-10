@@ -27,8 +27,61 @@
 
 ---
 
+## Animation Storyboard — an-v0.1
+**Used in:** P-AN1-S2 (`cf_platform/workers/animation_storyboard_worker.py`, D108) — runs whose `visual_mode` is `ai_animation`
+**Input:** indexed voiceover word list with timestamps, the run's master style (context only), the frame format, the narration
+**Output:** `verified_storyboard` artifact — the same type the stock worker emits, with `visual_mode = "ai_animation"`, a `continuity` list and animation fields on every scene
+**Model:** `claude-sonnet-5-5`, adaptive thinking, effort `high`, streamed. One call per run. No review pass.
+**Current version:** an-v0.1
+**Source of truth:** `_ANIMATION_SYSTEM_PROMPT` in the worker module. The text is not copied here, so it cannot drift from the code; the rules below are what it says.
+
+### Changelog
+| Version | Date | Change |
+|---------|------|--------|
+| an-v0.1 | 2026-10-11 | Initial prompt. Adapts the operator's Visual Director v4.1: §1 narrative analysis, §2 visual concept, §3 continuity bible, §5 shot planning and the two-dimension variety rule, §6 narration fit and overlays, §7 prompt structure. Its §4 timing is replaced by the indexed word list (`start_word` / `end_word`; Python derives durations). Its markdown output (§9) is replaced by JSON. Its §8 motion maps to the renderer's `MOTION_EFFECTS`, with the wording kept in `motion_note`. |
+
+### Key rules (an-v0.1)
+- **Scene length 1.0–5.0 s in both formats.** The user message converts the limit into a word budget at the voiceover's measured rate. A scene that still comes out over the limit is flagged `too_long` in code and left for the operator — it is not split, because a split would put one prompt on two scenes.
+- **Continuity bible:** one entry per recurring character, prop or setting (`id`, `kind`, `name`, `description`). The description closes every detail that must not change, because whatever it leaves open drifts between independently generated images. A character in clearly different outfits gets one entry per outfit. No style, aspect ratio or lighting mood in a description.
+- **`ai_prompt` is scene-specific only:** subject and frozen action, composition, spatial relationships, environment, lighting and mood. It refers to a bible entry by its exact name and lists the id in `entities`. It never contains the master style, the aspect ratio, instructions about text or borders, or a reference to another scene — `build_animation_prompt` adds the bible descriptions, the fixed lines, the master style and the aspect phrase at generation time (P-AN1-S3).
+- **The master style is context, not output.** It is given so concepts and lighting fit it; the prompt forbids echoing it.
+- **Shot variety:** consecutive scenes differ in at least two of shot size, camera angle, detail level and subject placement, unless a deliberate repetition is explained in `visual_concept`. Not checked in code.
+- **Overlays:** `on_screen_text` only where the narration itself states a figure, a date or opens a numbered section; the model does not invent copy. Types `stat` / `date` / `label`.
+- **Motion:** `motion_effect` is exactly one of `ken_burns`, `zoom_in`, `zoom_out`, `pan_right`, `pan_left`, `static`; tilts and parallax do not exist in the renderer, so the nearest effect is chosen and the original wording stays in `motion_note`.
+- **SFX:** a key from the curated library or `silence`, as on the stock path.
+
+### What Python owns
+Word-span contiguity (pinned to word 0 and N−1, gaps and overlaps closed), `voiceover_line`, every duration, `clip_type = still_with_motion`, `asset_strategy = ai_image`, scene numbering, bible id normalisation, dropping entity ids that are not in the bible (with a warning), an unknown SFX → `silence`, the `too_long` / `needs_prompt` flags, `render_options` for overlays and the summary.
+
+### Output schema (model answer)
+```json
+{
+  "continuity": [
+    {"id": "learner", "kind": "character", "name": "the learner", "description": "…"}
+  ],
+  "scenes": [
+    {
+      "scene": "1", "start_word": 0, "end_word": 6,
+      "visual_concept": "…", "visual_keywords": ["…"],
+      "shot": {"size": "medium", "angle": "low"},
+      "entities": ["learner"],
+      "ai_prompt": "…",
+      "motion_effect": "zoom_in", "motion_note": "Slow push-in on her grin.",
+      "on_screen_text": null, "on_screen_text_type": null,
+      "sfx": "silence"
+    }
+  ]
+}
+```
+
+### Image prompt assembly (P-AN1-S3, `cf_platform/core/ai_images.py`)
+Order: scene `ai_prompt` → descriptions of the scene's `entities`, verbatim → fixed lines → master style → aspect phrase.
+Fixed lines: no readable text, letters or numerals; full bleed, no borders, no letterbox bars, no panel frame. A third line — keep the lower part calm, as a continuation of the scene and not a dark band — is added only when the scene has on-screen text. Aspect phrase: "Vertical 9:16." / "Horizontal 16:9.".
+
+---
+
 ## Visual Director — v0.1
-**Used in:** P11-S1 (`cf_platform/workers/visual_director_worker.py`)
+**Used in:** P11-S1 (`cf_platform/workers/visual_director_worker.py`) — plans stock shots for an existing storyboard. Not the Animation Storyboard prompt above, despite the shared name with the operator's Visual Director v4.1.
 **Input:** `verified_storyboard` artifact (with `global_context` + `semantic_context` from P10-S3)
 **Output:** `visual_treatment` artifact — per-scene visual plan consumed by `AcquisitionWorker`
 **Current version:** v0.1

@@ -5,6 +5,19 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D108 — Animation mode: a second storyboard path with a continuity bible, the image prompt assembled in code, and bulk image generation as an operator-started job
+**Date:** 2026-10-11 (Sprint P-AN1, EPIC 55)
+**Status:** ACTIVE
+**Decision:** (1) **A run has a visual mode**, `visual_mode` in `settings.json`: `stock` (default, unchanged) or `ai_animation`. It can change until a storyboard exists. (2) **Animation storyboards come from a second worker**, one per run, one model call: the storyboard endpoint picks the worker from the run's `visual_mode`. It adapts the operator's Visual Director prompt v4.1 to the existing word-index timing contract and returns JSON. It has its own prompt version and is pinned to `claude-sonnet-5-5` with extended reasoning, the model the operator validated the look with. The Haiku review pass is skipped in this mode — it patches stock queries and render options, which do not apply. Both workers emit the same `storyboard` artifact type. (3) **Continuity bible:** the storyboard carries a `continuity` list (characters, props, settings) that the operator can edit; scenes name the entries they use. (4) **The image prompt is assembled in code** at generation time — scene prompt, the scene's bible descriptions, fixed lines, master style, aspect phrase — so the stored `ai_prompt` stays scene-specific and the style can change without regenerating the storyboard. The run's `master_style` falls back to the project's `ai_image_style`. (5) **Bulk generation:** "Generate all images" is a background job the operator starts after seeing scene count, estimated cost and remaining cap. It stops at the cap; every paid generation is in the ledger. The cap can be raised for one run up to `IMAGE_RUN_SPEND_CAP_MAX_USD`. (6) **Image cost is per model**, with `IMAGE_COST_USD` as the fallback for a model without a known price.
+**Amends:** D104 point (1), "generated per scene on demand": still true for stock-mode runs; in Animation mode the operator may generate every scene in one confirmed action. Nothing is generated without the operator starting it. D104's "Visual Director is not involved" (point 5) referred to the P11 stock-shot worker and still holds — that worker is not reused.
+**Rejected:** several workers per run (a bible worker, then scene workers) — the bible and the shots are designed together, a sub-minute run fits one call, and a second call adds a failure point; it becomes the design for long-form with chunked generation (deferred with E54-S1). One worker with a mode switch inside its body — two prompt versions under one worker version breaks the version pin (D056). Characters inside the master style — it is appended to every scene, including scenes with no character. Reference images — the operator's five test images held the character from text; tighter bible entries are the first remedy. Splitting an over-long animation scene in Python — it would copy one prompt onto two scenes; the scene is flagged for the operator instead.
+**Not verified:** kie.ai's Nano Banana model id, accepted aspect ratios and price (checked against kie.ai's own documentation in P-AN1-S6); the cost of one animation storyboard on Sonnet 5.5 with extended reasoning.
+**No new dependency.**
+**Decided:** 2026-10-10 / 11 by the operator (scope); the single-worker approach and the model pin are Claude's recommendation, confirmed by the operator 2026-10-11.
+**See:** D096, D104, D105, D056, EPIC 55.
+
+---
+
 ## D107 — Pans and zooms render at four times the output size so slow motion moves smoothly
 **Date:** 2026-10-10 (Sprint P-UX3 smoke test)
 **Status:** ACTIVE
@@ -52,6 +65,7 @@ All significant architecture decisions and new dependency introductions are logg
 **Narrows:** D096's "provider selector by ENV" — ENV is now the fallback, tenant settings win.
 **Not verified:** kie.ai's price per image. `IMAGE_COST_USD` is an estimate (kie.ai quoted about $0.03 at 1K in D096) until the first real invoice.
 **See:** D096, D092, D095.
+**Amended by D108 (2026-10-11):** in Animation mode the operator may generate every scene in one confirmed action; point (1) stands for stock-mode runs.
 
 ---
 

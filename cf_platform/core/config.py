@@ -96,6 +96,15 @@ class PlatformSettings(BaseSettings):
     IMAGE_POLL_INTERVAL_S: float = 3.0
     IMAGE_COST_USD: float = 0.03
     IMAGE_RUN_SPEND_CAP_USD: float = 2.0
+    # Animation mode (P-AN1, D108). Per-model image prices as a JSON object
+    # (model id -> dollars) — a model without an entry costs IMAGE_COST_USD. The
+    # highest cap the operator may set for one run from the Generate all dialog, and
+    # how many images the bulk job generates at once.
+    # Default: kie.ai's Nano Banana 2.1 at 1K (kie.ai price page, checked 2026-10-11;
+    # 2K is 0.03 and 4K 0.045 — change the entry when IMAGE_RESOLUTION changes).
+    IMAGE_MODEL_COSTS_USD: dict[str, float] = {"nano-banana-2-1": 0.02}
+    IMAGE_RUN_SPEND_CAP_MAX_USD: float = 10.0
+    IMAGE_JOB_CONCURRENCY: int = 3
 
 
 def get_platform_settings() -> PlatformSettings:

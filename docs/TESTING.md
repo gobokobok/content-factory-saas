@@ -49,6 +49,12 @@ the story Handover. The `# generated_at` line is masked.
 - `tests/cf_platform/test_p14b_transcript_edit.py` pins the timing-safe edit rule (slot arithmetic, refusals) on pure functions; `test_p14b_upload_routes.py` covers the routes, the guards and one end-to-end run (upload → edit → storyboard → timeline → render script).
 - `tests/test_log_redaction.py` pins that no provider key (`key=`, `token=`, `api_key=`) survives in a formatted log record.
 
+### Animation mode (P-AN1)
+- `tests/cf_platform/pan1_helpers.py` gives `animation_env`: the P13 in-memory run with an Animation storyboard (every scene `ai_image`, a two-entry bible), a `FakeProvider` in place of the image provider, and the image settings. It clears the bulk job's process-local state (`scene_images._ACTIVE_JOBS`, `_RESERVED_USD`, `_RUN_LOCKS`) on entry.
+- The model call is never made: patch `animation_storyboard_worker.request_animation_storyboard` with the JSON answer. `parse_animation_storyboard` and `build_animation_prompt` are pure and tested directly.
+- kie.ai is replaced with `httpx.MockTransport` (`test_pan1_s6_nano_banana.py` pins the Nano Banana 2.1 request body).
+- The bulk job runs inside the request in tests (TestClient executes background tasks before it returns), so a `POST …/images/generate` followed by `GET …/images/status` sees the finished job.
+
 ## Minimum test cases per function
 1. Happy path — expected input, expected output
 2. One failure case — API down, invalid response, missing field

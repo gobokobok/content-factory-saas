@@ -36,7 +36,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P14b | Uploaded voiceover | ~13 | done | Upload an mp3, correct a misheard word, build the storyboard from it, render |
 | P-UX3 | UI/UX redesign — discovery, design, prototype and build | ~11 + build | done | The new UI on DEV: project → idea → run, Libraries, Integrations, Defaults |
 | UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
-| P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | next (operator, 2026-10-11) | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
+| P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | in progress (2026-10-11) | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
 | P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after P-AN1) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
@@ -83,6 +83,31 @@ Legacy Script→Video stays untouched and operable (D047).
 **Human touchpoint:** the operator creates a run with "Upload voiceover", uploads an mp3, corrects a misheard word, builds the storyboard and renders a video.
 
 **Operator actions beside the sprint (not stories):** `/prod-check` then `/release` of P12–P14 (timing not decided); at release set a new `SETTINGS_ENCRYPTION_KEY` on PROD; `/audit` before P15.
+
+## Scope changes
+
+_None._
+
+---
+
+# Sprint P-AN1 — Animation mode (EPIC 55)
+
+**Goal:** A run can be made entirely from generated images in one consistent style: the operator picks Animation, gives a master style, reviews a storyboard with a continuity bible, generates all images in one action, and renders a sub-minute video in 9:16 and in 16:9.
+**Status:** in progress (started 2026-10-11, goal confirmed by the operator; built in one pass)
+**Points:** 26
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| P-AN1-S1 | Run settings: visual mode and master style | 3 | in-progress |
+| P-AN1-S2 | Animation storyboard: the Visual Director prompt, structured | 8 | in-progress |
+| P-AN1-S3 | Image prompt assembled in code | 3 | in-progress |
+| P-AN1-S4 | Studio: scene cards and an editable continuity bible | 5 | in-progress |
+| P-AN1-S5 | Generate all images for a run | 5 | in-progress |
+| P-AN1-S6 | Nano Banana as the image model, and the sprint smoke test | 2 | in-progress |
+
+**Execution order:** S1 → S2 → S3 → S5 → S4 → S6. S3 and the S6 provider work do not depend on S2's code.
+
+**Human touchpoint:** the operator makes one sub-minute run in 9:16 and one in 16:9, each from script to rendered video with generated images in the master style.
 
 ## Scope changes
 

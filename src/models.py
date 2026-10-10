@@ -237,6 +237,42 @@ def effective_asset_strategy(
     return "stock_video" if clip_type == "hard_cut" else "stock_image"
 
 
+# ── Animation mode vocabulary (D108) ──────────────────────────────────────────
+# What a run's visuals are made from. "stock" is the footage path; "ai_animation"
+# makes every scene a generated image in one master style.
+VisualMode = Literal["stock", "ai_animation"]
+VISUAL_MODES: tuple[str, ...] = get_args(VisualMode)
+ANIMATION_MODE = "ai_animation"
+
+ContinuityKind = Literal["character", "prop", "setting"]
+CONTINUITY_KINDS: tuple[str, ...] = get_args(ContinuityKind)
+
+# StoryboardScene.flags values — things the operator should look at before spending.
+SCENE_FLAG_TOO_LONG = "too_long"              # longer than the animation scene limit
+SCENE_FLAG_NEEDS_PROMPT = "needs_prompt"      # no image prompt (e.g. the second half of a split)
+SCENE_FLAG_IMAGE_STALE = "image_out_of_date"  # a bible entry it uses changed after its image was made
+
+
+class ContinuityEntry(BaseModel):
+    """One recurring character, prop or setting of an animation storyboard (D108).
+
+    `description` is appended verbatim to the image prompt of every scene that
+    lists this entry's id, which is what keeps the subject the same across images.
+    """
+
+    id: str
+    kind: ContinuityKind = "prop"
+    name: str = ""
+    description: str = ""
+
+
+class SceneShot(BaseModel):
+    """How an animation scene is framed: shot size and camera angle, free text."""
+
+    size: str = ""
+    angle: str = ""
+
+
 class StoryboardScene(BaseModel):
     """A single scene in the production storyboard."""
 
@@ -289,6 +325,27 @@ class StoryboardScene(BaseModel):
     asset_tier: Literal["still", "still_motion", "video"] | None = None
     # Semantic enrichment (P10-S3) — per-scene domain-qualified acquisition signals.
     semantic_context: SemanticContext | None = None
+    # Animation mode (D108). All empty on stock storyboards and on ones stored before it.
+    visual_concept: str = ""
+    visual_keywords: list[str] = []
+    shot: SceneShot | None = None
+    # Ids of the continuity entries this scene shows.
+    entities: list[str] = []
+    # The Visual Director's motion wording; motion_effect holds the renderer's choice.
+    motion_note: str = ""
+    flags: list[str] = []
+
+    @field_validator("visual_concept", "motion_note", mode="before")
+    @classmethod
+    def _coerce_text_none(cls, v: Any) -> str:
+        """A null text field is the same as an empty one."""
+        return v if isinstance(v, str) else ""
+
+    @field_validator("visual_keywords", "entities", "flags", mode="before")
+    @classmethod
+    def _coerce_list_none(cls, v: Any) -> list:
+        """A null list field is the same as an empty one."""
+        return v if isinstance(v, list) else []
 
     @model_validator(mode="after")
     def _backfill_flat_queries_from_visual_prompts(self) -> "StoryboardScene":
@@ -327,6 +384,9 @@ class Storyboard(BaseModel):
     summary: StoryboardSummary
     # Semantic enrichment (P10-S3) — top-level domain context for the full video.
     global_context: GlobalContext | None = None
+    # Animation mode (D108): which path made this storyboard, and its continuity bible.
+    visual_mode: VisualMode = "stock"
+    continuity: list[ContinuityEntry] = []
 
 
 # ── Asset manifest schemas ─────────────────────────────────────────────────────
@@ -645,6 +705,21 @@ class VideoSettings(BaseModel):
     # instruction prefixed to the script (see cf_platform.workers.voice_production).
     narration_pace: Literal["slow", "normal", "fast"] = "normal"
     narration_style: Literal["educational", "emotional"] = "educational"
+    # D108 — what the run's visuals are made from. "stock" is the footage path;
+    # "ai_animation" makes every scene a generated image in one master style.
+    visual_mode: VisualMode = "stock"
+    # The look every generated image shares. Empty means "use the project's
+    # ai_image_style" — resolved at generation time, see ai_images.resolve_master_style.
+    master_style: str = ""
+    # Per-run AI image spend cap set from the Generate all dialog (D108). None means
+    # the tenant default applies; never above IMAGE_RUN_SPEND_CAP_MAX_USD.
+    image_spend_cap_usd: float | None = Field(default=None, ge=0)
+
+    @field_validator("master_style", mode="before")
+    @classmethod
+    def _coerce_master_style(cls, v: Any) -> str:
+        """A null master style is the same as an empty one."""
+        return v.strip() if isinstance(v, str) else ""
 
 
 class VideoSettingsResponse(BaseModel):

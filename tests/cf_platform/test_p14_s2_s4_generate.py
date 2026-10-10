@@ -313,6 +313,8 @@ class TestSpendCap:
                 _configure(env, cap=2.0, cost=0.5)
                 assert env.client.get(_SPEND).json() == {
                     "spent_usd": 0.0, "cap_usd": 2.0, "remaining_usd": 2.0, "images": 0, "cost_per_image_usd": 0.5,
+                    # P-AN1-S5/S6: the highest cap one run may be given, and the model the estimate is for.
+                    "cap_max_usd": 10.0, "model": "kie-model",
                 }
                 env.client.post(f"{_GEN}/1/generate", json={"prompt": "a"})
                 body = env.client.get(_SPEND).json()
