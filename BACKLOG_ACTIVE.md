@@ -469,6 +469,61 @@ Open stories that belong to no sprint in the current roadmap (D099).
 
 ---
 
+## [E54-S1] Chunked voiceover generation for long scripts
+**Epic:** E54 — Voice reliability (new 2026-10-10)
+**Sprint:** unassigned — operator-requested 2026-10-10, not in the D099 roadmap
+**Status:** backlog
+**Priority:** high
+**Points:** 5
+**Depends on:** —
+**Blocks:** nothing in flight. Long scripts (~1,400 words, ~9 min of audio) are a coin flip on PROD until this lands.
+
+### Goal
+Generate the voiceover for a long script as several shorter Gemini TTS calls and merge them, so one dropped connection costs one chunk and not the whole job — and so a TTS failure is visible to the operator instead of silent.
+
+### Evidence (PROD, run `6fe35dab`, 2026-10-10)
+- `build_voice_production_worker` sends the whole script in **one** call (`_call_gemini_tts_sync`): no chunking, no retry, no explicit timeout.
+- 1,422 words ≈ 9 min of audio ≈ 5–6 min of Gemini time. Job 19:06 ended with `TTS failed … peer closed connection without sending complete message body (incomplete chunked read)`; the worker swallowed it, fell back to proportional timestamps with `mp3_r2_key=""`, and reported **complete** — Studio showed no voiceover and no error.
+- The same script on retry (19:20) succeeded: 26,183,610 bytes (~9m06s), Deepgram aligned 1,401 of 1,422 words.
+
+### Mechanism (operator's request)
+1. Split the script into chunks of about **500 words**, cutting at the nearest sentence end (`.`) at or after the target.
+2. One Gemini TTS call per chunk, run concurrently up to a cap; each chunk retried (max 2).
+3. The same delivery instruction (pace + style, D083) on every chunk.
+4. Merge the PCM in order **before** the WAV wrap; one `generated.wav` is stored as today.
+5. Deepgram runs **once** on the merged audio, so `word_timestamps`, the storyboard and the CapCut export see one voiceover as they do now.
+6. Scripts under the chunk size keep today's single call.
+
+### Acceptance Criteria
+- [ ] `split_script_for_tts(text, target_words)` — pure function; cuts at the first sentence end at or after the target; no `.` found → cuts at the next `?`/`!`/newline, else at a word boundary; does not cut at abbreviations (`U.S.`, `Dr.`) or decimals (`3.5%`); concatenating the chunks returns the original text
+- [ ] Chunk size, concurrency cap and retry count come from ENV vars (`VOICE_TTS_CHUNK_WORDS`, `VOICE_TTS_CONCURRENCY`, `VOICE_TTS_RETRIES`) documented in `ENV.md`; no hardcoded values
+- [ ] Each chunk is retried on connection errors and empty responses; chunk results are merged in script order regardless of completion order
+- [ ] A chunk that still fails after retries fails the voice job with a clear message; `voice/status` reports `failed` with the reason and Studio shows it with a retry action — no silent proportional fallback when TTS was attempted and failed
+- [ ] Scripts at or under one chunk produce the same call as today (no behaviour change)
+- [ ] `total_duration_s` and `word_timestamps` come from Deepgram on the merged audio; merged duration equals the sum of chunk durations
+- [ ] TraceEvent records chunk count and per-chunk retries (cost tracking unchanged)
+- [ ] Tests: splitter (sentence boundary, no-period fallback, abbreviations, decimals, round-trip), retry then success, retry exhausted → failed job, merge order and length, single-chunk path unchanged
+
+### Open points to settle in the story
+- **Seams:** a short silence between chunks (e.g. 150–300 ms) vs. none. Gemini may drift slightly in tone between calls; listen to a 3-chunk sample before fixing the value.
+- **Concurrency cap** vs. Gemini rate limits for the paid key; start low (2–3).
+- **Deepgram coverage:** `smart_format` returned 1,401 of 1,422 words (numbers merged). Check whether the storyboard coverage check and captions tolerate that on long scripts, or whether the missing words are real.
+- Optional later: the same chunking for the Test voice and for regenerated narration.
+
+### Files to read
+- `cf_platform/workers/voice_production.py` — `_call_gemini_tts_sync`, `_tts_generate`, `_pcm_to_wav`, `build_voice_production_worker`
+- `cf_platform/interfaces/routes/workers.py` — voice background task and `voice/status`
+- `cf_platform/interfaces/routes/studio_voice.py` — voice status as Studio reads it
+- `docs/TESTING.md`, `CONVENTIONS.md#async-function-discipline`
+
+### Handover
+_(blank)_
+
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+
+---
+
 ## [P8-S7] LLM-vision media scorer — emotion, mood, relevance
 **Epic:** E35 — Footage Quality
 **Sprint:** unassigned — deferred from P8 to P10, never picked up; not in the D099 roadmap
