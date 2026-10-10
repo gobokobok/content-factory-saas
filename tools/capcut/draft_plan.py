@@ -8,7 +8,8 @@ where neither CapCut nor pycapcut exists.
 
 The motion values mirror the FFmpeg render (src/ffmpeg_builder.py) so the two paths
 move alike: zoom rates per second, and a pan that travels min(headroom, 12% of the
-output width per second), centred on the picture.
+output width per second), centred on the picture. A picture with less than 10% of the
+width to spare is enlarged until it has that much, so a pan is always visible.
 """
 
 from __future__ import annotations
@@ -24,6 +25,8 @@ US_PER_MS = 1000
 KEN_BURNS_RATE_PER_S = 0.01
 ZOOM_RATE_PER_S = 0.02
 PAN_TRAVEL_FRACTION_PER_S = 0.12
+# Mirrors src/ffmpeg_builder._PAN_MIN_TRAVEL_FRACTION.
+PAN_MIN_TRAVEL_FRACTION = 0.10
 # Mirrors src/ffmpeg_builder._DUCKING_FACTOR.
 DUCKING_FACTOR = 0.4
 
@@ -145,6 +148,18 @@ def cover_scale(media_w: int, media_h: int, canvas_w: int, canvas_h: int) -> flo
     return max(media_aspect / canvas_aspect, canvas_aspect / media_aspect)
 
 
+def pan_zoom(media_w: int, media_h: int, canvas_w: int, canvas_h: int) -> float:
+    """Extra scale (>= 1.0) a pan needs so the covered picture has PAN_MIN_TRAVEL_FRACTION to spare.
+
+    The FFmpeg render enlarges a picture that is short of spare width; this is the same
+    factor, applied on top of the cover scale. 1.0 for a picture that already has enough.
+    """
+    if not (media_w and media_h):
+        return 1.0
+    covered_w = media_w * max(canvas_w / media_w, canvas_h / media_h)
+    return max(1.0, canvas_w * (1 + PAN_MIN_TRAVEL_FRACTION) / covered_w)
+
+
 def motion_keyframes(
     effect: str | None, duration_us: int, scale: float, media_w: int, media_h: int,
     canvas_w: int, canvas_h: int,
@@ -154,6 +169,7 @@ def motion_keyframes(
     Zooms are a rate per second of scene (ken_burns 1%/s, zoom_in/out 2%/s), applied on
     top of the cover scale. A pan slides the picture sideways by min(horizontal headroom,
     12% of the canvas width per second), centred; position values are in half-canvas-widths.
+    The headroom counts the enlargement `plan_draft` gives a pan clip (see pan_zoom).
     """
     seconds = duration_us / 1_000_000
     if effect == "ken_burns":
@@ -166,7 +182,7 @@ def motion_keyframes(
         # FFmpeg scales to cover (force_original_aspect_ratio=increase) and slides a window;
         # the headroom is how much wider than the canvas the covered picture is.
         factor = max(canvas_w / media_w, canvas_h / media_h)
-        headroom = max(0.0, media_w * factor - canvas_w)
+        headroom = max(0.0, media_w * factor * pan_zoom(media_w, media_h, canvas_w, canvas_h) - canvas_w)
         travel = min(headroom, canvas_w * PAN_TRAVEL_FRACTION_PER_S * seconds)
         half_units = travel / canvas_w  # (travel / 2) px in half-canvas-width units
         if half_units <= 0:
@@ -254,6 +270,9 @@ def plan_draft(timeline: dict, media: dict[str, MediaInfo]) -> DraftPlan:
                     f"{(duration_us - clip.source_duration_us) / 1e6:.2f}s is empty."
                 )
         else:
+            if scene.get("motion_effect") in ("pan_left", "pan_right"):
+                # Enlarge a picture with no room to pan, as the FFmpeg render does.
+                clip.scale = scale * pan_zoom(info.width, info.height, width, height)
             clip.keyframes = motion_keyframes(
                 scene.get("motion_effect"), duration_us, scale, info.width, info.height, width, height,
             )

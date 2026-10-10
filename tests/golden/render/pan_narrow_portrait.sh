@@ -51,9 +51,9 @@ echo "=== END PRE-FLIGHT ==="
 _JOBS=(); _MAX=4
 
 # Scene 01 — 1 — still_with_motion (pan_left) — 3.4s
-ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/1.png" \
+ffmpeg -y -filter_threads 2 -framerate 25 -i "/tmp/gold1/images/1.png" \
   -t 3.4 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:x='(iw-1080)/2+min(max(0\,iw-1080)\,440.6)/2-min(max(0\,iw-1080)\,440.6)*t/3.4000':y=0,fps=25,setsar=1:1" \
+  -vf "scale=w='max(1188.0\,1920*iw/ih)':h=-2,format=yuv420p,crop=w='min(iw\,1080+440.6)':h=1920:x='(iw-ow)/2':y='(ih-oh)/2',scale=iw*4:ih*4:flags=neighbor,loop=loop=-1:size=1,crop=4320:7680:x='(iw-4320)*(1-t/3.4000)':y=0:exact=1,scale=1080:1920:flags=area,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_01.mp4" &
@@ -64,9 +64,9 @@ if [ ${#_JOBS[@]} -ge $_MAX ]; then
 fi
 
 # Scene 02 — 2 — still_with_motion (pan_right) — 0.9s
-ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/2.jpg" \
+ffmpeg -y -filter_threads 2 -framerate 25 -i "/tmp/gold1/images/2.jpg" \
   -t 0.88 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920:x='(iw-1080)/2-min(max(0\,iw-1080)\,114.0)/2+min(max(0\,iw-1080)\,114.0)*t/0.8800':y=0,fps=25,setsar=1:1" \
+  -vf "scale=w='max(1188.0\,1920*iw/ih)':h=-2,format=yuv420p,crop=w='min(iw\,1080+114.0)':h=1920:x='(iw-ow)/2':y='(ih-oh)/2',scale=iw*4:ih*4:flags=neighbor,loop=loop=-1:size=1,crop=4320:7680:x='(iw-4320)*t/0.8800':y=0:exact=1,scale=1080:1920:flags=area,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_02.mp4" &

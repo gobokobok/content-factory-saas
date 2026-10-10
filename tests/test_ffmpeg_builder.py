@@ -300,8 +300,11 @@ class TestMotionVfPrefix:
         # landscape still before anything is left to pan across): the scale only
         # covers the frame, and the x-driven crop does the cropping.
         result = _motion_vf_prefix("still_with_motion", "pan_right", 100)
-        assert result.startswith("scale=1080:1920:force_original_aspect_ratio=increase,")
-        assert "crop=1080:1920:x='" in result
+        # Fitted to cover the frame and at least 10% wider than it (1188 px for 1080).
+        assert result.startswith("scale=w='max(1188.0\\,1920*iw/ih)':h=-2,")
+        # The window is cropped at 4x the output size (see _PAN_SUPERSAMPLE) and shrunk back.
+        assert "crop=4320:7680:x='" in result
+        assert result.endswith("scale=1080:1920:flags=area")
         assert "scale=-2:" not in result
 
     def test_pan_never_scales_narrower_than_the_crop_window(self):
@@ -325,8 +328,9 @@ class TestMotionVfPrefix:
                      "testsrc2=size=1536x2752", "-frames:v", "1", img],
                     check=True,
                 )
+                # A pan's input is read once — the `loop` filter in the chain repeats it.
                 r = subprocess.run(
-                    ["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "25",
+                    ["ffmpeg", "-y", "-loglevel", "error", "-framerate", "25",
                      "-i", img, "-t", "2.4", "-vf", vf, "-c:v", "libx264",
                      "-preset", "ultrafast", "-an", f"{tmp}/out.mp4"],
                     capture_output=True, text=True,
@@ -335,26 +339,113 @@ class TestMotionVfPrefix:
 
     def test_pan_crop_x_is_time_driven(self):
         result = _motion_vf_prefix("still_with_motion", "pan_right", 100)
-        assert "crop=1080:1920:x='" in result
+        assert "crop=4320:7680:x='" in result
         assert "*t/4.0000" in result
 
     def test_pan_directions_are_mirrored(self):
         right = _motion_vf_prefix("still_with_motion", "pan_right", 100)
         left = _motion_vf_prefix("still_with_motion", "pan_left", 100)
         assert right != left
-        assert "/2-" in right and "*t/" in right      # centre - travel/2 + travel*t
-        assert "/2+" in left and "-min(" in left      # centre + travel/2 - travel*t
+        # The window runs from one edge of the pre-cropped picture to the other.
+        assert "x='(iw-4320)*t/4.0000'" in right
+        assert "x='(iw-4320)*(1-t/4.0000)'" in left
+        assert right.count(":exact=1") == 1 and left.count(":exact=1") == 1
 
     def test_pan_travel_is_clamped_to_available_headroom(self):
-        # max(0, iw-out_w) keeps a portrait source (no headroom) from panning
-        # backwards off the frame.
+        # The picture is cut to the frame plus min(its spare width, the travel budget),
+        # so a source with no spare width (a portrait) cannot pan backwards off the frame
+        # and one with a lot cannot travel further than the budget.
         result = _motion_vf_prefix("still_with_motion", "pan_left", 100)
-        assert "max(0\\,iw-1080)" in result
+        assert "crop=w='min(iw\\,1080+" in result
+        assert "x='(iw-ow)/2'" in result  # centred, so the pan is symmetric about the middle
 
     def test_pan_travel_budget_grows_with_duration(self):
-        # 0.12 * 1080 px per second: 2s -> 259.2, 4s -> 518.4.
-        assert "259.2" in _motion_vf_prefix("still_with_motion", "pan_right", 50)
-        assert "518.4" in _motion_vf_prefix("still_with_motion", "pan_right", 100)
+        # 0.12 * 1080 px per second: 2s -> 259.2, 4s -> 518.4 (in output pixels, before the 4x).
+        assert "1080+259.2" in _motion_vf_prefix("still_with_motion", "pan_right", 50)
+        assert "1080+518.4" in _motion_vf_prefix("still_with_motion", "pan_right", 100)
+
+    def test_a_pan_always_has_ten_percent_of_the_frame_width_to_travel(self):
+        """Real ffmpeg: the fit step enlarges a still short of spare width, and only that one."""
+        import shutil
+        import subprocess
+        import tempfile
+
+        if shutil.which("ffmpeg") is None:
+            pytest.skip("ffmpeg not installed")
+
+        def fitted_size(src_w: int, src_h: int, out_w: int, out_h: int) -> tuple[int, int]:
+            fit = _motion_vf_prefix("still_with_motion", "pan_right", 100, out_w, out_h).split(",format=")[0]
+            with tempfile.TemporaryDirectory() as tmp:
+                img = f"{tmp}/s.png"
+                subprocess.run(
+                    ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+                     f"color=c=gray:s={src_w}x{src_h}", "-frames:v", "1", img], check=True,
+                )
+                r = subprocess.run(
+                    ["ffprobe", "-v", "error", "-f", "lavfi", "-i", f"movie={img},{fit}",
+                     "-show_entries", "stream=width,height", "-of", "csv=p=0"],
+                    capture_output=True, text=True, check=True,
+                )
+            w, h = (int(v) for v in r.stdout.strip().split(","))
+            return w, h
+
+        # 16:9 in a 16:9 frame has no spare width: enlarged to 1.1 x (2112 px).
+        assert fitted_size(2752, 1536, 1920, 1080)[0] == 2112
+        # Same picture in 9:16 already has thousands of spare pixels: untouched.
+        assert fitted_size(2752, 1536, 1080, 1920) == (3440, 1920)
+        # A picture wider than 1.1 x the frame is untouched.
+        assert fitted_size(4000, 1080, 1920, 1080) == (4000, 1080)
+        # The D091 portrait (narrower than 9:16) now has the same 10% to pan across.
+        w, h = fitted_size(1536, 2752, 1080, 1920)
+        assert w == 1188 and h >= 1920
+
+    def test_pan_input_is_not_looped_but_other_stills_are(self):
+        """A pan holds one frame with the `loop` filter; the per-frame `-loop 1` input would
+        scale the still again for every output frame. Zooms and holds keep `-loop 1`."""
+        from src.ffmpeg_builder import _render_image_scene
+
+        for effect, looped in (
+            ("pan_left", False), ("pan_right", False),
+            ("ken_burns", True), ("zoom_in", True), ("zoom_out", True), ("static", True),
+        ):
+            scene = _scene("01", "still_with_motion", 4.0, motion_effect=effect)
+            cmd = _render_image_scene(scene, "/tmp/r/images/a.jpg", '"$WORK/scene_01.mp4"', 1, 1920, 1080)
+            assert ("-loop 1 " in cmd) is looped, effect
+            assert ("loop=loop=-1:size=1" in cmd) is (not looped), effect
+
+    def test_a_slow_pan_never_repeats_a_frame(self):
+        """Real ffmpeg: a 20 s pan across 240 px of spare width moves 0.48 px per frame.
+
+        At whole-pixel crops 259 of 499 frames were identical to the one before and the
+        pan visibly stepped. Drawn at 4x, the window moves in quarter pixels, so every
+        frame differs from the previous one.
+        """
+        import shutil
+        import subprocess
+        import tempfile
+
+        if shutil.which("ffmpeg") is None:
+            pytest.skip("ffmpeg not installed")
+        for effect in ("pan_left", "pan_right"):
+            vf = _motion_vf_prefix("still_with_motion", effect, 500, 1920, 1080) + ",fps=25,setsar=1:1"
+            with tempfile.TemporaryDirectory() as tmp:
+                img = f"{tmp}/wide.png"
+                # 2:1 still: 2160 px wide once fitted to 1080 high, so 240 px of headroom.
+                subprocess.run(
+                    ["ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=2000x1000",
+                     "-frames:v", "1", img],
+                    check=True,
+                )
+                r = subprocess.run(
+                    ["ffmpeg", "-y", "-loglevel", "error", "-framerate", "25", "-i", img, "-t", "20",
+                     "-vf", vf, "-f", "framemd5", "-"],
+                    capture_output=True, text=True,
+                )
+                assert r.returncode == 0, r.stderr
+                sums = [ln.rsplit(",", 1)[-1].strip() for ln in r.stdout.splitlines() if ln and not ln.startswith("#")]
+                assert len(sums) == 500
+                repeats = sum(1 for a, b in zip(sums, sums[1:]) if a == b)
+                assert repeats == 0, f"{effect}: {repeats} of 499 frames did not move"
 
 
 # ── Unit: build_ffmpeg_script ─────────────────────────────────────────────────
@@ -491,9 +582,9 @@ class TestBuildFfmpegScript:
         sb = _storyboard(scenes)
         mf = _manifest([_entry("03", "animated")])
         script = build_ffmpeg_script(RUN_ID, sb, mf)
-        # Default VideoSettings is 16:9, so the crop window is 1920x1080 here.
-        assert "crop=1920:1080:x='" in script
-        assert "*t/3.0000" in script
+        # Default VideoSettings is 16:9, so the window is 1920x1080, cropped at 4x.
+        assert "crop=7680:4320:x='" in script
+        assert "t/3.0000" in script
         # No zoompan on a pan — it would freeze the crop on its first position.
         assert "zoompan" not in script
 
@@ -525,7 +616,7 @@ class TestBuildFfmpegScript:
         sb = _storyboard(scenes)
         mf = _manifest([_entry("03", "animated")])
         script = build_ffmpeg_script(RUN_ID, sb, mf, video_settings=VideoSettings(aspect_ratio="9:16"))
-        assert "crop=1080:1920:x='" in script
+        assert "crop=4320:7680:x='" in script
         assert "scale=-2:1920" not in script
 
     def test_image_scene_vf_chain_order_is_scale_zoompan_fps_setsar(self):

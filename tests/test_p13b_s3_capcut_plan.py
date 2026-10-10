@@ -93,6 +93,7 @@ def test_motion_constants_match_the_ffmpeg_render():
     assert dp.KEN_BURNS_RATE_PER_S == fb._KEN_BURNS_RATE_PER_S
     assert dp.ZOOM_RATE_PER_S == fb._ZOOM_RATE_PER_S
     assert dp.PAN_TRAVEL_FRACTION_PER_S == fb._PAN_TRAVEL_FRACTION_PER_S
+    assert dp.PAN_MIN_TRAVEL_FRACTION == fb._PAN_MIN_TRAVEL_FRACTION
     assert dp.DUCKING_FACTOR == fb._DUCKING_FACTOR
 
 
@@ -137,8 +138,35 @@ def test_pan_is_limited_by_headroom_and_collapses_on_a_narrow_portrait():
     # 1200x1920 in 9:16: scaled width 1200, headroom 120px, budget for 5s would be 648px.
     kfs, _ = _kf("pan_right", 5, media=(1200, 1920))
     assert kfs[0].value == pytest.approx(120 / 1080)
-    # D091's case: a portrait still narrower than 9:16 has no headroom → no keyframes.
-    assert _kf("pan_right", 5, media=(1536, 2752))[0] == []
+    # D091's case: a portrait still narrower than 9:16 is enlarged to leave 10% to travel.
+    kfs, _ = _kf("pan_right", 5, media=(1536, 2752))
+    assert kfs[0].value == pytest.approx(0.1)
+
+
+def test_a_picture_with_no_room_is_enlarged_so_a_pan_has_ten_percent_to_travel():
+    # 2752x1536 in 1920x1080: the covered picture is 1935 px wide, 15 px to spare.
+    z = dp.pan_zoom(2752, 1536, 1920, 1080)
+    assert z == pytest.approx(1920 * 1.1 / (2752 * 1080 / 1536), rel=1e-6)
+    kfs, _ = _kf("pan_right", 5, media=(2752, 1536), canvas=(1920, 1080))
+    assert kfs[0].value == pytest.approx(0.1)          # 192 px / 1920
+    # Enough room already (a wide picture, or this one in a 9:16 frame): not enlarged.
+    assert dp.pan_zoom(4000, 1080, 1920, 1080) == 1.0
+    assert dp.pan_zoom(2752, 1536, 1080, 1920) == 1.0
+    assert dp.pan_zoom(0, 0, 1080, 1920) == 1.0
+
+
+def test_a_pan_clip_carries_the_enlargement_zooms_do_not():
+    tl = _timeline()
+    tl["width"], tl["height"], tl["aspect_ratio"] = 1920, 1080, "16:9"
+    tl["scenes"][0]["motion_effect"] = "pan_right"
+    tl["scenes"][1]["motion_effect"] = "zoom_in"
+    media = _media(tl)
+    for sc in tl["scenes"][:2]:
+        media[sc["asset_path"]] = dp.MediaInfo(width=2752, height=1536)
+    video = plan_draft(tl, media).video
+    cover = dp.cover_scale(2752, 1536, 1920, 1080)
+    assert video[0].scale == pytest.approx(cover * dp.pan_zoom(2752, 1536, 1920, 1080))
+    assert video[1].scale == pytest.approx(cover)
 
 
 def test_footage_is_trimmed_muted_and_never_gets_motion_keyframes():

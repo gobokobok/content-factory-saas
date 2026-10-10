@@ -747,8 +747,11 @@ def _render_image_scene(
     # -filter_threads caps the zoompan/scale/crop filter graph's OWN thread pool —
     # separate from -threads in common_encode, which only caps the encoder. See the
     # comment in _render_video_scene: this is the flag D090 actually needed.
+    # A pan holds its single frame with the `loop` filter (see _motion_vf_prefix), so
+    # its input is read once; every other still loops the input (`-loop 1`) as before.
+    input_loop = "" if _is_pan(effect) and not blur_fill_enabled else "-loop 1 "
     ffmpeg_prefix = (
-        f"ffmpeg -y -filter_threads {threads} -loop 1 -framerate {_FPS} -i \"{local}\" \\\n"
+        f"ffmpeg -y -filter_threads {threads} {input_loop}-framerate {_FPS} -i \"{local}\" \\\n"
         f"  -t {t_value} \\\n"
     )
 
@@ -1011,17 +1014,35 @@ _ZOOM_RATE_PER_S = 0.02
 # This is the knob to turn if the pan reads too fast or too slow.
 _PAN_TRAVEL_FRACTION_PER_S = 0.12
 
+# A pan is drawn at this multiple of the output size and shrunk back, so the window can
+# sit between two output pixels.  crop only takes whole pixels: at the output size a
+# slow pan (a little spare width spread over a long scene — common in 16:9, where a
+# still has little to spare) moves 0, 1 or 2 px per frame and visibly steps.  At 4x the
+# window moves in quarter-pixels, which reads as continuous.  Only scenes whose motion
+# is a pan pay for it, about twice the CPU and memory of a zoom.
+_PAN_SUPERSAMPLE = 4
 
-def _pan_travel_expr(out_w: int, duration_s: float) -> str:
-    """Return the FFmpeg expression for a pan's travel distance in pixels.
 
-    min(available horizontal headroom, budget), where the budget grows with scene
-    duration at _PAN_TRAVEL_FRACTION_PER_S of the output width per second.  Commas
-    inside the expression are backslash-escaped because the expression is embedded
-    in a comma-separated -vf filter chain.
+# A pan always has at least this much of the frame width to travel across.  A still
+# whose aspect already matches the frame (16:9 in 16:9) has none, and a pan over 15 px
+# is not a pan.  Such a picture is enlarged just enough to leave this much spare width,
+# so it is cut equally on both sides; a picture with more spare width than this is not
+# touched.  Mirrored in tools/capcut/draft_plan.py (PAN_MIN_TRAVEL_FRACTION).
+_PAN_MIN_TRAVEL_FRACTION = 0.10
+
+
+def _pan_budget_px(out_w: int, duration_s: float) -> float:
+    """The most a pan may travel, in output pixels: _PAN_TRAVEL_FRACTION_PER_S of the width per second.
+
+    The pan travels min(the picture's spare width, this); _motion_vf_prefix enforces the
+    minimum by cutting the picture down to the output width plus this budget.
     """
-    budget_px = out_w * _PAN_TRAVEL_FRACTION_PER_S * duration_s
-    return f"min(max(0\\,iw-{out_w})\\,{budget_px:.1f})"
+    return out_w * _PAN_TRAVEL_FRACTION_PER_S * duration_s
+
+
+def _is_pan(effect: str) -> bool:
+    """True for the two sideways effects, which render through the supersampled crop."""
+    return effect in ("pan_left", "pan_right")
 
 
 def _motion_vf_prefix(
@@ -1049,27 +1070,54 @@ def _motion_vf_prefix(
         f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
         f"crop={out_w}:{out_h}"
     )
-    if effect not in ("pan_left", "pan_right"):
+    if not _is_pan(effect):
         return cover_scale
 
     duration_s = frames / _FPS
-    travel = _pan_travel_expr(out_w, duration_s)
-    # Start the window offset from centre by half the travel so the pan is
-    # symmetric about the middle of the image rather than hugging one edge.
-    centre = f"(iw-{out_w})/2"
+    k = _PAN_SUPERSAMPLE
+    budget = _pan_budget_px(out_w, duration_s)
+    # What is left of the picture after the pre-crop below is exactly what the pan
+    # travels: pan_right starts at the left edge and ends at the right, pan_left the
+    # reverse.  Commas inside the expression are backslash-escaped because it is
+    # embedded in a comma-separated -vf chain.
     if effect == "pan_right":
-        x = f"{centre}-{travel}/2+{travel}*t/{duration_s:.4f}"
+        x = f"(iw-{out_w * k})*t/{duration_s:.4f}"
     else:
-        x = f"{centre}+{travel}/2-{travel}*t/{duration_s:.4f}"
+        x = f"(iw-{out_w * k})*(1-t/{duration_s:.4f})"
     # force_original_aspect_ratio=increase (not scale=-2:{out_h}) guarantees the scaled
     # width is >= out_w. A portrait still narrower than the frame (e.g. 1536x2752 is
     # 0.558 vs 9:16's 0.5625) scales to 1072px wide under scale=-2:1920, and the 1080px
     # crop below then fails outright ("Invalid too big or non positive size", D091).
     # Landscape stills are unchanged: height is still the binding dimension. Narrow
-    # portraits get zero pan headroom, so the travel expression collapses to a static crop.
+    # portraits get zero pan headroom, so the travel collapses to a static crop.
+    #
+    # Chain, in order:
+    #   fit        the picture to cover the frame and to leave _PAN_MIN_TRAVEL_FRACTION of
+    #              spare width (see there);
+    #   format     4:2:0 — what the encoder takes anyway; keeps a PNG's 4x frame at half size;
+    #   pre-crop   keep only the span the pan can reach, centred: the frame plus
+    #              min(spare width, budget).  This is where the travel limit applies,
+    #              and it bounds the memory of the next step;
+    #   enlarge    k-fold with nearest-neighbour, so a window on a whole output pixel
+    #              is exactly the picture;
+    #   loop       hold that single frame, so the still is scaled once, not once per
+    #              output frame — the input must NOT be `-loop 1` (_render_image_scene
+    #              leaves it off for pans);
+    #   crop       the moving window, in k-th pixels (`exact`: without it a 4:2:0 crop
+    #              snaps x to even pixels and a slow pan stalls one frame in every few);
+    #   shrink     `area` averages each k x k block back to one output pixel.
+    min_w = out_w * (1 + _PAN_MIN_TRAVEL_FRACTION)
     return (
-        f"scale={out_w}:{out_h}:force_original_aspect_ratio=increase,"
-        f"crop={out_w}:{out_h}:x='{x}':y=0"
+        # cover the frame, and be at least min_w wide: max(min_w, out_h * aspect) is the
+        # width that covers the height, so the picture is only enlarged when it is short of
+        # spare width.  One resample — fitting first and enlarging after would soften it.
+        f"scale=w='max({min_w:.1f}\\,{out_h}*iw/ih)':h=-2,"
+        f"format=yuv420p,"
+        f"crop=w='min(iw\\,{out_w}+{budget:.1f})':h={out_h}:x='(iw-ow)/2':y='(ih-oh)/2',"
+        f"scale=iw*{k}:ih*{k}:flags=neighbor,"
+        f"loop=loop=-1:size=1,"
+        f"crop={out_w * k}:{out_h * k}:x='{x}':y=0:exact=1,"
+        f"scale={out_w}:{out_h}:flags=area"
     )
 
 
@@ -1118,7 +1166,7 @@ def _zoompan_filter(
     effect = normalize_motion_effect(motion_effect, clip_type)
 
     # Pans carry their motion in the crop; a zoompan here would freeze it.
-    if effect in ("pan_left", "pan_right"):
+    if _is_pan(effect):
         return ""
 
     # "static" = hold.  z=1.0 constant; d=frames still bounds output and resets the

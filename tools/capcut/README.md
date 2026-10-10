@@ -52,7 +52,7 @@ the draft (and any edits you made to it).
 
 | Track | Contents |
 |---|---|
-| `footage` | one clip per scene at its timeline position. Stills are scaled to cover the canvas and carry motion keyframes: ken burns 1%/s, zoom 2%/s, pan up to 12% of the width per second (the FFmpeg render's rates). Video clips are trimmed to the scene and muted, with no keyframes. |
+| `footage` | one clip per scene at its timeline position. Stills are scaled to cover the canvas and carry motion keyframes: ken burns 1%/s, zoom 2%/s, pan up to 12% of the width per second, with at least 10% of the width to travel across — a picture short of that is enlarged (the FFmpeg render's rates). Video clips are trimmed to the scene and muted, with no keyframes. |
 | `voiceover` | the voiceover from 0:00 |
 | `music` | the music at the run's volume (×0.4 with ducking), looped or played once as the run's setting says |
 | `sfx` | each SFX at its scene offset (+0.7 s when the scene has on-screen text); overlapping hits get their own track |
