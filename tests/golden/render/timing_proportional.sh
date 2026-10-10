@@ -53,7 +53,7 @@ _JOBS=(); _MAX=4
 # Scene 01 — 1 — still_with_motion (ken_burns) — 2.06s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/1.jpg" \
   -t 2.08 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=52:s=1080x1920,fps=25,setsar=1:1" \
+  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=52:s=1080x1920,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_01.mp4" &
@@ -66,7 +66,7 @@ fi
 # Scene 02 — 2 — still_with_motion (ken_burns) — 3.44s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/2.jpg" \
   -t 3.44 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=86:s=1080x1920,fps=25,setsar=1:1" \
+  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=86:s=1080x1920,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_02.mp4" &

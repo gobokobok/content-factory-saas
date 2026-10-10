@@ -53,7 +53,7 @@ _JOBS=(); _MAX=4
 # Scene 01 — 1 — still_with_motion (pan_left) — 3.0s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/1.jpg" \
   -t 3.0 \
-  -vf "[in]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20:5[blurred];[fg]scale=iw*min(1080/iw\,1920/ih):ih*min(1080/iw\,1920/ih)[fitted];[blurred][fitted]overlay=(W-w)/2:(H-h)/2[composite];[composite]zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=75:s=1080x1920,fps=25,setsar=1:1" \
+  -vf "[in]split=2[bg][fg];[bg]scale=1080:1920,boxblur=20:5[blurred];[fg]scale=iw*min(1080/iw\,1920/ih):ih*min(1080/iw\,1920/ih)[fitted];[blurred][fitted]overlay=(W-w)/2:(H-h)/2[composite];[composite]format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=75:s=1080x1920,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_01.mp4" &
@@ -66,7 +66,7 @@ fi
 # Scene 02 — 2 — still_with_motion (zoom_out) — 3.0s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/2.jpg" \
   -t 3.0 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='1.0600-0.02*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=75:s=1080x1920,fps=25,setsar=1:1" \
+  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1.0600-0.02*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=75:s=1080x1920,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_02.mp4" &

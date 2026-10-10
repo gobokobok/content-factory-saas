@@ -448,6 +448,64 @@ class TestMotionVfPrefix:
                 assert repeats == 0, f"{effect}: {repeats} of 499 frames did not move"
 
 
+class TestZoomIsSteady:
+    """zoompan rounds its crop to whole pixels, which made a slow zoom tremble (operator report)."""
+
+    @staticmethod
+    def _tracked_jerk(effect: str, seconds: float) -> float:
+        """Largest second difference of a bar's position across a zoom, in output pixels.
+
+        The bar sits 560 px left of the centre, so a 2%/s zoom moves it about half a
+        pixel per frame; a steady zoom has a second difference near zero.
+        """
+        import glob
+        import shutil
+        import subprocess
+        import tempfile
+
+        from PIL import Image, ImageDraw
+
+        if shutil.which("ffmpeg") is None:
+            pytest.skip("ffmpeg not installed")
+        frames = round(seconds * 25)
+        vf = ",".join(
+            p for p in (
+                _motion_vf_prefix("still_with_motion", effect, frames, 1920, 1080),
+                _zoompan_filter("still_with_motion", effect, frames, 1920, 1080),
+                "fps=25", "setsar=1:1",
+            ) if p
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            img = Image.new("L", (1920, 1080), 40)
+            ImageDraw.Draw(img).rectangle([394, 0, 405, 1079], fill=230)  # a 12 px bar at x=400
+            img.convert("RGB").save(f"{tmp}/bar.png")
+            subprocess.run(
+                ["ffmpeg", "-y", "-loglevel", "error", "-loop", "1", "-framerate", "25", "-i", f"{tmp}/bar.png",
+                 "-t", str(frames / 25), "-vf", vf, "-pix_fmt", "gray", f"{tmp}/f_%04d.png"],
+                check=True,
+            )
+            positions = []
+            for path in sorted(glob.glob(f"{tmp}/f_*.png")):
+                row = list(Image.open(path).convert("L").crop((250, 540, 560, 541)).getdata())
+                weights = [max(0, v - 60) for v in row]
+                positions.append(sum(i * w for i, w in enumerate(weights)) / sum(weights))
+        assert len(positions) == frames
+        return max(abs(positions[i + 2] - 2 * positions[i + 1] + positions[i]) for i in range(len(positions) - 2))
+
+    def test_zoom_in_and_out_and_ken_burns_do_not_tremble(self):
+        # Measured on this bar: 1.1 px before the enlargement, 0.4 px after.
+        # (2.4 px on a point further from the centre.)
+        for effect in ("zoom_in", "zoom_out", "ken_burns"):
+            assert self._tracked_jerk(effect, 4.0) < 0.8, effect
+
+    def test_a_static_scene_is_not_enlarged(self):
+        assert _zoompan_filter("still_with_motion", "static", 100, 1920, 1080).startswith("zoompan=")
+        for effect in ("zoom_in", "zoom_out", "ken_burns"):
+            assert _zoompan_filter("still_with_motion", effect, 100, 1920, 1080).startswith(
+                "format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan="
+            ), effect
+
+
 # ── Unit: build_ffmpeg_script ─────────────────────────────────────────────────
 
 

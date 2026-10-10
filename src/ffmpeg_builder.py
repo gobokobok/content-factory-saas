@@ -1007,6 +1007,17 @@ def _local_path(run_id: str, file_key: str) -> str:
 _KEN_BURNS_RATE_PER_S = 0.01
 _ZOOM_RATE_PER_S = 0.02
 
+# zoompan crops with whole-pixel x, y and window size, so on a picture at the output size
+# a slow zoom trembles: a tracked point strayed 0.6 px from a smooth path and jumped 2.4 px
+# between frames when the zoom itself moves it 0.5 px (operator report: "ken burns or
+# something trembling on top" of a zoom out).  The picture is enlarged this many times
+# with nearest-neighbour before zoompan, which then rounds to a quarter pixel of the
+# output: 0.15 px off the path, 0.6 px frame to frame.  Costs about four times the CPU of
+# an unenlarged zoom and ~200 MB of memory per scene.  A hold ("static") does not move, so
+# it is not enlarged.
+_ZOOM_SUPERSAMPLE = 4
+_ZOOM_ENLARGE = f"format=yuv420p,scale=iw*{_ZOOM_SUPERSAMPLE}:ih*{_ZOOM_SUPERSAMPLE}:flags=neighbor,"
+
 # Pan travel budget, as a fraction of the output width per second of scene
 # duration.  The pan traverses min(available headroom, budget) pixels, centred on
 # the image, so a wide landscape still in a 9:16 frame drifts sideways at a
@@ -1177,15 +1188,15 @@ def _zoompan_filter(
     # on/_FPS is elapsed seconds, so each coefficient below is literally a per-second
     # rate, independent of how long the scene runs.
     if effect == "ken_burns":
-        return f"zoompan=z='1+{_KEN_BURNS_RATE_PER_S}*on/{_FPS}':x='{cx}':y='{cy}'{suffix}"
+        return f"{_ZOOM_ENLARGE}zoompan=z='1+{_KEN_BURNS_RATE_PER_S}*on/{_FPS}':x='{cx}':y='{cy}'{suffix}"
 
     duration_s = frames / _FPS
     total = _ZOOM_RATE_PER_S * duration_s
     if effect == "zoom_in":
-        return f"zoompan=z='1+{_ZOOM_RATE_PER_S}*on/{_FPS}':x='{cx}':y='{cy}'{suffix}"
+        return f"{_ZOOM_ENLARGE}zoompan=z='1+{_ZOOM_RATE_PER_S}*on/{_FPS}':x='{cx}':y='{cy}'{suffix}"
     if effect == "zoom_out":
         return (
-            f"zoompan=z='{1 + total:.4f}-{_ZOOM_RATE_PER_S}*on/{_FPS}'"
+            f"{_ZOOM_ENLARGE}zoompan=z='{1 + total:.4f}-{_ZOOM_RATE_PER_S}*on/{_FPS}'"
             f":x='{cx}':y='{cy}'{suffix}"
         )
 
