@@ -80,10 +80,12 @@ Backend consequence recorded in `IA.md` section 7 as B13: today the voice source
 | 1 | Looks nice; a bit more space between the pipeline and the tags above it | Accepted | 32 px (was 18) |
 | 2 | Push to DEV; the operator will test there and report pain points | — | Prototype served at `/prototype/` on DEV |
 
-## Round 6 — operator review on DEV
+## Round 6 — operator review on DEV (2026-10-10)
 
-_Pending._
+The built UI was walked on DEV by the operator against the ten-step smoke list. Everything worked as intended; the remaining items of the list were closed by the operator without notes.
 
 | # | Feedback | Decision | Change made |
 |---|----------|----------|-------------|
-| | | | |
+| 1 | Switching a scene from Stock image (with Ken Burns) to Upload image and then choosing another motion leaves a second motion on top, which looks weird | Investigated on the operator's run: the stored motion and the render script matched every selection, and a Static scene does not move. What does exist is a shake in every zoom (0.6 px off a smooth path, 2.4 px jumps between frames), which reads as a second motion; the operator confirmed it on a Zoom out | The picture is enlarged four times before `zoompan` (`a199b76`, D107). Operator re-test of the fix: not yet done |
+| 2 | In 16:9, Pan left / Pan right moves in steps | The operator's stills (2752×1536) have 15 px of spare width in a 1920×1080 frame, so a pan moved one pixel every six frames | Pans are drawn at four times the size, so they move in quarter pixels, and always have 10 % of the width to travel (`58f361e`, D107). Operator confirmed: "pans left right work" |
+| 3 | Other smoke items | Closed by the operator | — |

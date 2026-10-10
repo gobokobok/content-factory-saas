@@ -4,7 +4,7 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Sprint P14b complete** (2026-10-07). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then **Multi-language: Russian** (EPIC 53), then P15 Research. **Current sprint:** P-UX3 — built and pushed to DEV 2026-10-08 (design, prototype and build in one pass, D105); smoke test pending.
+> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P-UX3 complete** (2026-10-11). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Sprint P14b complete** (2026-10-07). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then **Multi-language: Russian** (EPIC 53), then P15 Research. **Current sprint:** P-UX3 — built and pushed to DEV 2026-10-08 (design, prototype and build in one pass, D105); smoke test pending.
 
 ---
 
@@ -34,9 +34,9 @@ Legacy Script→Video stays untouched and operable (D047).
 | P13b | CapCut export (second render path) | 11 | done | Download a finalized storyboard, run one command on the laptop, open the full edit in CapCut |
 | P14 | AI images per scene | 14 | done | Write a prompt in a scene's edit-image dialog, press Generate, get an AI image for that scene |
 | P14b | Uploaded voiceover | ~13 | done | Upload an mp3, correct a misheard word, build the storyboard from it, render |
-| P-UX3 | UI/UX redesign — discovery, design, prototype and build | ~11 + build | built, smoke test pending | The new UI on DEV: project → idea → run, Libraries, Integrations, Defaults |
+| P-UX3 | UI/UX redesign — discovery, design, prototype and build | ~11 + build | done | The new UI on DEV: project → idea → run, Libraries, Integrations, Defaults |
 | UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
-| P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | planned (immediately after P-UX3 closes; operator, 2026-10-11) | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
+| P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | next (operator, 2026-10-11) | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
 | P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after P-AN1) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
@@ -50,8 +50,8 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Open items carried from closed sprints
 
-- **Deferred smoke tests: 0.** (P14b smoke passed on two real runs; its unverified items are listed in DONE.md, not deferred.)
-- **PROD is five sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b, P14 and P14b (including migrations `0002_projects_shortlist.sql` and `0003_tenant_settings.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
+- **Deferred smoke tests: 0.** (P14b and P-UX3 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
+- **PROD is six sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b, P14, P14b and P-UX3 (including migrations `0002_projects_shortlist.sql`, `0003_tenant_settings.sql` and `0004_tenant_defaults.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
 - **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
 - **API keys in DEV logs (found 2026-10-05, P14 smoke) — code fixed in P14b-S5 (2026-10-07), operator actions open:** (1) rotate the Pixabay key on DEV and revoke the old one — the key is still in Railway's DEV log history; do the same on PROD at release; (2) check the DEV log for `key=` (should now read `key=REDACTED`) and re-check PROD at the next `/prod-check`, before `/release`. Fold into `/audit` if that is run first.

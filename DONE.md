@@ -1,7 +1,24 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last two sprints (P14b, P14) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last two sprints (P-UX3, P14b) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P-UX3] UI/UX redesign — S1 audit, S2 information architecture, S3 prototype, S4 decision (and the build, folded in)
+**Completed:** 2026-10-11 (designed 2026-10-07, built 2026-10-08 in `83e333c` / `2e0bd93`, renderer fixes `58f361e` and `a199b76` after the smoke test)
+**Handover:**
+- **One shell on every page** (`src/static/ui/shell.js`, `shell.css`, `app.js`, `app.css`): foldable left panel (Projects; the open project's Overview / Ideas / Runs / Settings; Libraries; Settings), breadcrumbs on the page background, phone drawer. A run starts folded. Project pages are `/project?id=&tab=overview|ideas|runs|settings`; `/library?kind=`; `/settings?tab=integrations|defaults`. The prototype stays at `/prototype/`.
+- **A run starts from one or several ideas or from a title alone** (`POST /platform/projects/{id}/runs`, `item_ids` optional, `title`, `brief`, `aspect_ratio`); ideas are editable (`PATCH …/shortlist/{item_id}`). Run rows carry voice source, language, format, derived progress (`cf_platform/core/run_progress.py`).
+- **One five-step pipeline per run** (Script → Voice → Storyboard → Video → Metadata): the Script step chooses generate / paste / from a voiceover; `PUT /platform/studio/runs/{id}/voice-source` answers 409 `needs_confirmation` before an uploaded recording is replaced (the storyboard is discarded through the P14b marker). Run settings are a drawer. Storyboard scenes are cards: on-screen text inline, SFX, motion, split on a word, merge, pencil on the asset.
+- **Tenant Integrations and Defaults** (`cf_platform/core/integrations.py`, migration `0004_tenant_defaults.sql`): a key saved in Settings wins over the Railway variable and reaches every route through `get_effective_platform_settings`; defaults for language, format, captions and the AI-image cap, inherited tenant → project → run (a run copies at creation).
+- **Libraries** (`cf_platform/core/library.py`, `GET /platform/library/{kind}`): videos, audio, footage, AI generations, music & SFX, read from the run folders — nothing is indexed; asset ID = prefix + 6 hex of the key's hash; download through a blob.
+- **Renderer (D107):** pans are drawn at 4× (quarter-pixel steps) and always have 10 % of the frame width to travel, in the FFmpeg render and the CapCut export; ken burns / zoom in / zoom out are enlarged 4× before `zoompan` so they no longer tremble. Pan scenes cost about twice, zoom scenes about four times the CPU of before, and about 200 MB per scene.
+- **ENV vars added:** none. Migration `0004`. No new dependency. Decisions: **D105, D107**. Tests: 2738 passing, CI green on `a199b76`.
+- **Not built (D105):** library "use in a scene", music chosen from the library, per-service default models, Research / Publishing panel entries, saved keys for Freesound / ElevenLabs / Replicate.
+- **Not verified:** the operator has not re-rendered since the zoom fix (`a199b76`) — the shake was measured fixed on the operator's own images, not seen by them; saved keys were covered by unit tests, and the Integrations step of the smoke list was closed by the operator without notes — a full acquisition run with a saved key was not observed; which pages still feel crowded was never named.
+**Smoke test:** PASSED — the operator walked the ten-step list on DEV on 2026-10-10 (one real 16:9 run, five scenes with their own uploads) and found two renderer defects, both fixed (D107); the remaining items were closed by them. The zoom fix is the one thing not re-checked by the operator.
+**Promoted to backlog:** none. Candidates: a pan that is clearly visible on every still without a minimum zoom (decided against); "which pages feel crowded" when the operator next names them.
 
 ---
 
@@ -21,22 +38,5 @@ _This file holds the last two sprints (P14b, P14) plus every older entry whose s
 
 ---
 
-## [P14] AI images per scene — S1 provider interface + tenant-level keys, S2 Settings page + project style, S3 Generate in the edit-image dialog, S4 spend cap
-**Completed:** 2026-10-05
-**Handover:**
-- **Generation is manual and per scene (D104).** `POST /platform/studio/runs/{id}/scenes/{n}/generate {prompt}` (`cf_platform/interfaces/routes/studio_ai.py`) generates, stores `runs/{id}/images/scene_NN_ai_<hash>.png`, records the spend, then makes the scene an `ai_image` scene (storyboard version + manifest version). Nothing generates during acquisition. The order is deliberate: validate and cap-check, generate, record spend, only then write storyboard and manifest.
-- **`ai_image` is a strategy, not a style.** `src/models.py`: `AssetStrategy` gains `ai_image`; `OPERATOR_SUPPLIED_STRATEGIES = ("upload", "ai_image")` is what acquisition, split / merge and the render guard test; `OPERATOR_SOURCES` / `AI_GENERATED_SOURCE = "ai_generated"` mark the file. `StoryboardScene.ai_prompt` and `ManifestEntry.ai_prompt` hold the operator's prompt. An empty AI scene reuses status `awaiting_upload`; `timeline.missing_assets_message` words it separately ("set to AI image"). Changing a scene's strategy releases an asset that no longer fits (an AI image does not fit a stock scene, and the reverse).
-- **Providers:** `cf_platform/core/image_provider.py` — `ImageProvider` protocol, `KieImageProvider` (createTask, poll recordInfo, download; the key is not sent to the file host) and `OpenAIImageProvider`; `build_image_provider`. Plain httpx.
-- **Tenant settings:** table `tenant_settings` (migration `0003`), `core/tenant_settings.py` (resolve: tenant setting, then Railway ENV), `core/secret_box.py` (Fernet), `core/postgres_tenant_settings.py`. `GET/PUT /platform/tenant/settings/image` never returns a key, only `key_hint`. Page `/settings` (`src/static/settings.html`), linked from the project pages. Changing `SETTINGS_ENCRYPTION_KEY` makes saved keys unreadable: resolution raises `SecretBoxError` (409) and the operator saves the key again.
-- **Style:** optional `project.config.ai_image_style`, prepended at generation time (the stored `ai_prompt` is the operator's own words). Aspect ratio comes from the run's `settings.json`, else `IMAGE_DEFAULT_ASPECT_RATIO`.
-- **Spend:** ledger `runs/{id}/ai_spend.json` (`core/ai_images.py`), appended per paid generation; `GET …/ai-spend`; the storyboard header shows `N · $spent / $cap AI images`. Cost per image is the configured estimate `IMAGE_COST_USD`, not read from the provider.
-- **Studio:** the ✎ dialog has a third section (prompt textarea, Generate, spend line); the ✎ button is enabled before acquisition; an empty AI scene shows a dashed Generate button in its row; `acquirePlan` ignores `ai_generated` files when deciding "Re-acquire All". Demo mode mocks all of it.
-- **New ENV vars** (ENV.md): `SETTINGS_ENCRYPTION_KEY`, `IMAGE_PROVIDER`, `KIE_API_KEY`, `OPENAI_API_KEY`, `KIE_IMAGE_MODEL`, `OPENAI_IMAGE_MODEL`, `IMAGE_QUALITY`, `IMAGE_RESOLUTION`, `IMAGE_DEFAULT_ASPECT_RATIO`, `IMAGE_TIMEOUT_S`, `IMAGE_POLL_INTERVAL_S`, `IMAGE_COST_USD`, `IMAGE_RUN_SPEND_CAP_USD`. **New dependency:** `cryptography` (Fernet; already present transitively). Decision logged: **D104**.
-- **Post-close fix (2026-10-05, `fix(P14-S3)`):** the Postgres pools (`cf_platform/core/db.py`) now test a connection before handing it out. A DEV Postgres restart left dead connections in the pool and the first Generate returned a bare 500 (`AdminShutdown`); this applies to every database route. Generate also answers 503 with a message when the settings database is unreachable.
-- **Known limits:** the kie.ai path is covered by mocked tests only — the smoke test used an OpenAI key; the spend cap was verified by automated tests, not on DEV; a replaced AI image stays in R2 (orphan files are not deleted); re-acquire on an AI scene fetches stock while the scene stays `ai_image`; no "Suggest prompt" (the prompt is prefilled from the voiceover). Tests: three new files plus edits; 2583 passing.
-**Smoke test:** PASSED — 2026-10-05 on Railway DEV, operator ran steps 1–8: OpenAI key saved in Settings, edit-image dialog with prefilled prompt and cost line, first image, regenerate, empty AI scene with its Generate button, stock acquisition leaving AI scenes alone, render with AI images. The cap step was not run (covered by automated tests).
-**Promoted to backlog:** none. Open item carried: API keys appear in DEV logs (SPRINT.md, open items).
-
----
 
 ---

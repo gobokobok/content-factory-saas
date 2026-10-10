@@ -1,6 +1,6 @@
 # UX audit — today's flow and comparable tools
 
-_Story P-UX3-S1 · drafted 2026-10-07 · status: draft, waiting for the operator's pain points (section 1)_
+_Story P-UX3-S1 · drafted 2026-10-07 · closed 2026-10-11 · section 1 is the operator's feedback from six review rounds and the DEV smoke test (see below)_
 
 **How this was made.** The current flow was audited by reading the page sources (`src/static/projects.html`, `project.html`, `settings.html`, `studio-v2.html`), the platform routes and the P12–P14b handovers. It was **not** walked live on DEV; the operator's walkthrough of the prototype is where that happens. The tool review is from public product pages and help centres (sources in section 4), summarised in our own words; none of the tools were used hands-on for this audit.
 
@@ -8,7 +8,23 @@ _Story P-UX3-S1 · drafted 2026-10-07 · status: draft, waiting for the operator
 
 ## 1. The operator's pain points
 
-**Pending.** The operator will walk through the prototype and record what is hard today. This section is filled from that list and S1 does not close before it is.
+**Source.** The operator did not write a separate list; what they find hard was collected from what they said while reviewing the prototype (rounds 1–5, 2026-10-07, `REVIEW.md`) and while smoke-testing the built UI on DEV (round 6, 2026-10-10). Each row is their wording, shortened, tied to the screen it was about. Anything they did not say is not here: **which pages still feel "too crowded" was never named**, and nothing was recorded about the login page, Research or Publishing.
+
+| # | Pain point | Screen | Became |
+|---|-----------|--------|--------|
+| P1 | The way into a run is chosen once, at creation: a run cannot start from a script and take a voiceover later, or the reverse | New run dialog, Studio | One five-step pipeline; the Script step chooses the source (D105) |
+| P2 | Replacing an uploaded voiceover with a generated voice must not happen silently | Studio, Voice | Confirmation naming what is replaced and discarded |
+| P3 | The new storyboard was missing on-screen text and sound effects, which must be definable, changeable and removable | Storyboard | Fields on the scene card |
+| P4 | An action sits at the opposite side of the row from the thing it acts on (Edit on the right, the asset on the left) | Storyboard scene | Pencil on the asset |
+| P5 | On-screen text must be an editable field, not text behind a button | Storyboard scene | Inline field |
+| P6 | Pages are a little too crowded | several, not named | Fewer facts per row (round 1); remains open |
+| P7 | Too little space between the left panel and the content, tables and fields sit too close; today's DEV spacing is the reference | every page | 72 px gutter |
+| P8 | Breadcrumbs belong on the page background and must scroll with it; more air above and below them | every page | Crumbs on the page, 36 px each side |
+| P9 | A line under the pipeline is noise; the pipeline should look like the one in policy-scout | Studio head | Arrow steps, one status dot |
+| P10 | Changing a still from Stock image to Upload image and then picking another motion left a second, trembling motion on top | Storyboard scene, render | Zoom shake fixed in the renderer (D107) |
+| P11 | A 16:9 pan moves in visible steps | render | Sub-pixel pans with a minimum travel (D107) |
+
+---
 
 What the operator has already asked for (2026-10-07), recorded as requirements rather than pain points:
 
