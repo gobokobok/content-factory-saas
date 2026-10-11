@@ -37,7 +37,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-UX3 | UI/UX redesign — discovery, design, prototype and build | ~11 + build | done | The new UI on DEV: project → idea → run, Libraries, Integrations, Defaults |
 | UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
 | P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | **done** 2026-10-11 | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
-| P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **built 2026-10-11, built, awaiting commit and push (smoke pending)** | Create a run from the minimal modal and walk all five steps with Next only |
+| P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Create a run from the minimal modal and walk all five steps with Next only |
 | P-AUTH | Google sign-in and accounts (EPIC 59); `/audit` first | ~13 | planned | A friend signs in with Google and lands in their own space |
 | P-BILL-1 | Usage ledger, credit limits, manual top-up (EPIC 59) | ~13 | planned | **Friends beta:** a friend makes a first video of up to one minute within a credit limit |
 | P-PROJ1 | Visual source model and project settings (EPIC 57) | ~14 | planned | Channel identity and a saved project character reused by a new animated run |
@@ -56,7 +56,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Open items carried from closed sprints
 
-- **Deferred smoke tests: 0.** (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
+- **Deferred smoke tests: 1** — P-UX4 (operator decision: after P-INT1) → INT1-S5. (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
 - **PROD is six sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b, P14, P14b and P-UX3 (including migrations `0002_projects_shortlist.sql`, `0003_tenant_settings.sql` and `0004_tenant_defaults.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
 - **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
@@ -126,7 +126,7 @@ _None._
 # Sprint P-UX4 — Pipeline flow and polish (EPIC 56)
 
 **Goal:** A run is created from a minimal modal and walked through all five steps with Next only; each step starts its own work.
-**Status:** built 2026-10-11 in one pass (in the working tree, not committed or pushed). Smoke test pending after the DEV deploy.
+**Status:** complete 2026-10-11 (built in one pass, commit `a7da166`). Smoke test deferred by the operator until after P-INT1 → cleared by INT1-S5.
 **Points:** ~21
 
 | ID | Title | Points | Status |
