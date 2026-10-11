@@ -37,7 +37,13 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-UX3 | UI/UX redesign — discovery, design, prototype and build | ~11 + build | done | The new UI on DEV: project → idea → run, Libraries, Integrations, Defaults |
 | UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
 | P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | **done** 2026-10-11 | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
-| P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after P-AN1) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
+| P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **built 2026-10-11, built, awaiting commit and push (smoke pending)** | Create a run from the minimal modal and walk all five steps with Next only |
+| P-AUTH | Google sign-in and accounts (EPIC 59); `/audit` first | ~13 | planned | A friend signs in with Google and lands in their own space |
+| P-BILL-1 | Usage ledger, credit limits, manual top-up (EPIC 59) | ~13 | planned | **Friends beta:** a friend makes a first video of up to one minute within a credit limit |
+| P-PROJ1 | Visual source model and project settings (EPIC 57) | ~14 | planned | Channel identity and a saved project character reused by a new animated run |
+| P-INT1 | Integrations v2 (EPIC 58) | ~14 | planned | Add a second provider with an own key, make it default, generate on it |
+| P-BILL-2 | Online payments (EPIC 59) | ~8 | planned | Buy credits online |
+| P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after P-BILL-2; order revised 2026-10-11) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
 | P17 | Server-side Auto Advance | ~10 | planned | Pick a shortlist idea, close the tab, come back to a scheduled video |
@@ -114,3 +120,25 @@ _None._
 ## Scope changes
 
 - **Post-push fix `19f0c2f` (P-AN1-S5, S6):** a model saved for the other image provider is refused and ignored; the bulk job stops after three identical failures; `gpt-image-1` priced at its measured cost. Found in the smoke test.
+
+---
+
+# Sprint P-UX4 — Pipeline flow and polish (EPIC 56)
+
+**Goal:** A run is created from a minimal modal and walked through all five steps with Next only; each step starts its own work.
+**Status:** built 2026-10-11 in one pass (in the working tree, not committed or pushed). Smoke test pending after the DEV deploy.
+**Points:** ~21
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| UX4-S1 | Shell polish: burger removed, select chevron padding, sidebar-panel icon, panel state kept, divider removed, storyboard at content width | 3 | done |
+| UX4-S2 | New Run modal: Title, Language, Format, Style + master visual prompt sub-modal | 3 | done |
+| UX4-S3 | Script step: Generate from idea first and collapsed, hidden in Paste, ends with Next | 3 | done |
+| UX4-S4 | Voiceover step: pace and tone here, generate always allowed (replaces an upload), Regenerate + Next | 5 | done |
+| UX4-S5 | Storyboard step: starts its own generation, Run Settings note, style lock warning, Merge at bottom right | 2 | done |
+| UX4-S6 | Video step: captions on top, one source of truth with Run Settings, Next to Metadata | 3 | done |
+| UX4-S7 | Library videos and voiceovers named after the run title | 2 | done |
+
+**Execution order:** S1 → S2 → S3 → S4 → S5 → S6; S7 independent.
+**Human touchpoint:** create a run from the new modal and walk the five steps using only Next, including switching Script mode after uploading a voiceover and generating a new voice over it.
+**Decisions:** D109 (point 2).

@@ -14,10 +14,10 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 ## Current sprint
 **Sprint P-AN1 — Animation mode (EPIC 55)** closed 2026-10-11 (D108). Built and live on DEV: a run is Stock footage or Animation; an Animation run gets its storyboard from a second worker (Sonnet 5.5) with a continuity bible, an image prompt assembled in code, and one "Generate all images" action with the cost shown first. Images: kie.ai `nano-banana-2-1`, 1K while testing. Details: DONE.md, `docs/ARCHITECTURE.md` §0c.
 Studio is the only operator interface; Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Roadmap: **P-LANG Multi-language: Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene" and music-from-library (D105), long-form animation (chunked storyboard, D108)._
+_Roadmap (D109, 2026-10-11): **P-UX4 Pipeline flow and polish (EPIC 56)** → `/audit` → P-AUTH → P-BILL-1 (**friends beta**) → P-PROJ1 → P-INT1 → P-BILL-2 → **P-LANG Multi-language: Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene" and music-from-library (D105), long-form animation (chunked storyboard, D108)._
 
 ## Active story
-**None started.** Next: `/sprint-review` for P-AN1, then plan P-LANG (EPIC 53 is a stub in BACKLOG_ACTIVE.md; detail at the sprint boundary).
+**P-UX4 (EPIC 56) built 2026-10-11, uncommitted and not pushed.** Next: operator reviews, pushes `main` (deploys DEV), smoke test (create a run from the new modal, walk five steps with Next only, upload a voiceover then Generate), then `/finish-story`. Plan: docs/UX_REVIEW_2026-10-11_PLAN.md.
 
 **Blockers / operator actions:** for published videos set `IMAGE_RESOLUTION=2K` and the `nano-banana-2-1` price to 0.03 in `IMAGE_MODEL_COSTS_USD` on Railway (1K is below the 1080p frame). Rotate the Pixabay key on DEV (the old one is in DEV log history); check the DEV log for `key=REDACTED`. Re-render a run with zooms to confirm the zoom fix (D107). PROD stays on v0.24.0 on purpose — release DEV to PROD only when DEV is complete and smoke tested (at release set a new `SETTINGS_ENCRYPTION_KEY` and re-check PROD logs for `key=`). `/audit` never run (planned before P15). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
 

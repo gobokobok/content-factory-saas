@@ -213,6 +213,34 @@ async def _discard_storyboard(storage: ArtifactStorage, run_id: str, storyboard_
         await storage.put_json(manifest_key, data)
 
 
+async def discard_for_generated_voice(
+    storage: ArtifactStorage, run_id: str, confirm_discard: bool
+) -> tuple[list[str], dict | None]:
+    """Work out, and once confirmed apply, what a generated voice replaces on an uploaded run.
+
+    Returns (discarded, pending). `pending` is the 409 body when something would be
+    discarded and the operator has not confirmed yet (nothing is changed then); it is
+    None otherwise. Used by the voice-source switch and by voice generation itself, so
+    an uploaded recording is a replaceable asset on both paths (D109).
+    """
+    discarded: list[str] = []
+    storyboard_key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
+    alignment = await _current_alignment(storage, run_id)
+    if alignment is not None and alignment.alignment_method == UPLOADED_ALIGNMENT_METHOD:
+        discarded.append("your uploaded voiceover is replaced by a generated voice (the recording stays in the library)")
+    if storyboard_key:
+        discarded += ["the storyboard", "the acquired assets and scene edits that came with it"]
+    if discarded and not confirm_discard:
+        return discarded, {
+            "detail": "Switching to a generated voice: " + "; ".join(discarded) + ".",
+            "needs_confirmation": True,
+            "discards": discarded,
+        }
+    if storyboard_key:
+        await _discard_storyboard(storage, run_id, storyboard_key)
+    return discarded, None
+
+
 @router.post("/studio/runs/{run_id}/voice/upload", status_code=202)
 async def studio_upload_voice(
     run_id: str,
@@ -384,21 +412,9 @@ async def studio_put_voice_source(
 
     discarded: list[str] = []
     if body.voice_source == "generated":
-        storyboard_key = await _latest_artifact_key(storage, run_id, "storyboard", "verified_storyboard")
-        alignment = await _current_alignment(storage, run_id)
-        uploaded_voice = alignment is not None and alignment.alignment_method == UPLOADED_ALIGNMENT_METHOD
-        if uploaded_voice:
-            discarded.append("your uploaded voiceover is replaced by a generated voice (the recording stays in the library)")
-        if storyboard_key:
-            discarded += ["the storyboard", "the acquired assets and scene edits that came with it"]
-        if discarded and not body.confirm_discard:
-            return JSONResponse(status_code=409, content={
-                "detail": "Switching to a generated voice: " + "; ".join(discarded) + ".",
-                "needs_confirmation": True,
-                "discards": discarded,
-            })
-        if storyboard_key:
-            await _discard_storyboard(storage, run_id, storyboard_key)
+        discarded, pending = await discard_for_generated_voice(storage, run_id, body.confirm_discard)
+        if pending is not None:
+            return JSONResponse(status_code=409, content=pending)
     await runs.save(run.model_copy(update={"inputs": {**run.inputs, "voice_source": body.voice_source}}))
     return {"voice_source": body.voice_source, "changed": True, "discarded": discarded}
 

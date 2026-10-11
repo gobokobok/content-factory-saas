@@ -13,7 +13,6 @@
 <body class="cf-body">
 <div class="cf-shell" id="cf-shell">
   <aside class="cf-nav" id="cf-nav"></aside>
-  <div class="cf-scrim" onclick="CFShell.closeNav()"></div>
   <div class="cf-main">
     <nav class="cf-crumbs" id="cf-crumbs" aria-label="Breadcrumb"></nav>
     <main class="cf-page">
@@ -165,26 +164,49 @@ const effective = key => projectOverrides(project)[key] ?? tenant[key];
 
 function dlgNewRun(itemIds) {
   const picked = itemIds.map(id => items.find(i => i.item_id === id)).filter(Boolean);
-  const title = picked.length ? picked.map(i => i.title).join(' + ') : '';
-  const brief = picked.length > 1 ? picked.map(i => i.summary).filter(Boolean).join(' ') : '';
   window._newRunIds = picked.map(i => i.item_id);
+  // The brief is not asked for any more (C2): ideas that were combined keep their summaries as the run's brief.
+  window._newRunBrief = picked.length > 1 ? picked.map(i => i.summary).filter(Boolean).join(' ') : '';
+  window._nr = { title: picked.length ? picked.map(i => i.title).join(' + ') : '', language: effective('language'),
+    format: effective('format'), style: 'realistic', master: '' };
+  renderNewRun();
+  $(window._nr.title ? 'nr-create' : 'nr-title').focus();
+}
+/** Keep what is typed in the New run form while a sub-modal is open. */
+function readNewRun() {
+  const n = window._nr;
+  if ($('nr-title')) { n.title = $('nr-title').value; n.language = $('nr-lang').value; n.format = $('nr-format').value; }
+}
+function renderNewRun() {
+  const n = window._nr;
   overlay(`<div class="modal">
-    <h2>New run</h2><div class="sub">${picked.length ? `From ${picked.length === 1 ? 'the idea' : picked.length + ' ideas'} — edit anything.` : 'No idea attached. Enter the details here.'} In ${esc(project.name)}.</div>
+    <h2>New run</h2>
     <div class="grid2" style="margin-top:16px;">
-      <div class="field full"><label class="label" for="nr-title">Title</label><input class="input" id="nr-title" maxlength="300" value="${esc(title)}" placeholder="What is this video about?"></div>
-      <div class="field full"><label class="label" for="nr-brief">Brief (optional) — what the script should cover</label><textarea class="input" id="nr-brief" maxlength="2000" placeholder="Angle, key numbers, what to leave out">${esc(brief)}</textarea></div>
-      <div class="field"><label class="label" for="nr-lang">Language</label><select class="select" id="nr-lang">${opts(LANGS, effective('language'))}</select><div class="hint">Default: ${esc(LANGS[effective('language')] || effective('language'))}</div></div>
-      <div class="field"><label class="label" for="nr-format">Format</label><select class="select" id="nr-format">${opts(FORMATS, effective('format'))}</select><div class="hint">Default: ${esc(effective('format'))}. Decides which footage is acquired.</div></div>
+      <div class="field full"><label class="label" for="nr-title">Title</label><input class="input" id="nr-title" maxlength="300" value="${esc(n.title)}" placeholder="What is this video about?"></div>
+      <div class="field"><label class="label" for="nr-lang">Language</label><select class="select" id="nr-lang">${opts(LANGS, n.language)}</select></div>
+      <div class="field"><label class="label" for="nr-format">Format</label><select class="select" id="nr-format">${opts(FORMATS, n.format)}</select></div>
+      <div class="field full"><label class="label" for="nr-style">Style</label><select class="select" id="nr-style" onchange="readNewRun(); window._nr.style = this.value; renderNewRun()">${opts({ realistic: 'Realistic', animated: 'Animated' }, n.style)}</select></div>
+      ${n.style === 'animated' ? `<div class="field full"><button class="btn btn-secondary btn-sm" type="button" onclick="dlgMasterPrompt()">${n.master.trim() ? 'Edit master visual prompt' : 'Add master visual prompt'}</button></div>` : ''}
     </div>
-    <div class="hint" style="margin-top:14px;">You choose where the script comes from — generate it, paste it or take it from a voiceover — in the run's first step.</div>
+    <div class="hint" style="margin-top:14px;">You can change these settings later in Run Settings.</div>
     <div class="actions"><button class="btn btn-primary" id="nr-create" onclick="createRun()">Create run →</button><button class="btn btn-ghost" onclick="closeOverlay()">Cancel</button></div>
   </div>`);
-  $(title ? 'nr-create' : 'nr-title').focus();
+}
+/** The second, small modal: just the master visual prompt (animated runs). */
+function dlgMasterPrompt() {
+  readNewRun();
+  overlay(`<div class="modal">
+    <h2>Master visual prompt</h2>
+    <div class="field" style="margin-top:16px;"><textarea class="input" id="nr-master" rows="6" maxlength="4000" placeholder="Paste the master prompt: the look every image shares.">${esc(window._nr.master)}</textarea></div>
+    <div class="actions"><button class="btn btn-primary" onclick="window._nr.master = $('nr-master').value; renderNewRun()">Save</button><button class="btn btn-ghost" onclick="renderNewRun()">Cancel</button></div>
+  </div>`);
+  $('nr-master').focus();
 }
 async function createRun() {
-  const title = $('nr-title').value.trim();
+  readNewRun();
+  const title = window._nr.title.trim();
   if (!title && !window._newRunIds.length) { $('nr-title').focus(); return toast('Give the run a title.'); }
-  const body = { item_ids: window._newRunIds, title: title || null, brief: $('nr-brief').value.trim() || null,
+  const body = { item_ids: window._newRunIds, title: title || null, brief: window._newRunBrief.trim() || null,
     language: $('nr-lang').value, aspect_ratio: $('nr-format').value };
   const btn = $('nr-create');
   btn.disabled = true;
@@ -193,8 +215,13 @@ async function createRun() {
     if (!r.ok) throw new Error(await errorDetail(r));
     const run = await r.json();
     // Tells Studio this run is brand new, so it seeds its settings from the defaults
-    // instead of loading stored settings that do not exist yet.
-    try { sessionStorage.setItem('cf_new_run', run.run_id); } catch { /* private mode */ }
+    // instead of loading stored settings that do not exist yet. The chosen style rides
+    // along: Studio saves it into the run's settings on its first load.
+    try {
+      sessionStorage.setItem('cf_new_run', run.run_id);
+      sessionStorage.setItem('cf_new_run_style', JSON.stringify(window._nr.style === 'animated'
+        ? { visual_mode: 'ai_animation', master_style: window._nr.master.trim() } : { visual_mode: 'stock' }));
+    } catch { /* private mode */ }
     window.location.href = `/studio#run/${encodeURIComponent(run.run_id)}/script`;
   } catch (e) { closeOverlay(); showErr(`Could not create the run: ${e.message}`); }
 }

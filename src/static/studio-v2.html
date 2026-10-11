@@ -321,16 +321,24 @@
     @keyframes paneIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
     .stage-content { max-width: 720px; margin: 0; }
-    .stage-content.wide { max-width: none; }
+    /* The storyboard is as wide as the row of three script-source cards (.src-choices). */
+    .stage-content.wide { max-width: 820px; }
 
     .stage-title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
     .stage-subtitle { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
 
     .stage-cta {
-      margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border2);
+      margin-top: 28px;
       display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
     }
-    #sb-cta { border-top: none; padding-top: 0; margin-top: 16px; }
+    #sb-cta { margin-top: 16px; }
+    .sb-start { margin-bottom: 22px; }
+    .sb-note { font-size: 12.5px; color: var(--muted); }
+    .sb-note a { color: var(--accent); cursor: pointer; }
+    .sb-warn { margin-top: 10px; padding: 9px 12px; border: 1px solid #F2D9A6; background: #FFF6E5; color: #7A4B00; border-radius: var(--r-sm); font-size: 12.5px; }
+    .cap-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+    .cap-label { font-size: 13px; color: var(--ink-sub); }
+    .cap-row .cf-select { width: auto; min-width: 240px; }
     .running-msg { font-size: 12px; color: var(--muted); font-family: var(--mono); }
 
     /* ── Cards / fields ──────────────────────────────────────────────── */
@@ -774,7 +782,9 @@
     .sc-ost.on { border-style: solid; border-color: var(--border); background: var(--border2); }
     .sc-ost:hover { border-color: var(--ink-sub); }
     .sc-ost:focus { outline: none; border-style: solid; border-color: var(--accent); background: var(--surface); box-shadow: 0 0 0 3px var(--accent-ring); }
-    .sc-merge { margin-left: auto; font-family: var(--font); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; }
+    .sc-bottom { display: flex; align-items: flex-end; gap: 12px; }
+    .sc-bottom .sc-query { flex: 0 1 60%; min-width: 0; }
+    .sc-merge { margin-left: auto; flex-shrink: 0; font-family: var(--font); font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--muted); cursor: pointer; }
     .sc-merge:hover { color: var(--ink); border-color: var(--ink-sub); }
     .sc-query { font-size: 11.5px; color: var(--muted); margin-top: 8px; cursor: pointer; border-radius: 4px; padding: 1px 3px; margin-left: -3px; }
     /* Animation mode (P-AN1) */
@@ -816,7 +826,6 @@
     @media (max-width: 1100px) { :root { --cf-gutter: 48px; } }
     @media (max-width: 760px) {
       :root { --cf-gutter: 16px; }
-      .cf-shell, .cf-shell.cf-folded { display: block; }
       .run-head { padding-top: 24px; }
       .src-choices { grid-template-columns: 1fr; }
       .sc-card { flex-wrap: wrap; }
@@ -832,7 +841,6 @@
 <!-- ── Shell: the left panel is shared with every page (ui/shell.js) ───── -->
 <div class="cf-shell" id="cf-shell">
 <aside class="cf-nav" id="cf-nav"></aside>
-<div class="cf-scrim" onclick="CFShell.closeNav()"></div>
 
 <!-- ── Main ─────────────────────────────────────────────────────────── -->
 <div class="main">
@@ -922,30 +930,15 @@
 
           <div class="field-label">Captions</div>
           <label class="toggle-switch">
-            <input type="checkbox" id="captions-toggle" checked onchange="onCaptionsToggle()">
+            <input type="checkbox" id="captions-toggle" checked onchange="onCaptionsToggle(this)">
             <span class="toggle-slider"></span>
           </label>
           <span style="font-size:13px;color:var(--ink-sub);vertical-align:3px;margin-left:10px;">Burn in captions</span>
           <div style="margin-top:10px;">
-            <select class="cf-select" id="caption-style" onchange="onCaptionStyleChange()" title="Caption presentation style">
+            <select class="cf-select" id="caption-style" onchange="onCaptionStyleChange(this)" title="Caption presentation style">
               <option value="standard">Standard — 5 words, word highlight</option>
               <option value="punch">Punch — one word, ALL CAPS</option>
             </select>
-          </div>
-
-          <div id="narration-block">
-          <div class="field-label" style="margin-top:20px;">Narration</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;max-width:620px;">
-            <select class="cf-select" id="narration-pace" onchange="onNarrationChange()" title="Speaking rate">
-              <option value="slow">Slow — ~145 wpm</option>
-              <option value="normal">Normal — ~160 wpm</option>
-              <option value="fast">Fast — ~172 wpm</option>
-            </select>
-            <select class="cf-select" id="narration-style" onchange="onNarrationChange()" title="Delivery style">
-              <option value="educational">Educational — clear, measured</option>
-              <option value="emotional">Emotional — warm, expressive</option>
-            </select>
-          </div>
           </div>
 
           <div id="subject-block" style="display:none;">
@@ -963,17 +956,10 @@
       <div class="stage-pane" id="pane-script">
         <div class="stage-content">
           <div class="stage-title">Script</div>
-          <div class="stage-subtitle">Paste a voiceover script, or generate one from an idea.</div>
+          <div class="stage-subtitle">Generate the script from an idea, or write or paste your own. Edit it freely below.</div>
           <div id="script-error" class="error-bar" style="display:none;"></div>
 
-          <div class="field-label">Voiceover script</div>
-          <textarea class="script-textarea" id="script-input" placeholder="Paste your script here…" oninput="onScriptInput()"></textarea>
-          <div class="script-meta">
-            <span id="word-count">0 words</span>
-            <span id="script-loaded-tag" style="display:none;color:var(--ink);">✓ loaded from artifact</span>
-          </div>
-
-          <div class="generate-section" style="margin-top:18px;">
+          <div class="generate-section" id="generate-section" style="margin-top:0;margin-bottom:22px;">
             <button class="generate-toggle" onclick="toggleGeneratePanel()">
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,4 6,8 10,4"/></svg>
               Generate from idea
@@ -999,9 +985,15 @@
             </div>
           </div>
 
+          <div class="field-label">Voiceover script</div>
+          <textarea class="script-textarea" id="script-input" placeholder="Paste your script here…" oninput="onScriptInput()"></textarea>
+          <div class="script-meta">
+            <span id="word-count">0 words</span>
+            <span id="script-loaded-tag" style="display:none;color:var(--ink);">✓ loaded from artifact</span>
+          </div>
+
           <div class="stage-cta">
-            <button class="btn btn-primary" id="generate-vo-btn" onclick="generateVO()" disabled>Generate VO →</button>
-            <button class="btn btn-ghost" id="skip-vo-btn" onclick="createStoryboard()" disabled title="Skip voiceover — storyboard will use estimated timing">Skip VO</button>
+            <button class="btn btn-primary" id="script-next-btn" onclick="activateStage('voice')" disabled>Next →</button>
             <span id="script-stage-status" class="running-msg"></span>
           </div>
         </div>
@@ -1020,7 +1012,8 @@
           </div>
           <div class="vo-file-line" id="vo-status"></div>
           <div class="stage-cta" id="upload-cta" style="display:none;">
-            <button class="btn btn-primary" onclick="activateStage('transcript')">Review transcript →</button>
+            <button class="btn btn-primary" onclick="activateStage('voice')">Next →</button>
+            <button class="btn btn-ghost" onclick="activateStage('transcript')">Review transcript</button>
           </div>
         </div>
       </div>
@@ -1037,9 +1030,8 @@
             <div class="muted" style="font-size:13px;">No transcript yet — upload a voiceover first.</div>
           </div>
           <div class="stage-cta" id="transcript-cta" style="display:none;">
-            <button class="btn btn-primary" id="create-storyboard-btn3" onclick="createStoryboard()">Create Storyboard →</button>
+            <button class="btn btn-primary" onclick="activateStage('voice')">Next →</button>
             <button class="btn btn-ghost" id="reupload-btn" onclick="activateStage('upload')">Upload a different voiceover</button>
-            <span id="transcript-stage-status" class="running-msg"></span>
           </div>
         </div>
       </div>
@@ -1047,15 +1039,32 @@
       <!-- Voice stage -->
       <div class="stage-pane" id="pane-voice">
         <div class="stage-content">
-          <div class="stage-title">Voice</div>
-          <div class="stage-subtitle" id="voice-subtitle">Generated from the script. Its word timings drive the storyboard.</div>
+          <div class="stage-title">Voiceover</div>
+          <div class="stage-subtitle" id="voice-subtitle">Choose how it sounds, then generate the voiceover from the script. Its word timings drive the storyboard.</div>
           <div id="voice-error" class="error-bar" style="display:none;"></div>
+          <div id="narration-block">
+          <div class="field-label" style="margin-top:0;">Narration</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;max-width:620px;">
+            <select class="cf-select" id="narration-pace" onchange="onNarrationChange()" title="Speaking rate">
+              <option value="slow">Slow — ~145 wpm</option>
+              <option value="normal">Normal — ~160 wpm</option>
+              <option value="fast">Fast — ~172 wpm</option>
+            </select>
+            <select class="cf-select" id="narration-style" onchange="onNarrationChange()" title="Delivery style">
+              <option value="educational">Educational — clear, measured</option>
+              <option value="emotional">Emotional — warm, expressive</option>
+            </select>
+          </div>
+          </div>
+
           <div id="voice-uploaded" style="display:none;"></div>
           <div id="voice-content">
-            <div class="muted" style="font-size:13px;">No voiceover yet — generate VO from the Script stage.</div>
+            <div class="muted" style="font-size:13px;">No voiceover yet.</div>
           </div>
-          <div class="stage-cta" id="voice-cta" style="display:none;">
-            <button class="btn btn-primary" id="create-storyboard-btn2" onclick="createStoryboard()">Create Storyboard →</button>
+          <div class="stage-cta" id="voice-cta">
+            <button class="btn btn-primary" id="voice-generate-btn" onclick="generateVO()">Generate voiceover</button>
+            <button class="btn btn-ghost" id="voice-skip-btn" onclick="activateStage('storyboard')" title="Skip the voiceover — the storyboard will use estimated timing">Skip voiceover</button>
+            <button class="btn btn-primary" id="voice-next-btn" onclick="activateStage('storyboard')" style="display:none;">Next →</button>
             <span id="voice-stage-status" class="running-msg"></span>
           </div>
         </div>
@@ -1067,14 +1076,22 @@
           <div class="stage-title">Storyboard</div>
           <div class="stage-subtitle" id="sb-subtitle">Scene-by-scene plan. Pick each scene's asset type, click a word to split a scene there, merge it with the next, set its on-screen text and sound effect. Nothing is acquired until you confirm the storyboard.</div>
           <div id="sb-error" class="error-bar" style="display:none;"></div>
+          <div class="sb-start" id="sb-start">
+            <div class="sb-note">The storyboard is generated with this run's settings — style, format and language. To change any of them, open <a onclick="openSettingsDrawer()">Run settings</a> first.</div>
+            <div class="sb-warn" id="sb-lock-warn">Once the storyboard is generated, the run's style (stock footage or animation) can no longer be changed, because it decides how the scenes are built.</div>
+            <div class="stage-cta" style="margin-top:14px;">
+              <button class="btn btn-primary" id="sb-generate-btn" onclick="createStoryboard()">Generate storyboard</button>
+              <span id="sb-gen-status" class="running-msg"></span>
+            </div>
+          </div>
         </div>
         <div class="stage-content wide" style="margin-top:0; padding-top:0;">
           <div id="sb-content">
-            <div class="muted" style="font-size:13px;">No storyboard yet — create one in the Script stage.</div>
+            <div class="muted" style="font-size:13px;">No storyboard yet.</div>
           </div>
           <div class="stage-cta" id="sb-cta" style="display:none;">
             <button class="btn btn-primary" id="acquire-btn" onclick="acquireAssets()">Confirm storyboard &amp; acquire →</button>
-            <button class="btn btn-primary" id="go-render-btn" onclick="activateStage('render')" style="display:none;">Go to Render →</button>
+            <button class="btn btn-primary" id="go-render-btn" onclick="activateStage('render')" style="display:none;">Next →</button>
             <span id="sb-stage-status" class="running-msg"></span>
           </div>
         </div>
@@ -1092,6 +1109,14 @@
           <div class="stage-title">Video</div>
           <div class="stage-subtitle">Assemble scenes, voiceover, captions and music into final.mp4.</div>
           <div id="render-error" class="error-bar" style="display:none;"></div>
+          <div class="cap-row">
+            <label class="toggle-switch"><input type="checkbox" id="v-captions-toggle" checked onchange="onCaptionsToggle(this)"><span class="toggle-slider"></span></label>
+            <span class="cap-label">Burn in captions</span>
+            <select class="cf-select" id="v-caption-style" onchange="onCaptionStyleChange(this)" title="Caption presentation style">
+              <option value="standard">Standard — 5 words, word highlight</option>
+              <option value="punch">Punch — one word, ALL CAPS</option>
+            </select>
+          </div>
           <div id="render-content">
             <div class="muted" style="font-size:13px;">No video yet — acquire assets first.</div>
           </div>
@@ -1100,6 +1125,7 @@
             <button class="btn btn-secondary" id="capcut-export-btn" onclick="downloadCapcutExport(this)" disabled>Download for CapCut</button>
             <button class="btn btn-secondary" id="capcut-upload-btn" onclick="document.getElementById('capcut-upload-input').click()" disabled>Upload video from CapCut</button>
             <input type="file" id="capcut-upload-input" accept="video/mp4,.mp4" style="display:none;" onchange="uploadCapcutVideo(this)">
+            <button class="btn btn-primary" id="render-next-btn" onclick="activateStage('metadata')" style="display:none;">Next →</button>
             <span id="render-stage-status" class="running-msg"></span>
           </div>
           <div class="muted" id="capcut-hint" style="font-size:12px;margin-top:10px;">CapCut path: download the zip, run one command on your laptop, edit and render in CapCut, then upload the video here.</div>
@@ -1551,8 +1577,6 @@ function defaultStageData() {
 function applyVoiceSource(source) {
   const uploaded = source === 'uploaded';
   state.voiceSource = uploaded ? 'uploaded' : 'generated';
-  const nb = document.getElementById('narration-block');
-  if (nb) nb.style.display = uploaded ? 'none' : '';
   renderStageTrack();
   renderRunFacts();
   renderVoicePane();
@@ -1804,6 +1828,9 @@ function sourceLabel() {
 function renderScriptSource() {
   const el = document.getElementById('script-source');
   if (!el) return;
+  // Generate-from-idea belongs to Generate mode only; Paste shows the script field alone (C8).
+  const gs = document.getElementById('generate-section');
+  if (gs) gs.style.display = state.scriptSource === 'paste' ? 'none' : '';
   if (state.activeStage !== 'script') { el.style.display = 'none'; return; }
   el.style.display = '';
   const active = state.voiceSource === 'uploaded' ? 'upload' : state.scriptSource;
@@ -1835,7 +1862,7 @@ async function chooseScriptSource(kind) {
   state.scriptSource = kind;
   state.restartingSource = false;
   activateStage('script');
-  if (kind === 'generate') { document.getElementById('generate-body')?.classList.add('open'); updateGenerateBtn(); }
+  if (kind === 'generate') updateGenerateBtn();
   else document.getElementById('script-input')?.focus();
 }
 
@@ -1875,34 +1902,52 @@ async function switchToGeneratedVoice() {
 }
 
 // ── Voice step: the generated voice, or the uploaded recording ────────────
+/** The text the voiceover is generated from: the transcript of an uploaded run, else the script field. */
+function currentScript() {
+  return state.voiceSource === 'uploaded' ? (state.stageData.script || '').trim() : document.getElementById('script-input').value.trim();
+}
+
+/** True once the run has a voice to build the storyboard on: a generated one, or a transcribed upload. */
+function voiceReady() {
+  return state.voiceSource === 'uploaded' ? state.stageStatus.upload === 'done' : state.stageStatus.voice === 'done';
+}
+
 function renderVoicePane() {
   const up = document.getElementById('voice-uploaded');
   const gen = document.getElementById('voice-content');
   if (!up || !gen) return;
   const uploaded = state.voiceSource === 'uploaded';
+  const ready = voiceReady();
+  const running = state.stageStatus.voice === 'running';
   const sub = document.getElementById('voice-subtitle');
-  if (sub) sub.textContent = uploaded ? 'This run uses your uploaded voiceover.' : 'Generated from the script. Its word timings drive the storyboard.';
+  if (sub) sub.textContent = uploaded
+    ? 'Your uploaded voiceover is the current voice. Generate a voiceover from the script to replace it.'
+    : 'Choose how it sounds, then generate the voiceover from the script. Its word timings drive the storyboard.';
   up.style.display = uploaded ? '' : 'none';
   gen.style.display = uploaded ? 'none' : '';
-  const cta = document.getElementById('voice-cta');
   if (uploaded) {
     const t = state.stageData.transcript;
-    const ready = state.stageStatus.upload === 'done';
-    up.innerHTML = ready
+    up.innerHTML = state.stageStatus.upload === 'done'
       ? `<div class="voice-result">${t && t.audio_url ? `<audio controls src="${esc(t.audio_url)}"></audio>` : ''}
           <div class="voice-stats"><div class="voice-stat">Words: <strong>${(t && t.words ? t.words.length : '—')}</strong></div>
-          <div class="voice-stat">Source: <span class="voice-method">your upload</span></div></div></div>
-         <div class="stage-cta"><button class="btn btn-primary" id="create-storyboard-btn2u" onclick="createStoryboard()">${state.stageStatus.storyboard === 'done' ? 'Go to Storyboard →' : 'Create storyboard →'}</button>
-           <button class="btn btn-ghost" onclick="switchToGeneratedVoiceFromVoice()">Generate a voice from the script instead</button></div>`
+          <div class="voice-stat">Source: <span class="voice-method">your upload</span></div></div></div>`
       : '<div class="muted" style="font-size:13px;">No recording yet — upload one in the Script step.</div>';
-    if (cta) cta.style.display = 'none';
-  } else if (cta) {
-    cta.style.display = state.stageStatus.voice === 'done' ? '' : 'none';
   }
-}
-
-async function switchToGeneratedVoiceFromVoice() {
-  if (await switchToGeneratedVoice()) { state.scriptSource = 'paste'; activateStage('script'); }
+  const gbtn = document.getElementById('voice-generate-btn');
+  if (gbtn) {
+    gbtn.textContent = running ? 'Generating…' : (!uploaded && ready) ? 'Regenerate voiceover' : 'Generate voiceover';
+    gbtn.disabled = running || !currentScript();
+    gbtn.className = 'btn ' + (ready ? 'btn-secondary' : 'btn-primary');
+  }
+  const next = document.getElementById('voice-next-btn');
+  if (next) next.style.display = ready && !running ? '' : 'none';
+  const skip = document.getElementById('voice-skip-btn');
+  if (skip) skip.style.display = ready || running ? 'none' : '';
+  // A voice made from an earlier script no longer matches an edited one.
+  const stale = !uploaded && state.stageStatus.voice === 'done' && state.stageData.script != null
+    && currentScript() !== (state.stageData.script || '').trim();
+  const st = document.getElementById('voice-stage-status');
+  if (st && !running) st.textContent = stale ? 'The script changed after this voiceover was generated — regenerate it.' : '';
 }
 
 // ── Landing / workspace switch ────────────────────────────────────────────
@@ -2026,7 +2071,6 @@ function renderRunContext() {
   // Pre-fill the idea from the shortlist item(s) the run was created from.
   const idea = state.runContext?.idea_title || '';
   document.getElementById('gen-idea').value = idea;
-  if (idea) document.getElementById('generate-body').classList.add('open');
   updateGenerateBtn();
 }
 
@@ -2107,6 +2151,16 @@ function applyStoredSettings(s) {
   }
   if (s.image_spend_cap_usd !== undefined) state.settings.imageSpendCap = s.image_spend_cap_usd;
   if (s.visual_mode) setVisualMode(s.visual_mode);
+  syncCaptionStyleEnabled();
+}
+
+// The style chosen in the New run modal (project.html): { visual_mode, master_style? }. Read once.
+function consumeNewRunStyle() {
+  try {
+    const raw = sessionStorage.getItem('cf_new_run_style');
+    sessionStorage.removeItem('cf_new_run_style');
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
 }
 
 // True once for a run just created on the project page (project.html sets the flag).
@@ -2132,8 +2186,7 @@ function newRun() {
   document.getElementById('script-input').value = '';
   document.getElementById('word-count').textContent = '0 words';
   document.getElementById('script-loaded-tag').style.display = 'none';
-  document.getElementById('generate-vo-btn').disabled = true;
-  document.getElementById('skip-vo-btn').disabled = true;
+  document.getElementById('script-next-btn').disabled = true;
   hideErr('script-error');
 
   resetVoicePane();
@@ -2190,6 +2243,7 @@ async function loadRun(id) {
         ...(td.captions ? { subtitles: td.captions === 'none' ? 'none' : 'TikTok', caption_style: td.captions === 'punch' ? 'punch' : 'standard' } : {}),
         ...(state.project?.config?.run_defaults || {}),
         ...(state.runFormat ? { aspect_ratio: state.runFormat } : {}),
+        ...consumeNewRunStyle(),
         subject: state.runContext?.idea_title || '',
       });
     } else {
@@ -2297,6 +2351,7 @@ async function loadRun(id) {
   } catch { /* ignore */ }
 
   renderStageTrack();
+  renderVoicePane();
   renderSidebarRecent();
 }
 
@@ -2366,20 +2421,29 @@ function onMasterStyleInput() {
   renderVisualMode();
 }
 
-function onCaptionsToggle() {
-  state.settings.captions = document.getElementById('captions-toggle').checked;
+/** Captions are one setting shown in two places (Run settings and the Video step): paint both from state. */
+function syncCaptionStyleEnabled() {
+  for (const id of ['captions-toggle', 'v-captions-toggle']) {
+    const t = document.getElementById(id);
+    if (t) t.checked = !!state.settings.captions;
+  }
+  for (const id of ['caption-style', 'v-caption-style']) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.value = state.settings.captionStyle || 'standard';
+    el.disabled = !state.settings.captions;   // the preset only means anything while captions are burned in
+  }
+}
+
+function onCaptionsToggle(el) {
+  state.settings.captions = el.checked;
   syncCaptionStyleEnabled();
   saveRunSettings();
 }
 
-// The caption style preset only means anything while captions are burned in.
-function syncCaptionStyleEnabled() {
-  const el = document.getElementById('caption-style');
-  if (el) el.disabled = !state.settings.captions;
-}
-
-function onCaptionStyleChange() {
-  state.settings.captionStyle = document.getElementById('caption-style').value;
+function onCaptionStyleChange(el) {
+  state.settings.captionStyle = el.value;
+  syncCaptionStyleEnabled();
   saveRunSettings();
 }
 
@@ -2501,8 +2565,8 @@ function onScriptInput() {
   const val = document.getElementById('script-input').value.trim();
   const words = val ? val.split(/\s+/).length : 0;
   document.getElementById('word-count').textContent = `${words} word${words !== 1 ? 's' : ''}`;
-  document.getElementById('generate-vo-btn').disabled = !val;
-  document.getElementById('skip-vo-btn').disabled = !val;
+  document.getElementById('script-next-btn').disabled = !val;
+  renderVoicePane();
 }
 
 function toggleGeneratePanel() {
@@ -2566,7 +2630,7 @@ async function generateScript() {
     status.textContent = `✓ ${data.iterations} iteration${data.iterations !== 1 ? 's' : ''}`;
     renderStageTrack();
 
-    if (state.autoConfirm) setTimeout(generateVO, 200);
+    if (state.autoConfirm) setTimeout(() => { activateStage('voice'); generateVO(); }, 200);
   } catch (e) {
     clearInterval(timer);
     showErr('script-error', `Network error: ${e.message}`);
@@ -2590,12 +2654,16 @@ async function createStoryboard() {
 
 Regenerate the storyboard?`)) return;
 
-  // Determine which trigger button and error zone to use depending on caller stage
-  const fromVoice = state.activeStage === 'voice';
-  const fromTranscript = uploaded && !fromVoice;
-  const btn = document.getElementById(fromTranscript ? 'create-storyboard-btn3' : uploaded ? 'create-storyboard-btn2u' : fromVoice ? 'create-storyboard-btn2' : 'skip-vo-btn');
-  const errId = fromTranscript ? 'transcript-error' : fromVoice ? 'voice-error' : 'script-error';
-  const statusEl = document.getElementById(fromTranscript ? 'transcript-stage-status' : fromVoice ? 'voice-stage-status' : 'script-stage-status');
+  // A stock run's acquired assets belong to the scenes it has now; a new storyboard cuts new ones.
+  const acquiredNow = Object.values(state.manifestEntries || {}).filter(e => e.status === 'acquired' && e.file_key).length;
+  if (!isAnimationRun() && state.stageStatus.storyboard === 'done' && acquiredNow
+      && !confirm(`This run has ${acquiredNow} acquired asset${acquiredNow === 1 ? '' : 's'}. A new storyboard cuts new scenes, so they will have to be acquired again.
+
+Regenerate the storyboard?`)) return;
+
+  const btn = document.getElementById('sb-generate-btn');
+  const errId = 'sb-error';
+  const statusEl = document.getElementById('sb-gen-status');
   if (btn) btn.disabled = true;
   state.stageStatus.storyboard = 'running';
   hideErr(errId);
@@ -2685,24 +2753,64 @@ Regenerate the storyboard?`)) return;
   }
 }
 
+/** Generate the voiceover from the script. Over an uploaded recording this replaces it, after the operator confirms (D109). */
 async function generateVO() {
   if (!state.runId) { alert('Create a new run first.'); return; }
-  const script = document.getElementById('script-input').value.trim();
-  if (!script) { alert('Enter a script first.'); return; }
+  const script = currentScript();
+  if (!script) { showErr('voice-error', 'Write or generate the script first — the voiceover is made from it.'); return; }
 
-  const btn = document.getElementById('generate-vo-btn');
-  const skipBtn = document.getElementById('skip-vo-btn');
-  const statusEl = document.getElementById('script-stage-status');
-  btn.disabled = true;
-  skipBtn.disabled = true;
+  const statusEl = document.getElementById('voice-stage-status');
+  hideErr('voice-error');
+  const wasUploaded = state.voiceSource === 'uploaded';
+  try {
+    // POST to start — returns 202 immediately; TTS runs as a background task. Over an
+    // uploaded recording the server answers 409 with what would be replaced, and the
+    // request repeats once the operator has said yes.
+    let confirmDiscard = false;
+    let r;
+    for (;;) {
+      r = await fetch('/platform/workers/voice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_id: state.runId, script, confirm_discard: confirmDiscard }),
+      });
+      if (r.status !== 409) break;
+      const d = await r.json().catch(() => ({}));
+      if (!d.needs_confirmation || confirmDiscard) { showErr('voice-error', d.detail || 'Voice error 409'); return; }
+      if (!confirm(`${d.detail}\n\nContinue?`)) return;
+      confirmDiscard = true;
+    }
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      state.stageStatus.voice = 'error';
+      showErr('voice-error', err.detail || `Voice error ${r.status}`);
+      renderStageTrack(); renderVoicePane();
+      return;
+    }
+  } catch (e) {
+    state.stageStatus.voice = 'error';
+    showErr('voice-error', `Network error: ${e.message}`);
+    renderStageTrack(); renderVoicePane();
+    return;
+  }
+
+  // Accepted. The run now has a generated voice; the storyboard and render built on the old one are stale.
+  if (wasUploaded) {
+    state.stageStatus.upload = 'idle';
+    state.scriptSource = 'paste';
+    applyVoiceSource('generated');
+    document.getElementById('script-input').value = script;
+    onScriptInput();
+    document.getElementById('script-loaded-tag').style.display = '';
+    resetStoryboardPane();
+    state.stageData.storyboard = null;
+  }
   state.stageStatus.voice = 'running';
-  // Invalidate downstream stages — re-generating VO makes previous storyboard and render stale
   state.stageStatus.storyboard = 'idle';
   state.stageStatus.render = 'idle';
   state.stageStatus.metadata = 'idle';
-  hideErr('script-error');
   renderStageTrack();
-  activateStage('voice');
+  renderVoicePane();
 
   const start = Date.now();
   document.getElementById('voice-content').innerHTML = `
@@ -2710,31 +2818,20 @@ async function generateVO() {
       <span class="dot dot-running"></span>
       <span id="vo-timer">Generating voiceover… 0s</span>
     </div>`;
-  document.getElementById('voice-cta').style.display = 'none';
   const timer = setInterval(() => {
     const el = document.getElementById('vo-timer');
     if (el) el.textContent = `Generating voiceover… ${elapsed(start)}`;
+    if (statusEl) statusEl.textContent = `Running… ${elapsed(start)}`;
   }, 1000);
 
+  const fail = (msg) => {
+    clearInterval(timer);
+    state.stageStatus.voice = 'error';
+    showErr('voice-error', msg);
+    document.getElementById('voice-content').innerHTML = '';
+    renderStageTrack(); renderVoicePane();
+  };
   try {
-    // POST to start — returns 202 immediately; TTS runs as a background task
-    const r = await fetch('/platform/workers/voice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ run_id: state.runId, script }),
-    });
-    if (!r.ok) {
-      clearInterval(timer);
-      const err = await r.json().catch(() => ({}));
-      state.stageStatus.voice = 'error';
-      showErr('voice-error', err.detail || `Voice error ${r.status}`);
-      document.getElementById('voice-content').innerHTML = '';
-      renderStageTrack();
-      activateStage('script');
-      btn.disabled = false; skipBtn.disabled = false;
-      return;
-    }
-
     // Poll /voice/status until complete or error (max ~10 min = 200 × 3s)
     let polls = 0;
     while (polls < 200) {
@@ -2745,59 +2842,35 @@ async function generateVO() {
         const sr = await fetch(`/platform/studio/runs/${state.runId}/voice/status`);
         statusData = sr.ok ? await sr.json() : { status: 'running' };
       } catch { statusData = { status: 'running' }; }
-
-      if (statusData.status === 'error') {
-        clearInterval(timer);
-        state.stageStatus.voice = 'error';
-        showErr('voice-error', statusData.error || 'Voice generation failed');
-        document.getElementById('voice-content').innerHTML = '';
-        renderStageTrack();
-        activateStage('script');
-        btn.disabled = false; skipBtn.disabled = false;
-        return;
-      }
+      if (statusData.status === 'error') return fail(statusData.error || 'Voice generation failed');
       if (statusData.status === 'complete') break;
     }
 
     // Fetch the full voice artifact (presigned audio URL etc.)
     const vr = await fetch(`/platform/studio/runs/${state.runId}/voice`);
-    clearInterval(timer);
-    if (!vr.ok) {
-      state.stageStatus.voice = 'error';
-      showErr('voice-error', `Voice artifact unavailable (${vr.status})`);
-      document.getElementById('voice-content').innerHTML = '';
-      renderStageTrack();
-      activateStage('script');
-      btn.disabled = false; skipBtn.disabled = false;
-      return;
-    }
+    if (!vr.ok) return fail(`Voice artifact unavailable (${vr.status})`);
     const data = await vr.json();
+    clearInterval(timer);
     state.stageData.voice = data;
     state.stageStatus.voice = 'done';
     state.stageStatus.script = 'done';
     state.stageData.script = script;
-    statusEl.textContent = `✓ VO ready (${elapsed(start)})`;
+    if (statusEl) statusEl.textContent = `✓ Ready (${elapsed(start)})`;
     renderVoiceResult(data);
     renderStageTrack();
+    renderVoicePane();
     saveLocalRun(state.runId, { scriptPreview: script.slice(0, 40) });
     if (state.autoConfirm) setTimeout(createStoryboard, 200);
   } catch (e) {
-    clearInterval(timer);
-    state.stageStatus.voice = 'error';
-    showErr('voice-error', `Network error: ${e.message}`);
-    document.getElementById('voice-content').innerHTML = '';
-    renderStageTrack();
-    activateStage('script');
-  } finally {
-    btn.disabled = false; skipBtn.disabled = false;
+    fail(`Network error: ${e.message}`);
   }
 }
 
 // ── Voice stage ───────────────────────────────────────────────────────────
 function resetVoicePane() {
-  document.getElementById('voice-content').innerHTML = '<div class="muted" style="font-size:13px;">No voiceover yet — generate VO from the Script stage.</div>';
-  document.getElementById('voice-cta').style.display = 'none';
+  document.getElementById('voice-content').innerHTML = '<div class="muted" style="font-size:13px;">No voiceover yet.</div>';
   hideErr('voice-error');
+  renderVoicePane();
 }
 
 function renderVoiceResult(data) {
@@ -2824,8 +2897,6 @@ function renderVoiceResult(data) {
         <div class="voice-stat">Alignment: <span class="${methodCls}">${esc(methodLabel)}</span></div>
       </div>
     </div>`;
-  document.getElementById('voice-cta').style.display = '';
-  document.getElementById('create-storyboard-btn2').disabled = false;
   hideErr('voice-error');
 }
 
@@ -2984,8 +3055,6 @@ function renderTranscript(data) {
   trAudioEl = document.getElementById('tr-audio');
   trAudioEl.addEventListener('timeupdate', onTrTimeUpdate);
   document.getElementById('transcript-cta').style.display = '';
-  document.getElementById('create-storyboard-btn3').textContent = data.storyboard_exists ? 'Back to Storyboard →' : 'Create Storyboard →';
-  document.getElementById('create-storyboard-btn3').onclick = data.storyboard_exists ? () => activateStage('storyboard') : createStoryboard;
   hideErr('transcript-error');
   renderLanguageWarning(data.language_warning, data.language);
 }
@@ -3088,8 +3157,11 @@ async function rebuildFromText(dryRun) {
 
 // ── Storyboard stage ──────────────────────────────────────────────────────
 function resetStoryboardPane() {
-  document.getElementById('sb-content').innerHTML = `<div class="muted" style="font-size:13px;">No storyboard yet — create one from the Voice step.</div>`;
+  document.getElementById('sb-content').innerHTML = `<div class="muted" style="font-size:13px;">No storyboard yet.</div>`;
   document.getElementById('sb-cta').style.display = 'none';
+  document.getElementById('sb-lock-warn').style.display = '';
+  document.getElementById('sb-generate-btn').textContent = 'Generate storyboard';
+  document.getElementById('sb-generate-btn').className = 'btn btn-primary';
   hideErr('sb-error');
 }
 
@@ -3142,6 +3214,9 @@ function renderStoryboard(data) {
     <div id="sb-cards">${scenes.map((s, i) => buildSceneRow(s, scenes[i + 1], totalDur)).join('')}</div>`}`;
 
   document.getElementById('sb-cta').style.display = '';
+  document.getElementById('sb-lock-warn').style.display = 'none';
+  document.getElementById('sb-generate-btn').textContent = 'Regenerate storyboard';
+  document.getElementById('sb-generate-btn').className = 'btn btn-secondary';
   document.getElementById('sb-subtitle').textContent = sbIsAnimation()
     ? "Scene-by-scene plan for generated images. Check each scene's concept and prompt, tighten the continuity entries, split a scene on a word or merge it with the next. Nothing is generated, and nothing is spent, until you start it."
     : "Scene-by-scene plan. Pick each scene's asset type, click a word to split a scene there, merge it with the next, set its on-screen text and sound effect. Nothing is acquired until you confirm the storyboard.";
@@ -3287,9 +3362,9 @@ function buildSceneRow(s, nextScene, totalDur) {
             ? `<option value="${esc(s.sfx)}" selected>${esc(s.sfx)} (unavailable)</option>` : ''}
         </select>
         ${motionCell}
-        ${mergeBtn}
       </div>
-      ${animation ? buildAnimationBlock(s) : `<div class="sc-query" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Search words for stock footage — click to edit">${esc(s.primary_stk || '— search words —')}</div>`}
+      ${animation ? buildAnimationBlock(s) : ''}
+      <div class="sc-bottom">${animation ? '' : `<div class="sc-query" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Search words for stock footage — click to edit">${esc(s.primary_stk || '— search words —')}</div>`}${mergeBtn}</div>
     </div>
   </div>`;
 }
@@ -4462,6 +4537,8 @@ function renderVideoResult(data) {
       <div class="render-stat">Source: <strong>${videoSourceLabel(data)}</strong></div>
     </div>`;
   hideErr('render-error');
+  const next = document.getElementById('render-next-btn');
+  if (next) next.style.display = '';
 }
 
 function videoSourceLabel(data) {
@@ -4559,7 +4636,7 @@ function parseHash() {
   }
   renderRunList();
   renderStageTrack();
-  CFShell.mount({ active: 'project', projectTab: 'runs', foldDefault: 'folded', crumbs: [['Projects', '/'], ['…']] });
+  CFShell.mount({ active: 'project', projectTab: 'runs', crumbs: [['Projects', '/'], ['…']] });
 
   const parsed = parseHash();
   if (parsed && parsed.runId) {

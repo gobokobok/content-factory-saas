@@ -52,6 +52,11 @@ h2 { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
 .label { display: block; font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 5px; }
 .input, .select, textarea.input { width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
 textarea.input { resize: vertical; min-height: 68px; line-height: 1.5; }
+.select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none; cursor: pointer; padding-right: 34px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238B8B92' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 13px center;
+}
 .input:focus, .select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 .input::placeholder { color: var(--faint); }
 .hint { font-size: 11px; color: var(--muted); margin-top: 5px; }

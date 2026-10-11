@@ -76,14 +76,26 @@ class TestShell:
                        "/settings?tab=integrations", "/settings?tab=defaults", "'Overview'", "'Ideas'", "'Runs'"):
             assert needle in js, needle
 
-    def test_folding_is_remembered_but_a_run_starts_folded_and_does_not_remember(self):
+    def test_folding_is_remembered_everywhere_and_never_forced(self):
+        """P-UX4-S1 (C34): a run does not fold the panel; the operator's last choice is kept across pages."""
         js = (_UI / "shell.js").read_text(encoding="utf-8")
         assert "cf_nav_fold" in js and "toggleFold" in js
-        assert "foldDefault === 'folded'" in js and "override = next" in js  # a run's choice is not stored
+        assert "foldDefault" not in js and "override" not in js
+        assert "foldDefault" not in _read("studio-v2.html")
 
-    def test_phone_width_uses_a_drawer(self):
+    def test_no_burger_and_no_drawer(self):
+        """P-UX4-S1 (C1): the dead burger is gone; narrow screens keep the rail."""
+        js = (_UI / "shell.js").read_text(encoding="utf-8")
         css = (_UI / "shell.css").read_text(encoding="utf-8")
-        assert "max-width: 760px" in css and "translateX(-100%)" in css and "cf-nav-open" in css
+        assert "cf-menu-btn" not in js and "cf-menu-btn" not in css
+        assert "translateX(-100%)" not in css and "cf-nav-open" not in css
+
+    def test_fold_icon_is_the_sidebar_panel_glyph_and_selects_have_room_for_the_chevron(self):
+        js = (_UI / "shell.js").read_text(encoding="utf-8")
+        assert "fold: '<rect" in js and "M9.5 4v16" in js
+        app = (_UI / "app.css").read_text(encoding="utf-8")
+        select = app[app.index(".select {"): app.index("}", app.index(".select {"))]
+        assert "appearance: none" in select and "padding-right: 34px" in select
 
     def test_breadcrumbs_are_not_a_bar_of_their_own(self):
         css = (_UI / "shell.css").read_text(encoding="utf-8")
@@ -106,7 +118,7 @@ class TestStudio:
     def test_script_step_chooses_the_source(self):
         page = _read("studio-v2.html")
         for needle in ("chooseScriptSource('${k}')", "card('generate'", "card('paste'", "card('upload', 'From a voiceover'", "restartScriptSource", "putVoiceSource",
-                       "/voice-source", "switchToGeneratedVoice", "Generate a voice from the script instead"):
+                       "/voice-source", "switchToGeneratedVoice"):
             assert needle in page, needle
 
     def test_switching_to_a_generated_voice_asks_first(self):
@@ -195,3 +207,60 @@ class TestLibraryAndSettingsPages:
     def test_a_key_is_never_rendered_back(self):
         page = _read("settings.html")
         assert "key_hint" in page and ".api_key" not in page
+
+
+class TestPipelineFlow:
+    """P-UX4: every step starts its own work and ends with Next; the New run modal is minimal."""
+
+    def test_new_run_modal_is_minimal(self):
+        page = _read("project.html")
+        assert "nr-brief" not in page and "Brief (optional)" not in page
+        assert "You can change these settings later in Run Settings." in page
+        for needle in ("nr-title", "nr-lang", "nr-format", "nr-style", "Add master visual prompt", "dlgMasterPrompt",
+                       "ai_animation", "cf_new_run_style"):
+            assert needle in page, needle
+        assert "Default: " not in page[page.index("function renderNewRun"): page.index("async function createRun")]
+
+    def test_studio_applies_the_style_chosen_at_creation_once(self):
+        page = _read("studio-v2.html")
+        assert "consumeNewRunStyle" in page and "cf_new_run_style" in page
+
+    def test_script_step_order_modes_and_next(self):
+        page = _read("studio-v2.html")
+        pane = page[page.index('id="pane-script"'): page.index('id="pane-upload"')]
+        assert pane.index("generate-section") < pane.index('id="script-input"')          # C6
+        assert "id=\"script-next-btn\"" in pane and "Generate VO" not in pane and "Skip VO" not in pane   # C10
+        assert "state.scriptSource === 'paste' ? 'none' : ''" in page                     # C8
+        assert "document.getElementById('generate-body').classList.add('open');\n  updateGenerateBtn();\n}" not in page  # C7: collapsed by default
+
+    def test_upload_flow_ends_with_next_to_the_voice_step(self):
+        page = _read("studio-v2.html")
+        pane = page[page.index('id="pane-upload"'): page.index('id="pane-transcript"')]
+        assert "activateStage('voice')" in pane and "Next →" in pane                       # C9
+
+    def test_voice_step_owns_options_and_can_always_generate(self):
+        page = _read("studio-v2.html")
+        voice = page[page.index('id="pane-voice"'): page.index('id="pane-storyboard"')]
+        assert 'id="narration-pace"' in voice and 'id="narration-style"' in voice          # C13
+        assert "voice-generate-btn" in voice and "voice-next-btn" in voice                 # C14
+        drawer = page[page.index('id="pane-settings"'): page.index('id="pane-script"')]
+        assert "narration-pace" not in drawer
+        assert "confirm_discard: confirmDiscard" in page and "A voice cannot be generated" not in page
+
+    def test_storyboard_step_starts_its_own_work_and_warns(self):
+        page = _read("studio-v2.html")
+        sb = page[page.index('id="pane-storyboard"'): page.index('id="split-pop"')]
+        assert "Run settings" in sb and "can no longer be changed" in sb and "sb-generate-btn" in sb   # C15, C18
+        assert "stage-content wide" in sb and ".stage-content.wide { max-width: 820px; }" in page   # C17: as wide as the three source cards
+        assert ".src-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 820px; }" in page
+
+    def test_video_step_has_captions_shared_with_run_settings(self):
+        page = _read("studio-v2.html")
+        video = page[page.index('id="pane-render"'): page.index('id="pane-metadata"')]
+        assert "v-captions-toggle" in video and "v-caption-style" in video and "render-next-btn" in video   # C20, C22
+        assert "onCaptionsToggle(this)" in page and "syncCaptionStyleEnabled" in page                        # C21
+
+    def test_no_divider_above_the_step_buttons(self):
+        page = _read("studio-v2.html")
+        cta = page[page.index("    .stage-cta {"): page.index("}", page.index("    .stage-cta {"))]
+        assert "border-top" not in cta                                                                      # C11

@@ -5,6 +5,19 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D109 — Roadmap after the 2026-10-11 UI/UX review: pipeline flow first, then a friends beta (Google sign-in, credits), and key rules for multi-user
+**Date:** 2026-10-11 (operator UI/UX review, `docs/UX_REVIEW_2026-10-11.md`)
+**Status:** ACTIVE (planning decision; nothing built)
+**Decision:** (1) **Order:** P-UX4 → `/audit` → P-AUTH → P-BILL-1 (**friends beta**) → P-PROJ1 → P-INT1 → P-BILL-2 → P-LANG → P15 → P16 → P17. (2) **Each pipeline step starts its own work** and ends with Next; the previous step never starts the next one. An uploaded voiceover is a replaceable current asset: generating a voice over an uploaded one is allowed and replaces it (amends D106). (3) **Look and image source are two settings**: look (realistic / animated) and image source (stock / AI-generated), defaults Realistic→stock, Animated→AI; both locked once a storyboard exists, unlocked only by an explicit "reset storyboard" (amends D108). Characters, places and the continuity bible exist only when the source is AI. (4) **Project-level channel identity** feeds metadata generation; **project assets** (recurring characters/places) are reused by the storyboard worker. (5) **Keys:** a block (LLM, audio, image, stock, destination) can hold several providers, each with its own key and model; project keys are the default and usage is charged to the user's balance; a user's own key becomes that user's default automatically, with a checkbox to keep the project default; with several own keys the user chooses. (6) **Realistic storyboard prompt v0.18** (C35, approved by the operator): the stock worker and its output contract stay; the prompt gains the Visual Director method and runs on Sonnet 5.5 with adaptive thinking; the default switches only after a side-by-side test against v0.17. (7) **Billing:** prepaid credits, not subscriptions; start with owner-granted credits (P-BILL-1), choose an online payment provider at P-BILL-2 (Stripe Checkout vs a merchant of record such as Lemon Squeezy / Paddle).
+**Rationale:** The operator wants acquaintances to sign in with Google and make a first video of up to one minute; the shortest path is flow polish, accounts and a credit limit on the owner's keys. Bring-your-own keys, project assets and payments are not on that path.
+**Rejected:** Online payments before the beta (adds tax and provider work with no learning); subscriptions (the operator's model is "$10 for N minutes"); one combined visual-mode setting (cannot express stock-sourced animated runs).
+**Open:** whether the owner's keys are tenant- or user-level once accounts exist (settled at P-AUTH); how a run asset relates to its project asset, link or copy (P-PROJ1); the unit of one credit (P-BILL-1).
+**No new dependency.**
+**Decided:** 2026-10-11 by the operator (scope, C19, key rules, C32); the revised order is Claude's recommendation, to be confirmed.
+**See:** D105, D106, D108, EPICs 56–59.
+
+---
+
 ## D108 — Animation mode: a second storyboard path with a continuity bible, the image prompt assembled in code, and bulk image generation as an operator-started job
 **Date:** 2026-10-11 (Sprint P-AN1, EPIC 55)
 **Status:** ACTIVE

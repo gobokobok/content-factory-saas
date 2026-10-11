@@ -374,11 +374,30 @@ def test_a_generated_run_still_writes_the_request_script():
         assert body["script"] == "my own script" and body.get("source") is None
 
 
-def test_generating_a_voice_for_an_uploaded_run_is_refused():
+def test_generating_a_voice_over_an_uploaded_recording_asks_then_replaces_it():
+    """D109: an uploaded recording is a replaceable asset; generation is never blocked by it."""
     with uv_env() as env:
         env.upload()
         r = env.client.post("/platform/workers/voice", json={"run_id": RUN, "script": "x"})
-        assert r.status_code == 409 and "uploaded voiceover" in r.json()["detail"]
+        assert r.status_code == 409 and r.json()["needs_confirmation"] is True
+        assert "uploaded voiceover" in " ".join(r.json()["discards"])
+        assert asyncio.run(env.runs.get(RUN)).inputs["voice_source"] == "uploaded"      # nothing changed yet
+        env.settings.GEMINI_API_KEY, env.settings.GEMINI_TTS_VOICE = "g", "v"
+        with patch("cf_platform.interfaces.routes.workers._run_voice_background", AsyncMock()):
+            r = env.client.post("/platform/workers/voice", json={"run_id": RUN, "script": "x", "confirm_discard": True})
+        assert r.status_code == 202
+        assert asyncio.run(env.runs.get(RUN)).inputs["voice_source"] == "generated"
+
+
+def test_generating_a_voice_discards_the_storyboard_of_an_uploaded_run():
+    with uv_env() as env:
+        env.upload()
+        _build_storyboard(env)
+        env.settings.GEMINI_API_KEY, env.settings.GEMINI_TTS_VOICE = "g", "v"
+        with patch("cf_platform.interfaces.routes.workers._run_voice_background", AsyncMock()):
+            r = env.client.post("/platform/workers/voice", json={"run_id": RUN, "script": "x", "confirm_discard": True})
+        assert r.status_code == 202
+        assert env.client.get(f"/platform/studio/runs/{RUN}/storyboard").status_code == 404
 
 
 def test_editing_is_locked_once_a_storyboard_exists():

@@ -17,7 +17,6 @@ body.cf-body { margin: 0; background: var(--cf-bg); }
 .cf-crumbs a:hover { color: var(--cf-ink); }
 .cf-crumbs .cf-sep { color: var(--cf-faint); }
 .cf-crumbs .cf-here { color: var(--cf-ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; }
-.cf-menu-btn { display: none; }
 
 .cf-nav { background: var(--cf-surface); border-right: 1px solid var(--cf-border); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .cf-nav-head { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 14px; border-bottom: 1px solid var(--cf-border2); flex-shrink: 0; }
@@ -39,7 +38,6 @@ body.cf-body { margin: 0; background: var(--cf-bg); }
 .cf-nav-foot { border-top: 1px solid var(--cf-border2); padding: 8px; flex-shrink: 0; }
 .cf-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: none; background: none; border-radius: 6px; color: var(--cf-muted); cursor: pointer; flex-shrink: 0; }
 .cf-icon-btn:hover { background: var(--cf-border2); color: var(--cf-ink); }
-.cf-scrim { display: none; }
 
 .cf-folded .cf-brand-name, .cf-folded .cf-item .cf-lbl, .cf-folded .cf-sub { display: none; }
 .cf-folded .cf-nav-head { padding: 0; justify-content: center; }
@@ -51,19 +49,7 @@ body.cf-body { margin: 0; background: var(--cf-bg); }
 
 @media (max-width: 1100px) { :root { --cf-gutter: 48px; } }
 @media (max-width: 760px) {
-  .cf-shell, .cf-shell.cf-folded { grid-template-columns: minmax(0, 1fr); }
-  :root { --cf-gutter: 16px; }
-  .cf-nav { position: fixed; left: 0; top: 0; width: 272px; z-index: 70; transform: translateX(-100%); transition: transform 0.2s ease; }
-  .cf-nav-open .cf-nav { transform: none; box-shadow: 16px 0 48px rgba(18, 18, 21, 0.16); }
-  .cf-nav-open .cf-scrim { display: block; position: fixed; inset: 0; background: rgba(18, 18, 21, 0.38); z-index: 60; }
-  .cf-folded .cf-brand-name, .cf-folded .cf-item .cf-lbl { display: revert; }
-  .cf-folded .cf-sub { display: block; }
-  .cf-folded .cf-nav-head { padding: 0 14px; justify-content: flex-start; }
-  .cf-folded .cf-nav-head .cf-brand-mark { display: block; }
-  .cf-folded .cf-group { font-size: 10px; padding: 16px 8px 6px; border: none; margin: 0; }
-  .cf-folded .cf-item { justify-content: flex-start; padding: 7px 8px; }
-  .cf-fold-btn { display: none; }
-  .cf-menu-btn { display: inline-flex; margin-right: 4px; margin-left: -6px; }
+  :root { --cf-gutter: 16px; --cf-nav-w: 56px; }
   .cf-crumbs { padding-top: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .cf-shell, .cf-nav { transition: none !important; } }

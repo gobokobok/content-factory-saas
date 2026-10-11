@@ -5,6 +5,22 @@ _This file holds the last two sprints (P-AN1, P-UX3) plus every older entry whos
 
 ---
 
+## [P-UX4] Pipeline flow and polish — S1 shell polish, S2 minimal New Run modal, S3 Script step, S4 Voiceover step, S5 Storyboard step, S6 Video step, S7 library names
+**Completed:** 2026-10-11 (built in one pass; in the working tree, not committed or pushed — smoke pending)
+**Handover:**
+- **Every step starts its own work and ends with Next.** Script: Generate-from-idea first and collapsed (hidden in Paste), Next. Voiceover: pace and tone live here (moved out of Run settings), *Generate / Regenerate voiceover*, *Skip voiceover*, Next. Storyboard: its own *Generate storyboard* button with a note pointing to Run settings and a warning that the style is locked afterwards; a stock run with acquired assets asks before regenerating. Video: caption toggle and style on top, Next to Metadata. Upload flow: Next goes to the Voiceover step; "Review transcript" stays as a second button.
+- **An uploaded voiceover is a replaceable asset (D109 point 2).** `POST /platform/workers/voice` no longer answers 409 for an uploaded run; it answers 409 `needs_confirmation` with what would be discarded, and with `confirm_discard: true` it flips `voice_source` to `generated` and discards the storyboard (`discard_for_generated_voice` in `studio_voice.py`, shared with `PUT …/voice-source`). The old bug (Voice step "Needs attention") is gone because the script artifact marked `uploaded_vo` is superseded by the script written at generation.
+- **One setting, two places:** captions toggle and style are mirrored between the Video step and Run settings (`syncCaptionStyleEnabled`).
+- **New Run modal:** Title, Language, Format, Style (Realistic / Animated) and, for Animated, an "Add master visual prompt" sub-modal; the style rides to Studio in `sessionStorage` (`cf_new_run_style`) and is saved with the run's first settings. The brief field is gone (combined ideas still pass their summaries).
+- **Shell:** burger and phone drawer removed (a narrow screen keeps the 56 px rail); the panel's folded state is remembered across pages and runs; sidebar-panel icon; `.select` has a chevron with room; no divider above step buttons; storyboard uses the standard content width; Merge-with-next sits bottom right with a narrower search-words field.
+- **Library:** videos and voiceovers are named after the run title (`titled_name`, `name_from_run` in `core/library.py`); display and download names; footage and AI images are unchanged.
+- No ENV vars, migration or dependency. Tests: 2869 passing, ruff clean.
+- **Not verified:** the New Run modal and the voiceover-replace confirmation were checked by tests and in the static demo only, not against DEV; the phone layout without a drawer was not looked at; the master-prompt sub-modal on a real run.
+**Smoke test:** PENDING — create a run from the modal (Animated + master prompt), walk the five steps with Next only; upload a voiceover, switch Script to Generate, go to Voiceover and generate over it; toggle captions on the Video step and see Run settings follow; check a video's file name in the library.
+**Promoted to backlog:** none. Candidates: the style lock is still the existing one (disabled buttons after a storyboard); the explicit "reset storyboard" arrives with P-PROJ1.
+
+---
+
 ## [P-AN1] Animation mode — S1 visual mode + master style, S2 animation storyboard worker + continuity bible, S3 image prompt assembled in code, S4 scene cards + editable bible, S5 generate all images, S6 Nano Banana + smoke test
 **Completed:** 2026-10-11 (built in one pass, commit `5bfa361`; smoke fix `19f0c2f`)
 **Handover:**

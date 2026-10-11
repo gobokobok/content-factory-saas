@@ -12,6 +12,7 @@ Libraries: videos, audio, footage (acquired or uploaded images and clips), ai
 
 import asyncio
 import hashlib
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -98,6 +99,47 @@ def classify_run_keys(
     return out
 
 
+_UNSAFE_NAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]+')
+_NAME_MAX = 80
+
+
+def titled_name(run_name: str, key: str, suffix: str = "") -> str:
+    """A library file name made from the run's title: "<title><suffix>.<ext>" (C28).
+
+    Characters a file system refuses are dropped and the title is cut to a sensible
+    length. A run with no usable title keeps the stored file name.
+    """
+    title = _UNSAFE_NAME_CHARS.sub(" ", run_name or "")
+    title = re.sub(r"\s+", " ", title).strip(" .")[:_NAME_MAX].rstrip(" .")
+    return f"{title}{suffix}{_ext(key)}" if title else _name(key)
+
+
+def name_from_run(items: list[dict[str, Any]], kind: str, run_name: str) -> None:
+    """Rename a run's videos and voiceovers after the run's title, in place.
+
+    Every run's video is `final.mp4` and every generated voice `generated.wav`, which
+    makes a library of many runs unreadable. Only these two libraries are renamed:
+    footage and AI images are already told apart by their scene. A second video in
+    the same run gets " (2)", " (3)"… so names stay unique within the run.
+    """
+    if kind not in ("videos", "audio"):
+        return
+    seen: dict[str, int] = {}
+    for item in items:
+        suffix = ""
+        if kind == "audio":
+            suffix = " - voiceover" if item["facet"] == "generated" else " - uploaded voiceover"
+        name = titled_name(run_name, item["key"], suffix)
+        if name == _name(item["key"]):
+            continue
+        n = seen.get(name, 0) + 1
+        seen[name] = n
+        if n > 1:
+            stem, dot, ext = name.rpartition(".")
+            name = f"{stem} ({n}){dot}{ext}"
+        item["name"] = name
+
+
 async def _run_listing(storage: Any, run_id: str, folders: tuple[str, ...]) -> dict[str, list[str]]:
     """List the named folders of one run; a failing folder reads as empty."""
     async def one(folder: str) -> list[str]:
@@ -129,6 +171,7 @@ async def list_run_assets(
         except Exception:
             in_use = set()
     items = classify_run_keys(kind, keys, in_use)
+    name_from_run(items, kind, run.run_name)
     for item in items:
         item["asset_id"] = asset_id(kind, item["key"])
         item["project_id"], item["project_name"] = run.project_id, run.project_name

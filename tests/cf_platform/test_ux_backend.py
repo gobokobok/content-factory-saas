@@ -451,3 +451,38 @@ class TestVoiceSource:
     def test_unknown_run_is_404(self):
         with p12_env() as env:
             assert self._put(env, InMemoryArtifactStorage(), "missing", voice_source="generated").status_code == 404
+
+
+class TestLibraryNamesFollowTheRun:
+    """P-UX4-S7: videos and voiceovers are named after the run title, not final.mp4 / generated.wav."""
+
+    def test_video_and_voiceovers_take_the_run_title(self):
+        from cf_platform.core.library import name_from_run
+
+        videos = [{"key": "runs/r1/output/final.mp4", "name": "final.mp4", "facet": "video"}]
+        name_from_run(videos, "videos", "Why rents: rise / fall?")
+        assert videos[0]["name"] == "Why rents rise fall.mp4"
+        audio = [
+            {"key": "runs/r1/voiceover/generated.wav", "name": "generated.wav", "facet": "generated"},
+            {"key": "runs/r1/voiceover/uploaded.mp3", "name": "uploaded.mp3", "facet": "uploaded"},
+        ]
+        name_from_run(audio, "audio", "Starter homes")
+        assert [a["name"] for a in audio] == ["Starter homes - voiceover.wav", "Starter homes - uploaded voiceover.mp3"]
+
+    def test_second_video_is_numbered_and_footage_is_untouched(self):
+        from cf_platform.core.library import name_from_run
+
+        videos = [{"key": "runs/r1/output/final.mp4", "name": "final.mp4", "facet": "video"},
+                  {"key": "runs/r1/output/final_v2.mp4", "name": "final_v2.mp4", "facet": "video"}]
+        name_from_run(videos, "videos", "Rents")
+        assert [v["name"] for v in videos] == ["Rents.mp4", "Rents (2).mp4"]
+        footage = [{"key": "runs/r1/images/scene_1.jpg", "name": "scene_1.jpg", "facet": "image"}]
+        name_from_run(footage, "footage", "Rents")
+        assert footage[0]["name"] == "scene_1.jpg"
+
+    def test_a_run_without_a_usable_title_keeps_the_stored_name(self):
+        from cf_platform.core.library import name_from_run
+
+        videos = [{"key": "runs/r1/output/final.mp4", "name": "final.mp4", "facet": "video"}]
+        name_from_run(videos, "videos", " ?? ")
+        assert videos[0]["name"] == "final.mp4"

@@ -10,12 +10,13 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings
 from cf_platform.core.projects import ProjectRepository
-from cf_platform.core.run_manager import RunRepository
+from cf_platform.core.run_manager import RunNotFoundError, RunRepository
 from cf_platform.core.run_visuals import load_run_visuals
 from cf_platform.core.schemas import StageState
 from cf_platform.core.worker_registry import WorkerRegistration
@@ -27,6 +28,7 @@ from cf_platform.interfaces.dependencies import (
     get_run_repository,
 )
 from cf_platform.interfaces.routes._helpers import latest_artifact_key as _latest_artifact_key
+from cf_platform.interfaces.routes.studio_voice import discard_for_generated_voice
 from cf_platform.workers.acquisition_worker import (
     ACQUISITION_WORKER_REGISTRATION,
     AssetManifestArtifact,
@@ -337,6 +339,9 @@ class VoiceWorkerRequest(BaseModel):
 
     run_id: str
     script: str
+    # D109: generating over an uploaded recording replaces it; the request repeats with
+    # this set once the operator has confirmed what is discarded.
+    confirm_discard: bool = False
 
 
 class VoiceWorkerResponse(BaseModel):
@@ -403,6 +408,7 @@ async def voice_worker_endpoint(
     background_tasks: BackgroundTasks,
     storage: ArtifactStorage = Depends(get_artifact_storage),
     settings: PlatformSettings = Depends(get_effective_platform_settings),
+    runs: RunRepository = Depends(get_run_repository),
 ) -> VoiceWorkerResponse:
     """Enqueue TTS + Deepgram alignment (returns 202 immediately).
 
@@ -416,11 +422,18 @@ async def voice_worker_endpoint(
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
-    if await _uploaded_script_key(storage, body.run_id):
-        raise HTTPException(
-            status_code=409,
-            detail="This run uses an uploaded voiceover — a voice cannot be generated for it.",
-        )
+    # D109: a voice can always be generated. An uploaded recording is the run's current
+    # voice, not a run type: generating replaces it (after the operator confirms), and the
+    # run becomes a generated-voice run whose script is the text sent here.
+    try:
+        run = await runs.get(body.run_id)
+    except RunNotFoundError:
+        run = None
+    if run is not None and run.inputs.get("voice_source") == "uploaded":
+        _, pending = await discard_for_generated_voice(storage, body.run_id, body.confirm_discard)
+        if pending is not None:
+            return JSONResponse(status_code=409, content=pending)
+        await runs.save(run.model_copy(update={"inputs": {**run.inputs, "voice_source": "generated"}}))
     script_artifact = ScriptArtifact(
         idea_title="",
         niche=None,
