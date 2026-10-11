@@ -224,3 +224,52 @@ class TestFormattingIsNotAWordChange:
             # Same words in capitals with a final period: formatting only, one paragraph = one scene.
             assert r.status_code == 200, r.text
             assert r.json()["matched_by_position"] is True
+
+
+class TestTheOperatorsPaste:
+    """The text pasted on DEV (2026-10-11): a script that spells numbers out, against a smart-formatted transcript."""
+
+    PASTE = (
+        "Singapore’s government paid sixty percent\nof its own F1 race.\n"
+        "Total cost: about one hundred\nnine million dollars a year.\n"
+        "Since two thousand eight, officials credit the race with\n"
+        "over one point seven billion dollars in tourism receipts.\n"
+        "But the government says it doesn’t\nmeasure any single event’s GDP impact."
+    )
+    SPOKEN = (
+        "Singapore's government paid 60% of its own F1 race. Total cost: about $109 million a year. "
+        "Since 2008, officials credit the race with over $1.7 billion in tourism receipts. "
+        "But the government says it doesn't measure any single event's GDP impact."
+    )
+
+    def _words(self):
+        from cf_platform.workers.voice_production import VoiceWordTimestamp
+
+        return [VoiceWordTimestamp(word=w, start_ms=i * 300, end_ms=i * 300 + 250) for i, w in enumerate(self.SPOKEN.split())]
+
+    def test_script_view_accepts_it(self):
+        from cf_platform.workers.storyboard_edit import align_text_to_words
+
+        starts, exact = align_text_to_words(self._words(), self.PASTE)
+        assert exact is False and starts == [0]            # no blank lines: one scene
+
+    def test_transcript_editor_says_nothing_to_change_instead_of_refusing(self):
+        from cf_platform.workers.transcript_edit import TranscriptEditError, edits_from_text
+
+        with pytest.raises(TranscriptEditError, match="nothing to change"):
+            edits_from_text(self._words(), self.PASTE)
+
+    def test_a_real_correction_still_comes_through_beside_number_formatting(self):
+        from cf_platform.workers.transcript_edit import edits_from_text
+
+        text = self.PASTE.replace("own F1 race", "own F1 grand prix")
+        edits = edits_from_text(self._words(), text)
+        assert [e.text.rstrip(".") for e in edits] == ["grand prix"]
+        words = self._words()
+        assert words[edits[0].start].word == "race."
+
+    def test_a_stray_dollars_is_still_a_real_word(self):
+        from cf_platform.workers.transcript_edit import TranscriptEditError, edits_from_text
+
+        with pytest.raises(TranscriptEditError, match="adds"):
+            edits_from_text(self._words(), self.PASTE.replace("paid sixty", "paid dollars sixty"))

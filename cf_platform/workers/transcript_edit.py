@@ -19,6 +19,7 @@ import difflib
 
 from pydantic import BaseModel
 
+from cf_platform.core.word_match import unit_spans
 from cf_platform.workers.voice_production import _PUNCT_RE, VoiceWordTimestamp
 
 _EDGE_PUNCT = ".,!?;:"
@@ -121,42 +122,65 @@ def apply_word_edits(words: list[VoiceWordTimestamp], edits: list[WordEdit]) -> 
 def edits_from_text(words: list[VoiceWordTimestamp], text: str) -> list[WordEdit]:
     """Map corrected transcript text onto the existing words, or raise TranscriptEditError.
 
-    Words that match (ignoring punctuation and case) stay untouched. A differing
-    stretch must obey the same rule as a manual edit: one-to-one, one-to-several or
-    several-to-one. A stretch that only deletes or only inserts words is refused.
+    Words are compared by what they say: case, punctuation and the way a number is
+    written do not count ("$109 million" = "one hundred nine million dollars",
+    "60%" = "sixty percent"), so text copied from the script matches the transcript
+    it was spoken from. A differing stretch must obey the same rule as a manual edit:
+    one-to-one, one-to-several or several-to-one. A stretch that only deletes or only
+    inserts words is refused.
     """
     new_tokens = _tokens(text)
     if not new_tokens:
         raise TranscriptEditError("The corrected text is empty.")
-    old_keys = [_match_key(w.word) for w in words]
-    new_keys = [_match_key(t) for t in new_tokens]
-    matcher = difflib.SequenceMatcher(None, old_keys, new_keys, autojunk=False)
+    old_tokens = [w.word for w in words]
+    old_spans, new_spans = unit_spans(old_tokens), unit_spans(new_tokens)
+    matcher = difflib.SequenceMatcher(None, [u for u, _, _ in old_spans], [u for u, _, _ in new_spans], autojunk=False)
+
+    def old_range(i1: int, i2: int) -> tuple[int, int]:
+        """Word indices [from, to) covered by units i1..i2."""
+        if not old_spans:
+            return 0, 0
+        first = old_spans[i1][1] if i1 < len(old_spans) else len(old_tokens)
+        last = old_spans[i2 - 1][2] if i2 > i1 else first
+        return first, last
+
+    def new_range(j1: int, j2: int) -> tuple[int, int]:
+        """Token indices [from, to) covered by units j1..j2."""
+        first = new_spans[j1][1] if j1 < len(new_spans) else len(new_tokens)
+        last = new_spans[j2 - 1][2] if j2 > j1 else first
+        return first, last
+
     edits: list[WordEdit] = []
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         if tag == "equal":
             continue
+        w1, w2 = old_range(i1, i2)
+        t1, t2 = new_range(j1, j2)
         if tag == "delete":
-            gone = " ".join(w.word for w in words[i1:i2])
+            gone = " ".join(old_tokens[w1:w2])
             raise TranscriptEditError(
                 f"The text leaves out the spoken word(s) \"{gone}\". Spoken words cannot be removed."
             )
         if tag == "insert":
-            added = " ".join(new_tokens[j1:j2])
+            added = " ".join(new_tokens[t1:t2])
             raise TranscriptEditError(f"The text adds \"{added}\", which is not spoken. {ON_SCREEN_HINT}")
-        old_n, new_n = i2 - i1, j2 - j1
+        old_n, new_n = w2 - w1, t2 - t1
         if old_n == new_n:
-            edits.extend(WordEdit(start=i1 + k, end=i1 + k, text=new_tokens[j1 + k]) for k in range(old_n))
+            edits.extend(WordEdit(start=w1 + k, end=w1 + k, text=new_tokens[t1 + k]) for k in range(old_n))
         elif old_n == 1 or new_n == 1:
-            edits.append(WordEdit(start=i1, end=i2 - 1, text=" ".join(new_tokens[j1:j2])))
+            edits.append(WordEdit(start=w1, end=w2 - 1, text=" ".join(new_tokens[t1:t2])))
         else:
-            was = " ".join(w.word for w in words[i1:i2])
-            now = " ".join(new_tokens[j1:j2])
+            was = " ".join(old_tokens[w1:w2])
+            now = " ".join(new_tokens[t1:t2])
             raise TranscriptEditError(
                 f"Cannot map \"{was}\" onto \"{now}\" ({old_n} words to {new_n}). Change one word "
                 "at a time, or replace one word with several."
             )
     if not edits:
-        raise TranscriptEditError("The text is the same as the transcript — nothing to change.")
+        raise TranscriptEditError(
+            "The text says the same as the transcript — nothing to change. (Numbers and punctuation "
+            "written differently do not count.)"
+        )
     return edits
 
 

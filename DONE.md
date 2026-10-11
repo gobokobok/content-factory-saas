@@ -25,8 +25,9 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 **Handover:**
 - **Script view / `PUT …/storyboard/boundaries`:** the voiceover's words come from Deepgram (`smart_format`: "$109 million", "60%", no punctuation), so script text pasted into the view never matched ("The words differ"). `align_text_to_words` (`storyboard_edit.py`) now compares words ignoring case, punctuation, currency/percent marks and spelled-out numbers ("one hundred nine million dollars" = "$109 million", "two thousand eight" = "2008", "one point seven" = "1.7") and maps paragraph breaks through the matched units; a real wording change is still a 422. The response carries `matched_by_position`. Not handled: years said as two pairs ("twenty twenty four") — they read as "20 24" and are refused.
 - **Animation scene card:** the prompt, concept, shot and keywords sit in one collapsed "Image prompt" section (open by itself only when a scene has no prompt; the choice survives a redraw); Merge shares the tools row; the repeated "ai_generated" badge is gone. A card drops from about 290 px to about 120 px.
-- Tests: 2914 passing.
-**Not verified:** against real DEV storyboard data (the number matcher was exercised on constructed examples).
+- **Second round (same day):** the same paste also failed in the **Script step's transcript editor** (uploaded voiceover) — its own matcher read "dollars" as an added word. Both editors now share `cf_platform/core/word_match.py` (`canonical_units`, `unit_spans`): "percent" / "dollars" / "cents" are dropped only straight after a number, so a stray "dollars" is still a real word. Text that says the same as the transcript answers "nothing to change" instead of an error; a real correction beside differently written numbers still comes through as an edit.
+- Tests: 2918 passing.
+**Not verified:** against real DEV storyboard data (the number matcher was exercised on the operator's pasted paragraph with a constructed transcript). If the DEV transcript writes a number in a form not covered (say "F one" for F1, or a year said as two pairs), the editor will still refuse it and say which words it could not map.
 
 ---
 
