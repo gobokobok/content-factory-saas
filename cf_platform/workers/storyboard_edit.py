@@ -337,22 +337,125 @@ def merge_scene(
     return replace_boundaries(storyboard, words, starts, manifest, min_scene_s)
 
 
-def start_words_from_text(words: list[VoiceWordTimestamp], text: str) -> list[int]:
+_ONES = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+    "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+    "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19,
+}
+_TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fourty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90}
+# Words that carry no information once the number is written as digits: "60%" = "sixty percent".
+_DROPPED = {"percent", "dollars", "dollar", "cents", "cent", "and"}
+
+
+def _plain(token: str) -> str:
+    """Lower-case a token and keep only letters, digits and a decimal point between digits."""
+    t = token.casefold().replace("\u2019", "'")
+    t = re.sub(r"(?<=\d)[,](?=\d{3}\b)", "", t)            # 1,700,000 -> 1700000
+    t = re.sub(r"[^0-9a-z.]+", "", t)
+    t = re.sub(r"(?<!\d)\.|\.(?!\d)", "", t)                # a point that is not inside a number
+    return t
+
+
+def _canonical_units(tokens: list[str]) -> list[tuple[str, int]]:
+    """Reduce tokens to comparable units: (unit, index of the token it starts at).
+
+    Case, punctuation, currency and percent marks are dropped; runs of spelled-out
+    numbers become digits ("two thousand eight" -> "2008", "one point seven" -> "1.7").
+    """
+    plain = [_plain(t) for t in tokens]
+    units: list[tuple[str, int]] = []
+    i = 0
+    while i < len(plain):
+        word = plain[i]
+        if not word or word in _DROPPED:
+            i += 1
+            continue
+        if word in _ONES or word in _TENS or word == "hundred":
+            value, j, last = 0, i, None
+            current = 0
+            while j < len(plain):
+                w = plain[j]
+                if w in _ONES:
+                    current += _ONES[w]
+                elif w in _TENS:
+                    current += _TENS[w]
+                elif w == "hundred":
+                    current = (current or 1) * 100
+                elif w == "thousand":
+                    value += (current or 1) * 1000
+                    current = 0
+                elif w == "and" and last in ("hundred", "thousand"):
+                    pass
+                else:
+                    break
+                last = w
+                j += 1
+            number = str(value + current)
+            if j < len(plain) and plain[j] == "point":
+                digits = []
+                k = j + 1
+                while k < len(plain) and plain[k] in _ONES and _ONES[plain[k]] < 10:
+                    digits.append(str(_ONES[plain[k]]))
+                    k += 1
+                if digits:
+                    number, j = f"{number}.{''.join(digits)}", k
+            units.append((number, i))
+            i = j
+            continue
+        units.append((word.replace("$", ""), i))
+        i += 1
+    return units
+
+
+def align_text_to_words(words: list[VoiceWordTimestamp], text: str) -> tuple[list[int], bool]:
     """Turn script-view text (one paragraph per scene) into scene start words.
 
-    Paragraphs are separated by blank lines. The words themselves must be exactly
-    the voiceover's words in order — only the paragraph breaks may differ.
+    Returns (starts, exact). The words must be the voiceover's: only paragraph breaks
+    may differ. They are compared after formatting is removed — case, punctuation
+    and spelled-out numbers — because the voiceover's words come from the transcript
+    ("$109 million", "60%", no punctuation) while a script may say "one hundred nine
+    million dollars" and "sixty percent". `exact` is False when that was needed; the
+    paragraph starts are then mapped through the matching units. The words themselves
+    are never changed here.
+    Raises StoryboardEditError when the text is empty or its wording differs.
     """
     paragraphs = [p.split() for p in re.split(r"\n\s*\n", text.strip())]
     paragraphs = [p for p in paragraphs if p]
+    if not paragraphs:
+        raise StoryboardEditError(_CHANGE_TEXT_HINT)
     typed = [token for paragraph in paragraphs for token in paragraph]
-    spoken = [token for w in words for token in w.word.split()]
-    if typed != spoken:
+    spoken_tokens = [token for w in words for token in w.word.split()]
+    if typed == spoken_tokens:
+        starts: list[int] = []
+        position = 0
+        for paragraph in paragraphs:
+            starts.append(position)
+            position += len(paragraph)
+        return starts, True
+
+    word_of_token = [index for index, w in enumerate(words) for _ in w.word.split()]
+    typed_units = _canonical_units(typed)
+    spoken_units = _canonical_units(spoken_tokens)
+    if [u for u, _ in typed_units] != [u for u, _ in spoken_units]:
         raise StoryboardEditError(_CHANGE_TEXT_HINT)
 
-    starts: list[int] = []
-    position = 0
+    # Typed token index at which each paragraph opens, then the first unit at or after it.
+    opens, position = [], 0
     for paragraph in paragraphs:
-        starts.append(position)
+        opens.append(position)
         position += len(paragraph)
-    return starts
+    starts = []
+    for opening in opens:
+        unit = next((n for n, (_, at) in enumerate(typed_units) if at >= opening), len(typed_units) - 1)
+        word_index = word_of_token[spoken_units[unit][1]]
+        if not starts:
+            word_index = 0                           # the first scene always starts at word 0
+        if starts and word_index <= starts[-1]:
+            continue                                 # a paragraph that opens inside the previous word joins it
+        starts.append(word_index)
+    return starts, False
+
+
+def start_words_from_text(words: list[VoiceWordTimestamp], text: str) -> list[int]:
+    """Scene start words for script-view text; see align_text_to_words for how the text is matched."""
+    return align_text_to_words(words, text)[0]

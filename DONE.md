@@ -20,6 +20,16 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 
 ---
 
+## [P-PROJ1 / P-UX4 post-close fixes] Scene boundaries tolerate spelled numbers and punctuation; compact animation scene cards
+**Completed:** 2026-10-11 (operator feedback on DEV)
+**Handover:**
+- **Script view / `PUT …/storyboard/boundaries`:** the voiceover's words come from Deepgram (`smart_format`: "$109 million", "60%", no punctuation), so script text pasted into the view never matched ("The words differ"). `align_text_to_words` (`storyboard_edit.py`) now compares words ignoring case, punctuation, currency/percent marks and spelled-out numbers ("one hundred nine million dollars" = "$109 million", "two thousand eight" = "2008", "one point seven" = "1.7") and maps paragraph breaks through the matched units; a real wording change is still a 422. The response carries `matched_by_position`. Not handled: years said as two pairs ("twenty twenty four") — they read as "20 24" and are refused.
+- **Animation scene card:** the prompt, concept, shot and keywords sit in one collapsed "Image prompt" section (open by itself only when a scene has no prompt; the choice survives a redraw); Merge shares the tools row; the repeated "ai_generated" badge is gone. A card drops from about 290 px to about 120 px.
+- Tests: 2914 passing.
+**Not verified:** against real DEV storyboard data (the number matcher was exercised on constructed examples).
+
+---
+
 ## [P-PROJ1] Visual source model and project-level settings — S1 look + image source, S2 channel identity, S3 project assets, S4 storyboard reuses assets, S5 prompt v0.18
 **Completed:** 2026-10-11 (built in one pass; operator asked for P-PROJ1 and P-INT1 back to back with no questions, so the open design points were settled by Claude — see D111)
 **Handover:**

@@ -141,10 +141,11 @@ class TestScriptView:
     def test_one_paragraph_per_scene_separated_by_one_blank_line(self):
         assert r"join('\n\n')" in _function("scriptViewText")
 
-    def test_apply_is_disabled_when_words_change(self):
+    def test_apply_waits_for_a_real_change_and_leaves_the_wording_check_to_the_server(self):
+        """The server compares words ignoring case, punctuation and spelled numbers and refuses a wording change (422)."""
         check = _function("onScriptViewInput")
-        assert "btn.disabled = wordsChanged || unchanged" in check
-        assert "Change the text in the Script stage" in check and "re-voicing" in check
+        assert "btn.disabled = untouched || unchangedStarts" in check
+        assert "only the blank lines count" in check
 
     def test_apply_previews_with_a_dry_run_before_writing(self):
         apply = _function("applyScriptView")

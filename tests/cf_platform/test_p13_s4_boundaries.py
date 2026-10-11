@@ -96,7 +96,7 @@ class TestChangedWords:
         [
             _text((0, 5), (6, 10)),                       # a word removed
             _text((0, 5), (6, 11)) + " extra",            # a word added
-            _text((0, 5), (6, 11)).replace("w3", "W3"),   # a word altered
+            _text((0, 5), (6, 11)).replace("w3", "x3"),   # a word altered
             _text((6, 11), (0, 5)),                       # words reordered
             "",
         ],
@@ -182,3 +182,45 @@ class TestDryRun:
     def test_dry_run_still_validates(self):
         with p13_env() as env:
             assert env.client.put(_URL, json={"start_words": [0, 4, 5], "dry_run": True}).status_code == 422
+
+
+class TestFormattingIsNotAWordChange:
+    """Pasted script text writes numbers and punctuation differently from the transcript's words."""
+
+    def _words(self, tokens):
+        from cf_platform.workers.voice_production import VoiceWordTimestamp
+
+        return [VoiceWordTimestamp(word=w, start_ms=i * 300, end_ms=i * 300 + 250) for i, w in enumerate(tokens)]
+
+    def test_spelled_numbers_punctuation_and_case_match_the_transcript(self):
+        from cf_platform.workers.storyboard_edit import align_text_to_words
+
+        spoken = "Singapore's government paid 60% of its own F1 race Total cost about $109 million a year Since 2008 it earned $1.7 billion".split()
+        text = (
+            "Singapore’s government paid sixty percent of its own F1 race.\n\n"
+            "Total cost: about one hundred nine million dollars a year.\n\n"
+            "Since two thousand eight, it earned one point seven billion dollars."
+        )
+        starts, exact = align_text_to_words(self._words(spoken), text)
+        assert exact is False and starts == [0, 9, 16]
+
+    def test_a_paragraph_may_open_between_the_words_of_a_spelled_number(self):
+        from cf_platform.workers.storyboard_edit import align_text_to_words
+
+        spoken = "it paid 60% of its race".split()
+        starts, _ = align_text_to_words(self._words(spoken), "it paid sixty\n\npercent of its race")
+        assert starts[0] == 0 and len(starts) <= 2
+
+    def test_a_real_wording_change_is_still_refused(self):
+        from cf_platform.workers.storyboard_edit import align_text_to_words
+
+        with pytest.raises(StoryboardEditError):
+            align_text_to_words(self._words("it paid 60% of its race".split()), "it paid seventy percent of its race")
+
+    def test_the_route_says_it_matched_the_formatting(self):
+        with p13_env() as env:
+            words = " ".join(f"w{i}" for i in range(12))
+            r = env.client.put(_URL, json={"script_text": words.upper().replace("W", "W") + "."})
+            # Same words in capitals with a final period: formatting only, one paragraph = one scene.
+            assert r.status_code == 200, r.text
+            assert r.json()["matched_by_position"] is True

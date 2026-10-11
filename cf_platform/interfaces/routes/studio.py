@@ -914,22 +914,36 @@ async def studio_replace_boundaries(
     """Replace all scene boundaries at once (P13-S4, the Script view).
 
     Validated: starts at word 0, strictly increasing, within the voiceover, and no
-    new scene shorter than STORYBOARD_MIN_SCENE_S. With script_text the words must
-    equal the voiceover's — only paragraph breaks may differ; otherwise 422, and
-    the wording has to be changed in the Script stage (it forces re-voicing).
+    new scene shorter than STORYBOARD_MIN_SCENE_S. With script_text only the paragraph
+    breaks are used. The words are compared ignoring case, punctuation and spelled-out
+    numbers (the voiceover's words come from the transcript, where numbers are digits);
+    a real wording change is a 422 — change it in the Script stage (it forces re-voicing).
     A scene whose start word is unchanged keeps its fields and asset.
     """
-    from cf_platform.workers.storyboard_edit import replace_boundaries, start_words_from_text
+    from cf_platform.workers.storyboard_edit import align_text_to_words, replace_boundaries
 
     if (body.start_words is None) == (body.script_text is None):
         raise HTTPException(status_code=422, detail="Provide exactly one of start_words or script_text.")
 
+    by_position = {"flag": False}
+
     def _edit(sb, words, manifest):
         """Resolve the requested boundaries and apply them."""
-        starts = body.start_words if body.start_words is not None else start_words_from_text(words, body.script_text or "")
+        if body.start_words is not None:
+            starts = body.start_words
+        else:
+            starts, exact = align_text_to_words(words, body.script_text or "")
+            by_position["flag"] = not exact
         return replace_boundaries(sb, words, starts, manifest, settings.STORYBOARD_MIN_SCENE_S)
 
-    return await _run_boundary_edit(storage, run_id, "studio_boundaries", _edit, dry_run=body.dry_run)
+    result = await _run_boundary_edit(storage, run_id, "studio_boundaries", _edit, dry_run=body.dry_run)
+    result["matched_by_position"] = by_position["flag"]
+    if by_position["flag"]:
+        result["summary"] += (
+            " (your text writes numbers or punctuation differently from the voiceover — it was matched "
+            "word for word and only its paragraph breaks are used; the words themselves are not changed)"
+        )
+    return result
 
 
 # ── Per-scene asset override endpoints (P10-S2) ───────────────────────────────

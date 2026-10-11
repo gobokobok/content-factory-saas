@@ -764,7 +764,7 @@
     @keyframes rsSlide { from { transform: translateX(24px); opacity: 0; } }
 
     /* Storyboard cards */
-    .sc-card { display: flex; gap: 16px; align-items: flex-start; padding: 16px; margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
+    .sc-card { display: flex; gap: 14px; align-items: flex-start; padding: 12px 14px; margin-bottom: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); }
     .sc-thumb { position: relative; flex-shrink: 0; width: 84px; }
     .sc-thumb .scene-thumb { width: 84px; height: 112px; object-fit: cover; border-radius: 5px; display: block; }
     .sc-thumb .thumb-placeholder, .sc-thumb .row-upload { width: 84px; height: 112px; display: flex; align-items: center; justify-content: center; text-align: center; border-radius: 5px; font-size: 11px; }
@@ -775,7 +775,7 @@
     .sc-main { flex: 1; min-width: 0; }
     .sc-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .sc-top .mono { color: var(--muted); font-size: 11px; }
-    .sc-vo { font-size: 14px; line-height: 1.6; margin: 6px 0 10px; }
+    .sc-vo { font-size: 14px; line-height: 1.5; margin: 4px 0 8px; }
     .sc-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .sc-ost { font-family: var(--font); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 999px; border: 1px dashed var(--faint); background: none; color: var(--ink); min-width: 0; max-width: 100%; }
     .sc-ost::placeholder { color: var(--muted); }
@@ -788,7 +788,15 @@
     .sc-merge:hover { color: var(--ink); border-color: var(--ink-sub); }
     .sc-query { font-size: 11.5px; color: var(--muted); margin-top: 8px; cursor: pointer; border-radius: 4px; padding: 1px 3px; margin-left: -3px; }
     /* Animation mode (P-AN1) */
-    .an-block { margin-top: 10px; }
+    .an-details { margin-top: 8px; }
+    .an-details > summary { cursor: pointer; font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; list-style: none; }
+    .an-details > summary::-webkit-details-marker { display: none; }
+    .an-details > summary::before { content: '▸'; font-size: 10px; }
+    .an-details[open] > summary::before { content: '▾'; }
+    .an-details > summary:hover { color: var(--ink); }
+    .an-sum-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+    .an-details .an-flags { margin: 0; }
+    .an-block { margin-top: 8px; }
     .an-concept { font-size: 12.5px; color: var(--ink-sub); margin-bottom: 6px; }
     .an-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; font-size: 11px; color: var(--muted); }
     .an-chip { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--border2); color: var(--ink-sub); }
@@ -3429,9 +3437,9 @@ function buildSceneRow(s, nextScene, totalDur) {
             ? `<option value="${esc(s.sfx)}" selected>${esc(s.sfx)} (unavailable)</option>` : ''}
         </select>
         ${motionCell}
+        ${animation ? mergeBtn : ''}
       </div>
-      ${animation ? buildAnimationBlock(s) : ''}
-      <div class="sc-bottom">${animation ? '' : `<div class="sc-query" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Search words for stock footage — click to edit">${esc(s.primary_stk || '— search words —')}</div>`}${mergeBtn}</div>
+      ${animation ? buildAnimationBlock(s) : `<div class="sc-bottom"><div class="sc-query" id="pstk-${sceneId}" onclick="editPrimaryStk(this, '${sceneId}')" title="Search words for stock footage — click to edit">${esc(s.primary_stk || '— search words —')}</div>${mergeBtn}</div>`}
     </div>
   </div>`;
 }
@@ -3640,7 +3648,7 @@ function buildScriptView(scenes) {
   }
   return `
     <div class="script-view">
-      <div class="script-view-hint">One paragraph per scene. Move the blank lines to move the scene boundaries, then apply. The words themselves cannot be changed here.</div>
+      <div class="script-view-hint">One paragraph per scene. Move the blank lines to move the scene boundaries, then apply. Only the blank lines count — the words cannot be changed here (that forces re-voicing in the Script step).</div>
       <textarea class="script-textarea" id="sb-script-text" rows="${Math.min(30, Math.max(12, scenes.length * 3))}" spellcheck="false" oninput="onScriptViewInput()">${esc(scriptViewText(scenes))}</textarea>
       <div class="stage-cta" style="margin-top:12px;">
         <button class="btn btn-secondary btn-sm" id="sb-script-apply" onclick="applyScriptView()" disabled>Apply boundaries</button>
@@ -3662,20 +3670,24 @@ function onScriptViewInput() {
   const scenes = sbScenes();
   const typed = scriptViewParagraphs(ta.value);
   const spoken = scenes.flatMap(s => (s.voiceover_line || '').split(/\s+/).filter(Boolean));
-  const wordsChanged = typed.flat().join(' ') !== spoken.join(' ');
+  const sameWords = typed.flat().join(' ') === spoken.join(' ');
+  const original = scriptViewParagraphs(scriptViewText(scenes)).map(p => p.join(' ')).join('\n');
+  const untouched = typed.map(p => p.join(' ')).join('\n') === original;
   let pos = 0;
   const starts = typed.map(p => { const at = pos; pos += p.length; return at; });
-  const unchanged = starts.join(',') === scenes.map(s => s.start_word).join(',');
+  const unchangedStarts = sameWords && starts.join(',') === scenes.map(s => s.start_word).join(',');
 
-  msg.classList.toggle('err', wordsChanged);
-  if (wordsChanged) {
-    msg.textContent = 'The words differ from the voiceover. Change the text in the Script stage — it forces re-voicing.';
-  } else if (unchanged) {
+  msg.classList.remove('err');
+  if (untouched || unchangedStarts) {
     msg.textContent = `${scenes.length} scenes — no boundary changes`;
-  } else {
+  } else if (sameWords) {
     msg.textContent = `${scenes.length} scenes → ${typed.length}`;
+  } else {
+    // Pasted script text writes numbers and punctuation differently from the transcript's words.
+    // That is fine: only the paragraph breaks are used, and the server refuses a real wording change.
+    msg.textContent = 'Different spelling or punctuation from the voiceover is fine — only the blank lines count. Apply to check.';
   }
-  btn.disabled = wordsChanged || unchanged;
+  btn.disabled = untouched || unchangedStarts;
 }
 
 async function applyScriptView() {
@@ -3755,7 +3767,9 @@ function buildThumbCell(sceneId) {
     return `<div class="thumb-placeholder" id="thumb-${esc(sceneId)}">—</div>`;
   }
   const isVideo = entry.file_key && /\.(mp4|webm|mov)$/i.test(entry.file_key);
-  const badge = `<span class="source-badge" style="display:block;margin-top:3px;width:fit-content;">${esc(entry.source || '—')}</span>`;
+  // Every image of an Animation run is generated; the source is only worth saying when it varies.
+  const badge = sbIsAnimation() && entry.source === 'ai_generated' ? ''
+    : `<span class="source-badge" style="display:block;margin-top:3px;width:fit-content;">${esc(entry.source || '—')}</span>`;
   if (isVideo) {
     return `<div class="thumb-video-wrap" id="thumb-${esc(sceneId)}">
       <img class="scene-thumb" src="${esc(entry.asset_url)}" alt="" onerror="this.style.display='none'">
@@ -3880,14 +3894,25 @@ function buildAnimationBlock(s) {
   const shot = [s.shot?.size, s.shot?.angle].filter(Boolean).join(' · ');
   const keywords = (s.visual_keywords || []).map(k => `<span class="an-chip">${esc(k)}</span>`).join('');
   const entities = (s.entities || []).map(id => `<span class="an-chip an-entity" title="${esc(byId[id]?.description || '')}">${esc(byId[id]?.name || id)}</span>`).join('');
-  return `<div class="an-block">
-      ${flags ? `<div class="an-flags">${flags}</div>` : ''}
-      ${s.visual_concept ? `<div class="an-concept">${esc(s.visual_concept)}</div>` : ''}
-      <div class="an-meta">${shot ? `<span class="mono">${esc(shot)}</span>` : ''}${keywords}${entities}</div>
-      <textarea class="an-prompt" id="an-prompt-${sceneId}" rows="3" placeholder="Image prompt: what is in this frame. The style and the continuity entries are added for you."
-        aria-label="Image prompt of scene ${sceneId}" onchange="onScenePromptChange('${sceneId}')">${esc(s.ai_prompt || '')}</textarea>
-      ${s.motion_note ? `<div class="an-note">Motion: ${esc(s.motion_note)}</div>` : ''}
-    </div>`;
+  // Collapsed by default: the picture and the narration are what the operator reads. A scene that
+  // has no prompt yet opens by itself (the other flags show in the summary line); the choice is kept across redraws.
+  const open = (state.openDetails || new Set()).has(String(s.scene)) || (s.flags || []).includes('needs_prompt');
+  return `<details class="an-details" ${open ? 'open' : ''} ontoggle="onSceneDetailsToggle('${sceneId}', this.open)">
+      <summary><span>Image prompt</span>${flags}${entities ? `<span class="an-sum-chips">${entities}</span>` : ''}</summary>
+      <div class="an-block">
+        ${s.visual_concept ? `<div class="an-concept">${esc(s.visual_concept)}</div>` : ''}
+        <div class="an-meta">${shot ? `<span class="mono">${esc(shot)}</span>` : ''}${keywords}</div>
+        <textarea class="an-prompt" id="an-prompt-${sceneId}" rows="3" placeholder="Image prompt: what is in this frame. The style and the continuity entries are added for you."
+          aria-label="Image prompt of scene ${sceneId}" onchange="onScenePromptChange('${sceneId}')">${esc(s.ai_prompt || '')}</textarea>
+        ${s.motion_note ? `<div class="an-note">Motion: ${esc(s.motion_note)}</div>` : ''}
+      </div>
+    </details>`;
+}
+
+/** Remember which scene's prompt details are open, so a redraw does not close what the operator opened. */
+function onSceneDetailsToggle(sceneId, open) {
+  if (!state.openDetails) state.openDetails = new Set();
+  if (open) state.openDetails.add(String(sceneId)); else state.openDetails.delete(String(sceneId));
 }
 
 /** Save a scene's image prompt from its card. */

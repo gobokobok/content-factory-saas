@@ -301,3 +301,25 @@ class TestIntegrationsV2:
     def test_run_details_list_what_the_run_was_made_with(self):
         page = _read("studio-v2.html")
         assert "/providers" in page and "loadRunProviders" in page and "Made with" in page
+
+
+class TestCompactSceneCard:
+    """After the P-PROJ1 smoke: an animation scene card shows the picture and the narration first."""
+
+    def test_the_image_prompt_details_are_collapsed_and_open_only_when_a_prompt_is_missing(self):
+        page = _read("studio-v2.html")
+        block = page[page.index("function buildAnimationBlock"): page.index("function onSceneDetailsToggle")]
+        assert "<details class=\"an-details\"" in block and "includes('needs_prompt')" in block
+        assert "an-concept" in block and "an-prompt" in block                 # still there, one click away
+        assert "onSceneDetailsToggle" in page                                 # a redraw keeps what was opened
+
+    def test_merge_shares_the_tools_row_in_animation_cards_and_the_source_badge_is_not_repeated(self):
+        page = _read("studio-v2.html")
+        assert "${animation ? mergeBtn : ''}" in page
+        assert "sbIsAnimation() && entry.source === 'ai_generated' ? ''" in page
+
+    def test_script_view_does_not_block_on_spelling_or_punctuation(self):
+        page = _read("studio-v2.html")
+        view = page[page.index("function onScriptViewInput"): page.index("async function applyScriptView")]
+        assert "The words differ from the voiceover" not in view
+        assert "only the blank lines count" in view and "btn.disabled = untouched || unchangedStarts" in view
