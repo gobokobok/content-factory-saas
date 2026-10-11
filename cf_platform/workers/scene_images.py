@@ -60,6 +60,10 @@ JOB_RUNNING, JOB_COMPLETE, JOB_STOPPED_AT_CAP, JOB_ERROR, JOB_INTERRUPTED = (
     "running", "complete", "stopped_at_cap", "error", "interrupted",
 )
 
+# A bulk job stops when this many scenes have failed with the identical reason
+# before any scene succeeded.
+SAME_ERROR_STOP_AFTER = 3
+
 _RUN_LOCKS: dict[str, asyncio.Lock] = {}
 _RESERVED_USD: dict[str, float] = {}
 _ACTIVE_JOBS: set[str] = set()
@@ -328,6 +332,11 @@ async def run_image_job(
     job_key = images_job_key(ctx.run_id)
     write_lock = asyncio.Lock()
     at_cap = asyncio.Event()
+    # Set when the first scenes all fail for one and the same reason and none has
+    # succeeded: a wrong model or key fails every scene alike, so the job stops
+    # instead of making the same failing call for each of them.
+    same_error = asyncio.Event()
+    first_reasons: list[str] = []
     semaphore = asyncio.Semaphore(max(1, int(concurrency)))
 
     async def _save() -> None:
@@ -342,7 +351,7 @@ async def run_image_job(
     async def _one(scene_id: str) -> None:
         """Generate one scene, with one retry on a provider failure."""
         async with semaphore:
-            if at_cap.is_set():
+            if at_cap.is_set() or same_error.is_set():
                 job["scenes"][scene_id] = NOT_STARTED
                 return
             job["scenes"][scene_id] = RUNNING
@@ -371,12 +380,28 @@ async def run_image_job(
             if job["scenes"][scene_id] == RUNNING:
                 job["scenes"][scene_id] = FAILED
                 job["failed"].append({"scene": scene_id, "reason": reason})
+                first_reasons.append(reason)
+                if (
+                    len(first_reasons) >= SAME_ERROR_STOP_AFTER
+                    and len(set(first_reasons)) == 1
+                    and DONE not in job["scenes"].values()
+                ):
+                    same_error.set()
             await _save()
 
     try:
         await _save()
         await asyncio.gather(*(_one(scene_id) for scene_id in scene_ids))
-        job["status"] = JOB_STOPPED_AT_CAP if at_cap.is_set() else JOB_COMPLETE
+        if at_cap.is_set():
+            job["status"] = JOB_STOPPED_AT_CAP
+        elif same_error.is_set():
+            job["status"] = JOB_ERROR
+            job["message"] = (
+                f"{first_reasons[0]} Stopped after {len(job['failed'])} scenes failed the same way; "
+                "nothing was charged. Check the provider and model in Settings → Integrations."
+            )
+        else:
+            job["status"] = JOB_COMPLETE
     except Exception as exc:  # defensive: _one swallows its own errors
         logger.exception("image job %s failed", job_id)
         job["status"] = JOB_ERROR

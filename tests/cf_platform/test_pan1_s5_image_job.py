@@ -166,6 +166,42 @@ class TestJobThroughTheApi:
             env.client.post(f"{_RUN}/images/generate", json={"scene_ids": ["2"]})
             assert env.client.get(f"{_RUN}/images/status").json()["scenes"] == {"2": "done"}
 
+    def test_the_job_stops_when_every_scene_fails_the_same_way(self, monkeypatch):
+        """A wrong model or key fails all scenes alike: stop after three, do not call for the rest."""
+        with animation_env(monkeypatch, starts=(0, 2, 4, 6, 8, 10)) as env:
+            env.settings.IMAGE_JOB_CONCURRENCY = 1
+            attempts = {"n": 0}
+
+            class _Broken:
+                """A provider whose every call fails with the same configuration error."""
+
+                name = "openai"
+
+                async def generate(self, prompt: str, aspect_ratio: str):
+                    """Always fail."""
+                    from cf_platform.core.image_provider import ImageGenerationError
+
+                    attempts["n"] += 1
+                    raise ImageGenerationError("OpenAI error 400: The model 'x' does not exist.")
+
+            monkeypatch.setattr(
+                "cf_platform.interfaces.routes.studio_ai.build_image_provider", lambda *a, **kw: _Broken()
+            )
+            env.client.post(f"{_RUN}/images/generate", json={})
+            job = env.client.get(f"{_RUN}/images/status").json()
+            assert job["status"] == "error" and len(job["failed"]) == 3 and job["left"] == 3
+            assert "does not exist" in job["message"] and "Settings" in job["message"]
+            assert attempts["n"] == 6  # three scenes, one retry each — not all six scenes
+            assert _spent(env) == (0, 0.0)
+
+    def test_different_failures_or_one_success_do_not_stop_the_job(self, monkeypatch):
+        with animation_env(monkeypatch, starts=(0, 2, 4, 6, 8, 10)) as env:
+            env.settings.IMAGE_JOB_CONCURRENCY = 1
+            FakeProvider.fail_on = {"prompt 2": 2, "prompt 3": 2, "prompt 4": 2}
+            env.client.post(f"{_RUN}/images/generate", json={})
+            job = env.client.get(f"{_RUN}/images/status").json()
+            assert job["status"] == "complete" and job["done"] == 3 and len(job["failed"]) == 3
+
     def test_one_failure_then_success_is_a_success(self, monkeypatch):
         with animation_env(monkeypatch) as env:
             FakeProvider.fail_on = {"prompt 2": 1}

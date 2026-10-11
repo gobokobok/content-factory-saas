@@ -102,7 +102,9 @@ class PlatformSettings(BaseSettings):
     # how many images the bulk job generates at once.
     # Default: kie.ai's Nano Banana 2.1 at 1K (kie.ai price page, checked 2026-10-11;
     # 2K is 0.03 and 4K 0.045 — change the entry when IMAGE_RESOLUTION changes).
-    IMAGE_MODEL_COSTS_USD: dict[str, float] = {"nano-banana-2-1": 0.02}
+    # gpt-image-1 (OpenAI direct, medium, 1024x1536): 14 images cost $0.92 on the
+    # operator's OpenAI bill in the P-AN1 smoke test — the general 0.03 undercounted it.
+    IMAGE_MODEL_COSTS_USD: dict[str, float] = {"nano-banana-2-1": 0.02, "gpt-image-1": 0.066}
     IMAGE_RUN_SPEND_CAP_MAX_USD: float = 10.0
     IMAGE_JOB_CONCURRENCY: int = 3
 

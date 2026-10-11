@@ -61,7 +61,8 @@ function imageCard() {
   const known = Object.prototype.hasOwnProperty.call(costs, model);
   const cost = known ? costs[model] : image.default_cost_usd;
   const costHint = cost == null ? '' : `Estimated $${Number(cost).toFixed(3)} per image${known ? '' : ' (the general estimate — this model has no price of its own)'}.`;
-  const suggestions = [...new Set([...Object.keys(costs), ...Object.values(image.default_models || {})])].filter(Boolean);
+  // Only this provider's models: a kie.ai model id sent to OpenAI fails every generation.
+  const suggestions = [...new Set([image.default_models[p], ...((image.known_models || {})[p] || [])])].filter(Boolean);
   return `<div class="card"><div class="card-title">AI image generation</div>
     <div class="card-sub">Used by Generate on a scene and by Generate all images in an Animation run. Images are only generated when you start it — never automatically. The key for each provider is set below.</div>
     <div class="grid2">
@@ -98,7 +99,10 @@ async function putService(id, body, msg) {
 }
 async function saveImage() {
   try {
-    const r = await api('/platform/tenant/settings/image', jsonOpts('PUT', { provider: $('img-provider').value, model: $('img-model').value.trim() }));
+    // A model belongs to its provider: when the provider changes, the model field is not sent along.
+    const provider = $('img-provider').value;
+    const body = provider === image.provider ? { provider, model: $('img-model').value.trim() } : { provider, model: '' };
+    const r = await api('/platform/tenant/settings/image', jsonOpts('PUT', body));
     if (!r.ok) throw new Error(await errorDetail(r));
     image = await r.json(); showErr(''); render(); toast('Saved.');
   } catch (e) { showErr(`Could not save: ${e.message}`); }

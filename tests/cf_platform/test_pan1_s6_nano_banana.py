@@ -91,7 +91,7 @@ class TestModelCost:
 
     def test_the_default_table_prices_nano_banana_at_1k(self):
         fields = PlatformSettings.model_fields
-        assert fields["IMAGE_MODEL_COSTS_USD"].default == {"nano-banana-2-1": 0.02}
+        assert fields["IMAGE_MODEL_COSTS_USD"].default == {"nano-banana-2-1": 0.02, "gpt-image-1": 0.066}
         assert fields["IMAGE_RUN_SPEND_CAP_MAX_USD"].default == 10.0 and fields["IMAGE_JOB_CONCURRENCY"].default == 3
 
     def test_the_price_table_can_come_from_the_environment_as_json(self, monkeypatch):
@@ -135,3 +135,63 @@ class TestSelectedModel:
 
             ledger = asyncio.run(env.storage.get_json(f"runs/{RUN_ID}/ai_spend.json"))
             assert ledger["generations"][0]["model"] == MODEL and ledger["generations"][0]["cost_usd"] == 0.02
+
+
+class TestModelBelongsToItsProvider:
+    """Smoke-test defect (2026-10-11): kie.ai's model id was sent to OpenAI and every scene failed."""
+
+    @staticmethod
+    def _settings():
+        from types import SimpleNamespace
+
+        from cryptography.fernet import Fernet
+
+        return SimpleNamespace(
+            SETTINGS_ENCRYPTION_KEY=Fernet.generate_key().decode(), IMAGE_PROVIDER="kie", KIE_API_KEY="k",
+            OPENAI_API_KEY="o", KIE_IMAGE_MODEL="gpt-image-2-text-to-image", OPENAI_IMAGE_MODEL="gpt-image-1",
+        )
+
+    @pytest.mark.asyncio
+    async def test_a_model_of_the_other_provider_is_refused_with_a_reason(self):
+        repo, settings = InMemoryTenantSettingsRepository(), self._settings()
+        with pytest.raises(ValueError, match="kie.ai model and cannot be used with OpenAI"):
+            await save_image_settings(repo, "t", settings, provider="openai", model="gpt-image-2-text-to-image")
+        with pytest.raises(ValueError, match="OpenAI model and cannot be used with kie.ai"):
+            await save_image_settings(repo, "t", settings, model="gpt-image-1")
+
+    @pytest.mark.asyncio
+    async def test_changing_the_provider_drops_the_old_providers_model(self):
+        from cf_platform.core.tenant_settings import resolve_image_config
+
+        repo, settings = InMemoryTenantSettingsRepository(), self._settings()
+        await save_image_settings(repo, "t", settings, provider="kie", model="nano-banana-2-1")
+        # the Settings page of before the fix sent the old model along with the new provider
+        await save_image_settings(repo, "t", settings, provider="openai", model="nano-banana-2-1")
+        config = await resolve_image_config(repo, "t", settings)
+        assert (config.provider, config.model) == ("openai", "gpt-image-1")
+        assert (await public_image_settings(repo, "t", settings))["model"] == ""
+
+    @pytest.mark.asyncio
+    async def test_a_new_model_given_with_the_new_provider_is_kept_and_unknown_models_are_accepted(self):
+        from cf_platform.core.tenant_settings import resolve_image_config
+
+        repo, settings = InMemoryTenantSettingsRepository(), self._settings()
+        await save_image_settings(repo, "t", settings, provider="openai", model="some-future-model")
+        assert (await resolve_image_config(repo, "t", settings)).model == "some-future-model"
+        await save_image_settings(repo, "t", settings, provider="kie", model="nano-banana-2")
+        assert (await resolve_image_config(repo, "t", settings)).model == "nano-banana-2"
+
+    @pytest.mark.asyncio
+    async def test_a_mismatch_already_stored_is_ignored_at_generation_time(self):
+        """DEV held provider=openai with kie.ai's model: the provider default is used instead."""
+        from cf_platform.core.tenant_settings import TenantSettings, resolve_image_config
+
+        repo, settings = InMemoryTenantSettingsRepository(), self._settings()
+        await repo.save(TenantSettings(tenant_id="t", image_provider="openai", image_model="gpt-image-2-text-to-image"))
+        assert (await resolve_image_config(repo, "t", settings)).model == "gpt-image-1"
+
+    @pytest.mark.asyncio
+    async def test_settings_list_each_providers_known_models(self):
+        public = await public_image_settings(InMemoryTenantSettingsRepository(), "t", self._settings())
+        assert "nano-banana-2-1" in public["known_models"]["kie"]
+        assert public["known_models"]["openai"] == ["gpt-image-1"]

@@ -14,7 +14,12 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
-from cf_platform.core.image_provider import IMAGE_PROVIDERS
+from cf_platform.core.image_provider import (
+    IMAGE_PROVIDERS,
+    KNOWN_IMAGE_MODELS,
+    PROVIDER_LABELS,
+    provider_of_model,
+)
 from cf_platform.core.secret_box import SecretBoxError, decrypt_secret, encrypt_secret, key_hint
 
 
@@ -81,6 +86,18 @@ def _env_model(provider: str, platform_settings: Any) -> str:
     return getattr(platform_settings, "KIE_IMAGE_MODEL" if provider == "kie" else "OPENAI_IMAGE_MODEL", "") or ""
 
 
+def _usable_model(saved_model: str | None, provider: str) -> str | None:
+    """The saved model when it can be used with `provider`, else None.
+
+    A model saved while another provider was selected (rows written before the
+    save-time check existed) is ignored, so the provider's default is used instead
+    of every generation failing with "model does not exist".
+    """
+    if not saved_model:
+        return None
+    return None if provider_of_model(saved_model) not in (None, provider) else saved_model
+
+
 async def resolve_image_config(
     repo: TenantSettingsRepository, tenant_id: str, platform_settings: Any
 ) -> ImageConfig:
@@ -93,7 +110,7 @@ async def resolve_image_config(
     provider = (row.image_provider if row and row.image_provider else None) or platform_settings.IMAGE_PROVIDER
     if provider not in IMAGE_PROVIDERS:
         provider = "kie"
-    model = (row.image_model if row and row.image_model else None) or _env_model(provider, platform_settings)
+    model = _usable_model(row.image_model if row else None, provider) or _env_model(provider, platform_settings)
 
     stored = (row.api_keys.get(provider) if row else None) or None
     if stored:
@@ -116,17 +133,34 @@ async def save_image_settings(
     """Update the tenant's image settings; only the fields supplied change.
 
     `provider` must be one of IMAGE_PROVIDERS (ValueError otherwise). `model` of ''
-    means "use the default". `api_key` is saved for `provider` (or the already-chosen
+    means "use the default". A model known to belong to the other provider is
+    refused (ValueError); changing the provider without naming a new model clears
+    the saved one. `api_key` is saved for `provider` (or the already-chosen
     provider) encrypted; SecretBoxError when SETTINGS_ENCRYPTION_KEY is unusable.
     `clear_key_for` deletes that provider's saved key.
     """
     row = await repo.get(tenant_id) or TenantSettings(tenant_id=tenant_id)
+    previous_provider = row.image_provider or platform_settings.IMAGE_PROVIDER
+    previous_model = row.image_model
     if provider is not None:
         if provider not in IMAGE_PROVIDERS:
             raise ValueError(f"Unknown image provider {provider!r} — expected one of {list(IMAGE_PROVIDERS)}")
         row.image_provider = provider
+    target_provider = row.image_provider or platform_settings.IMAGE_PROVIDER
+    if provider is not None and provider != previous_provider and (model or "").strip() == (previous_model or ""):
+        # The provider changed and no new model came with it: the old provider's
+        # model must not follow. Empty means "use the new provider's default".
+        model = ""
     if model is not None:
-        row.image_model = model.strip() or None
+        clean = model.strip()
+        owner = provider_of_model(clean)
+        if clean and owner not in (None, target_provider):
+            raise ValueError(
+                f"{clean} is a {PROVIDER_LABELS[owner]} model and cannot be used with "
+                f"{PROVIDER_LABELS.get(target_provider, target_provider)}. "
+                "Leave the model empty to use the provider's default."
+            )
+        row.image_model = clean or None
     if api_key is not None and api_key.strip():
         target = row.image_provider or platform_settings.IMAGE_PROVIDER
         plain = api_key.strip()
@@ -159,7 +193,8 @@ async def public_image_settings(
             providers[name] = {"key_source": None, "key_hint": ""}
     return {
         "provider": provider,
-        "model": (row.image_model if row and row.image_model else None) or "",
+        "model": _usable_model(row.image_model if row else None, provider) or "",
+        "known_models": {name: list(KNOWN_IMAGE_MODELS.get(name, ())) for name in IMAGE_PROVIDERS},
         "default_models": {name: _env_model(name, platform_settings) for name in IMAGE_PROVIDERS},
         # Per-model price estimates (IMAGE_MODEL_COSTS_USD) and the fallback for any other
         # model (IMAGE_COST_USD) — what the cost display and the spend cap count with.

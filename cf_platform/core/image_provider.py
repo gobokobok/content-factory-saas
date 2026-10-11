@@ -24,6 +24,24 @@ KIE_BASE_URL = "https://api.kie.ai"
 OPENAI_BASE_URL = "https://api.openai.com"
 IMAGE_PROVIDERS = ("kie", "openai")
 
+# Model ids known to belong to one provider. Used to suggest models in Settings and
+# to refuse a model saved for the wrong provider: kie.ai's `gpt-image-2-text-to-image`
+# sent to OpenAI fails every generation with "model does not exist" (P-AN1 smoke test).
+# A model that is not listed is accepted for either provider.
+KNOWN_IMAGE_MODELS: dict[str, tuple[str, ...]] = {
+    "kie": ("nano-banana-2-1", "nano-banana-2", "gpt-image-2-text-to-image"),
+    "openai": ("gpt-image-1",),
+}
+PROVIDER_LABELS = {"kie": "kie.ai", "openai": "OpenAI"}
+
+
+def provider_of_model(model: str) -> str | None:
+    """The provider a known model id belongs to, or None for a model that is not listed."""
+    for provider, models in KNOWN_IMAGE_MODELS.items():
+        if model in models:
+            return provider
+    return None
+
 # OpenAI takes a pixel size, not an aspect ratio.
 _OPENAI_SIZES = {"9:16": "1024x1536", "16:9": "1536x1024", "1:1": "1024x1024"}
 
