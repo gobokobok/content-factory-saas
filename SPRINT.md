@@ -41,7 +41,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-AUTH | Google sign-in and accounts (EPIC 59); `/audit` first | ~13 | planned | A friend signs in with Google and lands in their own space |
 | P-BILL-1 | Usage ledger, credit limits, manual top-up (EPIC 59) | ~13 | planned | **Friends beta:** a friend makes a first video of up to one minute within a credit limit |
 | P-PROJ1 | Visual source model and project settings (EPIC 57) | ~18 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Channel identity and a saved project character reused by a new animated run |
-| P-INT1 | Integrations v2 (EPIC 58) | ~14 | planned | Add a second provider with an own key, make it default, generate on it |
+| P-INT1 | Integrations v2 (EPIC 58) | ~16 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Add a second provider with an own key, make it default, generate on it |
 | P-BILL-2 | Online payments (EPIC 59) | ~8 | planned | Buy credits online |
 | P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after P-BILL-2; order revised 2026-10-11) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
@@ -56,7 +56,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Open items carried from closed sprints
 
-- **Deferred smoke tests: 1** — P-UX4 (operator decision: after P-INT1) → INT1-S5. (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
+- **Deferred smoke tests: 3** — P-UX4, P-PROJ1 and P-INT1 (operator decision: one sweep after P-INT1) → INT1-S5. (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
 - **PROD is six sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b, P14, P14b and P-UX3 (including migrations `0002_projects_shortlist.sql`, `0003_tenant_settings.sql` and `0004_tenant_defaults.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
 - **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
@@ -162,3 +162,23 @@ _None._
 **Execution order:** S1 → S2 → S3 → S4 → S5.
 **Human touchpoint:** set a channel identity and save a character in Project settings; a new animated run's storyboard reuses that character and the metadata reads in the channel's voice.
 **Decisions:** D111.
+
+---
+
+# Sprint P-INT1 — Integrations v2 (EPIC 58)
+
+**Goal:** Integrations are grouped into five blocks; a block holds several providers, each with its own key, one default and a model; at least one text step really switches provider.
+**Status:** complete 2026-10-11 (built in one pass; smoke is INT1-S5, which the operator runs after both sprints).
+**Points:** ~16 (+ INT1-S5, 2)
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| INT1-S1 | Integrations regrouped into the five blocks | 2 | done |
+| INT1-S2 | Provider registry and an LLM adapter (Anthropic, OpenAI); metadata on it | 5 | done |
+| INT1-S3 | Several providers per block, a default and a model per provider | 5 | done |
+| INT1-S4 | What a run was made with, and the defaults in force | 2 | done |
+| INT1-S5 | DEV smoke sweep (P-UX4, P-PROJ1, P-INT1) | 2 | **operator** |
+
+**Execution order:** S2 → S3 → S1 → S4; S5 last.
+**Human touchpoint:** add OpenAI as a second Thinking-models provider with its own key, make it default, generate metadata on it.
+**Decisions:** D112.

@@ -57,8 +57,8 @@ def test_spend_readout_shows_images_spent_and_cap():
 
 
 def test_settings_page_saves_provider_model_and_key_without_ever_showing_a_key():
-    """Integrations: the image provider and model are saved here; keys are saved per service and never shown."""
-    assert 'id="img-provider"' in _SETTINGS and 'id="img-model"' in _SETTINGS
+    """Integrations: the image provider and model are chosen in the Image block (P-INT1); keys are saved per service and never shown."""
+    assert "makeDefault" in _SETTINGS and "saveModel" in _SETTINGS and "/platform/tenant/blocks" in _SETTINGS
     assert "/platform/tenant/settings/image" in _SETTINGS and "'PUT'" in _SETTINGS
     assert 'type="password"' in _SETTINGS and "/platform/tenant/integrations" in _SETTINGS
     assert "key_hint" in _SETTINGS and "SETTINGS_ENCRYPTION_KEY" in _SETTINGS

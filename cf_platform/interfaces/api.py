@@ -33,6 +33,7 @@ from cf_platform.interfaces.routes import (
     studio,
     studio_ai,
     studio_animation,
+    studio_providers,
     studio_visuals,
     studio_voice,
     telegram_webhook,
@@ -73,6 +74,7 @@ router.include_router(workers.router)
 router.include_router(studio.router)
 router.include_router(studio_ai.router)
 router.include_router(studio_animation.router)
+router.include_router(studio_providers.router)
 router.include_router(studio_visuals.router)
 router.include_router(studio_voice.router)
 router.include_router(runs.router)

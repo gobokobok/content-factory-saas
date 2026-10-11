@@ -287,3 +287,17 @@ class TestProjectLevel:
     def test_a_bible_entry_can_be_saved_to_the_project(self):
         page = _read("studio-v2.html")
         assert "saveEntryToProject" in page and "/assets/from-run" in page and "project_asset_id" in page
+
+
+class TestIntegrationsV2:
+    """P-INT1: five blocks, a default per block, a model per provider, and the run's providers."""
+
+    def test_integrations_are_grouped_into_blocks_with_defaults_and_models(self):
+        page = _read("settings.html")
+        for needle in ("/platform/tenant/blocks", "makeDefault", "saveModel", "blockCard", "Make default", "Partly wired"):
+            assert needle in page, needle
+        assert "imageCard" not in page          # the image provider is a block now
+
+    def test_run_details_list_what_the_run_was_made_with(self):
+        page = _read("studio-v2.html")
+        assert "/providers" in page and "loadRunProviders" in page and "Made with" in page

@@ -89,6 +89,8 @@ class PlatformSettings(BaseSettings):
     OPENAI_API_KEY: str = ""
     KIE_IMAGE_MODEL: str = "gpt-image-2-text-to-image"
     OPENAI_IMAGE_MODEL: str = "gpt-image-1"
+    # Default OpenAI model for text generation (the Thinking models block, P-INT1).
+    OPENAI_LLM_MODEL: str = "gpt-4.1-mini"
     IMAGE_QUALITY: str = "medium"
     IMAGE_RESOLUTION: str = "1K"
     IMAGE_DEFAULT_ASPECT_RATIO: str = "9:16"

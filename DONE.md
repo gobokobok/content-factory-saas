@@ -5,6 +5,21 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 
 ---
 
+## [P-INT1] Integrations v2 — S1 five blocks, S2 provider registry + LLM adapter, S3 default and model per provider, S4 what a run was made with
+**Completed:** 2026-10-11 (built in one pass; settled by Claude while the operator was away — D112)
+**Handover:**
+- **Five blocks** (`cf_platform/core/providers.py`): Thinking models, Audio models (default per role: voice / transcription), Image generation, Stock acquisition, Destination. `GET /platform/tenant/blocks` gives each provider's key state (hint only), default, model, suggested models and how far it is wired (`full` / `partial` / `planned`); `PUT /platform/tenant/blocks/{block}` takes `default` and/or `model: {provider, model}`. Choices are stored in `tenant_settings.defaults["blocks"]`; the image block's choice is the P14 `image_provider` / `image_model`.
+- **Settings → Integrations** is regrouped by block: per provider a key (the existing `PUT /tenant/integrations/{service}`), a Make default button and a model field.
+- **LLM adapter** (`cf_platform/core/llm.py`): `LLMClient.complete`, `AnthropicLLM`, `OpenAILLM`, `build_llm_client`. **The YouTube metadata worker is the only one on it** — with OpenAI as the Thinking models default, `POST /platform/workers/metadata` answers from OpenAI (the artifact's lineage records the model); without a key it is a readable 409. Every other worker still calls Claude directly (D112).
+- **Run details** shows "Made with" (model per artifact, from lineage) and "Defaults for the next step" (`GET /platform/studio/runs/{id}/providers`).
+- ENV added: `OPENAI_LLM_MODEL` (default `gpt-4.1-mini`). No migration, no new dependency. Decision: **D112**. Tests: 2907 passing.
+- **Not verified:** nothing ran against a real OpenAI account or DEV. The OpenAI request shape (`max_completion_tokens`, chat completions) is exercised against a mock transport only; the default model id `gpt-4.1-mini` is an assumption — check it exists on the account, or set `OPENAI_LLM_MODEL`. The regrouped Integrations page was syntax-checked and covered by page tests, not looked at in a browser.
+- **Not built (by design, D112):** script, storyboard and the other text workers on the adapter; per-user keys and the automatic default switch (P-AUTH); alternative audio providers.
+**Smoke test:** DEFERRED — operator will smoke test after both sprints → cleared by INT1-S5 in Sprint P-INT1 (the INT1-S5 list covers P-UX4, P-PROJ1 and P-INT1).
+**Promoted to backlog:** INT1-S6 candidate: move script, storyboard and fact-check workers onto `LLMClient` (or an equivalent that keeps thinking and streaming), one at a time with a prompt check; per-block fallback order for providers; key validity check on save.
+
+---
+
 ## [P-PROJ1] Visual source model and project-level settings — S1 look + image source, S2 channel identity, S3 project assets, S4 storyboard reuses assets, S5 prompt v0.18
 **Completed:** 2026-10-11 (built in one pass; operator asked for P-PROJ1 and P-INT1 back to back with no questions, so the open design points were settled by Claude — see D111)
 **Handover:**

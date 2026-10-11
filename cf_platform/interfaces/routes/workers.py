@@ -15,11 +15,14 @@ from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings
+from cf_platform.core.llm import LLMError, build_llm_client
 from cf_platform.core.project_assets import list_assets
 from cf_platform.core.projects import ProjectRepository
+from cf_platform.core.providers import resolve_block
 from cf_platform.core.run_manager import RunNotFoundError, RunRepository
 from cf_platform.core.run_visuals import load_run_visuals, project_config_for_run
 from cf_platform.core.schemas import StageState
+from cf_platform.core.tenant_settings import TenantSettingsRepository
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.interfaces.dependencies import (
     PLATFORM_USER_ID,
@@ -27,6 +30,7 @@ from cf_platform.interfaces.dependencies import (
     get_effective_platform_settings,
     get_project_repository,
     get_run_repository,
+    get_tenant_settings_repository,
 )
 from cf_platform.interfaces.routes._helpers import latest_artifact_key as _latest_artifact_key
 from cf_platform.interfaces.routes.studio_voice import discard_for_generated_voice
@@ -291,6 +295,7 @@ async def metadata_worker_endpoint(
     settings: PlatformSettings = Depends(get_effective_platform_settings),
     runs: RunRepository = Depends(get_run_repository),
     projects: ProjectRepository = Depends(get_project_repository),
+    tenant_repo: TenantSettingsRepository = Depends(get_tenant_settings_repository),
 ) -> MetadataWorkerResponse:
     """Generate suggested YouTube title/description/tags from the run's script.
 
@@ -314,7 +319,26 @@ async def metadata_worker_endpoint(
             detail=f"No script artifact for run_id={body.run_id!r}. Write a script first.",
         )
 
-    worker = build_youtube_metadata_worker(storage, settings.ANTHROPIC_API_KEY)
+    # The Thinking-models block's default decides who writes the metadata (P-INT1).
+    # Anthropic stays the direct path; another provider goes through the LLMClient adapter.
+    choice = await resolve_block(tenant_repo, PLATFORM_USER_ID, settings, "llm")
+    llm = None
+    used_model = YOUTUBE_METADATA_REGISTRATION.model
+    if choice["provider_id"] != "anthropic":
+        if not choice["api_key"]:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{choice['provider']} is the default for Thinking models but has no key — "
+                "add it in Settings → Integrations, or choose another default.",
+            )
+        llm = build_llm_client(choice["provider_id"], choice["api_key"])
+        used_model = choice["model"]
+    elif choice["model"]:
+        used_model = choice["model"]
+    if llm is None and used_model == YOUTUBE_METADATA_REGISTRATION.model:
+        worker = build_youtube_metadata_worker(storage, settings.ANTHROPIC_API_KEY)
+    else:
+        worker = build_youtube_metadata_worker(storage, settings.ANTHROPIC_API_KEY, llm=llm, model=used_model)
     # The project is one channel: its niche and channel identity shape the metadata
     # together with this run's script (P-PROJ1-S2).
     project_config = await project_config_for_run(runs, projects, body.run_id)
@@ -334,7 +358,10 @@ async def metadata_worker_endpoint(
         inputs=inputs,
         artifacts={"script": script_key},
     )
-    output = await worker(state)
+    try:
+        output = await worker(state)
+    except LLMError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     result_artifact = output.artifact
     if not isinstance(result_artifact, YoutubeMetadataArtifact):
         raise HTTPException(status_code=500, detail="youtube_metadata worker returned unexpected artifact type")
@@ -344,7 +371,7 @@ async def metadata_worker_endpoint(
         worker="youtube_metadata",
         worker_version=YOUTUBE_METADATA_REGISTRATION.worker_version,
         prompt_version=YOUTUBE_METADATA_REGISTRATION.prompt_version,
-        model=YOUTUBE_METADATA_REGISTRATION.model,
+        model=used_model,
         created_at=datetime.now(),
     )
     record = await write_artifact(

@@ -30,81 +30,100 @@
 /* Tenant settings — Integrations (every service's key, plus the AI image provider) and
    Defaults (what every project inherits). Keys are never shown, only a four-character hint. */
 const TAB = new URLSearchParams(location.search).get('tab') === 'defaults' ? 'defaults' : 'integrations';
-let integrations = null, image = null, defaults = null, projects = [], keyEdit = '';
+let blocks = null, image = null, defaults = null, projects = [], keyEdit = '';
 
 // ── Integrations ───────────────────────────────────────────────────────────
-function keyState(s) {
-  if (s.key_source === 'tenant') return `<span class="dot-s ok"></span>Saved key ending ${esc(s.key_hint || '••••')}`;
-  if (s.key_source === 'env') return '<span class="dot-s env"></span>Using the Railway variable';
+// Five blocks; each holds providers with their own key, and one default (per role in Audio).
+const WIRED = { full: '', partial: 'Partly wired', planned: 'Planned' };
+function keyState(p) {
+  if (p.key_source === 'tenant') return `<span class="dot-s ok"></span>Saved key ending ${esc(p.key_hint || '••••')}`;
+  if (p.key_source === 'env') return '<span class="dot-s env"></span>Using the Railway variable';
   return '<span class="dot-s"></span>No key yet';
 }
-function serviceRow(s) {
-  const imageProvider = image && image.provider === s.service_id;
-  const editing = keyEdit === s.service_id;
+function providerRow(block, p) {
+  const editing = keyEdit === p.provider_id;
+  const listId = `models-${p.provider_id}`;
+  const peers = block.providers.filter(q => (q.role || '') === (p.role || '') && q.can_be_default).length;
+  const imageCost = block.block_id === 'image' && p.is_default && image ? imageCostHint(p) : '';
   return `<div class="integ" style="grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto;">
-    <div><div class="row-name">${esc(s.name)}${imageProvider ? ' <span class="chip run" style="margin-left:6px;">image provider in use</span>' : ''}</div>
-      <div class="row-meta" style="margin-top:1px;"><span>${esc(s.use)}</span></div></div>
-    <div style="font-size:12px;">${keyState(s)}</div>
-    ${s.can_save ? `<button class="btn btn-secondary btn-sm" onclick="keyEdit=keyEdit==='${esc(s.service_id)}'?'':'${esc(s.service_id)}';render()">${s.key_source === 'tenant' ? 'Replace key' : 'Add key'}</button>`
-                 : '<span class="hint" style="margin:0;">Railway variable only</span>'}
-    ${editing ? `<div class="keyrow"><input class="input" id="key-input" type="password" autocomplete="new-password" spellcheck="false" placeholder="Paste a key — it is stored encrypted and never shown again" aria-label="API key">
-      <button class="btn btn-primary btn-sm" onclick="saveKey('${esc(s.service_id)}')">Save</button>
-      ${s.key_source === 'tenant' ? `<button class="btn btn-ghost btn-sm" onclick="removeKey('${esc(s.service_id)}')">Remove saved key</button>` : ''}</div>` : ''}
+    <div><div class="row-name">${esc(p.name)}${p.is_default && peers > 1 ? ' <span class="chip run" style="margin-left:6px;">Default</span>' : ''}${WIRED[p.wired] ? ` <span class="chip" style="margin-left:6px;">${WIRED[p.wired]}</span>` : ''}</div>
+      ${p.note ? `<div class="row-meta" style="margin-top:1px;"><span>${esc(p.note)}</span></div>` : ''}</div>
+    <div style="font-size:12px;">${p.can_be_default || p.can_save_key ? keyState(p) : ''}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+      ${p.can_save_key ? `<button class="btn btn-secondary btn-sm" onclick="keyEdit=keyEdit==='${esc(p.provider_id)}'?'':'${esc(p.provider_id)}';render()">${p.key_source === 'tenant' ? 'Replace key' : 'Add key'}</button>`
+                       : '<span class="hint" style="margin:0;">Railway variable only</span>'}
+      ${peers > 1 && p.can_be_default && !p.is_default ? `<button class="btn btn-ghost btn-sm" onclick="makeDefault('${esc(block.block_id)}','${esc(p.provider_id)}')">Make default</button>` : ''}
+    </div>
+    ${p.models.length || block.block_id === 'image' ? `<div class="keyrow" style="grid-column:1 / -1;">
+        <label class="label" style="margin:0;white-space:nowrap;" for="m-${esc(p.provider_id)}">Model</label>
+        <input class="input" id="m-${esc(p.provider_id)}" maxlength="120" autocomplete="off" spellcheck="false" value="${esc(p.model)}" list="${esc(listId)}"
+          onchange="saveModel('${esc(block.block_id)}','${esc(p.provider_id)}', this.value)">
+        <datalist id="${esc(listId)}">${imageSuggestions(block, p).map(m => `<option value="${esc(m)}"></option>`).join('')}</datalist>
+        ${imageCost ? `<span class="hint" style="margin:0;">${esc(imageCost)}</span>` : ''}</div>` : ''}
+    ${editing ? `<div class="keyrow" style="grid-column:1 / -1;"><input class="input" id="key-input" type="password" autocomplete="new-password" spellcheck="false" placeholder="Paste a key — it is stored encrypted and never shown again" aria-label="API key">
+      <button class="btn btn-primary btn-sm" onclick="saveKey('${esc(p.service_id)}')">Save</button>
+      ${p.key_source === 'tenant' ? `<button class="btn btn-ghost btn-sm" onclick="removeKey('${esc(p.service_id)}')">Remove saved key</button>` : ''}</div>` : ''}
   </div>`;
 }
-function imageCard() {
-  if (!image) return '';
-  const p = image.provider;
+function imageSuggestions(block, p) {
+  if (block.block_id === 'image' && image) {
+    const provider = p.provider_id === 'kie' ? 'kie' : 'openai';
+    return [...new Set([image.default_models[provider], ...((image.known_models || {})[provider] || [])])].filter(Boolean);
+  }
+  return p.models;
+}
+function imageCostHint(p) {
   const costs = image.model_costs_usd || {};
-  const model = image.model || image.default_models[p] || '';
+  const model = p.model || '';
   const known = Object.prototype.hasOwnProperty.call(costs, model);
   const cost = known ? costs[model] : image.default_cost_usd;
-  const costHint = cost == null ? '' : `Estimated $${Number(cost).toFixed(3)} per image${known ? '' : ' (the general estimate — this model has no price of its own)'}.`;
-  // Only this provider's models: a kie.ai model id sent to OpenAI fails every generation.
-  const suggestions = [...new Set([image.default_models[p], ...((image.known_models || {})[p] || [])])].filter(Boolean);
-  return `<div class="card"><div class="card-title">AI image generation</div>
-    <div class="card-sub">Used by Generate on a scene and by Generate all images in an Animation run. Images are only generated when you start it — never automatically. The key for each provider is set below.</div>
-    <div class="grid2">
-      <div class="field"><label class="label" for="img-provider">Provider</label>
-        <select class="select" id="img-provider" onchange="saveImage()">${opts({ kie: 'kie.ai', openai: 'OpenAI' }, p)}</select></div>
-      <div class="field"><label class="label" for="img-model">Model (optional)</label>
-        <input class="input" id="img-model" maxlength="120" autocomplete="off" spellcheck="false" value="${esc(image.model || '')}" placeholder="${esc(image.default_models[p] || '')}" list="img-model-list" onchange="saveImage()">
-        <datalist id="img-model-list">${suggestions.map(m => `<option value="${esc(m)}"></option>`).join('')}</datalist>
-        <div class="hint">Empty uses ${esc(image.default_models[p] || 'the provider default')}. ${esc(costHint)}</div></div>
-    </div></div>`;
+  return cost == null ? '' : `About $${Number(cost).toFixed(3)} per image${known ? '' : ' (the general estimate)'}.`;
+}
+function blockCard(block) {
+  const roleNote = block.roles.length > 1
+    ? `<div class="hint" style="margin:0 0 10px;">Its providers do different jobs (${block.roles.join(' and ')}), so each is the default for its own job.</div>` : '';
+  return `<div class="card"><div class="card-title">${esc(block.name)}</div>
+    <div class="card-sub">${esc(block.description)}</div>${roleNote}
+    ${block.providers.map(p => providerRow(block, p)).join('')}</div>`;
 }
 function viewIntegrations() {
-  return `<div class="page-head"><div><h1>Integrations</h1><div class="sub">Every service the pipeline calls, with its key, set once for the whole tenant. Projects and runs use them; they never see a key.</div></div></div>
-    ${integrations.can_save_keys ? '<div class="note">A key saved here wins over the Railway variable of the same service. Without one, the Railway variable is used.</div>'
+  return `<div class="page-head"><div><h1>Integrations</h1><div class="sub">The services the pipeline calls, in five blocks. Each provider has its own key; a block with several providers has one default. Set once for the whole tenant.</div></div></div>
+    ${blocks.can_save_keys ? '<div class="note">A key saved here wins over the Railway variable of the same service. Without one, the Railway variable is used.</div>'
       : '<div class="note warn">Keys cannot be saved yet: SETTINGS_ENCRYPTION_KEY is not set on Railway. Railway key variables still work.</div>'}
-    ${imageCard()}
-    ${integrations.services.map(serviceRow).join('')}`;
+    ${blocks.blocks.map(blockCard).join('')}`;
 }
-async function saveKey(id) {
+async function saveKey(serviceId) {
   const key = $('key-input').value.trim();
   if (!key) return toast('Paste a key first.');
-  await putService(id, { api_key: key }, 'Key saved.');
+  await putService(serviceId, { api_key: key }, 'Key saved.');
 }
-async function removeKey(id) {
+async function removeKey(serviceId) {
   if (!confirm('Remove the saved key? The Railway variable is used again, if there is one.')) return;
-  await putService(id, { clear_key: true }, 'Saved key removed.');
+  await putService(serviceId, { clear_key: true }, 'Saved key removed.');
 }
-async function putService(id, body, msg) {
+async function putService(serviceId, body, msg) {
   try {
-    const r = await api(`/platform/tenant/integrations/${encodeURIComponent(id)}`, jsonOpts('PUT', body));
+    const r = await api(`/platform/tenant/integrations/${encodeURIComponent(serviceId)}`, jsonOpts('PUT', body));
     if (!r.ok) throw new Error(await errorDetail(r));
-    integrations = await r.json(); keyEdit = ''; showErr(''); render(); toast(msg);
+    keyEdit = ''; showErr('');
+    await loadIntegrations(); render(); toast(msg);
   } catch (e) { showErr(`Could not save: ${e.message}`); }
 }
-async function saveImage() {
+async function putBlock(blockId, body, msg) {
   try {
-    // A model belongs to its provider: when the provider changes, the model field is not sent along.
-    const provider = $('img-provider').value;
-    const body = provider === image.provider ? { provider, model: $('img-model').value.trim() } : { provider, model: '' };
-    const r = await api('/platform/tenant/settings/image', jsonOpts('PUT', body));
+    const r = await api(`/platform/tenant/blocks/${encodeURIComponent(blockId)}`, jsonOpts('PUT', body));
     if (!r.ok) throw new Error(await errorDetail(r));
-    image = await r.json(); showErr(''); render(); toast('Saved.');
-  } catch (e) { showErr(`Could not save: ${e.message}`); }
+    blocks = await r.json(); showErr('');
+    if (blockId === 'image') { const m = await api('/platform/tenant/settings/image'); image = m.ok ? await m.json() : image; }
+    render(); toast(msg);
+  } catch (e) { showErr(`Could not save: ${e.message}`); render(); }
+}
+const makeDefault = (blockId, providerId) => putBlock(blockId, { default: providerId }, 'Default changed.');
+const saveModel = (blockId, providerId, model) => putBlock(blockId, { model: { provider: providerId, model: model.trim() } }, 'Model saved.');
+async function loadIntegrations() {
+  const [b, m] = await Promise.all([api('/platform/tenant/blocks'), api('/platform/tenant/settings/image')]);
+  if (!b.ok) throw new Error(await errorDetail(b));
+  blocks = await b.json(); image = m.ok ? await m.json() : null;
 }
 
 // ── Defaults ───────────────────────────────────────────────────────────────
@@ -143,9 +162,7 @@ function render() { $('view').className = 'wrap' + (TAB === 'defaults' ? ' narro
       if (!d.ok) throw new Error(await errorDetail(d));
       defaults = await d.json(); projects = p.ok ? await p.json() : [];
     } else {
-      const [i, m] = await Promise.all([api('/platform/tenant/integrations'), api('/platform/tenant/settings/image')]);
-      if (!i.ok) throw new Error(await errorDetail(i));
-      integrations = await i.json(); image = m.ok ? await m.json() : null;
+      await loadIntegrations();
     }
     render();
   } catch (e) {

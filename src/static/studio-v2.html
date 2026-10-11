@@ -1234,6 +1234,10 @@
     <div class="info-row"><span>Project</span><span id="info-project">—</span></div>
     <div class="info-items-label">Shortlist ideas this run came from</div>
     <div id="info-items"><div class="muted" style="font-size:12px;">None</div></div>
+    <div class="info-items-label">Made with</div>
+    <div id="info-providers"><div class="muted" style="font-size:12px;">Nothing made yet</div></div>
+    <div class="info-items-label">Defaults for the next step</div>
+    <div id="info-defaults"><div class="muted" style="font-size:12px;">—</div></div>
     <div class="muted" style="font-size:11px;margin-top:16px;">Full cost breakdown and logs land here later.</div>
   </div>
 </div>
@@ -2038,9 +2042,26 @@ async function deleteRun() {
   showLanding();
 }
 
+/** Which model made each artifact of the run, and what each provider block would use now (P-INT1-S4). */
+async function loadRunProviders() {
+  const made = document.getElementById('info-providers');
+  const now = document.getElementById('info-defaults');
+  if (!made || !state.runId || DEMO) return;
+  try {
+    const r = await fetch(`/platform/studio/runs/${state.runId}/providers`);
+    if (!r.ok) return;
+    const data = await r.json();
+    made.innerHTML = data.made_with.length
+      ? data.made_with.map(m => `<div class="info-row"><span>${esc(m.step)}</span><span title="${esc(m.worker)} · prompt ${esc(m.prompt_version)}">${esc(m.model)}</span></div>`).join('')
+      : '<div class="muted" style="font-size:12px;">Nothing made yet</div>';
+    now.innerHTML = data.defaults_now.map(d => `<div class="info-row"><span>${esc(d.block)}${d.role ? ' · ' + esc(d.role) : ''}</span><span>${esc(d.provider)}${d.model ? ' · ' + esc(d.model) : ''}${d.has_key ? '' : ' (no key)'}</span></div>`).join('');
+  } catch { /* the panel is informational */ }
+}
+
 function toggleInfoPanel() {
   const panel = document.getElementById('info-panel');
   panel.classList.toggle('open');
+  if (panel.classList.contains('open')) loadRunProviders();
   document.getElementById('log-btn').classList.toggle('active', panel.classList.contains('open'));
 }
 function closeInfoPanel() {

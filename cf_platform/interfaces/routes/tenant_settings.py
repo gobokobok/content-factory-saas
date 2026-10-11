@@ -4,6 +4,8 @@
     PUT /tenant/settings/image          change provider / model, save or clear a key
     GET /tenant/integrations            every service with where its key comes from
     PUT /tenant/integrations/{service}  save or remove one service's key
+    GET /tenant/blocks                  the five blocks, their providers, defaults and models
+    PUT /tenant/blocks/{block}          choose a block's default provider and/or a provider's model
     GET /tenant/defaults                language, format, captions, spend cap
     PUT /tenant/defaults                change any of them
 
@@ -23,6 +25,7 @@ from cf_platform.core.integrations import (
     save_defaults,
     save_integration_key,
 )
+from cf_platform.core.providers import UnknownProviderError, public_blocks, set_block_choice
 from cf_platform.core.secret_box import SecretBoxError
 from cf_platform.core.tenant_settings import (
     TenantSettingsRepository,
@@ -106,6 +109,41 @@ async def put_integration(
     except SecretBoxError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return await public_integrations(repo, PLATFORM_USER_ID, settings)
+
+
+class BlockPatch(BaseModel):
+    """Request body for PUT /tenant/blocks/{block} — only supplied fields change."""
+
+    default: str | None = None
+    # A provider's model: {"provider": "openai_llm", "model": "gpt-4.1"}; an empty model resets it.
+    model: dict[str, str] | None = None
+
+
+@router.get("/tenant/blocks")
+async def get_blocks(
+    repo: TenantSettingsRepository = Depends(get_tenant_settings_repository),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> dict:
+    """Return every block with its providers, key state, default and model (never a key)."""
+    return await public_blocks(repo, PLATFORM_USER_ID, settings)
+
+
+@router.put("/tenant/blocks/{block_id}")
+async def put_block(
+    block_id: str,
+    body: BlockPatch,
+    repo: TenantSettingsRepository = Depends(get_tenant_settings_repository),
+    settings: PlatformSettings = Depends(get_platform_settings),
+) -> dict:
+    """Choose the block's default provider and/or one provider's model; 422 for an unknown block or provider."""
+    model = None
+    if body.model is not None:
+        model = (str(body.model.get("provider") or ""), str(body.model.get("model") or ""))
+    try:
+        await set_block_choice(repo, PLATFORM_USER_ID, settings, block_id, default=body.default, model=model)
+    except UnknownProviderError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return await public_blocks(repo, PLATFORM_USER_ID, settings)
 
 
 @router.get("/tenant/defaults")

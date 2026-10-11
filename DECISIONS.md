@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D112 — Providers are grouped in five blocks with a default per block; the LLM adapter is wired for metadata only; a key never switches a default by itself at tenant level
+**Date:** 2026-10-11 (Sprint P-INT1; settled by Claude while the operator was away, for review)
+**Status:** ACTIVE (settles part of D109 point 5)
+**Decision:** (1) Blocks: **Thinking models** (Anthropic Claude, OpenAI), **Audio models** (Gemini TTS = voice, Deepgram = transcription — a default per role), **Image generation** (kie.ai, OpenAI Images), **Stock acquisition** (Pexels, Pixabay), **Destination** (YouTube, planned). Registry in `cf_platform/core/providers.py`; each provider uses a key from the existing key store (one OpenAI key serves both of its entries). (2) The tenant's choices are a JSON document in `tenant_settings.defaults["blocks"]` — no migration. The Image block's default and model are the P14 `image_provider` / `image_model` fields, so there is one source of truth. (3) **Stock providers are searched together** and ranked as one list, so that block has no default to choose. (4) `cf_platform/core/llm.py` defines `LLMClient` (system + user in, text out) with Anthropic and OpenAI adapters on the existing SDK / `httpx` — no new dependency. **Only the YouTube metadata worker is moved onto it**; the script, storyboard, fact-check and other workers keep calling Claude directly (adaptive thinking, streaming and prompt caching are Anthropic features, and each worker's prompt was tuned on a pinned Claude model). The registry labels OpenAI "Partly wired" so the page never promises more than the pipeline does. (5) D109's rule "a user's own key becomes the default automatically" is **not applied at tenant level**: with a single operator it would switch the Thinking models to OpenAI the moment an OpenAI key was saved for images, when only metadata is wired. It belongs to per-user keys (P-AUTH). (6) `GET /studio/runs/{id}/providers` shows what each artifact was made with (lineage) next to the defaults in force now.
+**Rationale:** Delivers the block structure, several providers each with a key, a default and a model per provider, and a real end-to-end switch of provider for one step, without a rewrite of twenty prompt-tuned workers that cannot be validated here.
+**Rejected:** routing every worker through a lowest-common-denominator LLM interface (loses thinking/streaming/caching and invalidates tuned prompts); an automatic default switch on key save (above); a separate table for block choices (no query need).
+**Follow-up (not in this sprint):** move the remaining text workers onto `LLMClient` one at a time with a prompt check each; per-user keys and the automatic default with the keep-project-default checkbox (P-AUTH); Gemini alternatives for the Audio block.
+**No new dependency, no migration, one ENV variable (`OPENAI_LLM_MODEL`).**
+**See:** D109, D111, EPIC 58.
+
+---
+
 ## D111 — Look and image source are two settings; project assets are copied, not linked; the Realistic prompt v0.18 ships opt-in
 **Date:** 2026-10-11 (Sprint P-PROJ1; operator asked for P-PROJ1 and P-INT1 to run back to back with no questions, so the open points of D109 were settled by Claude and are recorded here for review)
 **Status:** ACTIVE (amends D108; settles two open points of D109)

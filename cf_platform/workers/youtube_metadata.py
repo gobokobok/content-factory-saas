@@ -19,6 +19,7 @@ import anthropic
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
+from cf_platform.core.llm import LLMClient
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.workers.script_packager import ScriptArtifact
@@ -86,8 +87,13 @@ class YoutubeMetadataArtifact(BaseModel):
 def build_youtube_metadata_worker(
     storage: ArtifactStorage,
     anthropic_api_key: str,
+    llm: LLMClient | None = None,
+    model: str | None = None,
 ) -> WorkerNode:
     """Build the youtube_metadata worker node.
+
+    With `llm` (and its `model`) the tenant's chosen Thinking-models provider answers
+    (P-INT1); without it the worker calls Claude Haiku directly, as before.
 
     Reads state.artifacts['script'] → ScriptArtifact → one Haiku call → YoutubeMetadataArtifact.
     Title is hard-truncated to 70 chars; description to 500; tags capped at 15.
@@ -114,15 +120,19 @@ def build_youtube_metadata_worker(
             f"\n\nSCRIPT:\n{script_artifact.script}"
         )
 
-        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
-        message = await client.messages.create(
-            model=_HAIKU_MODEL,
-            max_tokens=512,
-            system=[{"type": "text", "text": _SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
-            messages=[{"role": "user", "content": user_message}],
-        )
+        if llm is not None:
+            text = await llm.complete(_SYSTEM_PROMPT, user_message, model=model or _HAIKU_MODEL, max_tokens=512)
+        else:
+            client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
+            message = await client.messages.create(
+                model=_HAIKU_MODEL,
+                max_tokens=512,
+                system=[{"type": "text", "text": _SYSTEM_PROMPT, "cache_control": {"type": "ephemeral"}}],
+                messages=[{"role": "user", "content": user_message}],
+            )
+            text = message.content[0].text
 
-        data = _extract_json(message.content[0].text)
+        data = _extract_json(text)
 
         title = str(data.get("title", ""))[:_MAX_TITLE_CHARS]
         description = str(data.get("description", ""))[:_MAX_DESCRIPTION_CHARS]
