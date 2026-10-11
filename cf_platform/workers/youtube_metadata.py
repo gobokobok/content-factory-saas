@@ -101,9 +101,16 @@ def build_youtube_metadata_worker(
 
         niche = state.inputs.get("niche", "")
         niche_line = f"\nCHANNEL NICHE: {niche}" if niche else ""
+        identity = str(state.inputs.get("channel_identity") or "").strip()
+        identity_line = (
+            "\nCHANNEL IDENTITY (who the channel is for and how it sounds — write the title, "
+            f"description and tags in this voice, for this audience):\n{identity}"
+            if identity else ""
+        )
         user_message = (
             f"IDEA TITLE: {script_artifact.idea_title}"
             f"{niche_line}"
+            f"{identity_line}"
             f"\n\nSCRIPT:\n{script_artifact.script}"
         )
 

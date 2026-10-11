@@ -192,7 +192,7 @@ async def _current_alignment(storage: ArtifactStorage, run_id: str) -> VoiceAlig
     return VoiceAlignmentArtifact.model_validate(body)
 
 
-async def _discard_storyboard(storage: ArtifactStorage, run_id: str, storyboard_key: str) -> None:
+async def discard_storyboard(storage: ArtifactStorage, run_id: str, storyboard_key: str) -> None:
     """Invalidate the run's storyboard and acquired assets, as a storyboard re-run does.
 
     The storyboard artifact is immutable, so it is marked discarded (readers then
@@ -237,7 +237,7 @@ async def discard_for_generated_voice(
             "discards": discarded,
         }
     if storyboard_key:
-        await _discard_storyboard(storage, run_id, storyboard_key)
+        await discard_storyboard(storage, run_id, storyboard_key)
     return discarded, None
 
 
@@ -285,7 +285,7 @@ async def studio_upload_voice(
             "discards": discards,
         })
     if storyboard_key:
-        await _discard_storyboard(storage, run_id, storyboard_key)
+        await discard_storyboard(storage, run_id, storyboard_key)
 
     audio_key = f"runs/{run_id}/voiceover/uploaded{ext}"
     await storage.put_bytes(audio_key, data, content_type_for(ext))

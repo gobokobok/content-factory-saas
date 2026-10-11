@@ -40,7 +40,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Create a run from the minimal modal and walk all five steps with Next only |
 | P-AUTH | Google sign-in and accounts (EPIC 59); `/audit` first | ~13 | planned | A friend signs in with Google and lands in their own space |
 | P-BILL-1 | Usage ledger, credit limits, manual top-up (EPIC 59) | ~13 | planned | **Friends beta:** a friend makes a first video of up to one minute within a credit limit |
-| P-PROJ1 | Visual source model and project settings (EPIC 57) | ~14 | planned | Channel identity and a saved project character reused by a new animated run |
+| P-PROJ1 | Visual source model and project settings (EPIC 57) | ~18 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Channel identity and a saved project character reused by a new animated run |
 | P-INT1 | Integrations v2 (EPIC 58) | ~14 | planned | Add a second provider with an own key, make it default, generate on it |
 | P-BILL-2 | Online payments (EPIC 59) | ~8 | planned | Buy credits online |
 | P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after P-BILL-2; order revised 2026-10-11) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
@@ -142,3 +142,23 @@ _None._
 **Execution order:** S1 → S2 → S3 → S4 → S5 → S6; S7 independent.
 **Human touchpoint:** create a run from the new modal and walk the five steps using only Next, including switching Script mode after uploading a voiceover and generating a new voice over it.
 **Decisions:** D109 (point 2).
+
+---
+
+# Sprint P-PROJ1 — Visual source model and project-level settings (EPIC 57)
+
+**Goal:** A run's look and image source are separate, locked once a storyboard exists; a project holds a channel identity and saved characters/places that an animated run's storyboard reuses; the Realistic prompt v0.18 exists behind a setting.
+**Status:** complete 2026-10-11 (built in one pass; smoke deferred to INT1-S5, v0.18 default not switched).
+**Points:** ~18
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| PROJ1-S1 | Look and image source as two settings; lock after the storyboard with an explicit reset | 5 | done |
+| PROJ1-S2 | Channel identity in Project settings, fed to metadata | 3 | done |
+| PROJ1-S3 | Project assets: add, edit, remove, promote a run's bible entry | 4 | done |
+| PROJ1-S4 | The animation worker reuses project assets | 3 | done |
+| PROJ1-S5 | Realistic storyboard prompt v0.18 behind `STORYBOARD_STOCK_PROMPT_VERSION` | 3 | done (test and switch pending) |
+
+**Execution order:** S1 → S2 → S3 → S4 → S5.
+**Human touchpoint:** set a channel identity and save a character in Project settings; a new animated run's storyboard reuses that character and the metadata reads in the channel's voice.
+**Decisions:** D111.

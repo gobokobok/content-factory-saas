@@ -16,6 +16,13 @@ _logger = logging.getLogger(__name__)
 
 _VALID_ASPECTS = ("9:16", "16:9", "1:1")
 _VISUAL_MODES = ("stock", "ai_animation")
+LOOKS = ("realistic", "animated")
+# What a run's master style falls back to when it has a look but no style of its own
+# and its project has none: enough for a consistent set, never a substitute for a real style.
+LOOK_STYLE = {
+    "realistic": "Photorealistic, natural lighting, documentary photography, true-to-life colour",
+    "animated": "Hand-drawn animated illustration, clean outlines, flat colour, soft shading",
+}
 
 
 @dataclass(frozen=True)
@@ -28,6 +35,8 @@ class RunVisuals:
     # The project's ai_image_style alone — what a stock-mode run puts in front of a prompt (D104).
     project_style: str | None = None
     aspect_ratio: str | None = None
+    # The look chosen for the run ("realistic" | "animated"); realistic when never chosen.
+    look: str = "realistic"
     # The run's own AI image cap from the Generate all dialog; None = tenant default.
     spend_cap_usd: float | None = None
 
@@ -73,9 +82,14 @@ def visuals_from(settings: dict[str, Any], project_config: dict[str, Any] | None
         cap = float(cap) if cap is not None else None
     except (TypeError, ValueError):
         cap = None
+    look = settings.get("look") if settings.get("look") in LOOKS else None
+    master = resolve_master_style(settings.get("master_style"), project_config)
+    if master is None and look is not None:
+        master = LOOK_STYLE[look]
     return RunVisuals(
         visual_mode=mode if mode in _VISUAL_MODES else "stock",
-        master_style=resolve_master_style(settings.get("master_style"), project_config),
+        look=look or "realistic",
+        master_style=master,
         project_style=resolve_master_style(None, project_config),
         aspect_ratio=aspect if aspect in _VALID_ASPECTS else None,
         spend_cap_usd=cap if cap is not None and cap >= 0 else None,

@@ -264,6 +264,8 @@ class ContinuityEntry(BaseModel):
     kind: ContinuityKind = "prop"
     name: str = ""
     description: str = ""
+    # Set when the entry is a copy of a project asset (P-PROJ1): the asset's id.
+    project_asset_id: str | None = None
 
 
 class SceneShot(BaseModel):
@@ -386,6 +388,10 @@ class Storyboard(BaseModel):
     global_context: GlobalContext | None = None
     # Animation mode (D108): which path made this storyboard, and its continuity bible.
     visual_mode: VisualMode = "stock"
+    # P-PROJ1 (D111) — the look, independent of where the images come from: "realistic"
+    # or "animated"; None until chosen, then the look follows the image source
+    # (stock → realistic, ai_animation → animated). `visual_mode` is the image source.
+    look: Literal["realistic", "animated"] | None = None
     continuity: list[ContinuityEntry] = []
 
 

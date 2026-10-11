@@ -5,6 +5,21 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 
 ---
 
+## [P-PROJ1] Visual source model and project-level settings — S1 look + image source, S2 channel identity, S3 project assets, S4 storyboard reuses assets, S5 prompt v0.18
+**Completed:** 2026-10-11 (built in one pass; operator asked for P-PROJ1 and P-INT1 back to back with no questions, so the open design points were settled by Claude — see D111)
+**Handover:**
+- **Look and image source are two settings (D111).** `settings.look` (realistic / animated, null until chosen) and `settings.visual_mode` (the image source, unchanged name). `GET/PUT /platform/studio/runs/{id}/visuals` (`routes/studio_visuals.py`) own the change: with a storyboard it answers 409 `needs_confirmation`, and `confirm_reset` discards the storyboard and acquired assets (same mechanism as a voiceover re-upload, now public as `discard_storyboard` in `studio_voice.py`). Run settings show Look and Image source; the New Run modal sets both from its Style. Look is the master-style fallback for AI images and, on stock, an "animation illustration" hint on non-person queries (`apply_look_hint`).
+- **Channel identity** — `project.config.channel_identity` (≤2000 chars), edited in Project settings; `POST /platform/workers/metadata` passes it and the project niche to the metadata worker.
+- **Project assets** — `cf_platform/core/project_assets.py`; `config.assets`; routes `GET/POST /platform/projects/{id}/assets`, `PATCH/DELETE …/assets/{asset_id}`, `POST …/assets/from-run` (copy a run's bible entry). Project settings has the list; a bible entry has "Save to project". The project config PATCH cannot change assets.
+- **The animation worker reuses assets** — they go in the user message (`PROJECT ASSETS`), and any continuity entry with an asset's id is overwritten with the saved name, kind and description and marked `project_asset_id` (`apply_to_continuity`). Relation is a copy, not a link.
+- **Prompt v0.18** (`_METHOD_V018`, Sonnet 5.5, adaptive thinking, streamed) is built and selected by `STORYBOARD_STOCK_PROMPT_VERSION`; **v0.17 stays the default**. The registration's lineage records v0.18 when it is used.
+- ENV added: `STORYBOARD_STOCK_PROMPT_VERSION` (default `v0.17`). No migration, no new dependency. Decision: **D111**. Tests: 2890 passing.
+- **Not verified:** nothing here ran against a real model or DEV. The v0.18 side-by-side test (v0.17 vs v0.18 on one real script) was NOT run — it needs real API calls and the operator's judgement — so the default did not switch. Whether the model really reuses an asset by id (the code enforces the text once it does) is only checked with a mocked answer. The "animated look on stock" search hint is a heuristic and has not been looked at against real footage results. The lock/reset dialogs and the Project assets page were checked by tests and a syntax check, not in a browser against DEV.
+**Smoke test:** DEFERRED — operator will smoke test after P-INT1 → cleared by INT1-S5 in Sprint P-INT1 (list in INT1-S5, extended below).
+**Promoted to backlog:** PROJ1-S6 candidate: run the v0.17 vs v0.18 side-by-side on one real script and switch the default; a way to attach a project asset to an existing run's bible; a character reference image (deferred in D108).
+
+---
+
 ## [P-UX4] Pipeline flow and polish — S1 shell polish, S2 minimal New Run modal, S3 Script step, S4 Voiceover step, S5 Storyboard step, S6 Video step, S7 library names
 **Completed:** 2026-10-11 (built in one pass, commit `a7da166`, CI on `main`)
 **Handover:**

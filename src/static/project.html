@@ -220,7 +220,7 @@ async function createRun() {
     try {
       sessionStorage.setItem('cf_new_run', run.run_id);
       sessionStorage.setItem('cf_new_run_style', JSON.stringify(window._nr.style === 'animated'
-        ? { visual_mode: 'ai_animation', master_style: window._nr.master.trim() } : { visual_mode: 'stock' }));
+        ? { visual_mode: 'ai_animation', look: 'animated', master_style: window._nr.master.trim() } : { visual_mode: 'stock', look: 'realistic' }));
     } catch { /* private mode */ }
     window.location.href = `/studio#run/${encodeURIComponent(run.run_id)}/script`;
   } catch (e) { closeOverlay(); showErr(`Could not create the run: ${e.message}`); }
@@ -269,6 +269,9 @@ function viewSettings() {
         <div class="field"><label class="label">Name</label><input class="input" maxlength="120" value="${esc(project.name)}" onchange="if(this.value.trim())patchProject({name:this.value.trim()});else this.value='${esc(project.name)}'"></div>
         <div class="field"><label class="label">Niche — passed to script generation for every run</label><input class="input" maxlength="200" value="${esc(project.niche)}" placeholder="american housing economics" onchange="patchProject({niche:this.value.trim()})"></div>
       </div></div>
+    <div class="card"><div class="card-title">Channel identity</div><div class="card-sub">A project is one channel. Describe it once — topics, audience, tone. The video description and tags are written for this channel, together with each run's script.</div>
+      <textarea class="input" maxlength="2000" rows="4" placeholder="Plain-spoken explainers on American housing for first-time buyers. Calm, numbers first, no hype."
+        onchange="patchProject({config:{...(project.config||{}),channel_identity:this.value.trim()}}, 'Channel identity saved.')">${esc((project.config && project.config.channel_identity) || '')}</textarea></div>
     <div class="card"><div class="card-title">Defaults for new runs</div><div class="card-sub">Each shows where its value comes from.</div>
       <div class="grid2">
         ${inheritField('language', 'Language', LANGS)}${inheritField('format', 'Format', FORMATS)}${inheritField('captions', 'Captions', CAPTIONS)}
@@ -280,7 +283,58 @@ function viewSettings() {
     <div class="card"><div class="card-title">AI images</div><div class="card-sub">The provider and its key come from <a href="/settings?tab=integrations">Settings → Integrations</a>.</div>
       <label class="label">Look across scenes — added in front of every AI image prompt in this project</label>
       <textarea class="input" maxlength="600" placeholder="Muted editorial illustration, flat colours, soft grain, no text"
-        onchange="patchProject({config:{...(project.config||{}),ai_image_style:this.value.trim()}})">${esc((project.config && project.config.ai_image_style) || '')}</textarea></div></div>`;
+        onchange="patchProject({config:{...(project.config||{}),ai_image_style:this.value.trim()}})">${esc((project.config && project.config.ai_image_style) || '')}</textarea></div>
+    ${assetsCard()}</div>`;
+}
+
+// ── Project assets (P-PROJ1) ───────────────────────────────────────────────
+const ASSET_KINDS = { character: 'Character', setting: 'Place', prop: 'Object' };
+/** The project's saved characters, places and objects. */
+function assetsCard() {
+  const assets = (project.config && project.config.assets) || [];
+  const rows = assets.map(a => `<div class="asset-row">
+      <div class="asset-main"><div class="asset-name">${esc(a.name)} <span class="chip">${esc(ASSET_KINDS[a.kind] || a.kind)}</span></div>
+        <div class="asset-desc">${esc(a.description)}</div></div>
+      <div class="asset-actions"><button class="btn btn-secondary btn-sm" onclick="dlgAsset('${esc(a.id)}')">Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="deleteAsset('${esc(a.id)}')">Remove</button></div></div>`).join('');
+  return `<div class="card"><div class="card-title">Project assets</div>
+    <div class="card-sub">Recurring characters, places and objects. An animated run's storyboard reuses them, with exactly this description, instead of inventing new ones. Save one from a run's continuity bible, or add it here.</div>
+    ${rows || '<div class="hint" style="margin-bottom:12px;">No assets yet.</div>'}
+    <button class="btn btn-secondary btn-sm" onclick="dlgAsset()">+ Add asset</button></div>`;
+}
+function dlgAsset(id) {
+  const a = ((project.config && project.config.assets) || []).find(x => x.id === id) || {};
+  overlay(`<div class="modal"><h2>${id ? 'Edit asset' : 'Add asset'}</h2>
+    <div class="grid2" style="margin-top:16px;">
+      <div class="field"><label class="label" for="as-name">Name</label><input class="input" id="as-name" maxlength="80" value="${esc(a.name || '')}" placeholder="Maya"></div>
+      <div class="field"><label class="label" for="as-kind">Kind</label><select class="select" id="as-kind">${opts(ASSET_KINDS, a.kind || 'character')}</select></div>
+      <div class="field full"><label class="label" for="as-desc">Description — added verbatim to every image prompt that uses it</label>
+        <textarea class="input" id="as-desc" maxlength="1200" rows="5" placeholder="A cheerful woman in her thirties, short curly black hair, red scarf, round glasses">${esc(a.description || '')}</textarea></div>
+    </div>
+    <div class="actions"><button class="btn btn-primary" onclick="saveAsset('${esc(id || '')}')">Save</button><button class="btn btn-ghost" onclick="closeOverlay()">Cancel</button></div></div>`);
+  $('as-name').focus();
+}
+async function saveAsset(id) {
+  const body = { name: $('as-name').value.trim(), kind: $('as-kind').value, description: $('as-desc').value.trim() };
+  try {
+    const r = await api(id ? `${BASE}/assets/${encodeURIComponent(id)}` : `${BASE}/assets`, jsonOpts(id ? 'PATCH' : 'POST', body));
+    if (!r.ok) throw new Error(await errorDetail(r));
+    await reloadProject(); closeOverlay(); showErr(''); render(); toast('Asset saved.');
+  } catch (e) { showErr(`Could not save the asset: ${e.message}`); }
+}
+async function deleteAsset(id) {
+  if (!confirm('Remove this asset? Runs already made keep their copy.')) return;
+  try {
+    const r = await api(`${BASE}/assets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error(await errorDetail(r));
+    await reloadProject(); showErr(''); render(); toast('Asset removed.');
+  } catch (e) { showErr(`Could not remove the asset: ${e.message}`); }
+}
+/** Re-read the project so its config (and assets) are current. */
+async function reloadProject() {
+  const r = await api(BASE);
+  if (!r.ok) throw new Error(await errorDetail(r));
+  project = await r.json();
 }
 
 // ── Render and load ────────────────────────────────────────────────────────

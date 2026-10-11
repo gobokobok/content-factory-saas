@@ -5,6 +5,17 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D111 — Look and image source are two settings; project assets are copied, not linked; the Realistic prompt v0.18 ships opt-in
+**Date:** 2026-10-11 (Sprint P-PROJ1; operator asked for P-PROJ1 and P-INT1 to run back to back with no questions, so the open points of D109 were settled by Claude and are recorded here for review)
+**Status:** ACTIVE (amends D108; settles two open points of D109)
+**Decision:** (1) A run has a **look** (`settings.look`: realistic / animated) and an **image source** (`settings.visual_mode`: `stock` / `ai_animation`, shown as Stock footage / AI-generated). `visual_mode` keeps its stored name so no run migrates. A run that never chose a look takes the one that goes with its source. Both are locked once a storyboard exists: `PUT /platform/studio/runs/{id}/visuals` answers 409 `needs_confirmation` naming what is discarded, and `confirm_reset` discards the storyboard and acquired assets (the re-upload rule). The look is what an AI image falls back to when no master style is set (`LOOK_STYLE`), and on a stock run an Animated look appends "animation illustration" to the search words of non-person scenes. (2) **Project assets** live in the project's `config.assets`; the id is a slug of the name and doubles as the continuity id, so a worker answer is matched back to the asset and overwritten with its saved text. A run's entry and a project asset relate by **copy** (promotion copies; editing the asset changes later runs only). The project config PATCH cannot change assets — only the asset routes do. (3) **Channel identity** is a text field in the project's config (≤2000 characters) passed to metadata generation with the niche. (4) **Prompt v0.18** (Visual Director method on the stock contract, Sonnet 5.5, adaptive thinking) is built and selectable with `STORYBOARD_STOCK_PROMPT_VERSION=v0.18`; **v0.17 stays the default** until the operator has run the side-by-side test on one real script.
+**Rationale:** The operator wanted stock-sourced animation and photoreal AI to be possible (C19) without a data migration. Copying keeps finished runs reproducible (D055). Shipping v0.18 behind a setting honours the "test before switching" condition of C35 without blocking the sprint on a paid, real-API comparison that cannot be run here.
+**Rejected:** a single combined mode field (cannot express the four combinations); linking assets (a later edit would silently change finished runs); making v0.18 the default untested.
+**No new dependency, no migration, one ENV variable (`STORYBOARD_STOCK_PROMPT_VERSION`).**
+**See:** D108, D109, EPIC 57.
+
+---
+
 ## D109 — Roadmap after the 2026-10-11 UI/UX review: pipeline flow first, then a friends beta (Google sign-in, credits), and key rules for multi-user
 **Date:** 2026-10-11 (operator UI/UX review, `docs/UX_REVIEW_2026-10-11.md`)
 **Status:** ACTIVE (planning decision; nothing built)

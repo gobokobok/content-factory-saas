@@ -35,6 +35,7 @@ from datetime import UTC, datetime
 import anthropic
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
+from cf_platform.core.project_assets import apply_to_continuity, prompt_block
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.sfx_library import SFX_LIBRARY, sfx_vocab_prompt_line
 from cf_platform.core.worker_registry import WorkerRegistration
@@ -57,6 +58,7 @@ from src.models import (
     MOTION_EFFECTS,
     SCENE_FLAG_NEEDS_PROMPT,
     SCENE_FLAG_TOO_LONG,
+    ContinuityEntry,
     Storyboard,
     normalize_motion_effect,
 )
@@ -365,8 +367,9 @@ def build_animation_user_message(
     display_words: list[str],
     format_track: str,
     master_style: str,
+    project_assets: list[dict] | None = None,
 ) -> str:
-    """The user message: format, master style (context only), word budget, word list, script.
+    """The user message: format, master style (context only), assets, word budget, word list, script.
 
     The master style is given so concepts and lighting fit it; the system prompt
     forbids echoing it. The word budget converts the 1–5 second limit into words at
@@ -378,11 +381,14 @@ def build_animation_user_message(
     max_words = max(2, int(ANIMATION_MAX_SCENE_S * wps))
     min_words = max(1, round(ANIMATION_MIN_SCENE_S * wps))
     style = master_style.strip() or "None given. Choose concepts that work in any consistent illustration style."
+    assets = prompt_block({"assets": project_assets or []})
+    assets_section = f"{assets}\n\n" if assets else ""
     return (
         f"FORMAT: {_FORMAT_PHRASE.get(format_track, _FORMAT_PHRASE['portrait'])}. "
         "Compose for this frame; do not mention it in any ai_prompt.\n\n"
         "MASTER STYLE (context only — it is appended to every image in code; "
         f"never repeat it in your output):\n{style}\n\n"
+        f"{assets_section}"
         f"Measured speech rate: {wps:.1f} words/sec over {total_s:.1f} s. "
         f"At this rate a scene of 1.0–5.0 s is about {min_words}–{max_words} words; "
         f"HARD MAXIMUM {max_words} words. The timestamps are authoritative where they disagree.\n\n"
@@ -593,8 +599,13 @@ async def generate_animation_storyboard(
     *,
     format_track: str = "portrait",
     master_style: str = "",
+    project_assets: list[dict] | None = None,
 ) -> Storyboard:
     """Generate an animation storyboard from the narration and its word timing.
+
+    `project_assets` are the project's saved characters, places and objects (P-PROJ1):
+    the model is asked to reuse them by id, and whatever it returns for an asset's id
+    is replaced by the asset exactly, so a rewrite cannot drift.
 
     Pure with respect to storage: takes the words, returns the Storyboard. Raises
     AnimationStoryboardError when there is no voiceover timing to cut scenes on.
@@ -604,9 +615,17 @@ async def generate_animation_storyboard(
             "An Animation storyboard is cut on the voiceover's timing — generate or upload the voiceover first."
         )
     words, display = _normalize_deepgram_words_with_display([w.model_dump() for w in voice_timestamps])
-    user_content = build_animation_user_message(script, words, display, format_track, master_style)
+    user_content = build_animation_user_message(script, words, display, format_track, master_style, project_assets)
     raw_text = await request_animation_storyboard(animation_system_prompt(), user_content, api_key)
-    return parse_animation_storyboard(raw_text, words)
+    storyboard = parse_animation_storyboard(raw_text, words)
+    if project_assets:
+        merged = apply_to_continuity(
+            [e.model_dump() for e in storyboard.continuity], {"assets": project_assets}
+        )
+        storyboard = storyboard.model_copy(update={
+            "continuity": [ContinuityEntry.model_validate(e) for e in merged],
+        })
+    return storyboard
 
 
 def build_animation_storyboard_worker(
@@ -636,6 +655,7 @@ def build_animation_storyboard_worker(
             anthropic_api_key,
             format_track=state.inputs.get("format_track", "portrait"),
             master_style=str(state.inputs.get("master_style") or ""),
+            project_assets=state.inputs.get("project_assets") or None,
         )
         flagged = sum(1 for s in storyboard.scenes if SCENE_FLAG_TOO_LONG in s.flags)
         logger.info(

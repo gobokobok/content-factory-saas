@@ -907,10 +907,15 @@
             <button class="settings-opt" id="opt-aspect-landscape" onclick="setAspectRatio('landscape')">16:9 Landscape</button>
           </div>
 
-          <div class="field-label">Visuals</div>
+          <div class="field-label">Look</div>
           <div class="settings-opt-row">
-            <button class="settings-opt active" id="opt-visual-stock" onclick="setVisualMode('stock')">Stock footage</button>
-            <button class="settings-opt" id="opt-visual-animation" onclick="setVisualMode('ai_animation')">Animation</button>
+            <button class="settings-opt active" id="opt-look-realistic" onclick="chooseVisuals({ look: 'realistic' })">Realistic</button>
+            <button class="settings-opt" id="opt-look-animated" onclick="chooseVisuals({ look: 'animated' })">Animated</button>
+          </div>
+          <div class="field-label">Image source</div>
+          <div class="settings-opt-row">
+            <button class="settings-opt active" id="opt-visual-stock" onclick="chooseVisuals({ image_source: 'stock' })">Stock footage</button>
+            <button class="settings-opt" id="opt-visual-animation" onclick="chooseVisuals({ image_source: 'ai' })">AI-generated</button>
           </div>
           <div class="rs-hint" id="visual-mode-hint" style="margin-bottom:6px;"></div>
           <div id="master-style-block" style="display:none;">
@@ -1584,7 +1589,7 @@ function applyVoiceSource(source) {
 }
 function defaultSettings() {
   return {
-    aspectRatio: 'portrait', visualMode: DEMO_ANIM ? 'ai_animation' : 'stock', masterStyle: '', imageSpendCap: null, captions: true, musicKey: null, subject: '',
+    aspectRatio: 'portrait', visualMode: DEMO_ANIM ? 'ai_animation' : 'stock', look: null, masterStyle: '', imageSpendCap: null, captions: true, musicKey: null, subject: '',
     captionStyle: 'standard',                                   // D082
     narrationPace: 'normal', narrationStyle: 'educational',     // D083
   };
@@ -2151,6 +2156,7 @@ function applyStoredSettings(s) {
   }
   if (s.image_spend_cap_usd !== undefined) state.settings.imageSpendCap = s.image_spend_cap_usd;
   if (s.visual_mode) setVisualMode(s.visual_mode);
+  if (s.look) { state.settings.look = s.look; renderVisualMode(); }
   syncCaptionStyleEnabled();
 }
 
@@ -2377,16 +2383,56 @@ function isAnimationRun() { return state.settings.visualMode === 'ai_animation';
 /** The project's AI image style, which a run's empty master style falls back to. */
 function projectImageStyle() { return (state.project?.config?.ai_image_style || '').trim(); }
 
-/** Choose stock footage or Animation. Locked once the run has a storyboard. */
+/** The look in force: the one chosen, else the one that goes with the image source. */
+function currentLook() { return state.settings.look || (isAnimationRun() ? 'animated' : 'realistic'); }
+
+/** Set the image source from stored settings (no save, no lock check — the server owns the lock). */
 function setVisualMode(val) {
-  if (!hydratingSettings && state.stageStatus.storyboard === 'done' && val !== state.settings.visualMode) return;
   state.settings.visualMode = val === 'ai_animation' ? 'ai_animation' : 'stock';
   renderVisualMode();
   renderRunFacts();
-  saveRunSettings();
 }
 
-/** Paint the Visuals controls: the chosen mode, the lock note, the master style and where it comes from. */
+/** Change the look and/or image source. With a storyboard in place the server asks first, then discards it (D111). */
+async function chooseVisuals(change) {
+  const next = {
+    look: change.look || currentLook(),
+    image_source: change.image_source || (isAnimationRun() ? 'ai' : 'stock'),
+  };
+  const unchanged = next.look === currentLook() && next.image_source === (isAnimationRun() ? 'ai' : 'stock');
+  if (unchanged) return;
+  let confirmReset = false;
+  if (!DEMO && state.runId) {
+    for (;;) {
+      const r = await fetch(`/platform/studio/runs/${state.runId}/visuals`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...next, confirm_reset: confirmReset }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.status === 409 && data.needs_confirmation && !confirmReset) {
+        if (!confirm(`${data.detail}\n\nContinue?`)) { renderVisualMode(); return; }
+        confirmReset = true;
+        continue;
+      }
+      if (!r.ok) { showErr('script-error', data.detail || `Could not change the visuals (${r.status})`); renderVisualMode(); return; }
+      if (data.discarded && data.discarded.length) {
+        // The storyboard and what was acquired for it are gone; the steps after it start again.
+        state.stageStatus.storyboard = 'idle'; state.stageData.storyboard = null; state.manifestEntries = {};
+        state.stageStatus.render = 'idle'; state.stageStatus.metadata = 'idle';
+        resetStoryboardPane();
+      }
+      break;
+    }
+  } else if (DEMO && state.stageStatus.storyboard === 'done') {
+    return;
+  }
+  state.settings.look = next.look;
+  state.settings.visualMode = next.image_source === 'ai' ? 'ai_animation' : 'stock';
+  renderVisualMode();
+  renderRunFacts();
+  renderStageTrack();
+}
+
+/** Paint the Look and Image source controls: the chosen ones, the lock note, the master style and where it comes from. */
 function renderVisualMode() {
   const animation = isAnimationRun();
   const locked = state.stageStatus.storyboard === 'done';
@@ -2395,16 +2441,15 @@ function renderVisualMode() {
   if (!stockBtn) return;
   stockBtn.classList.toggle('active', !animation);
   animBtn.classList.toggle('active', animation);
-  for (const [btn, mine] of [[stockBtn, !animation], [animBtn, animation]]) {
-    btn.disabled = locked && !mine;
-    btn.classList.toggle('disabled', locked && !mine);
-  }
+  const look = currentLook();
+  document.getElementById('opt-look-realistic').classList.toggle('active', look === 'realistic');
+  document.getElementById('opt-look-animated').classList.toggle('active', look === 'animated');
   const hint = document.getElementById('visual-mode-hint');
   hint.className = 'rs-hint' + (locked ? ' warn' : '');
   hint.textContent = locked
-    ? 'This run already has a storyboard. Changing how its visuals are made means regenerating the storyboard.'
-    : (animation ? 'Every scene is a generated image in one style. Images cost money; nothing is generated until you start it.'
-                 : 'Scenes are stock footage and images, with your own uploads where you choose.');
+    ? 'This run has a storyboard, cut for this look and image source. Changing either asks first and discards the storyboard and what was acquired for it.'
+    : (animation ? 'Every scene is a generated image, with characters and places kept the same through a continuity bible. Images cost money; nothing is generated until you start it.'
+                 : 'Scenes are stock footage and images' + (look === 'animated' ? ', searched as illustration and animation' : '') + ', with your own uploads where you choose.');
   document.getElementById('master-style-block').style.display = animation ? '' : 'none';
   const inherited = projectImageStyle();
   const own = (state.settings.masterStyle || '').trim();
@@ -2413,7 +2458,7 @@ function renderVisualMode() {
   msHint.textContent = own
     ? (inherited ? 'Overridden for this run. Empty it to use the project\u2019s AI image style again.' : 'Set for this run.')
     : (inherited ? 'Inherited from the project\u2019s AI image style: ' + (inherited.length > 140 ? inherited.slice(0, 140) + '\u2026' : inherited)
-                 : 'No style yet. Without one the images will not share a look.');
+                 : 'No style of your own yet: the images use a generic ' + look + ' style. Describe the look for a consistent set.');
 }
 
 function onMasterStyleInput() {
@@ -2503,6 +2548,7 @@ async function saveRunSettings() {
   const body = {
     aspect_ratio: arMap[state.settings.aspectRatio] || '9:16',
     visual_mode: state.settings.visualMode || 'stock',
+    ...(state.settings.look ? { look: state.settings.look } : {}),
     master_style: (state.settings.masterStyle || '').trim(),
     subtitles: state.settings.captions ? 'TikTok' : 'none',
     subject: state.settings.subject || '',
@@ -3844,6 +3890,8 @@ function buildContinuityPanel() {
             ${Object.entries(CONTINUITY_KINDS).map(([k, v]) => `<option value="${k}"${e.kind === k ? ' selected' : ''}>${v}</option>`).join('')}</select>
           <input class="modal-input an-entry-name" id="ct-name-${id}" value="${esc(e.name)}" maxlength="80" aria-label="Name" onchange="saveContinuityEntry('${id}')">
           <span class="an-used">${used ? `used in ${used} scene${used === 1 ? '' : 's'}` : 'not used'}</span>
+          ${e.project_asset_id ? '<span class="chip" title="Copied from a project asset">Project asset</span>'
+            : `<button class="btn btn-ghost btn-sm" id="ct-save-${id}" onclick="saveEntryToProject('${id}')" title="Keep this entry on the project so later runs reuse it">Save to project</button>`}
           ${used ? '' : `<button class="btn btn-ghost btn-sm" onclick="removeContinuityEntry('${id}')">Remove</button>`}
         </div>
         <textarea class="an-prompt" id="ct-desc-${id}" rows="2" aria-label="Description of ${esc(e.name)}" onchange="saveContinuityEntry('${id}')">${esc(e.description)}</textarea>
@@ -3867,6 +3915,25 @@ function buildContinuityPanel() {
 }
 
 /** Send one continuity edit and repaint the storyboard from the answer. */
+/** Copy a bible entry into the project's assets (P-PROJ1): later animated runs reuse it exactly. */
+async function saveEntryToProject(entryId) {
+  const msg = document.getElementById('ct-msg');
+  const projectId = state.project && state.project.project_id;
+  if (!projectId) return;
+  try {
+    const r = await fetch(`/platform/projects/${encodeURIComponent(projectId)}/assets/from-run`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ run_id: state.runId, entry_id: entryId }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) { if (msg) { msg.textContent = data.detail || `Error ${r.status}`; msg.className = 'modal-msg err'; } return; }
+    if (msg) { msg.textContent = `Saved "${data.name}" to the project. New animated runs will reuse it.`; msg.className = 'modal-msg ok'; }
+    const btn = document.getElementById(`ct-save-${entryId}`);
+    if (btn) { btn.textContent = 'Saved'; btn.disabled = true; }
+  } catch (e) {
+    if (msg) { msg.textContent = `Network error: ${e.message}`; msg.className = 'modal-msg err'; }
+  }
+}
+
 async function continuityRequest(method, path, body) {
   const msg = document.getElementById('ct-msg');
   try {

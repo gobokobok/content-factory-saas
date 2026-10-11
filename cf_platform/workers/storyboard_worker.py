@@ -40,8 +40,50 @@ from src.models import (
 logger = logging.getLogger(__name__)
 
 STORYBOARD_PROMPT_VERSION = "v0.17"
+# v0.18 (P-PROJ1-S5, C35) is v0.17 plus the Visual Director method, on Sonnet 5.5 with
+# adaptive thinking. It is opt-in (state.inputs["prompt_version"], set from
+# STORYBOARD_STOCK_PROMPT_VERSION) until the side-by-side test against v0.17 on one
+# real script has been run by the operator; v0.17 stays the default.
+STORYBOARD_PROMPT_VERSION_V018 = "v0.18"
+STORYBOARD_PROMPT_VERSIONS = (STORYBOARD_PROMPT_VERSION, STORYBOARD_PROMPT_VERSION_V018)
 
 _SONNET_MODEL = "claude-sonnet-4-6"
+_SONNET_V018_MODEL = "claude-sonnet-5-5"
+STORYBOARD_V018_MODEL = _SONNET_V018_MODEL
+_V018_MAX_TOKENS = 48000
+_V018_EFFORT = "high"
+
+# The Visual Director method, expressed for stock acquisition: it changes how scenes
+# are cut and what each one's search words aim at; the output contract, segment
+# types, three-tier queries, OST typing, SFX and pacing rules above all stay.
+_METHOD_V018 = """\
+VISUAL DIRECTOR METHOD (applies on top of every rule in this prompt)
+
+Before cutting, read the whole script once and note its beats: the hook, each turn
+of the argument, the numbers that carry it, the payoff. Then, scene by scene:
+
+1. CONCEPT BEFORE QUERY. Decide what the viewer should SEE at this moment — the
+   idea, not the words — and only then write the three-tier queries for it. A
+   query is the concept expressed as footage a stock library actually has.
+2. NO GENERIC IMAGERY. Reject the stock cliché for the topic (handshakes, a
+   generic skyline, a person typing). If the primary query would return the same
+   clip for a dozen unrelated scripts, replace it with something specific to THIS
+   sentence. Stay factually accurate: never imply a place, year or subject the
+   narration does not support.
+3. VARIETY AS SEARCH INTENT. Across neighbouring scenes alternate what the search
+   aims for: a wide establishing view, a detail or object close-up, a human
+   reaction or action, an abstract or data-driven image. Do not ask for the same
+   kind of shot three scenes in a row.
+4. RHYTHM. Let the beat decide scene length inside the PACING TARGET: a punchline
+   or a number is short, an explanation is at the upper end.
+5. NARRATION FIT. The picture must make sense with the words spoken over it; if a
+   scene's narration is abstract, choose the concrete object the sentence is about.
+6. FINAL SELF-CHECK. Before answering confirm: every word index is covered exactly
+   once, no two adjacent scenes share a primary query, no query is a cliché, and
+   the JSON matches the schema below.
+"""
+
+_LOOK_HINT_WORDS = ("animat", "illustrat", "cartoon", "motion graphic")
 _HAIKU_MODEL = "claude-haiku-4-5-20251001"
 
 STORYBOARD_WORKER_REGISTRATION = WorkerRegistration(
@@ -1308,8 +1350,12 @@ async def _generate(
     voice_timestamps: list[VoiceWordTimestamp],
     api_key: str,
     format_track: str = "portrait",
+    prompt_version: str = STORYBOARD_PROMPT_VERSION,
 ) -> Storyboard:
     """Call Sonnet to generate the raw storyboard JSON.
+
+    `prompt_version` "v0.18" adds the Visual Director method to the v0.13 prompt and
+    runs on Sonnet 5.5 with adaptive thinking; any other value is v0.17.
 
     When voice_timestamps are present, uses prompt v0.13 (indexed word list — Claude
     outputs start_word/end_word; Python derives duration_s, clip_type, voiceover_line,
@@ -1330,7 +1376,8 @@ async def _generate(
         ts_block = _format_indexed_timestamps(normalized_words, display_words)
         n_words = len(normalized_words)
         system_prompt = _GENERATE_SYSTEM_PROMPT_V013.replace(_FORMAT_LINE_SENTINEL, format_line)
-        system_prompt = system_prompt.replace(_PACING_LINE_SENTINEL, pacing_line)
+        method = f"\n\n{_METHOD_V018}" if prompt_version == STORYBOARD_PROMPT_VERSION_V018 else ""
+        system_prompt = system_prompt.replace(_PACING_LINE_SENTINEL, pacing_line + method)
         system_prompt = system_prompt.replace(_SFX_VOCAB_SENTINEL, sfx_vocab_prompt_line())
 
         # Convert the prompt's seconds targets into a word budget from the measured
@@ -1365,14 +1412,28 @@ async def _generate(
         user_content = script
 
     # Background task — no Railway HTTP timeout; single attempt, generous wall-clock budget.
-    client = anthropic.AsyncAnthropic(api_key=api_key, timeout=600.0, max_retries=0)
-    message = await client.messages.create(
-        model=_SONNET_MODEL,
-        max_tokens=32000,
-        system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
-        messages=[{"role": "user", "content": user_content}],
-    )
-    raw_text = message.content[0].text
+    if prompt_version == STORYBOARD_PROMPT_VERSION_V018:
+        # Streamed: the model thinks first and the output budget is large.
+        client = anthropic.AsyncAnthropic(api_key=api_key, timeout=900.0, max_retries=0)
+        async with client.messages.stream(
+            model=_SONNET_V018_MODEL,
+            max_tokens=_V018_MAX_TOKENS,
+            thinking={"type": "adaptive"},
+            output_config={"effort": _V018_EFFORT},
+            system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": user_content}],
+        ) as stream:
+            final = await stream.get_final_message()
+        raw_text = "".join(block.text for block in final.content if block.type == "text")
+    else:
+        client = anthropic.AsyncAnthropic(api_key=api_key, timeout=600.0, max_retries=0)
+        message = await client.messages.create(
+            model=_SONNET_MODEL,
+            max_tokens=32000,
+            system=[{"type": "text", "text": system_prompt, "cache_control": {"type": "ephemeral"}}],
+            messages=[{"role": "user", "content": user_content}],
+        )
+        raw_text = message.content[0].text
     try:
         data = _extract_json_object(raw_text)
         data = _sanitize_storyboard_data(data)
@@ -1528,6 +1589,29 @@ async def _synthesize_event_ost(
 # ── Worker factory ────────────────────────────────────────────────────────────
 
 
+def apply_look_hint(storyboard: Storyboard) -> Storyboard:
+    """Aim a stock run's search words at illustrated footage (an Animated look on stock, P-PROJ1).
+
+    Deterministic: each of a scene's three queries gets " animation illustration"
+    unless it already says so. Scenes the acquisition fetches from Wikipedia /
+    Wikimedia (Character, Event) keep their queries — a person's portrait is a
+    photograph whatever the look.
+    """
+    hint = "animation illustration"
+    scenes = []
+    for scene in storyboard.scenes:
+        if scene.segment_type in ("Character", "Event"):
+            scenes.append(scene)
+            continue
+        updates = {}
+        for field in ("primary_stk", "context_stk", "concept_stk"):
+            value = (getattr(scene, field, "") or "").strip()
+            if value and not any(w in value.lower() for w in _LOOK_HINT_WORDS):
+                updates[field] = f"{value} {hint}"
+        scenes.append(scene.model_copy(update=updates) if updates else scene)
+    return storyboard.model_copy(update={"scenes": scenes})
+
+
 def build_storyboard_worker(
     storage: ArtifactStorage,
     anthropic_api_key: str,
@@ -1561,8 +1645,13 @@ def build_storyboard_worker(
 
         # Step 1: Generate raw storyboard (v0.13 when timestamps present, v0.12 fallback)
         format_track: str = state.inputs.get("format_track", "portrait")
-        storyboard = await _generate(script_text, voice_timestamps, anthropic_api_key, format_track=format_track)
-        logger.info("StoryboardWorker: generated %d scenes (prompt %s)", len(storyboard.scenes), STORYBOARD_PROMPT_VERSION)
+        prompt_version = str(state.inputs.get("prompt_version") or STORYBOARD_PROMPT_VERSION)
+        if prompt_version not in STORYBOARD_PROMPT_VERSIONS:
+            prompt_version = STORYBOARD_PROMPT_VERSION
+        storyboard = await _generate(
+            script_text, voice_timestamps, anthropic_api_key, format_track=format_track, prompt_version=prompt_version
+        )
+        logger.info("StoryboardWorker: generated %d scenes (prompt %s)", len(storyboard.scenes), prompt_version)
 
         # Step 2: Review — 5 quality dimensions (Haiku, structured JSON)
         patches, coverage_ok, issues = await _review(script_text, storyboard, anthropic_api_key)
@@ -1598,9 +1687,11 @@ def build_storyboard_worker(
         # correct sub-scene (the one whose VO actually contains the event/stat).
         storyboard = await _synthesize_event_ost(storyboard, anthropic_api_key)
         storyboard = _apply_patches_and_render_options(storyboard, [])
+        if state.inputs.get("look") == "animated":
+            storyboard = apply_look_hint(storyboard)
 
         artifact = VerifiedStoryboardArtifact(
-            prompt_version=STORYBOARD_PROMPT_VERSION,
+            prompt_version=prompt_version,
             scene_count=len(storyboard.scenes),
             storyboard=storyboard.model_dump(by_alias=True, mode="json"),
             generated_at=datetime.now(UTC),

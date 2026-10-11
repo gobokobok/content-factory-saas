@@ -13,6 +13,11 @@
     PATCH  /projects/{id}/shortlist/{item_id}         edit an idea
     GET    /projects/{id}/shortlist/{item_id}         read one item, removed or not
     DELETE /projects/{id}/shortlist/{item_id}         remove one item (soft)
+    GET    /projects/{id}/assets                      the project's saved characters, places and objects
+    POST   /projects/{id}/assets                      add one
+    PATCH  /projects/{id}/assets/{asset_id}           edit one
+    DELETE /projects/{id}/assets/{asset_id}           remove one (runs already made keep their copy)
+    POST   /projects/{id}/assets/from-run             copy a run's continuity entry into the project
     GET    /studio/runs/{run_id}/context              a run's project + source items, for Studio
 
 There is deliberately no route that replaces or clears a shortlist in bulk (D094).
@@ -27,9 +32,17 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
-from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage
+from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage, read_artifact
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.integrations import resolve_defaults, resolve_run_values
+from cf_platform.core.project_assets import (
+    ProjectAssetError,
+    ProjectAssetNotFoundError,
+    add_asset,
+    list_assets,
+    remove_asset,
+    update_asset,
+)
 from cf_platform.core.projects import (
     Project,
     ProjectNotFoundError,
@@ -67,8 +80,12 @@ from cf_platform.interfaces.dependencies import (
     get_shortlist_repository,
     get_tenant_settings_repository,
 )
+from cf_platform.interfaces.routes._helpers import latest_artifact_key
 
 router = APIRouter()
+
+# The channel identity is a short description of the channel, not a document.
+MAX_CHANNEL_IDENTITY_CHARS = 2000
 
 # Block name on runs created from the project page or imported from a browser.
 STUDIO_BLOCK = "studio"
@@ -362,14 +379,163 @@ async def patch_project(
     projects: ProjectRepository = Depends(get_project_repository),
     runs: RunRepository = Depends(get_run_repository),
 ) -> ProjectResponse:
-    """Update a project's name, niche, config or archived flag. Only supplied fields change."""
-    await _project_or_404(project_id, projects)
+    """Update a project's name, niche, config or archived flag. Only supplied fields change.
+
+    `config` replaces the stored one, with two exceptions: the project's assets are
+    only changed through the asset routes (a stale page cannot wipe them), and the
+    channel identity must be text within its limit.
+    """
+    stored = await _project_or_404(project_id, projects)
+    fields = body.model_dump(exclude_unset=True)
+    if isinstance(fields.get("config"), dict):
+        config = dict(fields["config"])
+        identity = config.get("channel_identity")
+        if identity is not None:
+            if not isinstance(identity, str) or len(identity.strip()) > MAX_CHANNEL_IDENTITY_CHARS:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"The channel identity must be text of at most {MAX_CHANNEL_IDENTITY_CHARS} characters.",
+                )
+            config["channel_identity"] = identity.strip()
+        config["assets"] = list_assets(stored.config)
+        fields["config"] = config
     try:
-        project = await update_project(project_id, projects, **body.model_dump(exclude_unset=True))
+        project = await update_project(project_id, projects, **fields)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
     counts = await runs.count_by_project()
     return _project_response(project, counts.get(project_id, 0))
+
+
+# ── Project assets (P-PROJ1) ─────────────────────────────────────────────
+
+
+class AssetRequest(BaseModel):
+    """Request body for POST /projects/{id}/assets."""
+
+    kind: str = "character"
+    name: str
+    description: str
+
+
+class AssetPatchRequest(BaseModel):
+    """Request body for PATCH /projects/{id}/assets/{asset_id}; only the fields given change."""
+
+    kind: str | None = None
+    name: str | None = None
+    description: str | None = None
+
+
+class AssetFromRunRequest(BaseModel):
+    """Request body for POST /projects/{id}/assets/from-run."""
+
+    run_id: str = Field(pattern=_RUN_ID_PATTERN)
+    entry_id: str
+
+
+async def _save_assets(projects: ProjectRepository, project_id: str, config: dict[str, Any]) -> None:
+    """Persist a project's config after an asset change."""
+    await update_project(project_id, projects, config=config)
+
+
+@router.get("/projects/{project_id}/assets")
+async def list_project_assets(
+    project_id: str, projects: ProjectRepository = Depends(get_project_repository)
+) -> list[dict[str, Any]]:
+    """The project's saved characters, places and objects."""
+    project = await _project_or_404(project_id, projects)
+    return list_assets(project.config)
+
+
+@router.post("/projects/{project_id}/assets", status_code=201)
+async def add_project_asset(
+    project_id: str, body: AssetRequest, projects: ProjectRepository = Depends(get_project_repository)
+) -> dict[str, Any]:
+    """Save a character, place or object on the project; the storyboard worker reuses it."""
+    project = await _project_or_404(project_id, projects)
+    try:
+        config, asset = add_asset(project.config, kind=body.kind, name=body.name, description=body.description)
+    except ProjectAssetError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await _save_assets(projects, project_id, config)
+    return asset
+
+
+@router.patch("/projects/{project_id}/assets/{asset_id}")
+async def patch_project_asset(
+    project_id: str,
+    asset_id: str,
+    body: AssetPatchRequest,
+    projects: ProjectRepository = Depends(get_project_repository),
+) -> dict[str, Any]:
+    """Edit an asset. Runs already made keep the copy they were made with."""
+    project = await _project_or_404(project_id, projects)
+    try:
+        config, asset = update_asset(
+            project.config, asset_id, kind=body.kind, name=body.name, description=body.description
+        )
+    except ProjectAssetNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ProjectAssetError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await _save_assets(projects, project_id, config)
+    return asset
+
+
+@router.delete("/projects/{project_id}/assets/{asset_id}", status_code=204)
+async def delete_project_asset(
+    project_id: str, asset_id: str, projects: ProjectRepository = Depends(get_project_repository)
+) -> Response:
+    """Remove an asset from the project."""
+    project = await _project_or_404(project_id, projects)
+    try:
+        config = remove_asset(project.config, asset_id)
+    except ProjectAssetNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    await _save_assets(projects, project_id, config)
+    return Response(status_code=204)
+
+
+@router.post("/projects/{project_id}/assets/from-run", status_code=201)
+async def promote_run_asset(
+    project_id: str,
+    body: AssetFromRunRequest,
+    projects: ProjectRepository = Depends(get_project_repository),
+    runs: RunRepository = Depends(get_run_repository),
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+) -> dict[str, Any]:
+    """Copy a continuity entry of a run's storyboard into the project's assets.
+
+    The run must belong to this project. The copy is independent: editing the
+    project asset later does not touch the run.
+    """
+    project = await _project_or_404(project_id, projects)
+    try:
+        run = await runs.get(body.run_id)
+    except RunNotFoundError:
+        raise HTTPException(status_code=404, detail=f"Run not found: {body.run_id}") from None
+    if run.project_id != project_id:
+        raise HTTPException(status_code=404, detail="That run is not in this project.")
+    key = await latest_artifact_key(storage, body.run_id, "storyboard", "verified_storyboard")
+    if not key:
+        raise HTTPException(status_code=404, detail="That run has no storyboard yet.")
+    _, artifact = await read_artifact(storage, key)
+    bible = ((artifact.get("storyboard") or {}).get("continuity")) or []
+    entry = next((e for e in bible if isinstance(e, dict) and e.get("id") == body.entry_id), None)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"No bible entry {body.entry_id!r} in that run.")
+    try:
+        config, asset = add_asset(
+            project.config,
+            kind=str(entry.get("kind") or "prop"),
+            name=str(entry.get("name") or entry.get("id") or ""),
+            description=str(entry.get("description") or ""),
+            source_run_id=body.run_id,
+        )
+    except ProjectAssetError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await _save_assets(projects, project_id, config)
+    return asset
 
 
 # ── Project runs ─────────────────────────────────────────────────────────

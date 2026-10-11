@@ -15,9 +15,10 @@ from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings
+from cf_platform.core.project_assets import list_assets
 from cf_platform.core.projects import ProjectRepository
 from cf_platform.core.run_manager import RunNotFoundError, RunRepository
-from cf_platform.core.run_visuals import load_run_visuals
+from cf_platform.core.run_visuals import load_run_visuals, project_config_for_run
 from cf_platform.core.schemas import StageState
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.interfaces.dependencies import (
@@ -45,6 +46,10 @@ from cf_platform.workers.render_worker import (
 )
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.storyboard_worker import (
+    STORYBOARD_PROMPT_VERSION,
+    STORYBOARD_PROMPT_VERSION_V018,
+    STORYBOARD_PROMPT_VERSIONS,
+    STORYBOARD_V018_MODEL,
     STORYBOARD_WORKER_REGISTRATION,
     VerifiedStoryboardArtifact,
     build_storyboard_worker,
@@ -220,6 +225,7 @@ async def storyboard_worker_endpoint(
         _logger.info("Voice alignment found for run %s — using Deepgram timestamps", body.run_id)
 
     visuals = await load_run_visuals(storage, body.run_id, runs, projects)
+    project_config = await project_config_for_run(runs, projects, body.run_id)
     inputs: dict[str, Any] = {"format_track": body.format_track}
     if visuals.is_animation:
         if "voice_alignment" not in state_artifacts:
@@ -231,9 +237,19 @@ async def storyboard_worker_endpoint(
         worker = build_animation_storyboard_worker(storage, settings.ANTHROPIC_API_KEY)
         registration, worker_name = ANIMATION_STORYBOARD_WORKER_REGISTRATION, "animation_storyboard_worker"
         inputs["master_style"] = visuals.master_style or ""
+        assets = list_assets(project_config)
+        if assets:
+            inputs["project_assets"] = assets
     else:
+        inputs["look"] = visuals.look
+        wanted = getattr(settings, "STORYBOARD_STOCK_PROMPT_VERSION", STORYBOARD_PROMPT_VERSION)
+        inputs["prompt_version"] = wanted if wanted in STORYBOARD_PROMPT_VERSIONS else STORYBOARD_PROMPT_VERSION
         worker = build_storyboard_worker(storage, settings.ANTHROPIC_API_KEY)
         registration, worker_name = STORYBOARD_WORKER_REGISTRATION, "storyboard_worker"
+        if inputs["prompt_version"] == STORYBOARD_PROMPT_VERSION_V018:
+            registration = registration.model_copy(update={
+                "prompt_version": STORYBOARD_PROMPT_VERSION_V018, "model": STORYBOARD_V018_MODEL,
+            })
     state = StageState(
         run_id=body.run_id,
         user_id=PLATFORM_USER_ID,
@@ -273,6 +289,8 @@ async def metadata_worker_endpoint(
     body: MetadataWorkerRequest,
     storage: ArtifactStorage = Depends(get_artifact_storage),
     settings: PlatformSettings = Depends(get_effective_platform_settings),
+    runs: RunRepository = Depends(get_run_repository),
+    projects: ProjectRepository = Depends(get_project_repository),
 ) -> MetadataWorkerResponse:
     """Generate suggested YouTube title/description/tags from the run's script.
 
@@ -297,10 +315,23 @@ async def metadata_worker_endpoint(
         )
 
     worker = build_youtube_metadata_worker(storage, settings.ANTHROPIC_API_KEY)
+    # The project is one channel: its niche and channel identity shape the metadata
+    # together with this run's script (P-PROJ1-S2).
+    project_config = await project_config_for_run(runs, projects, body.run_id)
+    inputs: dict[str, Any] = {}
+    if str(project_config.get("channel_identity") or "").strip():
+        inputs["channel_identity"] = project_config["channel_identity"]
+    try:
+        run = await runs.get(body.run_id)
+        niche = (await projects.get(run.project_id)).niche
+        if niche:
+            inputs["niche"] = niche
+    except Exception:
+        pass
     state = StageState(
         run_id=body.run_id,
         user_id=PLATFORM_USER_ID,
-        inputs={},
+        inputs=inputs,
         artifacts={"script": script_key},
     )
     output = await worker(state)

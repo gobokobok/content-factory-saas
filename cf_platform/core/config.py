@@ -96,6 +96,9 @@ class PlatformSettings(BaseSettings):
     IMAGE_POLL_INTERVAL_S: float = 3.0
     IMAGE_COST_USD: float = 0.03
     IMAGE_RUN_SPEND_CAP_USD: float = 2.0
+    # Which prompt the Realistic (stock) storyboard worker uses: "v0.17" (default) or
+    # "v0.18" (Visual Director method on Sonnet 5.5) — switch after the side-by-side test.
+    STORYBOARD_STOCK_PROMPT_VERSION: str = "v0.17"
     # Animation mode (P-AN1, D108). Per-model image prices as a JSON object
     # (model id -> dollars) — a model without an entry costs IMAGE_COST_USD. The
     # highest cap the operator may set for one run from the Generate all dialog, and

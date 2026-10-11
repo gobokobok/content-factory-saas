@@ -264,3 +264,26 @@ class TestPipelineFlow:
         page = _read("studio-v2.html")
         cta = page[page.index("    .stage-cta {"): page.index("}", page.index("    .stage-cta {"))]
         assert "border-top" not in cta                                                                      # C11
+
+
+class TestProjectLevel:
+    """P-PROJ1: look and image source, channel identity, project assets."""
+
+    def test_run_settings_have_look_and_image_source_and_ask_before_resetting(self):
+        page = _read("studio-v2.html")
+        for needle in ("opt-look-realistic", "opt-look-animated", "chooseVisuals({ look: 'realistic' })",
+                       "chooseVisuals({ image_source: 'ai' })", "/visuals", "confirm_reset", "needs_confirmation"):
+            assert needle in page, needle
+
+    def test_new_run_modal_sets_look_with_the_style(self):
+        page = _read("project.html")
+        assert "look: 'animated'" in page and "look: 'realistic'" in page
+
+    def test_project_settings_hold_the_channel_identity_and_the_assets(self):
+        page = _read("project.html")
+        for needle in ("Channel identity", "channel_identity", "Project assets", "dlgAsset", "saveAsset", "/assets"):
+            assert needle in page, needle
+
+    def test_a_bible_entry_can_be_saved_to_the_project(self):
+        page = _read("studio-v2.html")
+        assert "saveEntryToProject" in page and "/assets/from-run" in page and "project_asset_id" in page
