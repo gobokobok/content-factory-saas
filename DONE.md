@@ -1,12 +1,12 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last two sprints (P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently P-UX4) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
 
 ---
 
 ## [P-UX4] Pipeline flow and polish — S1 shell polish, S2 minimal New Run modal, S3 Script step, S4 Voiceover step, S5 Storyboard step, S6 Video step, S7 library names
-**Completed:** 2026-10-11 (built in one pass; in the working tree, not committed or pushed — smoke pending)
+**Completed:** 2026-10-11 (built in one pass, commit `a7da166`, CI on `main`)
 **Handover:**
 - **Every step starts its own work and ends with Next.** Script: Generate-from-idea first and collapsed (hidden in Paste), Next. Voiceover: pace and tone live here (moved out of Run settings), *Generate / Regenerate voiceover*, *Skip voiceover*, Next. Storyboard: its own *Generate storyboard* button with a note pointing to Run settings and a warning that the style is locked afterwards; a stock run with acquired assets asks before regenerating. Video: caption toggle and style on top, Next to Metadata. Upload flow: Next goes to the Voiceover step; "Review transcript" stays as a second button.
 - **An uploaded voiceover is a replaceable asset (D109 point 2).** `POST /platform/workers/voice` no longer answers 409 for an uploaded run; it answers 409 `needs_confirmation` with what would be discarded, and with `confirm_discard: true` it flips `voice_source` to `generated` and discards the storyboard (`discard_for_generated_voice` in `studio_voice.py`, shared with `PUT …/voice-source`). The old bug (Voice step "Needs attention") is gone because the script artifact marked `uploaded_vo` is superseded by the script written at generation.
@@ -16,7 +16,7 @@ _This file holds the last two sprints (P-AN1, P-UX3) plus every older entry whos
 - **Library:** videos and voiceovers are named after the run title (`titled_name`, `name_from_run` in `core/library.py`); display and download names; footage and AI images are unchanged.
 - No ENV vars, migration or dependency. Tests: 2869 passing, ruff clean.
 - **Not verified:** the New Run modal and the voiceover-replace confirmation were checked by tests and in the static demo only, not against DEV; the phone layout without a drawer was not looked at; the master-prompt sub-modal on a real run.
-**Smoke test:** PENDING — create a run from the modal (Animated + master prompt), walk the five steps with Next only; upload a voiceover, switch Script to Generate, go to Voiceover and generate over it; toggle captions on the Video step and see Run settings follow; check a video's file name in the library.
+**Smoke test:** DEFERRED — operator decision 2026-10-11: test after P-INT1 is built → cleared by INT1-S5 in Sprint P-INT1. List: create a run from the modal (Animated + master prompt) and walk the five steps with Next only; upload a voiceover, switch Script to Generate, go to Voiceover and generate over it; toggle captions on the Video step and see Run settings follow; check a video's file name in the library; view a narrow screen.
 **Promoted to backlog:** none. Candidates: the style lock is still the existing one (disabled buttons after a storyboard); the explicit "reset storyboard" arrives with P-PROJ1.
 
 ---
