@@ -25,6 +25,7 @@ Voiceover text is never changed here (D095): changing words forces re-voicing.
 Pure functions — no storage, no HTTP (D040).
 """
 
+import difflib
 import os
 import re
 from dataclasses import dataclass, field
@@ -338,17 +339,30 @@ def merge_scene(
     return replace_boundaries(storyboard, words, starts, manifest, min_scene_s)
 
 
-def align_text_to_words(words: list[VoiceWordTimestamp], text: str) -> tuple[list[int], bool]:
+_MIN_TEXT_MATCH = 0.6
+_MAX_DIFFERENCES_SHOWN = 5
+
+
+@dataclass(frozen=True)
+class TextAlignment:
+    """Where script-view text puts the scene boundaries, and how well it matched the voiceover."""
+
+    starts: list[int]
+    exact: bool                      # the text is the voiceover's own tokens, only paragraph breaks differ
+    differences: list[str]           # '“spoken” → “typed”' for each stretch that reads differently
+
+
+def align_text(words: list[VoiceWordTimestamp], text: str) -> TextAlignment:
     """Turn script-view text (one paragraph per scene) into scene start words.
 
-    Returns (starts, exact). The words must be the voiceover's: only paragraph breaks
-    may differ. They are compared after formatting is removed — case, punctuation
-    and spelled-out numbers — because the voiceover's words come from the transcript
-    ("$109 million", "60%", no punctuation) while a script may say "one hundred nine
-    million dollars" and "sixty percent". `exact` is False when that was needed; the
-    paragraph starts are then mapped through the matching units. The words themselves
-    are never changed here.
-    Raises StoryboardEditError when the text is empty or its wording differs.
+    Only the paragraph breaks are used; the words themselves are never changed here.
+    The text is matched to the voiceover's words by what they say — ignoring case,
+    punctuation and the way a number is written ("$109 million" = "one hundred nine
+    million dollars"), because the voiceover's words come from the transcript. A text
+    that still reads differently in places is matched by alignment and the differing
+    stretches are reported, so the operator sees what was not taken into account.
+    Raises StoryboardEditError when the text is empty or does not resemble the
+    voiceover (fewer than 60% of its words line up), naming the first differences.
     """
     paragraphs = [p.split() for p in re.split(r"\n\s*\n", text.strip())]
     paragraphs = [p for p in paragraphs if p]
@@ -362,15 +376,37 @@ def align_text_to_words(words: list[VoiceWordTimestamp], text: str) -> tuple[lis
         for paragraph in paragraphs:
             starts.append(position)
             position += len(paragraph)
-        return starts, True
+        return TextAlignment(starts, True, [])
 
     word_of_token = [index for index, w in enumerate(words) for _ in w.word.split()]
     typed_units = canonical_units(typed)
     spoken_units = canonical_units(spoken_tokens)
-    if [u for u, _ in typed_units] != [u for u, _ in spoken_units]:
+    if not typed_units or not spoken_units:
         raise StoryboardEditError(_CHANGE_TEXT_HINT)
 
-    # Typed token index at which each paragraph opens, then the first unit at or after it.
+    matcher = difflib.SequenceMatcher(None, [u for u, _ in spoken_units], [u for u, _ in typed_units], autojunk=False)
+    to_spoken: dict[int, int] = {}
+    differences: list[str] = []
+    matched = 0
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            matched += i2 - i1
+            for k in range(j2 - j1):
+                to_spoken[j1 + k] = i1 + k
+            continue
+        was = " ".join(spoken_tokens[spoken_units[i][1]] for i in range(i1, i2))
+        now = " ".join(typed[typed_units[j][1]] for j in range(j1, j2))
+        differences.append(f"“{was}” → “{now}”" if was and now else (f"“{was}” missing" if was else f"“{now}” added"))
+        for k in range(j2 - j1):
+            if tag == "replace":
+                to_spoken[j1 + k] = min(i2 - 1, i1 + int(k * (i2 - i1) / (j2 - j1)))
+            else:                                       # typed words with no spoken counterpart
+                to_spoken[j1 + k] = min(i1, len(spoken_units) - 1)
+
+    if matched / max(len(typed_units), len(spoken_units)) < _MIN_TEXT_MATCH:
+        shown = "; ".join(differences[:_MAX_DIFFERENCES_SHOWN])
+        raise StoryboardEditError(f"{_CHANGE_TEXT_HINT} First differences: {shown}.")
+
     opens, position = [], 0
     for paragraph in paragraphs:
         opens.append(position)
@@ -378,13 +414,19 @@ def align_text_to_words(words: list[VoiceWordTimestamp], text: str) -> tuple[lis
     starts = []
     for opening in opens:
         unit = next((n for n, (_, at) in enumerate(typed_units) if at >= opening), len(typed_units) - 1)
-        word_index = word_of_token[spoken_units[unit][1]]
+        word_index = word_of_token[spoken_units[to_spoken.get(unit, 0)][1]]
         if not starts:
             word_index = 0                           # the first scene always starts at word 0
         if starts and word_index <= starts[-1]:
             continue                                 # a paragraph that opens inside the previous word joins it
         starts.append(word_index)
-    return starts, False
+    return TextAlignment(starts, False, differences)
+
+
+def align_text_to_words(words: list[VoiceWordTimestamp], text: str) -> tuple[list[int], bool]:
+    """(starts, exact) for script-view text; see align_text."""
+    result = align_text(words, text)
+    return result.starts, result.exact
 
 
 def start_words_from_text(words: list[VoiceWordTimestamp], text: str) -> list[int]:

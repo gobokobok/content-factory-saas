@@ -920,29 +920,39 @@ async def studio_replace_boundaries(
     a real wording change is a 422 — change it in the Script stage (it forces re-voicing).
     A scene whose start word is unchanged keeps its fields and asset.
     """
-    from cf_platform.workers.storyboard_edit import align_text_to_words, replace_boundaries
+    from cf_platform.workers.storyboard_edit import align_text, replace_boundaries
 
     if (body.start_words is None) == (body.script_text is None):
         raise HTTPException(status_code=422, detail="Provide exactly one of start_words or script_text.")
 
-    by_position = {"flag": False}
+    note = {"by_position": False, "differences": []}
 
     def _edit(sb, words, manifest):
         """Resolve the requested boundaries and apply them."""
         if body.start_words is not None:
             starts = body.start_words
         else:
-            starts, exact = align_text_to_words(words, body.script_text or "")
-            by_position["flag"] = not exact
+            alignment = align_text(words, body.script_text or "")
+            starts = alignment.starts
+            note["by_position"] = not alignment.exact
+            note["differences"] = alignment.differences
         return replace_boundaries(sb, words, starts, manifest, settings.STORYBOARD_MIN_SCENE_S)
 
     result = await _run_boundary_edit(storage, run_id, "studio_boundaries", _edit, dry_run=body.dry_run)
-    result["matched_by_position"] = by_position["flag"]
-    if by_position["flag"]:
-        result["summary"] += (
-            " (your text writes numbers or punctuation differently from the voiceover — it was matched "
-            "word for word and only its paragraph breaks are used; the words themselves are not changed)"
-        )
+    result["matched_by_position"] = note["by_position"]
+    result["differences"] = note["differences"][:10]
+    if note["by_position"]:
+        if note["differences"]:
+            shown = "; ".join(note["differences"][:3])
+            result["summary"] += (
+                f" (your text reads differently from the voiceover in {len(note['differences'])} place(s), e.g. {shown} — "
+                "only its paragraph breaks are used; the words themselves are not changed)"
+            )
+        else:
+            result["summary"] += (
+                " (your text writes numbers or punctuation differently from the voiceover — it was matched "
+                "word for word and only its paragraph breaks are used; the words themselves are not changed)"
+            )
     return result
 
 

@@ -94,20 +94,38 @@ class TestChangedWords:
     @pytest.mark.parametrize(
         "text",
         [
-            _text((0, 5), (6, 10)),                       # a word removed
-            _text((0, 5), (6, 11)) + " extra",            # a word added
-            _text((0, 5), (6, 11)).replace("w3", "x3"),   # a word altered
             _text((6, 11), (0, 5)),                       # words reordered
             "",
+            "completely different words in a row here",
         ],
     )
-    def test_text_that_differs_by_more_than_breaks_is_rejected(self, text):
+    def test_text_that_is_not_the_voiceover_is_rejected(self, text):
         with p13_env() as env:
             r = env.client.put(_URL, json={"script_text": text})
 
             assert r.status_code == 422
             assert "Script stage" in r.json()["detail"] and "re-voicing" in r.json()["detail"]
             assert env.versions("storyboard", "verified_storyboard") == 1
+
+    @pytest.mark.parametrize(
+        "text, shown",
+        [
+            (_text((0, 5), (6, 10)), "w11"),                                  # a word removed
+            (_text((0, 5), (6, 11)) + " extra", "extra"),                     # a word added
+            (_text((0, 5), (6, 11)).replace("w3", "x3"), "x3"),               # a word altered
+        ],
+    )
+    def test_a_few_differing_words_are_used_for_breaks_only_and_reported(self, text, shown):
+        """Boundaries never change words, so close text is accepted and the differences are named."""
+        with p13_env() as env:
+            r = env.client.put(_URL, json={"script_text": text, "dry_run": True})
+
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["matched_by_position"] is True
+            assert any(shown in d for d in body["differences"])
+            assert "only its paragraph breaks are used" in body["summary"]
+            assert env.versions("storyboard", "verified_storyboard") == 1       # a dry run writes nothing
 
     def test_pure_function_raises(self):
         with pytest.raises(StoryboardEditError):
@@ -211,11 +229,11 @@ class TestFormattingIsNotAWordChange:
         starts, _ = align_text_to_words(self._words(spoken), "it paid sixty\n\npercent of its race")
         assert starts[0] == 0 and len(starts) <= 2
 
-    def test_a_real_wording_change_is_still_refused(self):
+    def test_text_that_is_mostly_different_is_refused_and_names_the_differences(self):
         from cf_platform.workers.storyboard_edit import align_text_to_words
 
-        with pytest.raises(StoryboardEditError):
-            align_text_to_words(self._words("it paid 60% of its race".split()), "it paid seventy percent of its race")
+        with pytest.raises(StoryboardEditError, match="First differences"):
+            align_text_to_words(self._words("it paid 60% of its race".split()), "nothing like that at all")
 
     def test_the_route_says_it_matched_the_formatting(self):
         with p13_env() as env:
