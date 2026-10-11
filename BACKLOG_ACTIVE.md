@@ -182,7 +182,8 @@ Operator request 2026-10-10, placed 2026-10-11 as the **immediate continuation a
 ## [P-AN1-S1] Run settings: visual mode and master style
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-11
 **Priority:** high
 **Points:** 3
 **Depends on:** P-UX3 closed
@@ -191,15 +192,15 @@ Operator request 2026-10-10, placed 2026-10-11 as the **immediate continuation a
 A run says whether it is made from stock footage or from generated images, and carries the master style its images are generated in.
 
 ### Acceptance Criteria
-- [ ] `settings.json` gains `visual_mode` (`stock` | `ai_animation`, default `stock`) and `master_style` (free text, default empty); existing runs load unchanged
-- [ ] The run settings drawer shows the visual mode and, when Animation is chosen, a master style text area
-- [ ] The run's master style defaults to the project's `ai_image_style` (project → run inheritance, same pattern as language and format); a value set on the run wins
-- [ ] Visual mode can be changed until a storyboard exists; after that the drawer shows it read-only with a note that changing it means regenerating the storyboard
-- [ ] The existing `visual_style` dropdown (Realistic / Cinematic / …) is checked for what it actually drives and is hidden in Animation mode if it has no effect there
-- [ ] Tests: settings round-trip, inheritance (run value, project fallback, empty), old `settings.json` without the new keys
+- [x] `settings.json` gains `visual_mode` (`stock` | `ai_animation`, default `stock`) and `master_style` (free text, default empty); existing runs load unchanged
+- [x] The run settings drawer shows the visual mode and, when Animation is chosen, a master style text area
+- [x] The run's master style defaults to the project's `ai_image_style` (project → run inheritance, same pattern as language and format); a value set on the run wins
+- [x] Visual mode can be changed until a storyboard exists; after that the drawer shows it read-only with a note that changing it means regenerating the storyboard
+- [x] The existing `visual_style` dropdown (Realistic / Cinematic / …) is checked for what it actually drives and is hidden in Animation mode if it has no effect there
+- [x] Tests: settings round-trip, inheritance (run value, project fallback, empty), old `settings.json` without the new keys
 
 ### Definition of Done
-- [ ] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `src/models.py` — `VideoSettings`
@@ -210,14 +211,22 @@ A run says whether it is made from stock footage or from generated images, and c
 - `DECISIONS.md` — D105 (tenant → project → run settings)
 
 ### Handover
-_(blank)_
+- **Run settings** (`src/models.py` `VideoSettings`): `visual_mode` (`stock` | `ai_animation`, default `stock`), `master_style` (empty = inherit), `image_spend_cap_usd` (S5). Old `settings.json` files load unchanged.
+- **`POST /runs/{id}/settings` now merges** (`merge_video_settings` in `src/routes/runs.py`): only the fields a request names change, so a client that does not know a newer field no longer resets it.
+- **Resolution:** `cf_platform/core/run_visuals.py` — `load_run_visuals(storage, run_id, runs, projects)` returns `RunVisuals` (mode, master style = run else project `ai_image_style`, project style, aspect, the run's own cap). `resolve_master_style` is in `core/ai_images.py`.
+- **Studio:** the drawer's hidden "Style: Realistic / Animated (Soon)" row is replaced by Visuals (Stock footage / Animation) and a master style text area that says where its value comes from. An "Animation" chip under the run title.
+- **`visual_style` finding:** the run setting was hard-coded to `Realistic` by Studio and is read only by the retired `src/replicate_client.py`. Studio no longer sends it; the field stays in the model for old files.
+- **Mode lock is in the UI only** (read-only once a storyboard exists). The storyboard records its own `visual_mode`, and everything downstream reads the mode from the storyboard, so a later settings change cannot mislabel one.
+- **ENV vars added:** none. Tests: `tests/cf_platform/test_pan1_s1_run_settings.py` (16).
+- **Files that mattered:** `src/models.py`, `src/routes/runs.py`, `cf_platform/core/integrations.py`, `src/static/studio-v2.html` (`#settings-drawer`, `saveRunSettings`, `applyStoredSettings`).
 
 ---
 
 ## [P-AN1-S2] Animation storyboard: the Visual Director prompt, structured
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-11
 **Priority:** high
 **Points:** 8
 **Depends on:** P-AN1-S1
@@ -226,20 +235,20 @@ _(blank)_
 In Animation mode the storyboard step produces scenes with a visual concept, keywords, shot description and a pre-filled image prompt, plus a continuity bible, using the Visual Director's method on the run's real voiceover timing.
 
 ### Acceptance Criteria
-- [ ] The storyboard worker picks its prompt from the run's `visual_mode`; the stock path is unchanged (golden / existing tests still pass)
-- [ ] The animation prompt adapts Visual Director v4.1 sections 1–3 and 5–7 (narrative analysis, concept development, continuity bible, shot planning and variety, narration fit, prompt structure). Its timing section is replaced by the existing word-index contract: the model returns `start_word` / `end_word`, Python derives durations
-- [ ] Output is JSON, not markdown. The storyboard gains a `continuity` list (`id`, `kind`: character | prop | setting, `name`, `description`); each scene gains `visual_concept`, `visual_keywords`, `shot` (size, angle), `entities` (bible ids used), `motion_note` (free text), and `ai_prompt` holding **only the scene-specific description** — no style block, no bible text, no aspect ratio
-- [ ] Every scene is created with `asset_strategy = ai_image`; no stock queries are required in this mode
-- [ ] Scene length: 1.0–5.0 s in both formats. A scene over the limit is not split in Python by copying its prompt; it is flagged on the storyboard for the operator
-- [ ] `motion_effect` is set from the model's choice among the existing `MOTION_EFFECTS`; `motion_note` keeps the original wording
-- [ ] Overlays map to the existing `on_screen_text` / `on_screen_text_type`; the model does not invent overlay copy
-- [ ] The run's master style is passed to the model as context (so concepts fit the style) but is not echoed in the output
-- [ ] The review pass either handles the new fields or is skipped in this mode — decided and noted in the handover
-- [ ] `docs/PROMPTS.md` gets the animation prompt and a changelog entry; the prompt version is recorded on the artifact
-- [ ] Tests: prompt selection by mode, parsing and validation of the new fields, entity ids resolve to bible entries, 5 s rule, old storyboards without the new fields still load
+- [x] The storyboard worker picks its prompt from the run's `visual_mode`; the stock path is unchanged (golden / existing tests still pass)
+- [x] The animation prompt adapts Visual Director v4.1 sections 1–3 and 5–7 (narrative analysis, concept development, continuity bible, shot planning and variety, narration fit, prompt structure). Its timing section is replaced by the existing word-index contract: the model returns `start_word` / `end_word`, Python derives durations
+- [x] Output is JSON, not markdown. The storyboard gains a `continuity` list (`id`, `kind`: character | prop | setting, `name`, `description`); each scene gains `visual_concept`, `visual_keywords`, `shot` (size, angle), `entities` (bible ids used), `motion_note` (free text), and `ai_prompt` holding **only the scene-specific description** — no style block, no bible text, no aspect ratio
+- [x] Every scene is created with `asset_strategy = ai_image`; no stock queries are required in this mode
+- [x] Scene length: 1.0–5.0 s in both formats. A scene over the limit is not split in Python by copying its prompt; it is flagged on the storyboard for the operator
+- [x] `motion_effect` is set from the model's choice among the existing `MOTION_EFFECTS`; `motion_note` keeps the original wording
+- [x] Overlays map to the existing `on_screen_text` / `on_screen_text_type`; the model does not invent overlay copy
+- [x] The run's master style is passed to the model as context (so concepts fit the style) but is not echoed in the output
+- [x] The review pass either handles the new fields or is skipped in this mode — decided and noted in the handover
+- [x] `docs/PROMPTS.md` gets the animation prompt and a changelog entry; the prompt version is recorded on the artifact
+- [x] Tests: prompt selection by mode, parsing and validation of the new fields, entity ids resolve to bible entries, 5 s rule, old storyboards without the new fields still load
 
 ### Definition of Done
-- [ ] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `cf_platform/workers/storyboard_worker.py` — `_GENERATE_SYSTEM_PROMPT_V013`, `_generate`, `_reify_scene`, `_split_long_scenes`, `_review`, `_sanitize_storyboard_data`
@@ -250,14 +259,23 @@ In Animation mode the storyboard step produces scenes with a visual concept, key
 - `CONVENTIONS.md#async-function-discipline`, `docs/TESTING.md`
 
 ### Handover
-_(blank)_
+- **Worker:** `cf_platform/workers/animation_storyboard_worker.py` — `build_animation_storyboard_worker`, `generate_animation_storyboard`, pure `parse_animation_storyboard` and `build_animation_user_message`, `animation_scene_flags`. Prompt `an-v0.1`, model `claude-sonnet-5-5`, adaptive thinking, effort `high`, streamed, one call per run (D108). Registration `ANIMATION_STORYBOARD_WORKER_REGISTRATION`.
+- **Selection:** `POST /platform/workers/storyboard` picks the worker from the run's `visual_mode`; the artifact's lineage names the worker, prompt version and model that ran. An Animation run without a voice alignment answers 409.
+- **Schema** (`src/models.py`): `Storyboard.visual_mode`, `Storyboard.continuity` (`ContinuityEntry`: id, kind, name, description); `StoryboardScene.visual_concept`, `visual_keywords`, `shot` (`SceneShot`), `entities`, `motion_note`, `flags` (`too_long`, `needs_prompt`, `image_out_of_date`). Storyboards without them load as stock.
+- **Decided:** the Haiku review pass is **skipped** in this mode (it patches stock queries and render options). `_synthesize_event_ost` and `_split_long_scenes` are not run either: a scene over 5.0 s is flagged `too_long`, never split.
+- **No refusal fallback** on the model call: a fallback would switch models silently and break the version pin. A refusal or a cut-off answer is an `AnimationStoryboardError`.
+- **`docs/PROMPTS.md`** has the rules, the output schema and the changelog; the prompt text itself is not copied there — the constant `_ANIMATION_SYSTEM_PROMPT` is the source of truth (accepted by the operator at the pre-commit review).
+- **Not verified:** the cost of one storyboard on Sonnet 5.5 at high effort; shot variety is asked for in the prompt and not checked in code.
+- **ENV vars added:** none. Tests: `test_pan1_s2_animation_storyboard.py` (27).
+- **Files that mattered:** `cf_platform/workers/storyboard_worker.py` (`_generate`, `_reify_scene`, `_apply_patches_and_render_options`, `_format_indexed_timestamps`), `cf_platform/interfaces/routes/workers.py` (storyboard endpoint), `src/models.py`, the operator's `visual_director_prompt_v4.1.md` (outside the repo).
 
 ---
 
 ## [P-AN1-S3] Image prompt assembled in code
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-11
 **Priority:** high
 **Points:** 3
 **Depends on:** P-AN1-S2
@@ -266,15 +284,15 @@ _(blank)_
 The text sent to the image model is built from parts — scene prompt, bible descriptions, fixed lines, master style, aspect ratio — so the style is identical on every image and can change without regenerating the storyboard.
 
 ### Acceptance Criteria
-- [ ] One pure function builds the prompt in this order: scene `ai_prompt` → descriptions of the scene's `entities`, verbatim from the bible → fixed lines → master style → aspect phrase ("Vertical 9:16" / "Horizontal 16:9")
-- [ ] Fixed lines: no readable text, letters or numerals; full-bleed, no borders, no letterbox, no panel frame. The "keep the lower part calm" line is added only when the scene has on-screen text
-- [ ] Master style resolves run → project `ai_image_style` → none
-- [ ] The per-scene Generate route uses this function for runs in Animation mode; stock-mode runs keep today's behaviour (project style, then prompt)
-- [ ] The stored `ai_prompt` stays scene-specific; the assembled text is what the scene's edit dialog shows as a read-only preview
-- [ ] Tests: ordering, each part optional, overlay-conditional line, unknown entity id ignored with a warning, stock-mode output unchanged
+- [x] One pure function builds the prompt in this order: scene `ai_prompt` → descriptions of the scene's `entities`, verbatim from the bible → fixed lines → master style → aspect phrase ("Vertical 9:16" / "Horizontal 16:9")
+- [x] Fixed lines: no readable text, letters or numerals; full-bleed, no borders, no letterbox, no panel frame. The "keep the lower part calm" line is added only when the scene has on-screen text
+- [x] Master style resolves run → project `ai_image_style` → none
+- [x] The per-scene Generate route uses this function for runs in Animation mode; stock-mode runs keep today's behaviour (project style, then prompt)
+- [x] The stored `ai_prompt` stays scene-specific; the assembled text is what the scene's edit dialog shows as a read-only preview
+- [x] Tests: ordering, each part optional, overlay-conditional line, unknown entity id ignored with a warning, stock-mode output unchanged
 
 ### Definition of Done
-- [ ] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `cf_platform/core/ai_images.py` — `build_prompt`
@@ -282,14 +300,20 @@ The text sent to the image model is built from parts — scene prompt, bible des
 - `DECISIONS.md` — D104
 
 ### Handover
-_(blank)_
+- **`build_animation_prompt`** (`cf_platform/core/ai_images.py`, pure): scene prompt → `entity_lines` (bible name + description, verbatim) → fixed lines → master style → aspect phrase. `FIXED_LINE_OVERLAY` only when the scene has on-screen text. An unknown entity id is skipped with a warning.
+- **`assemble_scene_prompt`** (`cf_platform/workers/scene_images.py`) chooses by the storyboard's own `visual_mode`: Animation → assembled; anything else → `build_prompt(project_style, prompt)` as in P14.
+- **`POST …/scenes/{n}/prompt-preview {prompt?}`** returns the exact text the model would get, at no cost; the edit-image dialog shows it read-only.
+- **Smoke:** on Nano Banana the images came back full bleed, with no borders, letterbox bars, bottom band or stray text.
+- **ENV vars added:** none. Tests: `test_pan1_s3_image_prompt.py` (14).
+- **Files that mattered:** `cf_platform/core/ai_images.py`, `cf_platform/interfaces/routes/studio_ai.py`.
 
 ---
 
 ## [P-AN1-S4] Studio: scene cards and an editable continuity bible
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-11
 **Priority:** high
 **Points:** 5
 **Depends on:** P-AN1-S2, P-AN1-S3
@@ -298,16 +322,16 @@ _(blank)_
 The operator reviews an animation storyboard as scene cards with concept, keywords and prompt, and edits the characters, props and settings in one place before spending on images.
 
 ### Acceptance Criteria
-- [ ] In Animation mode each scene card shows the visual concept, keywords, shot, the image prompt (editable) and which bible entries it uses; stock-only controls (search queries, image/video strategy) are hidden
-- [ ] A Continuity panel on the Storyboard step lists the bible entries; the operator can edit a description, add an entry and remove an unused one
-- [ ] Editing an entry marks the scenes that use it and already have an image as out of date, with one action to regenerate those scenes (uses the S5 job; shows the cost first)
-- [ ] The scene's edit-image dialog is pre-filled from `ai_prompt` (not the voiceover line) and shows the assembled prompt preview from S3
-- [ ] Regenerating the storyboard in Animation mode warns that existing generated images will no longer match their scenes
-- [ ] Split and merge keep working: a split scene's second half gets an empty prompt and is flagged; a merge keeps the first scene's prompt
-- [ ] Follows `docs/UI_GUIDELINES.md`; plain HTML/JS; demo-mode data covers an animation run
+- [x] In Animation mode each scene card shows the visual concept, keywords, shot, the image prompt (editable) and which bible entries it uses; stock-only controls (search queries, image/video strategy) are hidden
+- [x] A Continuity panel on the Storyboard step lists the bible entries; the operator can edit a description, add an entry and remove an unused one
+- [x] Editing an entry marks the scenes that use it and already have an image as out of date, with one action to regenerate those scenes (uses the S5 job; shows the cost first)
+- [x] The scene's edit-image dialog is pre-filled from `ai_prompt` (not the voiceover line) and shows the assembled prompt preview from S3
+- [x] Regenerating the storyboard in Animation mode warns that existing generated images will no longer match their scenes
+- [x] Split and merge keep working: a split scene's second half gets an empty prompt and is flagged; a merge keeps the first scene's prompt
+- [x] Follows `docs/UI_GUIDELINES.md`; plain HTML/JS; demo-mode data covers an animation run
 
 ### Definition of Done
-- [ ] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `src/static/studio-v2.html` — scene cards, `patchScene`, the edit-image dialog (`#pencil-ai-prompt`), demo data
@@ -316,14 +340,24 @@ The operator reviews an animation storyboard as scene cards with concept, keywor
 - `docs/UI_GUIDELINES.md`
 
 ### Handover
-_(blank)_
+- **Scene cards** in Animation mode show flags, concept, shot, keywords, bible chips, an editable prompt and the motion note; the asset-type dropdown and search words are hidden (`buildAnimationBlock` in `src/static/studio-v2.html`).
+- **Continuity panel** (`buildContinuityPanel`) and routes in `cf_platform/interfaces/routes/studio_animation.py`: `POST / PATCH / DELETE …/storyboard/continuity[/{id}]`, thin wrappers over pure `cf_platform/workers/continuity_edit.py` (`edit_entry`, `add_entry`, `remove_entry`, `set_scene_entities`). Editing a name or description flags the scenes that use the entry and have an image; the response lists them and Studio offers to regenerate exactly those through the S5 dialog.
+- **Scene patch** (`PATCH …/storyboard/scenes/{id}`) gains `entities`; in Animation mode it keeps `needs_prompt` true to the prompt and flags an existing image when the prompt changes. The patch and the bible routes run under the run's lock.
+- **Edit-image dialog:** pre-filled from `ai_prompt` (never the voiceover line), bible entries as checkboxes, the assembled-prompt preview; the stock search section is hidden.
+- **Split / merge** (`storyboard_edit.replace_boundaries`): the second half of a split keeps the entities, has no prompt and is flagged `needs_prompt`; a merge keeps the first scene's prompt; `too_long` follows the new length.
+- **Regenerating the storyboard** of a run that has generated images asks first and says the images will no longer match.
+- **Demo:** `/studio?demo=animation`.
+- **Known limit:** a split or merge while a bulk job is running is not guarded.
+- **ENV vars added:** none. Tests: `test_pan1_s4_continuity.py` (21).
+- **Files that mattered:** `src/static/studio-v2.html` (`renderStoryboard`, `buildSceneRow`, `openPencilModal`, `updateAcquisitionUi`, the demo router), `cf_platform/interfaces/routes/studio.py` (`_patch_scene`, the `_load_*` / `_write_*` helpers), `cf_platform/workers/storyboard_edit.py`.
 
 ---
 
 ## [P-AN1-S5] Generate all images for a run
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-11
 **Priority:** high
 **Points:** 5
 **Depends on:** P-AN1-S3
@@ -332,17 +366,17 @@ _(blank)_
 One action generates the image for every scene that does not have one, in the background, with the cost shown before it starts.
 
 ### Acceptance Criteria
-- [ ] "Generate all images" on the Storyboard step shows scene count, estimated cost and remaining cap, and starts only on confirmation
-- [ ] Runs as a background job with a concurrency limit from an ENV var; scenes that already have an image are skipped unless the operator asked for specific scenes (the S4 regenerate action)
-- [ ] Progress is visible per scene; a failed scene is retried once, then reported with its reason and a per-scene retry — the rest of the job continues
-- [ ] The job stops cleanly at the spend cap and says how many scenes are left; every paid generation is in the ledger even if a later step fails
-- [ ] Starting the job twice does not double-generate; after a server restart the job can be started again and picks up the scenes still missing
-- [ ] The per-run cap can be raised for a run from the confirmation dialog, up to a tenant maximum; documented in `ENV.md`
-- [ ] The generation logic shared with the per-scene route lives in one pure async function; both routes are thin wrappers
-- [ ] Tests: skip logic, cap stop mid-job, retry then failure, idempotent start, ledger entries
+- [x] "Generate all images" on the Storyboard step shows scene count, estimated cost and remaining cap, and starts only on confirmation
+- [x] Runs as a background job with a concurrency limit from an ENV var; scenes that already have an image are skipped unless the operator asked for specific scenes (the S4 regenerate action)
+- [x] Progress is visible per scene; a failed scene is retried once, then reported with its reason and a per-scene retry — the rest of the job continues
+- [x] The job stops cleanly at the spend cap and says how many scenes are left; every paid generation is in the ledger even if a later step fails
+- [x] Starting the job twice does not double-generate; after a server restart the job can be started again and picks up the scenes still missing
+- [x] The per-run cap can be raised for a run from the confirmation dialog, up to a tenant maximum; documented in `ENV.md`
+- [x] The generation logic shared with the per-scene route lives in one pure async function; both routes are thin wrappers
+- [x] Tests: skip logic, cap stop mid-job, retry then failure, idempotent start, ledger entries
 
 ### Definition of Done
-- [ ] All AC checked · CI green · decision logged (amends D104) · BACKLOG_ACTIVE.md status updated to `done`
+- [x] All AC checked · CI green · decision logged (amends D104) · BACKLOG_ACTIVE.md status updated to `done`
 
 ### Files to read
 - `cf_platform/interfaces/routes/studio_ai.py` — the per-scene route to factor
@@ -352,14 +386,24 @@ One action generates the image for every scene that does not have one, in the ba
 - `DECISIONS.md` — D096, D104; `CONVENTIONS.md#async-function-discipline`
 
 ### Handover
-_(blank)_
+- **One place pays for an image:** `generate_scene_image(ctx, scene_n, prompt=None)` in `cf_platform/workers/scene_images.py`. Order: cap check counting generations under way → generate → ledger → store → storyboard and manifest. The per-scene route and the bulk job are thin wrappers (`ImageGenContext` carries provider, cost, cap, styles, aspect).
+- **Bulk job:** `run_image_job` — concurrency from `IMAGE_JOB_CONCURRENCY`, one retry per scene, clean stop at the cap, and (smoke fix `19f0c2f`) a stop after three identical failures with no success. State in `runs/{id}/images/current_job.json`; a stored `running` job with no live job reads as `interrupted`, and starting again generates only what is missing.
+- **Routes** (`studio_ai.py`): `GET …/images/plan[?scene_ids=]`, `POST …/images/generate {scene_ids?, spend_cap_usd?}` (202), `GET …/images/status`; `GET …/ai-spend` gains `cap_max_usd` and `model`.
+- **Cap:** a run's own cap is `image_spend_cap_usd` in `settings.json`, set from the dialog, at most `IMAGE_RUN_SPEND_CAP_MAX_USD`; `effective_spend_cap` in `core/ai_images.py`.
+- **Locking:** storyboard, manifest and ledger writes of one run are serialised by a process-local lock (`run_lock`); it assumes the single web process the platform runs as.
+- **Studio:** in an Animation run the Storyboard step's main button is "Generate N images…"; the dialog shows scene count, estimate, remaining cap, model and the cap field.
+- **Decision:** D108 (amends D104).
+- **Not verified on DEV:** the stop at the cap, the cap raise, restart recovery and "Regenerate those…" — covered by tests only.
+- **ENV vars added:** `IMAGE_RUN_SPEND_CAP_MAX_USD` (10.00), `IMAGE_JOB_CONCURRENCY` (3). Tests: `test_pan1_s5_image_job.py` (25).
+- **Files that mattered:** `cf_platform/interfaces/routes/studio_ai.py`, `cf_platform/core/ai_images.py`, `cf_platform/interfaces/routes/studio.py` (manifest and storyboard writers), `cf_platform/workers/acquisition_worker.py` (`manifest_entry_for_scene`).
 
 ---
 
 ## [P-AN1-S6] Nano Banana as the image model, and the sprint smoke test
 **Epic:** E55 — Animation mode
 **Sprint:** P-AN1
-**Status:** in-progress
+**Status:** done
+**Completed:** 2026-10-11
 **Priority:** high
 **Points:** 2
 **Depends on:** P-AN1-S5
@@ -368,15 +412,15 @@ _(blank)_
 Animation runs generate on the model the operator validated the look with, and the sprint ends with two rendered videos.
 
 ### Acceptance Criteria
-- [ ] kie.ai's own documentation is checked for the Nano Banana model id, the accepted `aspect_ratio` values (9:16 and 16:9 must be accepted) and the price per image; findings recorded in the handover. As of 2026-10-11 third-party docs give `nano-banana-2` with `input.prompt`, `aspect_ratio`, `resolution` on `/api/v1/jobs/createTask`
-- [ ] The model is selectable in Settings → Integrations without a code change; any request field the model needs beyond today's three is added behind the provider interface
-- [ ] The per-image cost used for the estimate and the cap matches the selected model instead of one global `IMAGE_COST_USD`
-- [ ] Provider test with a mocked transport for the new model's request and response
-- [ ] Smoke test on DEV: one sub-minute run in 9:16 and one in 16:9, each from script to rendered video in Animation mode; character and style consistency noted in the handover, including any bible entries that had to be tightened
+- [x] kie.ai's own documentation is checked for the Nano Banana model id, the accepted `aspect_ratio` values (9:16 and 16:9 must be accepted) and the price per image; findings recorded in the handover. As of 2026-10-11 third-party docs give `nano-banana-2` with `input.prompt`, `aspect_ratio`, `resolution` on `/api/v1/jobs/createTask`
+- [x] The model is selectable in Settings → Integrations without a code change; any request field the model needs beyond today's three is added behind the provider interface
+- [x] The per-image cost used for the estimate and the cap matches the selected model instead of one global `IMAGE_COST_USD`
+- [x] Provider test with a mocked transport for the new model's request and response
+- [x] Smoke test on DEV: one sub-minute run in 9:16 and one in 16:9, each from script to rendered video in Animation mode; character and style consistency noted in the handover, including any bible entries that had to be tightened
 
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
-- [ ] Human touchpoint: the operator watches both videos
+- [x] All AC checked · CI green · DONE.md updated · BACKLOG_ACTIVE.md status updated to `done`
+- [x] Human touchpoint: the operator watches both videos
 
 ### Files to read
 - `cf_platform/core/image_provider.py` — `KieImageProvider`, `build_image_provider`
@@ -386,7 +430,14 @@ Animation runs generate on the model the operator validated the look with, and t
 - `ENV.md`
 
 ### Handover
-_(blank)_
+- **kie.ai's own documentation, checked 2026-10-11:** model id `nano-banana-2-1` (the version the operator tested with) on `POST /api/v1/jobs/createTask`; `input.prompt`, `aspect_ratio` (9:16 and 16:9 accepted, among others), `resolution` (`1K` / `2K` / `4K`), optional `output_format` (default `jpg`) and `image_input`. Price: $0.02 at 1K, $0.03 at 2K, $0.045 at 4K. `nano-banana-2` also exists ($0.04 at 1K). No request field beyond today's three was needed, so the provider code is unchanged.
+- **Per-model cost:** `IMAGE_MODEL_COSTS_USD` (JSON, model → dollars), `model_cost_usd` in `core/ai_images.py`; `IMAGE_COST_USD` is the fallback. Defaults: `nano-banana-2-1` 0.02, `gpt-image-1` 0.066 (measured: 14 images, $0.92 on the operator's bill).
+- **Settings → Integrations:** the model field suggests the selected provider's models (`KNOWN_IMAGE_MODELS` in `core/image_provider.py`) and shows the estimate per image.
+- **Smoke defect, fixed in `19f0c2f`:** DEV had provider OpenAI with kie.ai's model id saved (one model field for both providers), so all 14 scenes failed. Now a model known to belong to the other provider is refused on save, a provider change clears the model, and a mismatch already stored is ignored at generation time.
+- **Smoke:** a 9:16 run (47 s, 14 scenes, first on `gpt-image-1`) and a 16:9 run on Nano Banana, both script to rendered video. Nano Banana 2.1 at 1K returns 768 × 1376 for 9:16 at $0.02. The operator reports character and style held ("worked"); no bible entry was reported as tightened.
+- **Operator note:** images are 1K while testing; for published videos set `IMAGE_RESOLUTION=2K` and the table entry to 0.03 (1K is below the 1080p frame).
+- **ENV vars added:** `IMAGE_MODEL_COSTS_USD`. Tests: `test_pan1_s6_nano_banana.py` (15).
+- **Files that mattered:** `cf_platform/core/image_provider.py`, `cf_platform/core/tenant_settings.py`, `cf_platform/core/config.py`, `src/static/settings.html`.
 
 ---
 

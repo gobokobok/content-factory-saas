@@ -1,7 +1,23 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last two sprints (P-UX3, P14b) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last two sprints (P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P-AN1] Animation mode — S1 visual mode + master style, S2 animation storyboard worker + continuity bible, S3 image prompt assembled in code, S4 scene cards + editable bible, S5 generate all images, S6 Nano Banana + smoke test
+**Completed:** 2026-10-11 (built in one pass, commit `5bfa361`; smoke fix `19f0c2f`)
+**Handover:**
+- **A run has a visual mode** (`settings.json`: `visual_mode` `stock` | `ai_animation`, `master_style`, `image_spend_cap_usd`). The master style falls back to the project's `ai_image_style`. `cf_platform/core/run_visuals.py` resolves all of it; `POST /runs/{id}/settings` now merges instead of overwriting.
+- **A second storyboard worker** (`cf_platform/workers/animation_storyboard_worker.py`, prompt `an-v0.1`, `claude-sonnet-5-5`, one call, no review pass) is chosen by the storyboard endpoint from the run's mode. It emits the same `verified_storyboard` artifact with `visual_mode`, a `continuity` list and, per scene, `visual_concept`, `visual_keywords`, `shot`, `entities`, `motion_note`, `flags` and a scene-only `ai_prompt`. Scenes over 5 s are flagged, not split. Downstream code reads the mode from the storyboard, not from the settings.
+- **The image prompt is assembled in code** (`build_animation_prompt` in `core/ai_images.py`): scene prompt → bible descriptions → fixed lines → master style → aspect phrase. `POST …/scenes/{n}/prompt-preview` shows the exact text.
+- **One place pays for an image:** `generate_scene_image` in `cf_platform/workers/scene_images.py`; the per-scene route and the bulk job wrap it. Bulk job: `GET …/images/plan`, `POST …/images/generate`, `GET …/images/status`; retries once, stops at the cap, stops after three identical failures, survives a restart without paying twice.
+- **Continuity bible edits:** `workers/continuity_edit.py` and `routes/studio_animation.py`; an edit flags the scenes whose image is now out of date. Split and merge follow D102 with the animation rules (a cut scene has no prompt and is flagged).
+- **Image model:** kie.ai `nano-banana-2-1` works through the unchanged provider at $0.02 per 1K image. Cost is per model (`IMAGE_MODEL_COSTS_USD`); a model saved for the wrong provider is refused and ignored.
+- **ENV vars added:** `IMAGE_MODEL_COSTS_USD`, `IMAGE_RUN_SPEND_CAP_MAX_USD`, `IMAGE_JOB_CONCURRENCY` (all with defaults; none set on Railway). No migration, no new dependency. Decision: **D108** (amends D104). Tests: 118 new in six files; 2856 passing, CI green on `19f0c2f`.
+- **Not verified on DEV:** the stop at the spend cap and the cap raise; restart recovery of a bulk job; "Regenerate those…" after a bible edit; the model refusal and provider-switch behaviour in Settings after the fix; the cost of one storyboard on Sonnet 5.5. Shot variety is not checked in code. A split or merge during a bulk job is not guarded. The estimate for `gpt-image-1` rests on one run.
+**Smoke test:** PASSED — the operator made a 9:16 run (47 s, 14 scenes, with background music and on-screen text) and a 16:9 run on DEV, each from script to rendered video in Animation mode, the second on Nano Banana 2.1 via kie.ai. One defect found and fixed during the smoke (`19f0c2f`: kie.ai's model id was sent to OpenAI). The operator reports consistency as "worked", with no detail and no bible entry reported as tightened.
+**Promoted to backlog:** none. Candidates: a guard on split / merge while images are generating; a per-run or per-project image resolution (today `IMAGE_RESOLUTION` is one Railway variable; 1K is below the 1080p frame); a shot-variety check in code; reference images for characters (deferred in D108).
 
 ---
 
@@ -21,22 +37,5 @@ _This file holds the last two sprints (P-UX3, P14b) plus every older entry whose
 **Promoted to backlog:** none. Candidates: a pan that is clearly visible on every still without a minimum zoom (decided against); "which pages feel crowded" when the operator next names them.
 
 ---
-
-## [P14b] Uploaded voiceover — S1 run creation choice + language seed + upload + transcript as script, S2 transcript review with timing-safe edits, S3 storyboard / timeline / render / CapCut from the upload, S4 guards + end-to-end test, S5 stop logging API keys
-**Completed:** 2026-10-07 (built 2026-10-05, commit `dbec47d`)
-**Handover:**
-- **A run has two entry modes and a language.** `run.inputs.voice_source` (`generated` default | `uploaded`) and `run.inputs.language` (ISO 639-1; default the project's `config.language`, else `en`) are set at creation on the project page; no migration. Uploaded runs show Settings → Upload → Transcript → Storyboard → Video → Metadata and skip Script, Voice and the narration controls.
-- **The seam is `voice_alignment`.** `POST …/studio/runs/{id}/voice/upload` stores the audio at `runs/{id}/voiceover/uploaded.<ext>`, Deepgram transcribes it in the run's language (background job, `voice/status`), and the result is a `voice_alignment` (`alignment_method = uploaded_deepgram_nova2`) plus a `script` artifact with `source: uploaded_vo`. Timeline, render and CapCut read it through `mp3_r2_key` unchanged. Code: `cf_platform/interfaces/routes/studio_voice.py`, `cf_platform/workers/voice_upload.py`, `_deepgram_transcribe` in `voice_production.py`.
-- **Timing-safe edits** (`cf_platform/workers/transcript_edit.py`, `PATCH …/transcript`): replace a word, one to several, several to one, same-count replacement; deletions, additions and other many-to-many are refused with the reason (422). Locked (409) once a storyboard exists. Words carry no punctuation.
-- **Guards and re-upload:** no words / too short / too long / Deepgram failure end the job in `error`; a language that looks wrong is a **warning** (wrong script or low confidence) with Keep / Change (`PUT …/language`) — it cannot catch same-script mismatches. Re-upload asks for confirmation and discards the storyboard (marker `runs/{id}/storyboard/discarded.json`, honoured by `latest_artifact_key`, acquisition and render) and empties the manifest.
-- **Render:** one addition in `render_worker.py` — stale audio files in the local `voiceover/` folder are removed so a re-upload in another format cannot be picked up by the script's glob. Golden suite unchanged.
-- **Keys in logs (S5):** `src/log_redaction.py` redacts `key=` / `token=` / `api_key=` values in the final formatted text of all handlers (messages, args, tracebacks); `httpx` request logging stays at INFO.
-- **ENV vars added:** `VOICE_UPLOAD_MAX_MB`, `VOICE_UPLOAD_MIN_S`, `VOICE_UPLOAD_MAX_S`, `VOICE_LOW_CONFIDENCE`, `DEEPGRAM_COST_PER_MIN_USD`. No new dependency. Decision logged: **D106**. Tests: 62 new across three files; 2645 passing, CI green on `dbec47d`.
-- **Not verified on DEV:** the guards, the re-upload confirmation, language `ru` (including Deepgram's `language=ru` on Nova-2, only tested against a mocked request) and the `key=` log check. Operator actions still open: rotate the Pixabay key (DEV now, PROD at release) and re-check PROD logs at the next `/prod-check` — both in SPRINT.md open items.
-**Smoke test:** PASSED — the operator made two real Shorts on DEV with the uploaded-voiceover flow (commit `dbec47d`, deploy confirmed) and found no issues. The scripted steps were not run one by one; the items under "Not verified on DEV" above were not exercised.
-**Promoted to backlog:** none. Candidate: punctuation-aware transcript (store Deepgram's punctuated words) if scene breaks from an uploaded VO read worse than from a script.
-
----
-
 
 ---

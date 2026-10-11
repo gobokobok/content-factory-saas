@@ -12,14 +12,14 @@ On every new session, read in this order:
 Content Factory is a modular, automated content production pipeline for "The Housing Equation" — a faceless, data-driven YouTube Shorts channel about American housing economics. The operator triggers and monitors each pipeline step via a minimal HTML/JS web UI hosted on Railway. POC scope covers pipeline Steps 2b–7; Step 2a (`script-generator.html`) is a standalone reference tool in `/tools`, not integrated.
 
 ## Current sprint
-**Sprint P-UX3 — UI/UX redesign** closed 2026-10-11 (D105, D107). Built and live on DEV: one shell on every page; project pages (Overview / Ideas / Runs / Settings); a run starts from an idea or a title; one five-step pipeline per run (Script → Voice → Storyboard → Video → Metadata); tenant Integrations and Defaults; tenant-wide Libraries; smooth pans and zooms in the renderer. Details: DONE.md, `docs/ux/`.
+**Sprint P-AN1 — Animation mode (EPIC 55)** closed 2026-10-11 (D108). Built and live on DEV: a run is Stock footage or Animation; an Animation run gets its storyboard from a second worker (Sonnet 5.5) with a continuity bible, an image prompt assembled in code, and one "Generate all images" action with the cost shown first. Images: kie.ai `nano-banana-2-1`, 1K while testing. Details: DONE.md, `docs/ARCHITECTURE.md` §0c.
 Studio is the only operator interface; Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Roadmap: **P-AN1 Animation mode (EPIC 55)** → Multi-language: Russian (EPIC 53) → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, library "use in a scene" and music-from-library (D105)._
+_Roadmap: **P-LANG Multi-language: Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene" and music-from-library (D105), long-form animation (chunked storyboard, D108)._
 
 ## Active story
-**None started.** Next: **P-AN1-S1** — run settings: visual mode and master style (`/start-story P-AN1-S1..S6`; `/decide` first, see the EPIC 55 outline in BACKLOG_ACTIVE.md).
+**None started.** Next: `/sprint-review` for P-AN1, then plan P-LANG (EPIC 53 is a stub in BACKLOG_ACTIVE.md; detail at the sprint boundary).
 
-**Blockers / operator actions:** rotate the Pixabay key on DEV (the old one is in DEV log history) — now possible in Settings → Integrations; check the DEV log for `key=REDACTED`. Re-render a run with zooms to confirm the zoom fix (D107). PROD stays on v0.24.0 on purpose — release DEV to PROD only when DEV is complete and smoke tested (at release set a new `SETTINGS_ENCRYPTION_KEY` and re-check PROD logs for `key=`). `/audit` never run (planned before P15). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
+**Blockers / operator actions:** for published videos set `IMAGE_RESOLUTION=2K` and the `nano-banana-2-1` price to 0.03 in `IMAGE_MODEL_COSTS_USD` on Railway (1K is below the 1080p frame). Rotate the Pixabay key on DEV (the old one is in DEV log history); check the DEV log for `key=REDACTED`. Re-render a run with zooms to confirm the zoom fix (D107). PROD stays on v0.24.0 on purpose — release DEV to PROD only when DEV is complete and smoke tested (at release set a new `SETTINGS_ENCRYPTION_KEY` and re-check PROD logs for `key=`). `/audit` never run (planned before P15). Google API audit application in progress (lead time for P16). Deferred smoke tests: 0.
 
 ## Environments
 
