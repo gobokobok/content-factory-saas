@@ -328,5 +328,6 @@ class TestCompactSceneCard:
 def test_the_project_image_style_field_holds_a_long_master_prompt():
     """A real master prompt is ~1,700 characters; the field used to cut at 600."""
     page = _read("project.html")
-    field = page[page.index('maxlength="4000" rows="10"'): page.index("ai_image_style:this.value.trim()")]
-    assert "ai_image_style" in field and 'maxlength="600"' not in page
+    start = page.index('maxlength="4000" rows="10"')
+    assert "ai_image_style:this.value.trim()" in page[start: start + 400]
+    assert 'maxlength="600"' not in page
