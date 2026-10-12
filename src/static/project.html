@@ -282,7 +282,7 @@ function viewSettings() {
       </div></div>
     <div class="card"><div class="card-title">AI images</div><div class="card-sub">The provider and its key come from <a href="/settings?tab=integrations">Settings → Integrations</a>.</div>
       <label class="label">Look across scenes — added in front of every AI image prompt in this project</label>
-      <textarea class="input" maxlength="600" placeholder="Muted editorial illustration, flat colours, soft grain, no text"
+      <textarea class="input" maxlength="4000" rows="10" style="min-height:220px;" placeholder="Muted editorial illustration, flat colours, soft grain, no text"
         onchange="patchProject({config:{...(project.config||{}),ai_image_style:this.value.trim()}})">${esc((project.config && project.config.ai_image_style) || '')}</textarea></div>
     ${assetsCard()}</div>`;
 }
