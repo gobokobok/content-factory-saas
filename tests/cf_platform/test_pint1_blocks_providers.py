@@ -166,10 +166,9 @@ class TestAdapters:
 
 class TestRoutes:
     def _client(self, repo):
+        from cf_platform.core.config import get_platform_settings
         from src.config import Settings, get_settings
         from tests.cf_platform.p12_helpers import VALID_ENV
-
-        from cf_platform.core.config import get_platform_settings
 
         app.dependency_overrides[get_tenant_settings_repository] = lambda: repo
         app.dependency_overrides[get_settings] = lambda: Settings.model_validate(VALID_ENV)
@@ -225,12 +224,11 @@ class TestRoutes:
                 calls["model"], calls["user"] = model, user
                 return '{"title": "T", "description": "D", "tags": ["a"]}'
 
-        from src.config import Settings, get_settings
-        from tests.cf_platform.p12_helpers import VALID_ENV
-
         from cf_platform.core.projects import InMemoryProjectRepository
         from cf_platform.core.run_manager import InMemoryRunRepository
         from cf_platform.interfaces.dependencies import PLATFORM_USER_ID, get_project_repository, get_run_repository
+        from src.config import Settings, get_settings
+        from tests.cf_platform.p12_helpers import VALID_ENV
 
         runs, projects = InMemoryRunRepository(), InMemoryProjectRepository(PLATFORM_USER_ID)
         overrides = {

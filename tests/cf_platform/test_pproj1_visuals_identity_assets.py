@@ -211,9 +211,8 @@ class TestLookAndSource:
     def test_without_a_storyboard_a_change_just_applies(self):
         storage = InMemoryArtifactStorage()
         from cf_platform.interfaces.dependencies import get_artifact_storage
-        from src.main import app as _app
-
         from src.config import Settings, get_settings
+        from src.main import app as _app
         from tests.cf_platform.p12_helpers import VALID_ENV
 
         _app.dependency_overrides[get_artifact_storage] = lambda: storage
