@@ -331,3 +331,14 @@ def test_the_project_image_style_field_holds_a_long_master_prompt():
     start = page.index('maxlength="4000" rows="10"')
     assert "ai_image_style:this.value.trim()" in page[start: start + 400]
     assert 'maxlength="600"' not in page
+
+
+class TestCastAndMasterPrompt:
+    def test_run_settings_have_a_cast_control(self):
+        page = _read("studio-v2.html")
+        for needle in ("opt-cast-single", "One character throughout", "setCastMode", "cast_mode:", "protagonist_asset_id"):
+            assert needle in page, needle
+
+    def test_the_project_has_a_master_visual_prompt_that_runs_can_override(self):
+        page = _read("project.html")
+        assert "Master visual prompt (project default)" in page and "the run\'s prompt wins over this one" in page

@@ -188,7 +188,7 @@ function renderNewRun() {
       <div class="field full"><label class="label" for="nr-style">Style</label><select class="select" id="nr-style" onchange="readNewRun(); window._nr.style = this.value; renderNewRun()">${opts({ realistic: 'Realistic', animated: 'Animated' }, n.style)}</select></div>
       ${n.style === 'animated' ? `<div class="field full"><button class="btn btn-secondary btn-sm" type="button" onclick="dlgMasterPrompt()">${n.master.trim() ? 'Edit master visual prompt' : 'Add master visual prompt'}</button></div>` : ''}
     </div>
-    <div class="hint" style="margin-top:14px;">You can change these settings later in Run Settings.</div>
+    <div class="hint" style="margin-top:14px;">${n.style === 'animated' && !n.master.trim() && (project.config && project.config.ai_image_style) ? 'The project\'s master visual prompt is used unless you add one here. ' : ''}You can change these settings later in Run Settings.</div>
     <div class="actions"><button class="btn btn-primary" id="nr-create" onclick="createRun()">Create run →</button><button class="btn btn-ghost" onclick="closeOverlay()">Cancel</button></div>
   </div>`);
 }
@@ -280,8 +280,8 @@ function viewSettings() {
         <div class="field"><label class="label">Narration style (generated voice)</label>
           <select class="select" onchange="setDefault('style', this.value)"><option value="">Educational (built-in)</option>${opts(STYLES, rd.narration_style)}</select></div>
       </div></div>
-    <div class="card"><div class="card-title">AI images</div><div class="card-sub">The provider and its key come from <a href="/settings?tab=integrations">Settings → Integrations</a>.</div>
-      <label class="label">Look across scenes — added in front of every AI image prompt in this project</label>
+    <div class="card"><div class="card-title">Master visual prompt</div><div class="card-sub">The look every AI image in this project shares, added to every image prompt. A run can set its own in Run settings; the run's prompt wins over this one. The provider and its key come from <a href="/settings?tab=integrations">Settings → Integrations</a>.</div>
+      <label class="label">Master visual prompt (project default)</label>
       <textarea class="input" maxlength="4000" rows="10" style="min-height:220px;" placeholder="Muted editorial illustration, flat colours, soft grain, no text"
         onchange="patchProject({config:{...(project.config||{}),ai_image_style:this.value.trim()}})">${esc((project.config && project.config.ai_image_style) || '')}</textarea></div>
     ${assetsCard()}</div>`;

@@ -35,6 +35,8 @@ from datetime import UTC, datetime
 import anthropic
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
+from cf_platform.core.cast import CastRule, enforce_single_cast
+from cf_platform.core.cast import prompt_block as cast_prompt
 from cf_platform.core.project_assets import apply_to_continuity, prompt_block
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
 from cf_platform.core.sfx_library import SFX_LIBRARY, sfx_vocab_prompt_line
@@ -368,6 +370,7 @@ def build_animation_user_message(
     format_track: str,
     master_style: str,
     project_assets: list[dict] | None = None,
+    cast: CastRule | None = None,
 ) -> str:
     """The user message: format, master style (context only), assets, word budget, word list, script.
 
@@ -383,6 +386,9 @@ def build_animation_user_message(
     style = master_style.strip() or "None given. Choose concepts that work in any consistent illustration style."
     assets = prompt_block({"assets": project_assets or []})
     assets_section = f"{assets}\n\n" if assets else ""
+    cast_block = cast_prompt(cast)
+    if cast_block:
+        assets_section += f"{cast_block}\n\n"
     return (
         f"FORMAT: {_FORMAT_PHRASE.get(format_track, _FORMAT_PHRASE['portrait'])}. "
         "Compose for this frame; do not mention it in any ai_prompt.\n\n"
@@ -600,6 +606,7 @@ async def generate_animation_storyboard(
     format_track: str = "portrait",
     master_style: str = "",
     project_assets: list[dict] | None = None,
+    cast: CastRule | None = None,
 ) -> Storyboard:
     """Generate an animation storyboard from the narration and its word timing.
 
@@ -615,7 +622,9 @@ async def generate_animation_storyboard(
             "An Animation storyboard is cut on the voiceover's timing — generate or upload the voiceover first."
         )
     words, display = _normalize_deepgram_words_with_display([w.model_dump() for w in voice_timestamps])
-    user_content = build_animation_user_message(script, words, display, format_track, master_style, project_assets)
+    user_content = build_animation_user_message(
+        script, words, display, format_track, master_style, project_assets, cast
+    )
     raw_text = await request_animation_storyboard(animation_system_prompt(), user_content, api_key)
     storyboard = parse_animation_storyboard(raw_text, words)
     if project_assets:
@@ -625,7 +634,7 @@ async def generate_animation_storyboard(
         storyboard = storyboard.model_copy(update={
             "continuity": [ContinuityEntry.model_validate(e) for e in merged],
         })
-    return storyboard
+    return enforce_single_cast(storyboard, cast)
 
 
 def build_animation_storyboard_worker(
@@ -656,6 +665,7 @@ def build_animation_storyboard_worker(
             format_track=state.inputs.get("format_track", "portrait"),
             master_style=str(state.inputs.get("master_style") or ""),
             project_assets=state.inputs.get("project_assets") or None,
+            cast=CastRule.from_input(state.inputs.get("cast")),
         )
         flagged = sum(1 for s in storyboard.scenes if SCENE_FLAG_TOO_LONG in s.flags)
         logger.info(

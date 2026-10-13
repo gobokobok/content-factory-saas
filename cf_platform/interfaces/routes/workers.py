@@ -14,13 +14,14 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage
+from cf_platform.core.cast import resolve_cast
 from cf_platform.core.config import PlatformSettings
 from cf_platform.core.llm import LLMError, build_llm_client
 from cf_platform.core.project_assets import list_assets
 from cf_platform.core.projects import ProjectRepository
 from cf_platform.core.providers import resolve_block
 from cf_platform.core.run_manager import RunNotFoundError, RunRepository
-from cf_platform.core.run_visuals import load_run_visuals, project_config_for_run
+from cf_platform.core.run_visuals import load_run_visuals, project_config_for_run, read_run_settings
 from cf_platform.core.schemas import StageState
 from cf_platform.core.tenant_settings import TenantSettingsRepository
 from cf_platform.core.worker_registry import WorkerRegistration
@@ -244,6 +245,9 @@ async def storyboard_worker_endpoint(
         assets = list_assets(project_config)
         if assets:
             inputs["project_assets"] = assets
+        cast = resolve_cast(await read_run_settings(storage, body.run_id), project_config)
+        if cast is not None:
+            inputs["cast"] = cast.as_input()
     else:
         inputs["look"] = visuals.look
         wanted = getattr(settings, "STORYBOARD_STOCK_PROMPT_VERSION", STORYBOARD_PROMPT_VERSION)

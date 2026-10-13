@@ -934,6 +934,21 @@
             <div class="rs-hint" id="master-style-hint" style="margin-bottom:6px;"></div>
           </div>
 
+          <div id="cast-block" style="display:none;">
+            <div class="field-label">Cast</div>
+            <div class="settings-opt-row">
+              <button class="settings-opt active" id="opt-cast-free" onclick="setCastMode('free')">The director decides</button>
+              <button class="settings-opt" id="opt-cast-single" onclick="setCastMode('single')">One character throughout</button>
+            </div>
+            <div id="cast-single" style="display:none;margin-top:8px;">
+              <select class="cf-select" id="cast-asset" onchange="onCastChange()" title="A saved character of this project"></select>
+              <textarea class="modal-input" id="cast-text" rows="3" maxlength="1200" style="width:100%;resize:vertical;font-family:inherit;box-sizing:border-box;margin-top:8px;"
+                placeholder="Or describe them: age, build, hair, face, each garment with its colour. This exact text is added to every image they are in."
+                oninput="state.settings.protagonistText=this.value" onchange="onCastChange()"></textarea>
+            </div>
+            <div class="rs-hint" id="cast-hint" style="margin-bottom:6px;"></div>
+          </div>
+
           <div class="field-label">Background music</div>
           <div class="music-dropzone" id="music-dropzone" onclick="document.getElementById('music-file-input').click()" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="onMusicDrop(event)">
             <input type="file" id="music-file-input" accept="audio/mpeg,audio/wav,audio/mp4" onchange="onMusicFileChosen(event)">
@@ -1601,7 +1616,7 @@ function applyVoiceSource(source) {
 }
 function defaultSettings() {
   return {
-    aspectRatio: 'portrait', visualMode: DEMO_ANIM ? 'ai_animation' : 'stock', look: null, masterStyle: '', imageSpendCap: null, captions: true, musicKey: null, subject: '',
+    aspectRatio: 'portrait', visualMode: DEMO_ANIM ? 'ai_animation' : 'stock', look: null, castMode: 'free', protagonistAssetId: '', protagonistText: '', masterStyle: '', imageSpendCap: null, captions: true, musicKey: null, subject: '',
     captionStyle: 'standard',                                   // D082
     narrationPace: 'normal', narrationStyle: 'educational',     // D083
   };
@@ -2186,6 +2201,10 @@ function applyStoredSettings(s) {
   if (s.image_spend_cap_usd !== undefined) state.settings.imageSpendCap = s.image_spend_cap_usd;
   if (s.visual_mode) setVisualMode(s.visual_mode);
   if (s.look) { state.settings.look = s.look; renderVisualMode(); }
+  if (s.cast_mode) state.settings.castMode = s.cast_mode;
+  if (s.protagonist_asset_id !== undefined) state.settings.protagonistAssetId = s.protagonist_asset_id || '';
+  if (s.protagonist_text !== undefined) state.settings.protagonistText = s.protagonist_text || '';
+  renderCast();
   syncCaptionStyleEnabled();
 }
 
@@ -2480,6 +2499,7 @@ function renderVisualMode() {
     : (animation ? 'Every scene is a generated image, with characters and places kept the same through a continuity bible. Images cost money; nothing is generated until you start it.'
                  : 'Scenes are stock footage and images' + (look === 'animated' ? ', searched as illustration and animation' : '') + ', with your own uploads where you choose.');
   document.getElementById('master-style-block').style.display = animation ? '' : 'none';
+  renderCast();
   const inherited = projectImageStyle();
   const own = (state.settings.masterStyle || '').trim();
   const msHint = document.getElementById('master-style-hint');
@@ -2488,6 +2508,42 @@ function renderVisualMode() {
     ? (inherited ? 'Overridden for this run. Empty it to use the project\u2019s AI image style again.' : 'Set for this run.')
     : (inherited ? 'Inherited from the project\u2019s AI image style: ' + (inherited.length > 140 ? inherited.slice(0, 140) + '\u2026' : inherited)
                  : 'No style of your own yet: the images use a generic ' + look + ' style. Describe the look for a consistent set.');
+}
+
+/** Paint the Cast controls: shown for AI-generated runs, with the project's saved characters to pick from. */
+function renderCast() {
+  const block = document.getElementById('cast-block');
+  if (!block) return;
+  block.style.display = isAnimationRun() ? '' : 'none';
+  const single = state.settings.castMode === 'single';
+  document.getElementById('opt-cast-free').classList.toggle('active', !single);
+  document.getElementById('opt-cast-single').classList.toggle('active', single);
+  document.getElementById('cast-single').style.display = single ? '' : 'none';
+  const assets = ((state.project && state.project.config && state.project.config.assets) || []).filter(a => a.kind === 'character');
+  const sel = document.getElementById('cast-asset');
+  sel.innerHTML = `<option value="">Describe a character below</option>` +
+    assets.map(a => `<option value="${esc(a.id)}"${a.id === state.settings.protagonistAssetId ? ' selected' : ''}>${esc(a.name)} (project character)</option>`).join('');
+  document.getElementById('cast-text').value = state.settings.protagonistText || '';
+  document.getElementById('cast-text').disabled = !!state.settings.protagonistAssetId;
+  const missing = single && !state.settings.protagonistAssetId && !(state.settings.protagonistText || '').trim();
+  const hint = document.getElementById('cast-hint');
+  hint.className = 'rs-hint' + (missing ? ' warn' : '');
+  hint.textContent = !single
+    ? 'The director invents the characters the script needs, which can be several.'
+    : missing
+      ? 'Pick a project character or describe one — until then the director decides.'
+      : 'The whole video follows this one person. Any other character the director suggests is removed and their scenes show this one. Applies the next time the storyboard is generated.';
+}
+function setCastMode(mode) {
+  state.settings.castMode = mode === 'single' ? 'single' : 'free';
+  renderCast();
+  saveRunSettings();
+}
+function onCastChange() {
+  state.settings.protagonistAssetId = document.getElementById('cast-asset').value;
+  state.settings.protagonistText = document.getElementById('cast-text').value;
+  renderCast();
+  saveRunSettings();
 }
 
 function onMasterStyleInput() {
@@ -2578,6 +2634,9 @@ async function saveRunSettings() {
     aspect_ratio: arMap[state.settings.aspectRatio] || '9:16',
     visual_mode: state.settings.visualMode || 'stock',
     ...(state.settings.look ? { look: state.settings.look } : {}),
+    cast_mode: state.settings.castMode || 'free',
+    protagonist_asset_id: state.settings.protagonistAssetId || '',
+    protagonist_text: (state.settings.protagonistText || '').slice(0, 1200),
     master_style: (state.settings.masterStyle || '').trim(),
     subtitles: state.settings.captions ? 'TikTok' : 'none',
     subject: state.settings.subject || '',

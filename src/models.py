@@ -392,6 +392,11 @@ class Storyboard(BaseModel):
     # or "animated"; None until chosen, then the look follows the image source
     # (stock → realistic, ai_animation → animated). `visual_mode` is the image source.
     look: Literal["realistic", "animated"] | None = None
+    # D113 — who appears. "free" lets the storyboard director decide; "single" follows one
+    # protagonist: a project asset (`protagonist_asset_id`) or a description typed for the run.
+    cast_mode: Literal["free", "single"] = "free"
+    protagonist_asset_id: str = ""
+    protagonist_text: str = Field(default="", max_length=1200)
     continuity: list[ContinuityEntry] = []
 
 

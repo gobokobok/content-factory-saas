@@ -20,6 +20,17 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 
 ---
 
+## [P-PROJ1 follow-up] One character throughout a run; master visual prompt at project and run level (D113)
+**Completed:** 2026-10-13 (operator question after the P-PROJ1 smoke)
+**Handover:**
+- **Run settings → Cast** (AI-generated runs): "The director decides" or "One character throughout" with a project character or a typed description. Stored as `cast_mode`, `protagonist_asset_id`, `protagonist_text` in settings.json. `cf_platform/core/cast.py`: `resolve_cast`, `prompt_block`, `enforce_single_cast`; wired in `generate_animation_storyboard` and the storyboard route. Other character entries are dropped and their scenes show the protagonist; regenerating keeps the rule.
+- **Master visual prompt:** it already existed at both levels (project: `ai_image_style`, run: `master_style`, the run wins). The project field is now named "Master visual prompt (project default)", says the run's wins, and the New Run modal notes when the project's will be used.
+- Tests: 2930 passing.
+**Not verified:** against a real model — the enforcement is deterministic and tested, but how well the image model keeps one face across scenes depends on the description. Not applied to Realistic (stock) runs.
+**Smoke test:** DEFERRED → cleared by INT1-S5 (add: set One character throughout with a typed description, generate the storyboard, confirm one character entry and every person scene using it; regenerate and confirm it stays).
+
+---
+
 ## [P-PROJ1 / P-UX4 post-close fixes] Scene boundaries tolerate spelled numbers and punctuation; compact animation scene cards
 **Completed:** 2026-10-11 (operator feedback on DEV)
 **Handover:**

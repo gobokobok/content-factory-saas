@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D113 — A run can follow one character: the cast rule is given to the director and enforced in code
+**Date:** 2026-10-13 (operator question after the P-PROJ1 smoke)
+**Status:** ACTIVE (extends D108 and D111)
+**Decision:** A run has `cast_mode` ("free" default | "single") with a protagonist — a project asset (`protagonist_asset_id`) or text typed for the run (`protagonist_text`, ≤1200). With "single": (1) the animation storyboard worker's message carries a CAST RULE (one person, this id and description, no other character entry, other people only as unidentifiable background); (2) after the answer, `enforce_single_cast` (`cf_platform/core/cast.py`) overwrites or creates the protagonist's bible entry with the rule's text, removes every other **character** entry (props and settings stay) and puts the protagonist in the scenes that showed a removed character. The rule is read from the run's settings.json at generation, so regenerating the storyboard keeps it. The master visual prompt is resolved run-first, then project (D104/D111); the project field was relabelled "Master visual prompt".
+**Rationale:** Removing a bible entry by hand does not last — an entry used by scenes cannot be removed, and a regenerated storyboard is a new answer from the model that invents characters again. A prompt alone can be ignored, so the rule is also enforced after the fact.
+**Rejected:** a "remove character" button on the bible only (lost on regenerate); enforcing only in the prompt.
+**Limits:** it keeps one *character entry*; whether every image of the person matches is still up to the image model and the description. A narration about several named people is shown through objects and places, not as depicted characters. Not applied to the stock (Realistic) storyboard, which does not depict characters.
+**No new dependency, no migration.**
+**See:** D108, D111.
+
+---
+
 ## D112 — Providers are grouped in five blocks with a default per block; the LLM adapter is wired for metadata only; a key never switches a default by itself at tenant level
 **Date:** 2026-10-11 (Sprint P-INT1; settled by Claude while the operator was away, for review)
 **Status:** ACTIVE (settles part of D109 point 5)
