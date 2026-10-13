@@ -56,7 +56,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Open items carried from closed sprints
 
-- **Deferred smoke tests: 4 entries** — P-UX4 (deferred), P-PROJ1 (partial: master prompt field and script view confirmed), P-INT1 (deferred) and the D113 cast follow-up (deferred), all → INT1-S5 in P-INT1 (operator decision: one sweep). (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
+- **Smoke tests not fully cleared: 4 entries** — P-UX4 (partial), P-PROJ1 (partial), P-INT1 (deferred, nothing reported yet) and the D113 cast follow-up (deferred), all → INT1-S5 in P-INT1. (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
 - **PROD is six sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b, P14, P14b and P-UX3 (including migrations `0002_projects_shortlist.sql`, `0003_tenant_settings.sql` and `0004_tenant_defaults.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
 - **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.

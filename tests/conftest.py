@@ -1,8 +1,36 @@
 """Shared pytest fixtures — applied globally to prevent real external API calls."""
 
+import os
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+# The settings every app instance needs. CI provides only some of them as environment
+# variables and has no .env.local, so a test that builds the app passed on a developer's
+# machine (which has .env.local) and failed in CI (P-INT1 close). These are filled in
+# for every test when missing, so the suite does not depend on where it runs.
+_TEST_ENV_DEFAULTS = {
+    "ENVIRONMENT": "dev",
+    "R2_ACCOUNT_ID": "test-account",
+    "R2_ACCESS_KEY_ID": "test-key-id",
+    "R2_SECRET_ACCESS_KEY": "test-secret",
+    "R2_BUCKET_NAME": "test-bucket",
+    "ANTHROPIC_API_KEY": "test-key",
+    "PEXELS_API_KEY": "test-key",
+    "REPLICATE_API_TOKEN": "test-token",
+    "FREESOUND_API_KEY": "test-key",
+    "OPERATOR_PASSWORD": "test-password",
+    "SESSION_SECRET_KEY": "test-secret-key",
+}
+
+
+@pytest.fixture(autouse=True)
+def hermetic_settings_env(monkeypatch):
+    """Give every test the settings the app requires, without overriding what the environment already sets."""
+    for key, value in _TEST_ENV_DEFAULTS.items():
+        if key not in os.environ:
+            monkeypatch.setenv(key, value)
+    yield
 
 
 @pytest.fixture(autouse=True)

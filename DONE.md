@@ -15,8 +15,16 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - ENV added: `OPENAI_LLM_MODEL` (default `gpt-4.1-mini`). No migration, no new dependency. Decision: **D112**. Tests: 2907 passing.
 - **Not verified:** nothing ran against a real OpenAI account or DEV. The OpenAI request shape (`max_completion_tokens`, chat completions) is exercised against a mock transport only; the default model id `gpt-4.1-mini` is an assumption — check it exists on the account, or set `OPENAI_LLM_MODEL`. The regrouped Integrations page was syntax-checked and covered by page tests, not looked at in a browser.
 - **Not built (by design, D112):** script, storyboard and the other text workers on the adapter; per-user keys and the automatic default switch (P-AUTH); alternative audio providers.
-**Smoke test:** DEFERRED — operator will smoke test after both sprints → cleared by INT1-S5 in Sprint P-INT1 (the INT1-S5 list covers P-UX4, P-PROJ1 and P-INT1).
+**Smoke test:** DEFERRED — no part of it has been reported on DEV yet (Integrations page, OpenAI as the Thinking-models default, Run details "Made with") → cleared by INT1-S5 in Sprint P-INT1.
 **Promoted to backlog:** INT1-S6 candidate: move script, storyboard and fact-check workers onto `LLMClient` (or an equivalent that keeps thinking and streaming), one at a time with a prompt check; per-block fallback order for providers; key validity check on save.
+
+---
+
+## [P-INT1 / P-PROJ1 close fix] The test suite no longer depends on a developer's `.env.local`
+**Completed:** 2026-10-13
+**Handover:**
+- CI failed on three new route tests that built the app with no settings overrides (they passed locally from `.env.local`; CI lacks `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY`). The three were fixed, and `tests/conftest.py` now fills any missing required setting for every test (`hermetic_settings_env`). The full suite (2930) passes with `.env.local` moved away and an empty environment. See `docs/TESTING.md#hermetic-settings-2026-10-13`.
+**Smoke test:** PASSED — full suite run with no `.env.local` and `env -i`.
 
 ---
 
@@ -69,7 +77,7 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - **Library:** videos and voiceovers are named after the run title (`titled_name`, `name_from_run` in `core/library.py`); display and download names; footage and AI images are unchanged.
 - No ENV vars, migration or dependency. Tests: 2869 passing, ruff clean.
 - **Not verified:** the New Run modal and the voiceover-replace confirmation were checked by tests and in the static demo only, not against DEV; the phone layout without a drawer was not looked at; the master-prompt sub-modal on a real run.
-**Smoke test:** DEFERRED — operator decision 2026-10-11: test after P-INT1 is built → cleared by INT1-S5 in Sprint P-INT1. List: create a run from the modal (Animated + master prompt) and walk the five steps with Next only; upload a voiceover, switch Script to Generate, go to Voiceover and generate over it; toggle captions on the Video step and see Run settings follow; check a video's file name in the library; view a narrow screen.
+**Smoke test:** PARTIAL — the operator used the new pipeline on DEV (2026-10-11/13): the Voiceover step with narration options and an uploaded recording, the Script and Storyboard steps with scene cards and the script view, and reported four layout/behaviour fixes, all shipped; the script view fix was confirmed "worked". Not exercised: the minimal New Run modal with the master-prompt sub-modal end to end, generating a voice over an upload (the replace confirmation), captions shared between the Video step and Run settings, library file names, a narrow screen without the drawer → cleared by INT1-S5 in Sprint P-INT1.
 **Promoted to backlog:** none. Candidates: the style lock is still the existing one (disabled buttons after a storyboard); the explicit "reset storyboard" arrives with P-PROJ1.
 
 ---
