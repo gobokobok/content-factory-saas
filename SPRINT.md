@@ -73,7 +73,7 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P-HARD1 — Audit and hardening (before P-AUTH)
 
 **Goal:** Close the rework the 2026-10-13 review found (a silent voice failure on PROD, word matching fixed three times on data nobody saw, cost blind for two sprints) and run the first security audit before accounts exist.
-**Status:** built 2026-10-13 in one pass on branch `sprint/p-hard1` (not pushed — a DEV → PROD copy was running in another session). Tests 3000 passing. Closed 2026-10-13; smoke deferred to HARD1-S6 (Sprint P-AUTH), after the merge and DEV deploy.
+**Status:** built 2026-10-13 in one pass on branch `sprint/p-hard1` (not pushed — a DEV → PROD copy was running in another session). Tests 3000 passing. Closed 2026-10-13; smoke passed on DEV 2026-10-13.
 **Points:** ~11
 
 | ID | Title | Points | Status |
