@@ -38,7 +38,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
 | P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | **done** 2026-10-11 | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
 | P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Create a run from the minimal modal and walk all five steps with Next only |
-| P-HARD1 | Audit and hardening: first `/audit`, loud voice failure, word-matching regression suite, bulk-job guard, cost-log backfill, Integrations rework (INT2-S1) | ~14 | **planned** (review 2026-10-13) | Read `docs/SECURITY.md`; a failed voice says so and offers Retry |
+| P-HARD1 | Audit and hardening: first `/audit`, loud voice failure, word-matching regression suite, bulk-job guard, cost-log backfill | ~11 | **planned** (review 2026-10-13) | Read `docs/SECURITY.md`; a failed voice says so and offers Retry |
 | P-AUTH | Google sign-in, accounts, tiers with View-as, per-user isolation (EPIC 59, D114); `/audit` first | ~16 | planned | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
 | P-LITE | The Creator flow for regular users (EPIC 59, D114) | ~16 | planned | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
 | P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114) | ~13 | planned | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
@@ -58,7 +58,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Open items carried from closed sprints
 
-- **Smoke tests not fully cleared: 0** — P-INT1's OpenAI default / metadata path was marked done by the operator at the 2026-10-13 review; INT2-S1 (Integrations rework) still plans to exercise it. INT1-S5 (the P-UX4 / P-PROJ1 / P-INT1 sweep) was run by the operator on DEV 2026-10-13. (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
+- **Smoke tests not fully cleared: 0** — P-INT1's OpenAI default / metadata path was marked done by the operator at the 2026-10-13 review; INT2-S1 (Integrations rework) is not in P-HARD1 (dropped by the operator 2026-10-13) and stays a candidate. INT1-S5 (the P-UX4 / P-PROJ1 / P-INT1 sweep) was run by the operator on DEV 2026-10-13. (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
 - **PROD is six sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b, P14, P14b and P-UX3 (including migrations `0002_projects_shortlist.sql`, `0003_tenant_settings.sql` and `0004_tenant_defaults.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
 - **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
@@ -74,7 +74,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 **Goal:** Close the rework the 2026-10-13 review found (a silent voice failure on PROD, word matching fixed three times on data nobody saw, cost blind for two sprints) and run the first security audit before accounts exist.
 **Status:** planned 2026-10-13 at the review of P14b … P-INT1. Built in one pass.
-**Points:** ~14
+**Points:** ~11
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
@@ -83,11 +83,10 @@ Legacy Script→Video stays untouched and operable (D047).
 | HARD1-S3 | Word-matching regression suite from real DEV pastes — transcript editor and script view (numbers, currency, percent, years said as two pairs) | 3 | planned |
 | HARD1-S4 | Guard split / merge while a bulk image job runs (carried from P-AN1) | 2 | planned |
 | HARD1-S5 | Cost log: write range entries for sprint-at-a-time builds; backfill P-UX4, P-PROJ1, P-INT1 from commit times | 1 | planned |
-| INT2-S1 | Integrations page and approach reworked (operator candidate, 2026-10-13); the OpenAI default / metadata check rides here | 3 | planned |
 
-**Execution order:** S1 first (findings may reshape S2–S4); S2, S3, S4 independent; S5 and INT2-S1 last.
+**Execution order:** S1 first (findings may reshape S2–S4); S2, S3, S4 independent; S5 last.
 **Human touchpoint:** the operator reads `docs/SECURITY.md`, regenerates a voice with the TTS provider failing (it says so and offers Retry), and pastes a script with spelled-out numbers into the script view.
-**Not in this sprint:** P-AUTH, P-LITE, P-BILL-1 follow per D114. v0.17 vs v0.18 storyboard prompt side-by-side is the operator's call and is not scheduled. PROD release stays the operator's call (not a blocker).
+**Not in this sprint:** INT2-S1 (Integrations rework; dropped 2026-10-13, remains a candidate), P-AUTH, P-LITE, P-BILL-1 follow per D114. v0.17 vs v0.18 storyboard prompt side-by-side is the operator's call and is not scheduled. PROD release stays the operator's call (not a blocker).
 
 ## Scope changes
 

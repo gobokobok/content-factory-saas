@@ -13,7 +13,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 
 ## Current sprint
 **Review 2026-10-13 done** (P14b, P-UX3, P-AN1, P-UX4, P-PROJ1, P-INT1; six sprints, no review in between). Rework: fix:feat 1.0 overall, 1.75 for P-PROJ1 + P-INT1; two clusters (word matching, `.env.local`-dependent tests); PROD showed a silent TTS failure (run `6fe35dab`). Smoke deferrals: 0.
-**Sprint P-HARD1 — Audit and hardening (planned, ~14 pts):** HARD1-S1 `/audit` (first `docs/SECURITY.md`), S2 loud voice failure, S3 word-matching regression suite, S4 bulk-job guard, S5 cost-log backfill, INT2-S1 Integrations rework.
+**Sprint P-HARD1 — Audit and hardening (planned, ~11 pts):** HARD1-S1 `/audit` (first `docs/SECURITY.md`), S2 loud voice failure, S3 word-matching regression suite, S4 bulk-job guard, S5 cost-log backfill.
 Studio is the only operator interface; Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
 _Roadmap (D114): **P-HARD1** → P-AUTH → P-LITE → P-BILL-1 (**friends beta opens**) → P-BILL-2 → **P-LANG Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene", long-form animation._
 

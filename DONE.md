@@ -15,7 +15,7 @@ _This file holds the last sprints (P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus ev
 - ENV added: `OPENAI_LLM_MODEL` (default `gpt-4.1-mini`). No migration, no new dependency. Decision: **D112**. Tests: 2907 passing.
 - **Not verified:** nothing ran against a real OpenAI account or DEV. The OpenAI request shape (`max_completion_tokens`, chat completions) is exercised against a mock transport only; the default model id `gpt-4.1-mini` is an assumption — check it exists on the account, or set `OPENAI_LLM_MODEL`. The regrouped Integrations page was syntax-checked and covered by page tests, not looked at in a browser.
 - **Not built (by design, D112):** script, storyboard and the other text workers on the adapter; per-user keys and the automatic default switch (P-AUTH); alternative audio providers.
-**Smoke test:** PASSED — on DEV 2026-10-13 the five blocks, key state and Make default; the operator marked the remaining OpenAI default / metadata item done at the 2026-10-13 review (named by them). Not independently observed in this log; INT2-S1 (P-HARD1) re-exercises it in the Integrations rework.
+**Smoke test:** PASSED — on DEV 2026-10-13 the five blocks, key state and Make default; the operator marked the remaining OpenAI default / metadata item done at the 2026-10-13 review (named by them). Not independently observed in this log; re-check it when the Integrations rework (INT2-S1, candidate, unscheduled) is planned.
 **Promoted to backlog:** INT1-S6 candidate: move script, storyboard and fact-check workers onto `LLMClient` (or an equivalent that keeps thinking and streaming), one at a time with a prompt check; per-block fallback order for providers; key validity check on save.
 
 ---
