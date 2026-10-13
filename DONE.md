@@ -15,7 +15,7 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - ENV added: `OPENAI_LLM_MODEL` (default `gpt-4.1-mini`). No migration, no new dependency. Decision: **D112**. Tests: 2907 passing.
 - **Not verified:** nothing ran against a real OpenAI account or DEV. The OpenAI request shape (`max_completion_tokens`, chat completions) is exercised against a mock transport only; the default model id `gpt-4.1-mini` is an assumption — check it exists on the account, or set `OPENAI_LLM_MODEL`. The regrouped Integrations page was syntax-checked and covered by page tests, not looked at in a browser.
 - **Not built (by design, D112):** script, storyboard and the other text workers on the adapter; per-user keys and the automatic default switch (P-AUTH); alternative audio providers.
-**Smoke test:** DEFERRED — no part of it has been reported on DEV yet (Integrations page, OpenAI as the Thinking-models default, Run details "Made with") → cleared by INT1-S5 in Sprint P-INT1.
+**Smoke test:** PARTIAL — passed on DEV (2026-10-13): Settings → Integrations shows the five blocks with key state and Make default where there is a choice; the platform's own models run every step. Remaining: OpenAI as the Thinking-models default, metadata generated on it, and Run details "Made with" showing the OpenAI model (needs a valid `OPENAI_LLM_MODEL`) — kept open by the operator, who wants the Integrations page and approach reworked first → cleared by INT2-S1 in the Integrations rework (to be planned).
 **Promoted to backlog:** INT1-S6 candidate: move script, storyboard and fact-check workers onto `LLMClient` (or an equivalent that keeps thinking and streaming), one at a time with a prompt check; per-block fallback order for providers; key validity check on save.
 
 ---
@@ -35,7 +35,7 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - **Master visual prompt:** it already existed at both levels (project: `ai_image_style`, run: `master_style`, the run wins). The project field is now named "Master visual prompt (project default)", says the run's wins, and the New Run modal notes when the project's will be used.
 - Tests: 2930 passing.
 **Not verified:** against a real model — the enforcement is deterministic and tested, but how well the image model keeps one face across scenes depends on the description. Not applied to Realistic (stock) runs.
-**Smoke test:** DEFERRED — not yet run on DEV → cleared by INT1-S5 in Sprint P-INT1 (add: set One character throughout with a typed description, generate the storyboard, confirm one character entry and every person scene using it; regenerate and confirm it stays).
+**Smoke test:** PASSED — the operator set Cast to "One character throughout" with the project character on DEV (2026-10-13) and the storyboard came back with one character entry used by the scenes with a person.
 
 ---
 
@@ -61,7 +61,7 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - **Prompt v0.18** (`_METHOD_V018`, Sonnet 5.5, adaptive thinking, streamed) is built and selected by `STORYBOARD_STOCK_PROMPT_VERSION`; **v0.17 stays the default**. The registration's lineage records v0.18 when it is used.
 - ENV added: `STORYBOARD_STOCK_PROMPT_VERSION` (default `v0.17`). No migration, no new dependency. Decision: **D111**. Tests: 2890 passing.
 - **Not verified:** nothing here ran against a real model or DEV. The v0.18 side-by-side test (v0.17 vs v0.18 on one real script) was NOT run — it needs real API calls and the operator's judgement — so the default did not switch. Whether the model really reuses an asset by id (the code enforces the text once it does) is only checked with a mocked answer. The "animated look on stock" search hint is a heuristic and has not been looked at against real footage results. The lock/reset dialogs and the Project assets page were checked by tests and a syntax check, not in a browser against DEV.
-**Smoke test:** PARTIAL — passed on DEV (2026-10-11/12): the project-level master visual prompt field was used with a real 1,700-character prompt (it was too short, fixed to 4,000), and the script-view boundary fix was confirmed "worked" by the operator; the look / image-source lock and reset, channel identity, project assets and their reuse by a new animated run, and the v0.17 vs v0.18 test were not exercised → cleared by INT1-S5 in Sprint P-INT1.
+**Smoke test:** PASSED — the operator walked the INT1-S5 sweep on DEV (2026-10-13): channel identity and a project character, a new Animated run, Look and Image source as two settings, the lock dialog naming what it discards (Cancel changes nothing), the storyboard with one character entry used by the scenes with a person and tagged "Project asset", compact scene cards, Generate all images with the cost shown first, and a render. **Not done:** the v0.17 vs v0.18 storyboard side-by-side — an operator decision, not a smoke item; `STORYBOARD_STOCK_PROMPT_VERSION` stays `v0.17`.
 **Promoted to backlog:** PROJ1-S6 candidate: run the v0.17 vs v0.18 side-by-side on one real script and switch the default; a way to attach a project asset to an existing run's bible; a character reference image (deferred in D108).
 
 ---
@@ -77,7 +77,7 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - **Library:** videos and voiceovers are named after the run title (`titled_name`, `name_from_run` in `core/library.py`); display and download names; footage and AI images are unchanged.
 - No ENV vars, migration or dependency. Tests: 2869 passing, ruff clean.
 - **Not verified:** the New Run modal and the voiceover-replace confirmation were checked by tests and in the static demo only, not against DEV; the phone layout without a drawer was not looked at; the master-prompt sub-modal on a real run.
-**Smoke test:** PARTIAL — the operator used the new pipeline on DEV (2026-10-11/13): the Voiceover step with narration options and an uploaded recording, the Script and Storyboard steps with scene cards and the script view, and reported four layout/behaviour fixes, all shipped; the script view fix was confirmed "worked". Not exercised: the minimal New Run modal with the master-prompt sub-modal end to end, generating a voice over an upload (the replace confirmation), captions shared between the Video step and Run settings, library file names, a narrow screen without the drawer → cleared by INT1-S5 in Sprint P-INT1.
+**Smoke test:** PASSED — the operator walked the INT1-S5 sweep on DEV (2026-10-13): the minimal New Run modal with the master-prompt sub-modal, the format selector, shared captions between the Video step and Run settings, the phone-width rail without a burger, library file names after the run title, and generating a voice over an uploaded mp3 (it asks before replacing). Earlier fixes (voiceover spacing, compact scene cards, storyboard width, script view) were confirmed as they shipped.
 **Promoted to backlog:** none. Candidates: the style lock is still the existing one (disabled buttons after a storyboard); the explicit "reset storyboard" arrives with P-PROJ1.
 
 ---
