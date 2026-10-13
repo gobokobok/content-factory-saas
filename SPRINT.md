@@ -38,11 +38,12 @@ Legacy Script→Video stays untouched and operable (D047).
 | UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
 | P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | **done** 2026-10-11 | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
 | P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Create a run from the minimal modal and walk all five steps with Next only |
-| P-AUTH | Google sign-in and accounts (EPIC 59); `/audit` first | ~13 | planned | A friend signs in with Google and lands in their own space |
-| P-BILL-1 | Usage ledger, credit limits, manual top-up (EPIC 59) | ~13 | planned | **Friends beta:** a friend makes a first video of up to one minute within a credit limit |
+| P-AUTH | Google sign-in, accounts, tiers with View-as, per-user isolation (EPIC 59, D114); `/audit` first | ~16 | planned | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
+| P-LITE | The Creator flow for regular users (EPIC 59, D114) | ~16 | planned | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
+| P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114) | ~13 | planned | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
 | P-PROJ1 | Visual source model and project settings (EPIC 57) | ~18 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Channel identity and a saved project character reused by a new animated run |
 | P-INT1 | Integrations v2 (EPIC 58) | ~16 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Add a second provider with an own key, make it default, generate on it |
-| P-BILL-2 | Online payments (EPIC 59) | ~8 | planned | Buy credits online |
+| P-BILL-2 | Online payments and legal pages (EPIC 59) | ~8 | planned | Buy credits online |
 | P-LANG | Multi-language: Russian (EPIC 53) | tbd | planned (after P-BILL-2; order revised 2026-10-11) | Create a Russian run and render a video with Russian voice, captions and on-screen text |
 | P15 | Research | ~18 | planned | Run trend + competitor research in a project, tick results into the shortlist |
 | P16 | Publishing via n8n | ~10 | planned | Set a channel and time on a run; it appears on YouTube with status shown in Studio |
