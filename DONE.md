@@ -27,7 +27,7 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - **Master visual prompt:** it already existed at both levels (project: `ai_image_style`, run: `master_style`, the run wins). The project field is now named "Master visual prompt (project default)", says the run's wins, and the New Run modal notes when the project's will be used.
 - Tests: 2930 passing.
 **Not verified:** against a real model — the enforcement is deterministic and tested, but how well the image model keeps one face across scenes depends on the description. Not applied to Realistic (stock) runs.
-**Smoke test:** DEFERRED → cleared by INT1-S5 (add: set One character throughout with a typed description, generate the storyboard, confirm one character entry and every person scene using it; regenerate and confirm it stays).
+**Smoke test:** DEFERRED — not yet run on DEV → cleared by INT1-S5 in Sprint P-INT1 (add: set One character throughout with a typed description, generate the storyboard, confirm one character entry and every person scene using it; regenerate and confirm it stays).
 
 ---
 
@@ -53,7 +53,7 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - **Prompt v0.18** (`_METHOD_V018`, Sonnet 5.5, adaptive thinking, streamed) is built and selected by `STORYBOARD_STOCK_PROMPT_VERSION`; **v0.17 stays the default**. The registration's lineage records v0.18 when it is used.
 - ENV added: `STORYBOARD_STOCK_PROMPT_VERSION` (default `v0.17`). No migration, no new dependency. Decision: **D111**. Tests: 2890 passing.
 - **Not verified:** nothing here ran against a real model or DEV. The v0.18 side-by-side test (v0.17 vs v0.18 on one real script) was NOT run — it needs real API calls and the operator's judgement — so the default did not switch. Whether the model really reuses an asset by id (the code enforces the text once it does) is only checked with a mocked answer. The "animated look on stock" search hint is a heuristic and has not been looked at against real footage results. The lock/reset dialogs and the Project assets page were checked by tests and a syntax check, not in a browser against DEV.
-**Smoke test:** DEFERRED — operator will smoke test after P-INT1 → cleared by INT1-S5 in Sprint P-INT1 (list in INT1-S5, extended below).
+**Smoke test:** PARTIAL — passed on DEV (2026-10-11/12): the project-level master visual prompt field was used with a real 1,700-character prompt (it was too short, fixed to 4,000), and the script-view boundary fix was confirmed "worked" by the operator; the look / image-source lock and reset, channel identity, project assets and their reuse by a new animated run, and the v0.17 vs v0.18 test were not exercised → cleared by INT1-S5 in Sprint P-INT1.
 **Promoted to backlog:** PROJ1-S6 candidate: run the v0.17 vs v0.18 side-by-side on one real script and switch the default; a way to attach a project asset to an existing run's bible; a character reference image (deferred in D108).
 
 ---

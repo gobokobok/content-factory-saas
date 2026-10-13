@@ -56,7 +56,7 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Open items carried from closed sprints
 
-- **Deferred smoke tests: 3** — P-UX4, P-PROJ1 and P-INT1 (operator decision: one sweep after P-INT1) → INT1-S5. (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
+- **Deferred smoke tests: 4 entries** — P-UX4 (deferred), P-PROJ1 (partial: master prompt field and script view confirmed), P-INT1 (deferred) and the D113 cast follow-up (deferred), all → INT1-S5 in P-INT1 (operator decision: one sweep). (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
 - **PROD is six sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b, P14, P14b and P-UX3 (including migrations `0002_projects_shortlist.sql`, `0003_tenant_settings.sql` and `0004_tenant_defaults.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
 - **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
@@ -148,7 +148,7 @@ _None._
 # Sprint P-PROJ1 — Visual source model and project-level settings (EPIC 57)
 
 **Goal:** A run's look and image source are separate, locked once a storyboard exists; a project holds a channel identity and saved characters/places that an animated run's storyboard reuses; the Realistic prompt v0.18 exists behind a setting.
-**Status:** complete 2026-10-11 (built in one pass; smoke deferred to INT1-S5, v0.18 default not switched).
+**Status:** closed 2026-10-13 (built in one pass 2026-10-11; follow-ups D113 cast rule and script-view fixes; smoke partial → INT1-S5; v0.18 default not switched).
 **Points:** ~18
 
 | ID | Title | Points | Status |
@@ -168,7 +168,7 @@ _None._
 # Sprint P-INT1 — Integrations v2 (EPIC 58)
 
 **Goal:** Integrations are grouped into five blocks; a block holds several providers, each with its own key, one default and a model; at least one text step really switches provider.
-**Status:** complete 2026-10-11 (built in one pass; smoke is INT1-S5, which the operator runs after both sprints).
+**Status:** closed 2026-10-13 (built in one pass 2026-10-11; smoke is INT1-S5, which the operator runs).
 **Points:** ~16 (+ INT1-S5, 2)
 
 | ID | Title | Points | Status |
