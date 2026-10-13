@@ -5,6 +5,14 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D115 — Moderation stance for strangers' text and images: minimal, in four parts, enforced server-side at P-LITE
+**Date:** 2026-10-13 — settled by Claude at P-HARD1-S1 while the operator was away; the operator confirms or changes it at the review.
+**Decision:** (1) A terms click-through on first sign-in (no sexual content involving minors, no impersonation of real people, no incitement or targeted harassment, no illegal content; the operator may remove content and revoke access; credits are not refunded for a policy violation). (2) A hard server-side script length cap tied to the maximum video length. (3) A pre-flight moderation check on the script and on each image prompt before any paid generation — a provider's free moderation endpoint or a small classification call, blocking sexual/minors, graphic violence and self-harm and flagging the rest. (4) The image providers' own refusals are surfaced and not charged. Plus an owner-visible log of prompts and runs, and a report-abuse link.
+**Why:** The beta puts strangers' text into paid models under the operator's account (docs/SECURITY.md F13). The blast radius is mostly the stranger's own run and cost, so the stance is cheap and early rather than a review pipeline.
+**Consequences:** Implemented in P-LITE / P-AUTH, not in P-HARD1. The cap value and the provider for (3) are open until then. Revisit if the beta grows beyond friends.
+
+---
+
 ## D114 — The friends beta is a simplified "Creator" product on one codebase: Google sign-in, animation only, a hidden project, prepaid credits; the order is /audit → P-AUTH → P-LITE → P-BILL-1 → P-BILL-2
 **Date:** 2026-10-13 (operator, after the P-PROJ1 / P-INT1 close)
 **Status:** ACTIVE (planning decision; nothing built). Supersedes the beta shape in D109 (the sprint order changes; its other points stand).

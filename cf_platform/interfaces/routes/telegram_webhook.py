@@ -5,6 +5,7 @@ webhook can return {"ok": True} within Telegram's 60-second timeout while the
 LLM graph (25s-10min) runs and then pushes the reply via TelegramClient.
 """
 
+import hmac
 import logging
 from typing import Any
 
@@ -435,7 +436,7 @@ async def _run_testvoice_and_reply(
         result = await voice_worker(state)
         mp3_r2_key: str = result.artifact.mp3_r2_key  # type: ignore[union-attr]
         if not mp3_r2_key:
-            await client.send_message(chat_id, f"Voice generated with proportional fallback (no TTS key). No MP3 to download for run {run_id}.")
+            await client.send_message(chat_id, f"Voice generation produced no audio. No MP3 to download for run {run_id}.")
             return
         mp3_url = await storage.generate_presigned_url(mp3_r2_key, expires_in=_TESTVOICE_MP3_URL_EXPIRY)
         reply = format_testvoice_reply(run_id, mp3_url)
@@ -475,7 +476,9 @@ async def telegram_webhook(
     updates from chats not on the list are acked with no reply sent.
     """
     secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if not settings.TELEGRAM_WEBHOOK_SECRET or secret != settings.TELEGRAM_WEBHOOK_SECRET:
+    if not settings.TELEGRAM_WEBHOOK_SECRET or not hmac.compare_digest(
+        secret.encode(), settings.TELEGRAM_WEBHOOK_SECRET.encode()
+    ):
         raise HTTPException(status_code=401, detail="Invalid webhook secret token")
 
     if update.message is None or update.message.text is None:

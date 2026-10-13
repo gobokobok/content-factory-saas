@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from langgraph.checkpoint.base import BaseCheckpointSaver
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from cf_platform.blocks.idea_to_script import build_idea_to_script_graph, register_idea_to_script_workers  # noqa: F401
 from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph, register_niche_to_ideas_workers  # noqa: F401
@@ -136,7 +136,7 @@ class IdeaToScriptRequest(BaseModel):
     niche: str | None = None
     angle: str | None = None
     supporting_points: list[str] | None = None
-    max_iterations: int | None = None
+    max_iterations: int | None = Field(default=None, ge=1, le=5)  # P-HARD1-S1 F4: bounds paid LLM calls
     target_duration_seconds: int = 60
     # P12-S4 — generate into an existing run (one created from shortlist items)
     # instead of minting a new run id. Omitted: a new run is created, as before.

@@ -21,6 +21,12 @@ _TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fourty": 40, "fifty": 50, "si
 # A stray "dollars" elsewhere is a real word and stays.
 _DROPPED = {"percent", "dollars", "dollar", "cents", "cent"}
 _MAGNITUDES = {"thousand", "million", "billion", "trillion"}
+_BIG_MAGNITUDES = {"million": 10**6, "billion": 10**9, "trillion": 10**12}
+# A year said as two pairs: "twenty twenty four" = 2024, "nineteen ninety nine" = 1999,
+# "nineteen oh five" = 1905. The first pair is one of these; the second is a tens word
+# (with an optional ones digit), a teen, or "oh" + a digit. "twenty one" stays 21.
+_YEAR_FIRST = {"seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20}
+_OH = {"oh", "o", "zero"}
 
 
 def plain(token: str) -> str:
@@ -32,13 +38,69 @@ def plain(token: str) -> str:
     return t
 
 
+def _is_number_word(word: str) -> bool:
+    """True for a spelled-out number word the matcher knows."""
+    return word in _ONES or word in _TENS or word == "hundred"
+
+
+def _pieces(tokens: list[str]) -> tuple[list[str], list[int]]:
+    """Plain-form pieces of the tokens, and the token index each piece came from.
+
+    "sixty-five" (a hyphen between spelled-out number words) becomes two pieces so it
+    matches the transcript's "65"; so does the same word with its hyphen already
+    stripped ("sixtyfive", as the transcript editor stores typed words). Any other
+    token is one piece.
+    """
+    pieces: list[str] = []
+    origin: list[int] = []
+    for index, token in enumerate(tokens):
+        parts = [plain(part) for part in re.split(r"[-\u2010-\u2015]", token)]
+        if len(parts) > 1 and all(_is_number_word(part) for part in parts):
+            pieces.extend(parts)
+            origin.extend([index] * len(parts))
+            continue
+        fused = plain(token)
+        split = next(
+            ((t, fused[len(t):]) for t in _TENS if fused.startswith(t) and fused[len(t):] in _ONES
+             and 1 <= _ONES[fused[len(t):]] <= 9),
+            None,
+        )
+        if split is not None:
+            pieces.extend(split)
+            origin.extend([index] * 2)
+        else:
+            pieces.append(fused)
+            origin.append(index)
+    return pieces, origin
+
+
+def _year_at(plains: list[str], i: int) -> tuple[str, int] | None:
+    """(year as digits, index after it) when a year said as two pairs starts at i, else None."""
+    first = _YEAR_FIRST.get(plains[i])
+    if first is None or i + 1 >= len(plains):
+        return None
+    j = i + 1
+    second = plains[j]
+    if second in _OH and j + 1 < len(plains) and plains[j + 1] in _ONES and 1 <= _ONES[plains[j + 1]] <= 9:
+        return f"{first}{_ONES[plains[j + 1]]:02d}", j + 2
+    if second in _TENS:
+        value, j = _TENS[second], j + 1
+        if j < len(plains) and plains[j] in _ONES and 1 <= _ONES[plains[j]] <= 9:
+            value, j = value + _ONES[plains[j]], j + 1
+        return f"{first}{value:02d}", j
+    if second in _ONES and 10 <= _ONES[second] <= 19:
+        return f"{first}{_ONES[second]:02d}", j + 1
+    return None
+
+
 def canonical_units(tokens: list[str]) -> list[tuple[str, int]]:
     """Reduce tokens to comparable units: (unit, index of the token it starts at).
 
     Case, punctuation, currency and percent marks are dropped; runs of spelled-out
-    numbers become digits ("two thousand eight" -> "2008", "one point seven" -> "1.7").
+    numbers become digits ("two thousand eight" -> "2008", "one point seven" -> "1.7",
+    "twenty twenty four" -> "2024", "sixty-five" -> "65").
     """
-    plains = [plain(t) for t in tokens]
+    plains, origin = _pieces(tokens)
     units: list[tuple[str, int]] = []
     i = 0
     while i < len(plains):
@@ -48,6 +110,11 @@ def canonical_units(tokens: list[str]) -> list[tuple[str, int]]:
             continue
         if word in _DROPPED and units and (units[-1][0] in _MAGNITUDES or units[-1][0][:1].isdigit()):
             i += 1
+            continue
+        year = _year_at(plains, i)
+        if year is not None:
+            units.append((year[0], origin[i]))
+            i = year[1]
             continue
         if word in _ONES or word in _TENS or word == "hundred":
             value, j, last = 0, i, None
@@ -62,6 +129,11 @@ def canonical_units(tokens: list[str]) -> list[tuple[str, int]]:
                     current = (current or 1) * 100
                 elif w == "thousand":
                     value += (current or 1) * 1000
+                    current = 0
+                elif w in _BIG_MAGNITUDES and j + 1 < len(plains) and _is_number_word(plains[j + 1]):
+                    # "one million two hundred thousand" is one number; a magnitude that
+                    # ends the run ("109 million") stays a separate unit, as the transcript has it.
+                    value += (current or 1) * _BIG_MAGNITUDES[w]
                     current = 0
                 elif w == "and" and last in ("hundred", "thousand"):
                     pass
@@ -78,10 +150,10 @@ def canonical_units(tokens: list[str]) -> list[tuple[str, int]]:
                     k += 1
                 if digits:
                     number, j = f"{number}.{''.join(digits)}", k
-            units.append((number, i))
+            units.append((number, origin[i]))
             i = j
             continue
-        units.append((word.replace("$", ""), i))
+        units.append((word.replace("$", ""), origin[i]))
         i += 1
     return units
 
