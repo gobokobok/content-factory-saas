@@ -1,7 +1,7 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently P-UX4) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last sprints (P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
 
 ---
 
@@ -15,7 +15,7 @@ _This file holds the last sprints (P-UX4, P-AN1, P-UX3) plus every older entry w
 - ENV added: `OPENAI_LLM_MODEL` (default `gpt-4.1-mini`). No migration, no new dependency. Decision: **D112**. Tests: 2907 passing.
 - **Not verified:** nothing ran against a real OpenAI account or DEV. The OpenAI request shape (`max_completion_tokens`, chat completions) is exercised against a mock transport only; the default model id `gpt-4.1-mini` is an assumption — check it exists on the account, or set `OPENAI_LLM_MODEL`. The regrouped Integrations page was syntax-checked and covered by page tests, not looked at in a browser.
 - **Not built (by design, D112):** script, storyboard and the other text workers on the adapter; per-user keys and the automatic default switch (P-AUTH); alternative audio providers.
-**Smoke test:** PARTIAL — passed on DEV (2026-10-13): Settings → Integrations shows the five blocks with key state and Make default where there is a choice; the platform's own models run every step. Remaining: OpenAI as the Thinking-models default, metadata generated on it, and Run details "Made with" showing the OpenAI model (needs a valid `OPENAI_LLM_MODEL`) — kept open by the operator, who wants the Integrations page and approach reworked first → cleared by INT2-S1 in the Integrations rework (to be planned).
+**Smoke test:** PASSED — on DEV 2026-10-13 the five blocks, key state and Make default; the operator marked the remaining OpenAI default / metadata item done at the 2026-10-13 review (named by them). Not independently observed in this log; INT2-S1 (P-HARD1) re-exercises it in the Integrations rework.
 **Promoted to backlog:** INT1-S6 candidate: move script, storyboard and fact-check workers onto `LLMClient` (or an equivalent that keeps thinking and streaming), one at a time with a prompt check; per-block fallback order for providers; key validity check on save.
 
 ---

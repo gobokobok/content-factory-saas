@@ -13,6 +13,20 @@ Entries are newest first.
 
 ---
 
+## Prod check — 2026-10-13 (Sprint review: P14b, P-UX3, P-AN1, P-UX4, P-PROJ1, P-INT1)
+**Range:** the live deployment's log, 2026-10-07 18:01 UTC → 2026-10-11 15:39 UTC (839 lines, 22 container starts, PROD still v0.24.0). First check with real traffic since 2026-10-03: four runs (`09ec9c83`, `6fe35dab`, `b285c66c`, `597e4d62`), 5 voice, 3 storyboard, 2 acquisition, 2 render, 2 metadata, 5 scene uploads, 2 re-acquires. Both renders completed (final.mp4 uploaded).
+
+**Errors:** no 5xx. 404s are `/favicon.ico` (15), manifest/storyboard/metadata of a run before the step ran (9).
+**Degraded, repeated:** `trace_events.record failed` — `ForeignKeyViolation` on `trace_events_run_id_fkey`, run has no row in `runs` (7 times: upload ×5, reacquire ×2). Pre-P12 Studio runs have no `runs` row; the route swallows the error so the request answers 200 and the trace event is lost. Goes away when P12 is released; until then PROD loses scene-edit lineage.
+**Silent failure:** run `6fe35dab` 2026-10-10 19:12 — Gemini TTS answered 200 but the body was cut (`incomplete chunked read`); the worker set `mp3_r2_key=""`, fell back to proportional timing, and logged "VoiceWorker background task complete". The job reads as done with no audio. Not known whether the operator noticed or regenerated.
+**Coverage warnings (storyboard worker):** 3 `coverage check failed` — a misheard word ("from" for "of"), a fragmented "60%", missing plural. The storyboard was produced anyway. Same candidate as 2026-10-03 (captions can carry the misheard word).
+**API keys in logs:** zero `key=` matches (the log-redaction fix of P14b-S5 is not on PROD, but no Pixabay request is in this window either; DEV check still open).
+**Usage:** PROD is used by the operator on real content despite being the older version; DEV carries the new work. Pan/zoom render fix (D107) is not on PROD.
+**Stories opened:** proposed in the 2026-10-13 sprint review (voice failure must fail loudly; see BACKLOG).
+**Next check due:** before the release of P12 → P-INT1 to PROD.
+
+---
+
 ## Prod check — 2026-10-05 (Sprint P14 review)
 **Range:** the same live deployment as the two earlier checks (v0.24.0, `edc92ba`). The log holds 353 lines and ends with a clean shutdown; the only warning is still the 2026-10-02 caption coverage one. No new container start and no traffic.
 
