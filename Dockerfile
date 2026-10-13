@@ -1,6 +1,6 @@
 # Pinned to a patch release and its manifest digest (F20) so a rebuild cannot pick up a
 # different base image. Bump both together; the digest comes from Docker Hub's tag list.
-FROM python:3.11.17-slim-bookworm@sha256:0a310eeecf4e1f5a0743f9a6520c90c88d089c903ca5fd283f501e3a805f5f89
+FROM python:3.11.17-slim-trixie@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-open-sans fonts-montserrat fonts-noto \
