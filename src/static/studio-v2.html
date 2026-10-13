@@ -1967,7 +1967,7 @@ function renderVoicePane() {
   }
   const gbtn = document.getElementById('voice-generate-btn');
   if (gbtn) {
-    gbtn.textContent = running ? 'Generating…' : (!uploaded && ready) ? 'Regenerate voiceover' : 'Generate voiceover';
+    gbtn.textContent = running ? 'Generating…' : (!uploaded && ready) ? 'Regenerate voiceover' : (!uploaded && state.stageStatus.voice === 'error') ? 'Retry voiceover' : 'Generate voiceover';
     gbtn.disabled = running || !currentScript();
     gbtn.className = 'btn ' + (ready ? 'btn-secondary' : 'btn-primary');
   }

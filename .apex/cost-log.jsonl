@@ -6,12 +6,14 @@
 {"story":"P13b-S1..S4","sprint":"P13b","session_id":"3b6f1a70-22dc-4f76-bdb0-8e61be925385","started_at":"2026-10-03T20:23:12Z","ended_at":"2026-10-04T13:51:41Z"}
 {"story":"P14-S1..S4","sprint":"P14","session_id":"6133559b-1da4-43de-9a59-81e59dc4964f","started_at":"2026-10-04T19:13:49Z"}
 {"story":"P14-S1..S4","sprint":"P14","session_id":"6133559b-1da4-43de-9a59-81e59dc4964f","started_at":"2026-10-04T19:13:49Z","ended_at":"2026-10-05T08:52:26Z"}
-{"story": "P14b-S1..S5", "sprint": "P14b", "session_id": "fdc41fa7-ed50-41e5-8f64-b19a7a35f167", "started_at": "2026-10-05T09:10:01Z"}
-{"story": "P14b-S1..S5", "sprint": "P14b", "session_id": "fdc41fa7-ed50-41e5-8f64-b19a7a35f167", "started_at": "2026-10-05T09:10:01Z", "ended_at": "2026-10-07T16:15:25Z"}
+{"story":"P14b-S1..S5","sprint":"P14b","session_id":"fdc41fa7-ed50-41e5-8f64-b19a7a35f167","started_at":"2026-10-05T09:10:01Z"}
+{"story":"P14b-S1..S5","sprint":"P14b","session_id":"fdc41fa7-ed50-41e5-8f64-b19a7a35f167","started_at":"2026-10-05T09:10:01Z","ended_at":"2026-10-07T16:15:25Z"}
 {"story":"P-UX3-S1..S4","sprint":"P-UX3","session_id":"11bb3282-5920-41de-b62f-fa036ccaa7cc","started_at":"2026-10-07T16:31:33Z"}
 {"story":"P-UX3-S1..S4","sprint":"P-UX3","session_id":"11bb3282-5920-41de-b62f-fa036ccaa7cc","started_at":"2026-10-07T16:31:33Z","ended_at":"2026-10-10T21:39:05Z"}
 {"story":"P-AN1-S1..S6","sprint":"P-AN1","session_id":"b923671d-c801-478e-9ae9-be9ddf2245c3","started_at":"2026-10-10T21:46:45Z"}
 {"story":"P-AN1-S1..S6","sprint":"P-AN1","session_id":"b923671d-c801-478e-9ae9-be9ddf2245c3","started_at":"2026-10-10T21:46:45Z","ended_at":"2026-10-11T10:38:09Z"}
 {"story":"P-UX4-S1..S7","sprint":"P-UX4","session_id":null,"started_at":"2026-10-11T11:36:08Z"}
 {"story":"P-UX4-S1..S7","sprint":"P-UX4","session_id":null,"started_at":"2026-10-11T11:36:08Z","ended_at":"2026-10-11T12:14:02Z"}
-{"story":"P-HARD1-S1..S5","sprint":"P-HARD1","session_id":"4118ded3-4614-48c8-863f-3ac6926efa86","started_at":"2026-10-13T10:18:29Z"}
+{"story":"P-PROJ1-S1..S5","sprint":"P-PROJ1","session_id":null,"started_at":"2026-10-11T12:14:02Z","ended_at":"2026-10-11T12:29:11Z","backfilled":true,"source":"git commit times (start = end of the P-UX4 entry, end = 05afd82); estimate, session id unknown"}
+{"story":"P-INT1-S1..S4","sprint":"P-INT1","session_id":null,"started_at":"2026-10-11T12:29:11Z","ended_at":"2026-10-11T12:37:45Z","backfilled":true,"source":"git commit times (start = end of P-PROJ1, end = e471e80); estimate, session id unknown"}
+{"story":"P-HARD1-S1..S5","sprint":"P-HARD1","session_id":"4118ded3-4614-48c8-863f-3ac6926efa86","started_at":"2026-10-13T10:18:29Z","ended_at":"2026-10-13T10:45:56Z"}

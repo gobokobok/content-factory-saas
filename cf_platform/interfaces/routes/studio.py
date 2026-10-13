@@ -820,9 +820,20 @@ async def _run_boundary_edit(storage: ArtifactStorage, run_id: str, worker: str,
     edit_fn(storyboard, words, manifest) returns a storyboard_edit.BoundaryEdit.
     Writes a new storyboard version and, when the run has a manifest, a new
     manifest version aligned with the renumbered scenes. A rejected edit is a 422
-    (409 for merging the last scene, 404 for an unknown scene) and writes nothing.
+    (409 for merging the last scene, or while a bulk image job runs for the run;
+    404 for an unknown scene) and writes nothing.
     """
+    from cf_platform.workers.scene_images import job_is_active
     from cf_platform.workers.storyboard_edit import LastSceneMergeError, StoryboardEditError
+
+    # P-HARD1-S4: a bulk image job writes by scene id; renumbering scenes under it would
+    # attach images to the wrong scenes. A preview (dry_run) writes nothing and is allowed.
+    if not dry_run and job_is_active(run_id):
+        raise HTTPException(
+            status_code=409,
+            detail="Images are being generated for this run. Wait for the job to finish "
+                   "before splitting, merging or re-cutting scenes.",
+        )
 
     artifact_body, storyboard = await _load_storyboard(storage, run_id)
     words = await _load_words(storage, run_id)

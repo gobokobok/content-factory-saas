@@ -16,7 +16,7 @@ import pytest
 from cf_platform.core.schemas import StageState
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.voice_production import (
-    VoiceAlignmentArtifact,
+    VoiceGenerationError,
     VoiceWordTimestamp,
     _estimate_duration,
     _normalize_word,
@@ -173,8 +173,8 @@ async def test_worker_gemini_happy_path_calls_tts_and_alignment() -> None:
 
 
 @pytest.mark.asyncio
-async def test_worker_gemini_key_but_no_voice_skips_tts() -> None:
-    """Worker skips TTS when gemini_tts_voice is empty even if api key is set."""
+async def test_worker_gemini_key_but_no_voice_fails_loudly() -> None:
+    """A key without a TTS voice is a readable failure, never a silent no-audio result."""
     mock_storage = MagicMock()
     mock_storage.put_bytes = AsyncMock()
     state = _make_state()
@@ -184,22 +184,20 @@ async def test_worker_gemini_key_but_no_voice_skips_tts() -> None:
         AsyncMock(return_value=(MagicMock(), _make_script_body())),
     ):
         worker = build_voice_production_worker(mock_storage, gemini_api_key="key", gemini_tts_voice="")
-        result = await worker(state)
+        with pytest.raises(VoiceGenerationError, match="GEMINI_TTS_VOICE"):
+            await worker(state)
 
-    assert result.artifact.alignment_method == "proportional_fallback"
-    assert result.artifact.mp3_r2_key == ""
     mock_storage.put_bytes.assert_not_awaited()
 
 
-# ── build_voice_production_worker — no API keys (proportional fallback) ───────
+# ── build_voice_production_worker — no API keys (loud failure) ────────────────
 
 
 @pytest.mark.asyncio
-async def test_worker_no_keys_uses_proportional_fallback() -> None:
-    """Worker returns proportional_fallback alignment when no API keys are set."""
+async def test_worker_no_keys_fails_loudly() -> None:
+    """With no Gemini key the worker raises; it never returns a result with no audio."""
     mock_storage = MagicMock()
     mock_storage.put_bytes = AsyncMock()
-    mock_storage.generate_presigned_url = AsyncMock()
     state = _make_state()
 
     with patch(
@@ -207,29 +205,10 @@ async def test_worker_no_keys_uses_proportional_fallback() -> None:
         AsyncMock(return_value=(MagicMock(), _make_script_body())),
     ):
         worker = build_voice_production_worker(mock_storage)
-        result = await worker(state)
+        with pytest.raises(VoiceGenerationError, match="GEMINI_API_KEY"):
+            await worker(state)
 
-    artifact = result.artifact
-    assert isinstance(artifact, VoiceAlignmentArtifact)
-    assert artifact.alignment_method == "proportional_fallback"
-    assert len(artifact.word_timestamps) == len(_SCRIPT.split())
     mock_storage.put_bytes.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_worker_no_keys_mp3_r2_key_is_empty() -> None:
-    """mp3_r2_key is empty string when TTS is skipped."""
-    mock_storage = MagicMock()
-    state = _make_state()
-
-    with patch(
-        "cf_platform.workers.voice_production.read_artifact",
-        AsyncMock(return_value=(MagicMock(), _make_script_body())),
-    ):
-        worker = build_voice_production_worker(mock_storage)
-        result = await worker(state)
-
-    assert result.artifact.mp3_r2_key == ""
 
 
 @pytest.mark.asyncio
@@ -262,12 +241,12 @@ async def test_worker_happy_path_total_duration_from_last_word() -> None:
     assert result.artifact.total_duration_s == pytest.approx(last_end_ms / 1000)
 
 
-# ── build_voice_production_worker — TTS failure degrades to fallback ──────────
+# ── build_voice_production_worker — TTS failure is loud ───────────────────────
 
 
 @pytest.mark.asyncio
-async def test_worker_tts_failure_falls_back_to_proportional() -> None:
-    """When Gemini TTS raises, worker falls back to proportional timestamps."""
+async def test_worker_tts_failure_raises_readable_error() -> None:
+    """When Gemini TTS raises, the worker raises VoiceGenerationError and writes nothing."""
     mock_storage = MagicMock()
     mock_storage.put_bytes = AsyncMock()
     state = _make_state()
@@ -285,11 +264,58 @@ async def test_worker_tts_failure_falls_back_to_proportional() -> None:
         worker = build_voice_production_worker(
             mock_storage, gemini_api_key="gemini-key", gemini_tts_voice="Kore"
         )
-        result = await worker(state)
+        with pytest.raises(VoiceGenerationError) as info:
+            await worker(state)
 
-    assert result.artifact.alignment_method == "proportional_fallback"
-    assert result.artifact.mp3_r2_key == ""
+    assert "Gemini quota exceeded" in str(info.value)
+    assert "Retry" in str(info.value)
     mock_storage.put_bytes.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_worker_tts_failure_message_redacts_keys() -> None:
+    """A provider error that echoes a URL with key=… never carries the secret."""
+    mock_storage = MagicMock()
+    mock_storage.put_bytes = AsyncMock()
+
+    with (
+        patch(
+            "cf_platform.workers.voice_production.read_artifact",
+            AsyncMock(return_value=(MagicMock(), _make_script_body())),
+        ),
+        patch(
+            "cf_platform.workers.voice_production._tts_generate",
+            AsyncMock(side_effect=RuntimeError("503 for https://x.example/v1?key=AIzaSECRET123&alt=json")),
+        ),
+    ):
+        worker = build_voice_production_worker(
+            mock_storage, gemini_api_key="gemini-key", gemini_tts_voice="Kore"
+        )
+        with pytest.raises(VoiceGenerationError) as info:
+            await worker(_make_state())
+
+    assert "AIzaSECRET123" not in str(info.value)
+    assert "key=REDACTED" in str(info.value)
+
+
+@pytest.mark.asyncio
+async def test_worker_upload_failure_raises() -> None:
+    """If the audio cannot be stored, the job fails — there is no usable voiceover."""
+    mock_storage = MagicMock()
+    mock_storage.put_bytes = AsyncMock(side_effect=OSError("R2 down"))
+
+    with (
+        patch(
+            "cf_platform.workers.voice_production.read_artifact",
+            AsyncMock(return_value=(MagicMock(), _make_script_body())),
+        ),
+        patch("cf_platform.workers.voice_production._tts_generate", AsyncMock(return_value=b"WAV")),
+    ):
+        worker = build_voice_production_worker(
+            mock_storage, gemini_api_key="k", gemini_tts_voice="v"
+        )
+        with pytest.raises(VoiceGenerationError, match="R2 down"):
+            await worker(_make_state())
 
 
 # ── build_voice_production_worker — Deepgram failure falls back ───────────────

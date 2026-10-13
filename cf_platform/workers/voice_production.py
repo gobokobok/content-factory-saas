@@ -1,9 +1,11 @@
 """Voice Production worker (P6-S7) — Script → MP3 → word-level timestamps.
 
 Generates voiceover audio via Gemini 2.5 Flash TTS (single call, no chunking)
-and extracts word-level timestamps via Deepgram Nova-2.  Falls back to
-character-count-proportional timestamp estimation when either API key is absent
-or an API call fails.
+and extracts word-level timestamps via Deepgram Nova-2.  A missing TTS key or
+voice, or a failed TTS call, raises VoiceGenerationError (P-HARD1-S2): a run must
+never read "complete" with no audio.  Only the alignment step degrades — when
+Deepgram is absent or fails, the audio exists and character-count-proportional
+timestamps are used (D048).
 
 This module is a self-contained platform worker and MUST NOT import from src/
 (D047).  The Deepgram HTTP logic is re-implemented here using httpx rather than
@@ -328,6 +330,26 @@ def _build_tts_input(
     return f"{clause}. {manner}, at roughly {wpm} words per minute. {_PAUSE_INSTRUCTION}{script}"
 
 
+# ── Failure type ──────────────────────────────────────────────────────────────
+
+_SECRET_IN_TEXT_RE = re.compile(r"(?i)\b(key|api_key|apikey|token|authorization)(=|:\s*)[^\s&'\"]+")
+
+
+class VoiceGenerationError(RuntimeError):
+    """The voiceover could not be produced (no TTS configured, or the provider failed).
+
+    The message is operator-readable and safe to show in the UI: any `key=` style
+    secret in a provider's error text is redacted before it is stored.
+    """
+
+
+def _readable_failure(exc: BaseException) -> str:
+    """One-line, secret-free description of a provider exception, capped at 300 chars."""
+    text = _SECRET_IN_TEXT_RE.sub(lambda m: f"{m.group(1)}=REDACTED", str(exc)).strip()
+    text = " ".join(text.split())
+    return f"{type(exc).__name__}: {text}"[:300] if text else type(exc).__name__
+
+
 # ── Worker factory ────────────────────────────────────────────────────────────
 
 
@@ -340,13 +362,14 @@ def build_voice_production_worker(
     """Return a voice_production WorkerNode bound to the given credentials.
 
     Worker reads state.artifacts['script'] → fetches ScriptArtifact from R2 →
-    attempts Gemini 2.5 Flash TTS (if key present) → uploads MP3 to
-    runs/{run_id}/voiceover/generated.mp3 → attempts Deepgram alignment via
-    a 15-minute presigned URL → falls back to proportional timestamps on any
-    failure.  Returns WorkerOutput(artifact=VoiceAlignmentArtifact).
+    runs Gemini 2.5 Flash TTS → uploads the WAV to
+    runs/{run_id}/voiceover/generated.wav → attempts Deepgram alignment via
+    a 15-minute presigned URL → falls back to proportional timestamps if only
+    the alignment fails.  Returns WorkerOutput(artifact=VoiceAlignmentArtifact).
 
-    Fault isolation (D048): missing keys or API failures degrade gracefully;
-    the pipeline always continues with whatever timestamps are available.
+    Raises VoiceGenerationError when the TTS key or voice is not configured or the
+    TTS call fails (P-HARD1-S2); nothing is written in that case.  Only alignment
+    degrades gracefully (D048) — the audio exists, so the pipeline can continue.
 
     state.inputs['narration_pace'] ("slow"|"normal"|"fast") and
     state.inputs['narration_style'] ("educational"|"emotional") compose the
@@ -367,25 +390,30 @@ def build_voice_production_worker(
         pace: str = state.inputs.get("narration_pace") or _DEFAULT_PACE
         style: str = state.inputs.get("narration_style") or _DEFAULT_STYLE
 
-        mp3_r2_key = ""
         word_timestamps: list[VoiceWordTimestamp] = []
         alignment_method = "proportional_fallback"
         total_duration_s = _estimate_duration(script_text, pace)
 
-        # ── Step 1: TTS ────────────────────────────────────────────────────
-        if gemini_api_key and gemini_tts_voice:
-            try:
-                tts_input = _build_tts_input(script_text, pace, style)
-                wav_bytes = await _tts_generate(tts_input, gemini_api_key, gemini_tts_voice)
-                mp3_r2_key = f"runs/{state.run_id}/voiceover/generated.wav"
-                await storage.put_bytes(mp3_r2_key, wav_bytes, "audio/wav")
-                logger.info("TTS complete for run %s — %d bytes", state.run_id, len(wav_bytes))
-            except Exception as exc:
-                logger.warning("TTS failed for run %s — using proportional fallback: %s", state.run_id, exc)
-                mp3_r2_key = ""
+        # ── Step 1: TTS — failure is loud, never a silent "complete" with no audio ──
+        if not (gemini_api_key and gemini_tts_voice):
+            missing = "GEMINI_API_KEY" if not gemini_api_key else "GEMINI_TTS_VOICE"
+            raise VoiceGenerationError(
+                f"Voice generation is not configured: {missing} is not set. "
+                "Set it for this environment, then retry."
+            )
+        try:
+            tts_input = _build_tts_input(script_text, pace, style)
+            wav_bytes = await _tts_generate(tts_input, gemini_api_key, gemini_tts_voice)
+            mp3_r2_key = f"runs/{state.run_id}/voiceover/generated.wav"
+            await storage.put_bytes(mp3_r2_key, wav_bytes, "audio/wav")
+        except Exception as exc:
+            reason = _readable_failure(exc)
+            logger.error("TTS failed for run %s: %s", state.run_id, reason)
+            raise VoiceGenerationError(f"The voice provider failed: {reason}. Retry the voiceover.") from exc
+        logger.info("TTS complete for run %s — %d bytes", state.run_id, len(wav_bytes))
 
         # ── Step 2: Alignment ──────────────────────────────────────────────
-        if mp3_r2_key and deepgram_api_key:
+        if deepgram_api_key:
             try:
                 # 15-minute presigned URL so Deepgram can fetch the file.
                 presigned_url = await storage.generate_presigned_url(mp3_r2_key, expires_in=900)

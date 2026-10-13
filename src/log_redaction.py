@@ -12,14 +12,19 @@ import re
 _SECRET_PARAM_RE = re.compile(
     r"(?i)\b(api_key|apikey|api-key|access_token|token|key)=[^&\s\"'<>)\]]+"
 )
+# R2 presigned URLs and the Telegram bot token (in the URL path) are bearer secrets too (P-HARD1-S1, F15).
+_SIGNED_URL_RE = re.compile(r"(?i)\b(X-Amz-(?:Signature|Credential|Security-Token))=[^&\s\"'<>)\]]+")
+_BOT_TOKEN_RE = re.compile(r"/bot\d+:[A-Za-z0-9_-]+")
 _REDACTED = "REDACTED"
 
 _LOGGERS_WITH_OWN_HANDLERS = ("httpx", "httpcore", "uvicorn", "uvicorn.error", "uvicorn.access")
 
 
 def redact_secrets(text: str) -> str:
-    """Replace the value of key=, api_key=, apikey=, token= query parameters in text."""
-    return _SECRET_PARAM_RE.sub(lambda m: f"{m.group(1)}={_REDACTED}", text)
+    """Replace secret query parameters (key=, token=, X-Amz-Signature=…) and Telegram bot tokens in text."""
+    text = _SECRET_PARAM_RE.sub(lambda m: f"{m.group(1)}={_REDACTED}", text)
+    text = _SIGNED_URL_RE.sub(lambda m: f"{m.group(1)}={_REDACTED}", text)
+    return _BOT_TOKEN_RE.sub(f"/bot{_REDACTED}", text)
 
 
 class RedactingFormatter(logging.Formatter):

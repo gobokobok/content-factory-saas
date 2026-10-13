@@ -5,6 +5,24 @@ _This file holds the last sprints (P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus ev
 
 ---
 
+## [P-HARD1] Audit and hardening — S1 first SECURITY.md, S2 loud voice failure, S3 word-matching suite, S4 bulk-job guard, S5 cost-log backfill
+**Completed:** 2026-10-13 (built in one pass on branch `sprint/p-hard1`; **not pushed** — the operator was copying DEV to PROD in another session, and a push to `main` redeploys DEV)
+**Handover:**
+- **S1** `docs/SECURITY.md`: 23 findings with `file:line`, an accepted-risk register and what the audit could not see (dashboards). Fixed inline: log redaction of presigned-URL signatures and the Telegram bot token (F15), constant-time webhook secret compare (F17), `max_iterations` bounded 1–5 (F4 part). **D115** records the moderation stance (minimal, implemented in P-LITE); settled by Claude, for the operator to confirm. Highest open items: F1 no backup / restore drill, F3 legacy routes, F5 key fallback, F2 tenant scoping (P-AUTH). The audit was run by a subagent; its claims about code were spot-checked, not all re-verified.
+- **S2** `voice_production` now raises `VoiceGenerationError` when `GEMINI_API_KEY` / `GEMINI_TTS_VOICE` is missing, the TTS call fails or the audio cannot be stored; the message is readable and secret-free (`key=` redacted). The job document says `error` with the reason, `/voice/status` returns it, and the Voice button reads "Retry voiceover". Only Deepgram alignment still degrades (audio exists). Tests: worker, job, status.
+- **S3** `tests/cf_platform/test_hard1_word_matching.py`: corpus of transcript / script pairs through `canonical_units`, `align_text` and `edits_from_text`. The suite found and fixed: years said as two pairs ("twenty twenty four" read as 44, "nineteen ninety nine" as 118), hyphenated numbers ("sixty-five" and the editor's stripped "sixtyfive"), "one million two hundred thousand" split in three. Pinned gaps: ordinals ("twenty first" vs "21st"), "one twenty" (read as 21, not 120).
+- **S4** split, merge and `PUT …/storyboard/boundaries` answer 409 while a bulk image job runs for the run (a preview with `dry_run` is allowed). The server message reaches the operator through the existing error line.
+- **S5** `.apex/cost-log.jsonl`: P-PROJ1 and P-INT1 entries backfilled from commit times (flagged `backfilled`, estimates; session ids unknown). P-UX4 already had one. This sprint has its own range entry.
+- Tests: 3000 passing (+70). No migration, no new dependency, no ENV change.
+**Not verified:** nothing ran on DEV (not pushed). The "real DEV pastes" for S3 were the pastes recorded in earlier handovers plus constructed forms — if DEV shows another way a number is written, add it to `CORPUS`. The Retry label was checked by reading the code, not in a browser.
+**Smoke test:** DEFERRED — the branch `sprint/p-hard1` is not merged or deployed (a DEV → PROD copy was running in another session) → cleared by HARD1-S6 in Sprint P-AUTH. Steps for HARD1-S6: (1) blank the Gemini key or set a bad voice on DEV and press Generate voiceover — expect a red message naming the provider failure, a "Retry voiceover" button and the stage not "done"; restore the key and Retry; (2) in the script view paste a script with spelled-out numbers and a year as "twenty twenty four" — expect it accepted; (3) start a bulk image generation and press Split on a scene — expect "Images are being generated…"; (4) read `docs/SECURITY.md`.
+**Promoted to backlog:**
+- HARD1-S6: DEV smoke sweep of P-HARD1 (steps above), first story of Sprint P-AUTH.
+- HARD2-S1..S3 (see BACKLOG_ACTIVE.md): backups and restore drill, small audit fixes, deploy safety.
+- VERIFY (operator, on DEV): a number written another way than the corpus covers (ordinals "21st", "one twenty") in the script view; the Retry button in a browser.
+
+---
+
 ## [P-INT1] Integrations v2 — S1 five blocks, S2 provider registry + LLM adapter, S3 default and model per provider, S4 what a run was made with
 **Completed:** 2026-10-11 (built in one pass; settled by Claude while the operator was away — D112)
 **Handover:**

@@ -69,3 +69,22 @@ def test_install_wraps_root_handlers_once() -> None:
         assert not isinstance(handler.formatter._inner, RedactingFormatter)
     finally:
         root.removeHandler(handler)
+
+
+def test_presigned_url_signature_and_credential_are_redacted() -> None:
+    """R2 presigned URLs are bearer secrets (P-HARD1-S1, F15)."""
+    url = (
+        "https://bucket.r2.example/runs/a/voice.wav?X-Amz-Algorithm=AWS4-HMAC-SHA256"
+        "&X-Amz-Credential=AKIAXYZ%2F2026&X-Amz-Signature=deadbeef1234&X-Amz-Expires=900"
+    )
+    out = redact_secrets(url)
+    assert "deadbeef1234" not in out
+    assert "AKIAXYZ" not in out
+    assert "X-Amz-Expires=900" in out
+
+
+def test_telegram_bot_token_in_url_path_is_redacted() -> None:
+    """The Telegram bot token sits in the URL path, not a query parameter."""
+    out = redact_secrets("POST https://api.telegram.org/bot123456:ABC-def_GHI/sendMessage 200")
+    assert "123456:ABC" not in out
+    assert out.endswith("/sendMessage 200")

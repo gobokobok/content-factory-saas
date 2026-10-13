@@ -13,12 +13,12 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 
 ## Current sprint
 **Review 2026-10-13 done** (P14b, P-UX3, P-AN1, P-UX4, P-PROJ1, P-INT1; six sprints, no review in between). Rework: fix:feat 1.0 overall, 1.75 for P-PROJ1 + P-INT1; two clusters (word matching, `.env.local`-dependent tests); PROD showed a silent TTS failure (run `6fe35dab`). Smoke deferrals: 0.
-**Sprint P-HARD1 — Audit and hardening (planned, ~11 pts):** HARD1-S1 `/audit` (first `docs/SECURITY.md`), S2 loud voice failure, S3 word-matching regression suite, S4 bulk-job guard, S5 cost-log backfill.
+**Sprint P-HARD1 — Audit and hardening (built 2026-10-13, ~11 pts, branch `sprint/p-hard1`, not pushed):** first `docs/SECURITY.md` (23 findings, 3 fixed inline; D115 moderation stance), loud voice failure with Retry, word-matching regression suite (+ years as two pairs, hyphenated and multi-magnitude numbers fixed), split / merge guarded during a bulk image job, cost-log backfill. **Smoke deferred to HARD1-S6** (steps in DONE.md): merge the branch and push once the DEV → PROD copy is finished.
 Studio is the only operator interface; Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Roadmap (D114): **P-HARD1** → P-AUTH → P-LITE → P-BILL-1 (**friends beta opens**) → P-BILL-2 → **P-LANG Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene", long-form animation._
+_Roadmap (D114): ~~P-HARD1~~ (built) → P-AUTH → P-LITE → P-BILL-1 (**friends beta opens**) → P-BILL-2 → **P-LANG Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene", long-form animation._
 
 ## Active story
-**None started.** Next: `/start-story P-HARD1-S1..` (sprint mode; S1 first).
+**None started.** Next: merge `sprint/p-hard1` and push; then `/start-story HARD1-S6`, then P-AUTH (HARD2 candidates in BACKLOG_ACTIVE.md).
 
 **Blockers / operator actions:** for published videos set `IMAGE_RESOLUTION=2K` and the `nano-banana-2-1` price to 0.03 in `IMAGE_MODEL_COSTS_USD` on Railway. Rotate the Pixabay key on DEV (the old one is in DEV log history); check the DEV log for `key=REDACTED`. Re-render a run with zooms to confirm D107. PROD stays on v0.24.0 on purpose — release DEV to PROD only when DEV is complete and smoke tested (at release set a new `SETTINGS_ENCRYPTION_KEY`, re-check PROD logs for `key=`). Google API audit application in progress (lead time for P16). Set `OPENAI_LLM_MODEL` on Railway if `gpt-4.1-mini` is not valid; `STORYBOARD_STOCK_PROMPT_VERSION` stays `v0.17` until the v0.17 vs v0.18 test is done.
 

@@ -71,3 +71,9 @@ No hard coverage threshold for POC. Aim for all critical path functions covered.
 ## Hermetic settings (2026-10-13)
 
 Every test gets the settings the app requires from `tests/conftest.py` (`hermetic_settings_env`), filled in only where the environment does not already set them. The suite therefore passes on a clean machine with no `.env.local` and an empty environment, which is how CI runs. A test that builds the app still overrides the dependencies it cares about (storage, repositories); it no longer has to override the settings just to start. To check hermeticity: move `.env.local` away and run `env -i HOME=$HOME PATH=$PATH .venv/bin/python -m pytest tests -m "not integration"`.
+
+
+## Word-matching regression corpus (2026-10-13)
+`tests/cf_platform/test_hard1_word_matching.py` holds transcript / script pairs for the script view and the transcript
+editor. When DEV refuses a paste, add the pair to `CORPUS` (transcript form, script form, expected start words) before
+fixing `cf_platform/core/word_match.py`.
