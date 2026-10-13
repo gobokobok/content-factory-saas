@@ -78,11 +78,11 @@ Legacy Script→Video stays untouched and operable (D047).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| HARD1-S1 | `/audit` — first `docs/SECURITY.md` (tenant keys, `SETTINGS_ENCRYPTION_KEY`, log redaction, upload paths, the open moderation stance for strangers' text) | 3 | planned |
-| HARD1-S2 | Voice: a failed TTS call fails the job loudly with Retry, never "complete" with no audio (PROD 2026-10-10, run `6fe35dab`) | 2 | planned |
-| HARD1-S3 | Word-matching regression suite from real DEV pastes — transcript editor and script view (numbers, currency, percent, years said as two pairs) | 3 | planned |
-| HARD1-S4 | Guard split / merge while a bulk image job runs (carried from P-AN1) | 2 | planned |
-| HARD1-S5 | Cost log: write range entries for sprint-at-a-time builds; backfill P-UX4, P-PROJ1, P-INT1 from commit times | 1 | planned |
+| HARD1-S1 | `/audit` — first `docs/SECURITY.md` (tenant keys, `SETTINGS_ENCRYPTION_KEY`, log redaction, upload paths, the open moderation stance for strangers' text) | 3 | in-progress |
+| HARD1-S2 | Voice: a failed TTS call fails the job loudly with Retry, never "complete" with no audio (PROD 2026-10-10, run `6fe35dab`) | 2 | in-progress |
+| HARD1-S3 | Word-matching regression suite from real DEV pastes — transcript editor and script view (numbers, currency, percent, years said as two pairs) | 3 | in-progress |
+| HARD1-S4 | Guard split / merge while a bulk image job runs (carried from P-AN1) | 2 | in-progress |
+| HARD1-S5 | Cost log: write range entries for sprint-at-a-time builds; backfill P-UX4, P-PROJ1, P-INT1 from commit times | 1 | in-progress |
 
 **Execution order:** S1 first (findings may reshape S2–S4); S2, S3, S4 independent; S5 last.
 **Human touchpoint:** the operator reads `docs/SECURITY.md`, regenerates a voice with the TTS provider failing (it says so and offers Retry), and pastes a script with spelled-out numbers into the script view.
