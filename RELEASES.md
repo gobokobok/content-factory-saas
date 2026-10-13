@@ -4,6 +4,24 @@ PROD releases are cut by pushing a `v*.*.*` tag, which triggers
 `.github/workflows/cd.yml` (`railway up --service content-factory-saas --detach`).
 Newest first.
 
+## v0.25.0 — 2026-10-13
+
+**Shipped:**
+- Projects and a persistent shortlist; runs created from shortlist items (P12).
+- Storyboard control: split / merge scenes, asset strategy, confirm gate, script view (P13).
+- CapCut export: timeline zip, laptop script, return upload of the finished video (P13b).
+- AI image generation per scene with tenant-level provider keys and a per-run spend cap (P14).
+- Uploaded voiceover with Deepgram transcript, run language and timing from the upload (P14b).
+- UI redesign and pipeline flow polish: new shell, one pipeline view, minimal New Run modal (P-UX3, P-UX4).
+- Animation mode: master style, animation storyboard worker, bulk image generation (P-AN1).
+- Render fix: pans and zooms no longer tremble (D107).
+- Project settings and integrations v2: channel identity, project assets, one character per run, default provider and model per provider (P-PROJ1, P-INT1).
+
+**Stories:** P12, P13, P13b, P14, P14b, P-UX3, P-AN1, P-UX4, P-PROJ1, P-INT1
+**Migrations:** yes — `0002_projects_shortlist`, `0003_tenant_settings`, `0004_tenant_defaults`. Additive (`IF NOT EXISTS`), run at container start. Not reversed on rollback; the old code ignores the extra columns and tables.
+**PROD verified:** CD run green; PROD container started with `environment=prod`, `cf_platform migrations: ok`, `checkpointer setup: ok`; no errors and no `key=` in the first minutes of the log; `SETTINGS_ENCRYPTION_KEY` set on PROD before the tag. `/platform/version` and `/platform/health` are auth-gated (401 without a key), so the reported version and a Studio user path are left to the operator.
+**Rollback:** `git tag -d v0.25.0 && git push --delete origin v0.25.0`, then re-tag the previous good commit (v0.24.0 is `edc92ba`) as v0.25.1 — the CD workflow deploys tags.
+
 ## v0.24.0 — 2026-10-02
 
 **Shipped:**
