@@ -166,11 +166,23 @@ class TestAdapters:
 
 class TestRoutes:
     def _client(self, repo):
+        from src.config import Settings, get_settings
+        from tests.cf_platform.p12_helpers import VALID_ENV
+
+        from cf_platform.core.config import get_platform_settings
+
         app.dependency_overrides[get_tenant_settings_repository] = lambda: repo
+        app.dependency_overrides[get_settings] = lambda: Settings.model_validate(VALID_ENV)
+        app.dependency_overrides[get_platform_settings] = lambda: platform()
         return TestClient(app)
 
     def teardown_method(self):
+        from cf_platform.core.config import get_platform_settings
+        from src.config import get_settings
+
         app.dependency_overrides.pop(get_tenant_settings_repository, None)
+        app.dependency_overrides.pop(get_settings, None)
+        app.dependency_overrides.pop(get_platform_settings, None)
 
     def test_get_and_put_blocks(self):
         client = self._client(InMemoryTenantSettingsRepository())
@@ -213,7 +225,17 @@ class TestRoutes:
                 calls["model"], calls["user"] = model, user
                 return '{"title": "T", "description": "D", "tags": ["a"]}'
 
+        from src.config import Settings, get_settings
+        from tests.cf_platform.p12_helpers import VALID_ENV
+
+        from cf_platform.core.projects import InMemoryProjectRepository
+        from cf_platform.core.run_manager import InMemoryRunRepository
+        from cf_platform.interfaces.dependencies import PLATFORM_USER_ID, get_project_repository, get_run_repository
+
+        runs, projects = InMemoryRunRepository(), InMemoryProjectRepository(PLATFORM_USER_ID)
         overrides = {
+            get_run_repository: lambda: runs, get_project_repository: lambda: projects,
+            get_settings: lambda: Settings.model_validate(VALID_ENV),
             get_tenant_settings_repository: lambda: repo, get_artifact_storage: lambda: storage,
             get_effective_platform_settings: lambda: s, get_platform_settings: lambda: s,
         }

@@ -213,7 +213,11 @@ class TestLookAndSource:
         from cf_platform.interfaces.dependencies import get_artifact_storage
         from src.main import app as _app
 
+        from src.config import Settings, get_settings
+        from tests.cf_platform.p12_helpers import VALID_ENV
+
         _app.dependency_overrides[get_artifact_storage] = lambda: storage
+        _app.dependency_overrides[get_settings] = lambda: Settings.model_validate(VALID_ENV)
         try:
             from fastapi.testclient import TestClient
 
@@ -222,6 +226,7 @@ class TestLookAndSource:
             assert r.status_code == 200 and r.json()["changed"] is True and r.json()["discarded"] == []
         finally:
             _app.dependency_overrides.pop(get_artifact_storage, None)
+            _app.dependency_overrides.pop(get_settings, None)
 
     def test_an_animated_look_on_stock_aims_the_queries_at_illustration(self):
         sb = make_storyboard(make_words(), (0, 4, 8))
