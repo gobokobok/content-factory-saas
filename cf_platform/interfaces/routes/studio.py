@@ -23,6 +23,22 @@ _logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+async def _read_upload_capped(file: UploadFile, max_bytes: int, limit_label: str) -> bytes:
+    """Read an upload in 1 MB chunks and stop with a 422 as soon as it passes max_bytes (F12).
+
+    Reading the whole file first and checking its size afterwards lets one request
+    hold the full body in memory even when it is far over the limit.
+    """
+    chunks: list[bytes] = []
+    size = 0
+    while chunk := await file.read(1024 * 1024):
+        size += len(chunk)
+        if size > max_bytes:
+            raise HTTPException(status_code=422, detail=f"File too large. Maximum is {limit_label}.")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @router.get("/studio/runs/{run_id}/script")
 async def studio_get_script(
     run_id: str,
@@ -1258,9 +1274,7 @@ async def studio_upload_scene_asset(
     if content_type not in _ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type!r}. Allowed: mp4, webm, jpg, png, webp.")
 
-    data = await file.read()
-    if len(data) > _MAX_BYTES:
-        raise HTTPException(status_code=422, detail=f"File too large ({len(data) // (1024*1024)} MB). Maximum is 200 MB.")
+    data = await _read_upload_capped(file, _MAX_BYTES, "200 MB")
 
     ext = _MIME_TO_EXT[content_type]
     is_video = content_type.startswith("video/")
@@ -1381,9 +1395,7 @@ async def studio_upload_music(
     if content_type not in _ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type!r}. Allowed: mp3, wav, m4a.")
 
-    data = await file.read()
-    if len(data) > _MAX_BYTES:
-        raise HTTPException(status_code=422, detail=f"File too large ({len(data) // (1024*1024)} MB). Maximum is 50 MB.")
+    data = await _read_upload_capped(file, _MAX_BYTES, "50 MB")
 
     ext = _MIME_TO_EXT[content_type]
     r2_key = f"runs/{run_id}/music/track{ext}"

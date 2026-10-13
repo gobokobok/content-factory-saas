@@ -1,4 +1,6 @@
-FROM python:3.11-slim
+# Pinned to a patch release and its manifest digest (F20) so a rebuild cannot pick up a
+# different base image. Bump both together; the digest comes from Docker Hub's tag list.
+FROM python:3.11.17-slim-bookworm@sha256:0a310eeecf4e1f5a0743f9a6520c90c88d089c903ca5fd283f501e3a805f5f89
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-open-sans fonts-montserrat fonts-noto \
@@ -28,4 +30,11 @@ EXPOSE 8000
 
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+# Run as an unprivileged user (F20). The app writes only under /tmp (render working
+# folders) and its home directory (model caches), so nothing needs root at run time.
+RUN useradd --create-home --uid 10001 app \
+    && chown -R app:app /app
+USER app
+
 ENTRYPOINT ["/entrypoint.sh"]

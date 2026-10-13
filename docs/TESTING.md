@@ -77,3 +77,10 @@ Every test gets the settings the app requires from `tests/conftest.py` (`hermeti
 `tests/cf_platform/test_hard1_word_matching.py` holds transcript / script pairs for the script view and the transcript
 editor. When DEV refuses a paste, add the pair to `CORPUS` (transcript form, script form, expected start words) before
 fixing `cf_platform/core/word_match.py`.
+
+## Hardening tests (P-HARD2, 2026-10-13)
+
+`tests/test_hard2_hardening.py` covers the start-up checks (`check_deployment_settings`), the `run_id` pattern, cookie `Secure`, the proxy-aware lockout, the legacy routes being unmounted by default, capped uploads, migration status in `/health` and the Dockerfile / workflow contract. Two things to know when adding to it or to other tests:
+
+- **Routes are mounted at import time.** `tests/conftest.py` sets `LEGACY_ROUTES_ENABLED=true` before `src.main` is imported so the legacy routes stay testable; the "off by default" test runs `src.main` in a subprocess without it.
+- **The secret-length and cookie checks are relaxed for the suite** (`AUTH_SECRET_MIN_LENGTH=1`, `COOKIE_ALLOW_INSECURE=true` in `conftest.py`'s defaults). A test of those checks passes the values explicitly.

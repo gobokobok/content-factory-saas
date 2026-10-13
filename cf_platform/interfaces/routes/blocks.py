@@ -33,6 +33,7 @@ from cf_platform.interfaces.dependencies import (
     get_trace_event_repository,
     get_worker_registry,
 )
+from cf_platform.interfaces.routes._run_id import RUN_ID_PATTERN
 from cf_platform.workers.opportunity_scorer import TopicScore
 from cf_platform.workers.script_packager import ScriptArtifact
 from cf_platform.workers.topic_selector import RankedIdeasArtifact
@@ -140,7 +141,7 @@ class IdeaToScriptRequest(BaseModel):
     target_duration_seconds: int = 60
     # P12-S4 — generate into an existing run (one created from shortlist items)
     # instead of minting a new run id. Omitted: a new run is created, as before.
-    run_id: str | None = None
+    run_id: str | None = Field(default=None, pattern=RUN_ID_PATTERN)
 
 
 class IdeaToScriptResponse(BaseModel):

@@ -43,6 +43,10 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 |----------|----------|-------------|
 | `OPERATOR_PASSWORD` | Yes | Password for the operator UI login (S5-S5). |
 | `SESSION_SECRET_KEY` | Yes | HMAC key that signs the session cookie. Any long random string. |
+| `AUTH_SECRET_MIN_LENGTH` | No | Shortest `OPERATOR_PASSWORD` / `SESSION_SECRET_KEY` the app starts with; a shorter or empty value stops start-up (F7). Default: `12`. |
+| `COOKIE_ALLOW_INSECURE` | No | Set `true` only for plain-http local development. The session cookie is `Secure` otherwise, on DEV as well as PROD (F18). Default: `false`. |
+| `TRUST_PROXY_HEADERS` | No | Key the login lockout on the right-most `X-Forwarded-For` entry (Railway's proxy) instead of the proxy's own address (F14). Default: `true`. |
+| `LEGACY_ROUTES_ENABLED` | No | `true` mounts `/legacy` and the legacy pipeline routes (`/runs` list, drafts, downloads, upload URLs, the per-step routes). Off by default (F3, F10); Studio's run delete and run-settings routes stay on. |
 | `LOGIN_MAX_ATTEMPTS` | No | Failed logins per IP before a 429 block. Default: `5`. |
 | `LOGIN_ATTEMPT_WINDOW_SECONDS` | No | Rate-limit window in seconds. Default: `900`. |
 
@@ -89,7 +93,7 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | `VOICE_UPLOAD_MAX_S` | No | Longest uploaded voiceover (seconds) accepted (P14b-S4). Default: `180`. |
 | `VOICE_LOW_CONFIDENCE` | No | Mean Deepgram word confidence below which an uploaded voiceover gets a "may not be in this run's language" warning in Studio (P14b-S4). A warning only — the transcript is kept. Default: `0.6`. |
 | `DEEPGRAM_COST_PER_MIN_USD` | No | Deepgram Nova-2 price per audio minute, used only for the cost shown in the upload's TraceEvent (P14b-S1). Default: `0.0043`. |
-| `SETTINGS_ENCRYPTION_KEY` | P14 | Fernet key that encrypts tenant-level API keys stored in Postgres (D104). Generate once with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` and never change it — keys saved under the old value become unreadable. Without it the Settings page cannot save a key (the Railway keys below still work). |
+| `SETTINGS_ENCRYPTION_KEY` | P14 | Fernet key that encrypts tenant-level API keys stored in Postgres (D104). Generate once with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` and never change it — keys saved under the old value become unreadable. Without it the Settings page cannot save a key (the Railway keys below still work). **Required when `ENVIRONMENT=prod`:** the app refuses to start without it (F7). |
 | `IMAGE_PROVIDER` | No | Fallback image provider when the tenant has not chosen one: `kie` or `openai`. Default: `kie`. |
 | `KIE_API_KEY` | No | kie.ai key, fallback when the tenant has not saved one in Settings (D096, D104). |
 | `OPENAI_API_KEY` | No | OpenAI key, fallback when the tenant has not saved one in Settings. |

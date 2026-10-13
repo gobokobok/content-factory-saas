@@ -264,7 +264,10 @@ class TestPlatformHealthRoute:
         response = client.get("/platform/health")
 
         assert response.status_code == 200
-        assert response.json() == {"status": "ok", "database": "unavailable"}
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["database"] == "unavailable"
+        assert "migrations" in body
 
     def test_legacy_route_unaffected(self):
         """Mounting the platform router does not break an existing legacy route."""

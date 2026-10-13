@@ -20,9 +20,28 @@ class LoginRequest(BaseModel):
     password: str
 
 
-def _is_prod(settings: Settings) -> bool:
-    """Return True when running in the prod environment."""
-    return settings.ENVIRONMENT == "prod"
+def _cookie_secure(settings: Settings) -> bool:
+    """Return True when the session cookie must be Secure.
+
+    Every deployed environment (dev and prod) is served over https, so only a
+    request that reached the app directly on localhost may use a plain cookie (F18).
+    """
+    return not settings.COOKIE_ALLOW_INSECURE
+
+
+def _client_ip(request: Request, settings: Settings) -> str:
+    """Return the caller's address for the login lockout.
+
+    Behind Railway's proxy ``request.client.host`` is the proxy, so every visitor
+    shares one lockout bucket (F14). The right-most X-Forwarded-For entry is the one
+    the proxy itself appended — earlier entries are client-supplied and spoofable.
+    """
+    if settings.TRUST_PROXY_HEADERS:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        parts = [p.strip() for p in forwarded.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
+    return request.client.host if request.client else "unknown"
 
 
 @router.post("/login")
@@ -36,7 +55,7 @@ def login(
     Returns 200 + {ok: true} on success, 401 on wrong password, and 429 once
     an IP has exceeded LOGIN_MAX_ATTEMPTS failures within the window.
     """
-    client_ip = request.client.host if request.client else "unknown"
+    client_ip = _client_ip(request, settings)
     if _RATE_LIMITER.is_blocked(
         client_ip, settings.LOGIN_MAX_ATTEMPTS, settings.LOGIN_ATTEMPT_WINDOW_SECONDS
     ):
@@ -57,7 +76,7 @@ def login(
         value=token,
         httponly=True,
         samesite="lax",
-        secure=_is_prod(settings),
+        secure=_cookie_secure(settings),
         max_age=_COOKIE_MAX_AGE,
     )
     return response
@@ -71,6 +90,6 @@ def logout(settings: Settings = Depends(get_settings)) -> JSONResponse:
         key=AUTH_COOKIE_NAME,
         httponly=True,
         samesite="lax",
-        secure=_is_prod(settings),
+        secure=_cookie_secure(settings),
     )
     return response

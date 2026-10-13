@@ -39,7 +39,53 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 **EPIC 60 — Hardening after the 2026-10-13 review (Sprint P-HARD1, DONE 2026-10-13, handover in DONE.md; smoke PASSED 2026-10-13).** HARD1-S1 `/audit` and the first `docs/SECURITY.md` (also decides the moderation stance D114 left open). HARD1-S2 a failed TTS call must fail the voice job with a readable error and Retry — today `voice_production.py` sets `mp3_r2_key=""`, falls back to proportional timing and the job reads "complete" with no audio (PROD run `6fe35dab`, 2026-10-10). HARD1-S3 regression suite for `word_match.py` / `align_text_to_words` / `align_text` built from real pastes, including years said as two pairs. HARD1-S4 guard split / merge while a bulk image job runs. HARD1-S5 backfill `.apex/cost-log.jsonl` range entries for P-UX4, P-PROJ1, P-INT1 from commit times. INT2-S1 (Integrations rework) was considered and dropped from this sprint by the operator on 2026-10-13; it stays a candidate under EPIC 58. VERIFY items still unrun: the cap stop and "Regenerate those…" after a bible edit (P-AN1), the v0.17 vs v0.18 side-by-side (PROJ1-S6), a real render after the D107 zoom fix.
 
-**HARD2 candidates (from the 2026-10-13 audit, docs/SECURITY.md).** HARD2-S1 backups and a restore drill (F1, ~3 — before any stranger's data). HARD2-S2 close the small ones: validators for `OPERATOR_PASSWORD` / `SESSION_SECRET_KEY` / prod encryption key (F7), `run_id` pattern (F9), cookie `Secure` off-prod (F18), proxy-aware login lockout (F14), unmount `/legacy` (F3, F10), upload streaming (F12) (~3). HARD2-S3 migration status in health + CD post-deploy check + `pip-audit` + non-root container (F11, F20, ~2). Open at P-AUTH: F2, F5, F6, F8, F13 (D115).
+**EPIC 60 (continued) — Sprint P-HARD2 (in progress, started 2026-10-13; findings in docs/SECURITY.md).** Open at P-AUTH: F2, F5, F6, F8, F13 (D115).
+
+## [HARD2-S1] Backups and a restore drill — RUNBOOK section
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** in-progress · **Points:** 3 · **Finding:** F1
+### Goal
+The operator has one written, verifiable procedure for backing up and restoring PROD's Postgres and R2 data, before any stranger's data exists.
+### Acceptance Criteria
+- [ ] `docs/RUNBOOK.md` gains a "Backups and restore" section: what holds state (Postgres, R2; Drive is legacy), what is backed up and how (Railway Postgres backups, R2 object versioning), retention, and who does what
+- [ ] Exact operator steps to enable Railway backups and to check R2 versioning in the Cloudflare dashboard, each with the expected result
+- [ ] A restore drill onto a scratch database: steps, how to confirm the data is intact (row counts, one run opens), and a table to record each drill's date and result
+- [ ] DEV and PROD are named separately; PROD stays on its working version (no release implied)
+- [ ] `docs/SECURITY.md` F1 status updated to "procedure written; drill pending operator" (it closes only when a drill is recorded); no code and no script (decided 2026-10-13)
+- [ ] Tests: none for code; link / anchor check if the docs have one
+### Definition of Done
+- [ ] All AC checked · CI green · DONE.md updated · status `done`
+### Files to read
+- `docs/SECURITY.md` F1, `DECISIONS.md` D025, `docs/RUNBOOK.md`, `ENV.md` (R2 and DB variables)
+
+## [HARD2-S2] The audit's small fixes
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** in-progress · **Points:** 3 · **Findings:** F7, F9, F18, F14, F3, F10, F12
+### Goal
+Close the one-sitting findings so a stranger's request cannot hit a weak default or a legacy route.
+### Acceptance Criteria
+- [ ] F7: `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` rejected when empty or shorter than a minimum (ENV-configurable); start-up refuses `ENVIRONMENT=prod` without `SETTINGS_ENCRYPTION_KEY`
+- [ ] F9: `run_id` in worker request models constrained to the uuid / legacy-id pattern; 422 otherwise
+- [ ] F18: session cookie `Secure` for every non-local environment
+- [ ] F14: login lockout keys on the real client IP behind the proxy (`--proxy-headers` / trusted forwarded IP)
+- [ ] F3 / F10: `/legacy` and the `src/routes/runs.py` router unmounted (or admin-gated, see open point)
+- [ ] F12: scene and music uploads abort early past the size limit, as the MP4 upload does
+- [ ] Tests: one failure case per fix; `docs/SECURITY.md` statuses updated; `ENV.md` for any new variable
+### Open points to settle in the story
+- Unmount `/legacy` outright or admin-gate it? CLAUDE.md names it as the legacy pipeline UI.
+- F7 and PROD: PROD is on v0.24.0, so the prod-key check takes effect only at release (CLAUDE.md already says to set a new `SETTINGS_ENCRYPTION_KEY` then). Confirm DEV has the key set before pushing, or DEV will not start.
+### Files to read
+- `src/config.py`, `cf_platform/core/config.py`, `src/routes/auth.py`, `src/auth.py`, `src/main.py`, `src/routes/runs.py`, `cf_platform/interfaces/routes/workers.py`, `cf_platform/interfaces/routes/studio.py` (upload handlers), `entrypoint.sh`
+
+## [HARD2-S3] Deploy safety
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** in-progress · **Points:** 2 · **Findings:** F11, F20
+### Goal
+A failed migration or a vulnerable dependency is visible instead of silent.
+### Acceptance Criteria
+- [ ] F11: `/platform/health` reports migration status (applied version, any failure); a failed migration makes it non-OK; an advisory lock stops two instances migrating at once
+- [ ] A CD post-deploy check calls health and fails the workflow on a failed migration
+- [ ] F20: `pip-audit` runs in CI (failure policy stated in the story: block on high / known-exploited, warn otherwise); the container runs as a non-root user; the base image is pinned
+- [ ] Tests: migration-failure health response; `docs/TESTING.md` and RUNBOOK updated
+### Files to read
+- `cf_platform/core/migrations.py`, `src/main.py:73-85`, `/platform/health` route, `Dockerfile`, `.github/workflows/ci.yml` and the deploy workflow, `requirements.txt`
 
 **EPIC 53 — Multi-language: Russian (new 2026-10-05, after P-AN1, before P15)** — see the section below.
 

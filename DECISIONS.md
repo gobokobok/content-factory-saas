@@ -5,6 +5,14 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D116 — Hardening stance: legacy routes off by default, secrets validated at start-up, pip-audit warn-only, container as non-root
+**Date:** 2026-10-13
+**Decision:** (1) The legacy pipeline UI (`/legacy`) and every `/runs` route Studio does not call are mounted only when `LEGACY_ROUTES_ENABLED=true`; Studio's `DELETE /runs/{id}` and `GET`/`POST /runs/{id}/settings` stay. (2) `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` must be at least `AUTH_SECRET_MIN_LENGTH` (12) characters, and `ENVIRONMENT=prod` refuses to start without `SETTINGS_ENCRYPTION_KEY`. (3) `pip-audit` (a CI tool, not a runtime dependency) runs in CI as warn-only until its first report is triaged. (4) The container runs as an unprivileged user on a base image pinned to a patch tag and digest.
+**Why:** docs/SECURITY.md F3, F7, F10, F20. Studio still depends on three legacy-module routes, so unmounting the whole router would have broken delete and run settings.
+**Consequence:** DEV needs a password and session secret of 12+ characters before this is pushed. PROD is unaffected until the next release, when `SETTINGS_ENCRYPTION_KEY` must be set (already in the release checklist). Moving Studio's delete and settings routes to the platform and removing the legacy router for good is left to P-AUTH (F2).
+
+---
+
 ## D115 — Moderation stance for strangers' text and images: minimal, in four parts, enforced server-side at P-LITE
 **Date:** 2026-10-13 — settled by Claude at P-HARD1-S1 while the operator was away; the operator confirms or changes it at the review.
 **Decision:** (1) A terms click-through on first sign-in (no sexual content involving minors, no impersonation of real people, no incitement or targeted harassment, no illegal content; the operator may remove content and revoke access; credits are not refunded for a policy violation). (2) A hard server-side script length cap tied to the maximum video length. (3) A pre-flight moderation check on the script and on each image prompt before any paid generation — a provider's free moderation endpoint or a small classification call, blocking sexual/minors, graphic violence and self-harm and flagging the rest. (4) The image providers' own refusals are surfaced and not charged. Plus an owner-visible log of prompts and runs, and a report-abuse link.

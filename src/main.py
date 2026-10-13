@@ -1,6 +1,7 @@
 """FastAPI application entry point — registers routes and validates ENV at startup."""
 
 import logging
+import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -115,7 +116,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         )
         if settings.CLIP_RERANK_ENABLED:
             clip_reranker.load_model()
-    except ValidationError as exc:
+    except (ValidationError, ValueError) as exc:
         logging.basicConfig(level=logging.ERROR)
         logging.getLogger(__name__).error("Startup failed — missing or invalid ENV vars:\n%s", exc)
         raise SystemExit(1) from exc
@@ -126,17 +127,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     yield
 
 
+# F3 / F10: the legacy pipeline UI and its run routes are off unless this is "true".
+# Read from the environment directly because routes are mounted at import time,
+# before Settings is built.
+_LEGACY_ROUTES_ENABLED = os.environ.get("LEGACY_ROUTES_ENABLED", "").strip().lower() in {"1", "true", "yes"}
+
 app = FastAPI(title="Content Factory", lifespan=lifespan)
 app.include_router(auth_router.router)
-app.include_router(runs_router.router)
-app.include_router(storyboard_router.router)
-app.include_router(manifest_router.router)
-app.include_router(assets_router.router)
-app.include_router(alignment_router.router)
-app.include_router(tts_router.router)
-app.include_router(ffmpeg_script_router.router)
-app.include_router(render_router.router)
-app.include_router(metadata_router.router)
+if _LEGACY_ROUTES_ENABLED:
+    app.include_router(runs_router.router)
+    app.include_router(storyboard_router.router)
+    app.include_router(manifest_router.router)
+    app.include_router(assets_router.router)
+    app.include_router(alignment_router.router)
+    app.include_router(tts_router.router)
+    app.include_router(ffmpeg_script_router.router)
+    app.include_router(render_router.router)
+    app.include_router(metadata_router.router)
+else:
+    app.include_router(runs_router.studio_router)
 _mount_platform_router(app)
 
 
@@ -196,13 +205,15 @@ def studio_ui() -> FileResponse:
     return FileResponse(_STATIC_DIR / "studio-v2.html", headers=_NO_CACHE)
 
 
-@app.get("/legacy", include_in_schema=False)
-def legacy_pipeline_ui() -> FileResponse:
-    """Serve the legacy end-to-end pipeline UI (D047 — kept operable, no longer default)."""
-    return FileResponse(
-        _STATIC_DIR / "pipeline.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
-    )
+if _LEGACY_ROUTES_ENABLED:
+
+    @app.get("/legacy", include_in_schema=False)
+    def legacy_pipeline_ui() -> FileResponse:
+        """Serve the legacy end-to-end pipeline UI (D047 — off unless LEGACY_ROUTES_ENABLED)."""
+        return FileResponse(
+            _STATIC_DIR / "pipeline.html",
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
 
 
 @app.get("/login", include_in_schema=False)
@@ -220,5 +231,21 @@ if _PROTOTYPE_DIR.is_dir():
 
 @app.get("/health")
 def health(settings: Settings = Depends(get_settings)) -> dict:
-    """Return service health and current environment."""
-    return {"status": "ok", "environment": settings.ENVIRONMENT}
+    """Return service health, the environment and the start-up migration status.
+
+    Exempt from login so the deploy check can call it. "migrations" is one of
+    "ok", "unavailable" (no database configured), "error" or "not_run"; an
+    "error" turns "status" to "degraded" (F11). The HTTP status stays 200 so a
+    database problem never takes the legacy app down (D048).
+    """
+    try:
+        from cf_platform.core.migrations import get_migration_status
+
+        migrations = get_migration_status()
+    except Exception:
+        migrations = "unavailable"
+    return {
+        "status": "degraded" if migrations == "error" else "ok",
+        "environment": settings.ENVIRONMENT,
+        "migrations": migrations,
+    }

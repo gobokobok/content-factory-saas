@@ -5,6 +5,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Routes are mounted when src.main is imported, so this must be set at import time.
+# Production leaves it off (F3, F10); the suite keeps exercising the legacy routes.
+os.environ.setdefault("LEGACY_ROUTES_ENABLED", "true")
+
 # The settings every app instance needs. CI provides only some of them as environment
 # variables and has no .env.local, so a test that builds the app passed on a developer's
 # machine (which has .env.local) and failed in CI (P-INT1 close). These are filled in
@@ -21,6 +25,10 @@ _TEST_ENV_DEFAULTS = {
     "FREESOUND_API_KEY": "test-key",
     "OPERATOR_PASSWORD": "test-password",
     "SESSION_SECRET_KEY": "test-secret-key",
+    # Existing tests use short secrets; the validator's own tests set this explicitly.
+    "AUTH_SECRET_MIN_LENGTH": "1",
+    # The test client talks plain http; a Secure cookie would never be sent back.
+    "COOKIE_ALLOW_INSECURE": "true",
 }
 
 

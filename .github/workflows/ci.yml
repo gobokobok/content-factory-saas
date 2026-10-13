@@ -26,6 +26,15 @@ jobs:
       - name: Lint (ruff)
         run: ruff check .
 
+      # F20 / D116: reports known vulnerabilities in the runtime requirements. Warn-only
+      # for now (continue-on-error) so one transitive advisory cannot block a release;
+      # tighten to blocking once the first report has been triaged.
+      - name: Dependency audit (pip-audit, warn only)
+        continue-on-error: true
+        run: |
+          pip install pip-audit==2.7.3
+          pip-audit -r requirements.txt --progress-spinner off
+
       - name: Run tests
         run: python -m pytest tests/ -m "not integration" --tb=short -v
         env:

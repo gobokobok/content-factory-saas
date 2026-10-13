@@ -411,3 +411,15 @@ def download_video(
         media_type="video/mp4",
         headers={"Content-Disposition": f'attachment; filename="{run_id}_final.mp4"'},
     )
+
+
+# The only routes of this module Studio calls (delete a run, read / save its video
+# settings). Every other route is the legacy pipeline UI's: it lists, reads and
+# deletes runs across the whole bucket by guessable id (F3, F10), so it is mounted
+# only when LEGACY_ROUTES_ENABLED is set.
+_STUDIO_ROUTE_NAMES = {"delete_run", "save_video_settings", "get_video_settings"}
+
+studio_router = APIRouter()
+for _route in router.routes:
+    if getattr(_route, "name", "") in _STUDIO_ROUTE_NAMES:
+        studio_router.routes.append(_route)

@@ -17,3 +17,4 @@
 {"story":"P-PROJ1-S1..S5","sprint":"P-PROJ1","session_id":null,"started_at":"2026-10-11T12:14:02Z","ended_at":"2026-10-11T12:29:11Z","backfilled":true,"source":"git commit times (start = end of the P-UX4 entry, end = 05afd82); estimate, session id unknown"}
 {"story":"P-INT1-S1..S4","sprint":"P-INT1","session_id":null,"started_at":"2026-10-11T12:29:11Z","ended_at":"2026-10-11T12:37:45Z","backfilled":true,"source":"git commit times (start = end of P-PROJ1, end = e471e80); estimate, session id unknown"}
 {"story":"P-HARD1-S1..S5","sprint":"P-HARD1","session_id":"4118ded3-4614-48c8-863f-3ac6926efa86","started_at":"2026-10-13T10:18:29Z","ended_at":"2026-10-13T10:45:56Z"}
+{"story": "P-HARD2-S1..S3", "sprint": "P-HARD2", "session_id": "f0d74cbf-9108-487b-8790-5de815b5ce3f", "started_at": "2026-10-13T12:51:59Z"}

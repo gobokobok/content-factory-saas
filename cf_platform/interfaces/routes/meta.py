@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from cf_platform.core.build_info import get_build_info
 from cf_platform.core.config import get_platform_settings
 from cf_platform.core.db import check_db_health
+from cf_platform.core.migrations import get_migration_status
 
 router = APIRouter()
 
@@ -25,8 +26,15 @@ async def platform_health() -> dict:
 
     The "status" field always reports "ok" for the platform subsystem itself —
     a database outage is reported via "database" but does not affect "status"
-    (DB down != legacy down, P2-S1).
+    (DB down != legacy down, P2-S1). A failed start-up migration is different: the
+    app is running on a schema it did not finish building, so "status" reads
+    "degraded" and "migrations" says "error" (F11).
     """
     settings = get_platform_settings()
     database_status = await check_db_health(settings.DATABASE_URL)
-    return {"status": "ok", "database": database_status}
+    migrations = get_migration_status()
+    return {
+        "status": "degraded" if migrations == "error" else "ok",
+        "database": database_status,
+        "migrations": migrations,
+    }

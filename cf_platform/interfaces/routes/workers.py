@@ -11,7 +11,7 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.cast import resolve_cast
@@ -34,6 +34,7 @@ from cf_platform.interfaces.dependencies import (
     get_tenant_settings_repository,
 )
 from cf_platform.interfaces.routes._helpers import latest_artifact_key as _latest_artifact_key
+from cf_platform.interfaces.routes._run_id import RUN_ID_PATTERN
 from cf_platform.interfaces.routes.studio_voice import discard_for_generated_voice
 from cf_platform.workers.acquisition_worker import (
     ACQUISITION_WORKER_REGISTRATION,
@@ -73,7 +74,7 @@ router = APIRouter()
 class StoryboardWorkerRequest(BaseModel):
     """Request body for POST /platform/workers/storyboard."""
 
-    run_id: str
+    run_id: str = Field(pattern=RUN_ID_PATTERN)
     script: str
     format_track: str = "portrait"
 
@@ -280,7 +281,7 @@ async def storyboard_worker_endpoint(
 class MetadataWorkerRequest(BaseModel):
     """Request body for POST /platform/workers/metadata."""
 
-    run_id: str
+    run_id: str = Field(pattern=RUN_ID_PATTERN)
 
 
 class MetadataWorkerResponse(BaseModel):
@@ -399,7 +400,7 @@ async def metadata_worker_endpoint(
 class VoiceWorkerRequest(BaseModel):
     """Request body for POST /platform/workers/voice."""
 
-    run_id: str
+    run_id: str = Field(pattern=RUN_ID_PATTERN)
     script: str
     # D109: generating over an uploaded recording replaces it; the request repeats with
     # this set once the operator has confirmed what is discarded.
@@ -562,7 +563,7 @@ async def voice_worker_endpoint(
 class AcquisitionWorkerRequest(BaseModel):
     """Request body for POST /platform/workers/acquisition."""
 
-    run_id: str
+    run_id: str = Field(pattern=RUN_ID_PATTERN)
     # P13: fetch only the scenes that have no asset yet, keeping the rest.
     only_missing: bool = False
 
@@ -670,7 +671,7 @@ async def acquisition_worker_endpoint(
 class RenderWorkerRequest(BaseModel):
     """Request body for POST /platform/workers/render."""
 
-    run_id: str
+    run_id: str = Field(pattern=RUN_ID_PATTERN)
     format_track: str = "landscape"
     captions: bool = True
     music_enabled: bool = True

@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content Factory — Beta UI mockup</title>
+<style>
+/* Palette: clausewatch tokens (app.css), nudged warmer. */
+:root{
+  --bg:#F8F6F1;          /* clausewatch #F7F7F5 → warmer */
+  --bg-soft:#F1EEE6;     /* hover / chips-free surfaces */
+  --border:#E2DDD2;      /* clausewatch #DEDED9 → warmer */
+  --border-strong:#CFC8BA;
+  --text:#1E1C18;
+  --muted:#6B665C;
+  --faint:#9A9488;
+  --accent:#1F4FD8;      /* clausewatch accent, unchanged */
+  --accent-soft:#E6ECFB;
+  --ok:#1B6E3C; --ok-bg:#E6F3EA;
+  --warn:#8A5A00; --dot-run:#E5A50A;
+  --danger:#A32020;
+  --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --left-w:248px; --right-w:328px; --main-w:780px;
+  --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+svg{flex-shrink:0}
+
+/* ── Main working area: always centred on the viewport ───────────── */
+.main{max-width:var(--main-w);margin:0 auto;padding:72px 24px 120px}
+.screen{display:none}.screen.on{display:block}
+
+h1{font-size:26px;line-height:1.25;font-weight:650;letter-spacing:-.015em}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border-radius:999px;font-weight:550;border:1px solid var(--border-strong);transition:background .12s,border-color .12s}
+.btn:hover{background:var(--bg-soft)}
+.btn.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
+.btn.primary:hover{background:#38352E}
+.btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.sm{height:32px;padding:0 14px;font-size:13px}
+.link{color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px}
+.link:hover{color:var(--text)}
+.icon-btn{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--muted);border:1px solid transparent}
+.icon-btn:hover{background:var(--bg-soft);color:var(--text)}
+.icon-btn.active{border-color:var(--border);color:var(--text)}
+
+/* ── Fields: quiet, rounded, same bg as page ─────────────────────── */
+.field{display:block;margin-bottom:20px}
+.field>.lbl{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:500}
+input[type=text],textarea,select{
+  width:100%;font:inherit;color:var(--text);background:var(--bg);
+  border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;outline:none;
+  transition:border-color .12s,box-shadow .12s}
+input[type=text]:hover,textarea:hover,select:hover{border-color:var(--border-strong)}
+input[type=text]:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,79,216,.12)}
+select{appearance:none;-webkit-appearance:none;padding-right:38px;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239A9488' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center}
+select.inline{width:auto;padding:6px 32px 6px 12px;font-size:13px;border-radius:999px;background-position:right 11px center}
+textarea{resize:vertical;line-height:1.65;min-height:260px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px}
+.seg button{padding:5px 14px;border-radius:999px;font-size:13px;color:var(--muted)}
+.seg button.on{background:var(--bg-soft);color:var(--text);box-shadow:inset 0 0 0 1px var(--border)}
+.switch{position:relative;width:38px;height:22px;border-radius:999px;background:var(--border-strong);transition:background .15s;flex-shrink:0}
+.switch::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--bg);transition:transform .15s}
+.switch.on{background:var(--accent)}.switch.on::after{transform:translateX(16px)}
+
+/* ── Runs list ───────────────────────────────────────────────────── */
+.run-list{border-top:1px solid var(--border)}
+.run-item{display:flex;align-items:center;gap:14px;padding:16px 4px;border-bottom:1px solid var(--border);width:100%;text-align:left}
+.run-item:hover{background:var(--bg-soft)}
+.run-item .t{flex:1;font-weight:550}
+.run-item .m{color:var(--faint);font-size:13px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--border-strong)}
+.dot.run{background:var(--dot-run)}.dot.ok{background:var(--ok)}
+
+/* ── Stepper ─────────────────────────────────────────────────────── */
+.steps{display:flex;align-items:center;gap:6px;margin:6px 0 36px;font-size:13.5px}
+.steps button{display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;color:var(--faint)}
+.steps button .n{width:22px;height:22px;border-radius:50%;border:1px solid var(--border-strong);display:grid;place-items:center;font-size:11.5px;font-weight:600}
+.steps button.done{color:var(--muted)}
+.steps button.done .n{background:var(--text);border-color:var(--text);color:var(--bg)}
+.steps button.cur{color:var(--text);font-weight:600}
+.steps button.cur .n{border-color:var(--text)}
+.steps .bar{flex:1;height:1px;background:var(--border);max-width:40px}
+
+/* ── Step content ────────────────────────────────────────────────── */
+.step-foot{display:flex;align-items:center;justify-content:space-between;margin-top:28px;gap:12px}
+.meta{font-size:12.5px;color:var(--faint)}
+.gen-toggle{margin-bottom:14px}
+.gen-box{display:none;margin-bottom:18px;padding:16px;border:1px solid var(--border);border-radius:var(--r)}
+.gen-box.on{display:block}
+
+.scene{display:grid;grid-template-columns:96px 1fr auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border)}
+.scene:first-child{border-top:1px solid var(--border)}
+.thumb{width:96px;height:60px;border-radius:10px;background:linear-gradient(135deg,#D9D2C3,#EBE5D8)}
+.thumb.b{background:linear-gradient(135deg,#C9D1DD,#E4E8EF)}
+.thumb.c{background:linear-gradient(135deg,#D8CBBE,#EDE3DA)}
+.scene .txt{font-size:14px;line-height:1.5}
+.scene .no{font-size:12px;color:var(--faint);margin-bottom:2px}
+
+.preview{aspect-ratio:9/16;width:220px;border-radius:16px;border:1px solid var(--border);background:var(--bg-soft);display:grid;place-items:center;color:var(--faint);font-size:13px;margin:0 auto 8px}
+.cap-row{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+
+/* ── Side panels (fixed — never push the main area) ──────────────── */
+.panel{position:fixed;top:0;bottom:0;background:var(--bg);z-index:20;display:flex;flex-direction:column;
+  transition:transform .22s cubic-bezier(.4,0,.2,1)}
+.panel.left{left:0;width:var(--left-w);border-right:1px solid var(--border);box-shadow:6px 0 24px -12px rgba(60,50,30,.18)}
+.panel.right{right:0;width:var(--right-w);border-left:1px solid var(--border);box-shadow:-6px 0 24px -12px rgba(60,50,30,.18)}
+.panel.left.closed{transform:translateX(-110%)}
+.panel.right.closed{transform:translateX(110%)}
+.p-head{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px 18px}
+.brand{font-weight:650;letter-spacing:-.01em}
+.p-body{flex:1;overflow:auto;padding:6px 18px 24px}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:10px;color:var(--muted);text-align:left;font-weight:500}
+.nav-btn:hover{background:var(--bg-soft);color:var(--text)}
+.nav-btn.on{background:var(--bg-soft);color:var(--text)}
+.sect{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:22px 10px 6px;font-weight:600}
+.recent{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:10px;color:var(--muted);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent:hover{background:var(--bg-soft);color:var(--text)}
+
+/* Floating buttons */
+.fab{position:fixed;top:14px;z-index:30}
+.fab.l{left:14px}
+.fab.r{right:14px;display:flex;gap:4px}
+.hidden{display:none!important}
+
+/* Right panel internals */
+.tabs{display:flex;gap:4px;padding:0 14px 0 18px;border-bottom:1px solid var(--border)}
+.tabs button{padding:10px 10px 11px;color:var(--faint);font-weight:550;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:13.5px}
+.tabs button.on{color:var(--text);border-color:var(--text)}
+.tab{display:none}.tab.on{display:block}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--border)}
+.set-row:last-child{border:0}
+.set-row .k{font-weight:550}
+.set-row .h{font-size:12.5px;color:var(--faint);margin-top:1px}
+.kv{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13.5px}
+.kv span:first-child{color:var(--muted)}
+.help li{margin:0 0 12px 18px;color:var(--muted)}
+.help h3{font-size:15px;margin:6px 0 14px}
+
+.nav-btn.sm{padding:6px 10px 6px 36px;font-size:13.5px}
+.sub{margin:2px 0 4px}
+.proj{padding:6px 10px 4px 36px;font-size:13px;font-weight:600;color:var(--text)}
+.crumb{font-size:13px;color:var(--faint);margin-bottom:10px}
+.crumb a{color:var(--muted);cursor:pointer}.crumb a:hover{color:var(--text)}
+.stub-box{padding:48px 0;color:var(--muted)}
+.stub-box .tag{display:inline-block;margin-top:10px;font-size:12.5px;color:var(--faint);border:1px dashed var(--border-strong);border-radius:999px;padding:3px 12px}
+/* Storyboard scenes */
+.sc{border-bottom:1px solid var(--border)}
+.sc:first-child{border-top:1px solid var(--border)}
+.sc-row{display:grid;grid-template-columns:84px 1fr;gap:16px;padding:16px 4px;cursor:pointer;border-radius:10px}
+.sc-row:hover{background:var(--bg-soft)}
+.sc-thumb{width:84px;height:84px;border-radius:10px;background:linear-gradient(135deg,#D9D2C3,#EBE5D8)}
+.sc-thumb.b{background:linear-gradient(135deg,#C9D1DD,#E4E8EF)}
+.sc-thumb.c{background:linear-gradient(135deg,#D8CBBE,#EDE3DA)}
+.sc-top{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);margin-bottom:4px}
+.sc-top b{color:var(--text);font-weight:600}
+.sc-top .grow{flex:1}
+.sc-vo{font-size:14.5px;line-height:1.55}
+.sc-vo .w{border-radius:4px;cursor:text}
+.sc-vo .w:hover{background:var(--accent-soft)}
+.sc-foot{display:flex;align-items:center;gap:10px;margin-top:10px}
+.sc-merge{font-size:12.5px;color:var(--muted);padding:4px 10px;border-radius:999px;border:1px solid var(--border)}
+.sc-merge:hover{color:var(--text);border-color:var(--border-strong);background:var(--bg)}
+.sc-chev{transition:transform .15s;color:var(--faint)}
+.sc.open .sc-chev{transform:rotate(180deg)}
+.sc-detail{display:none;padding:4px 4px 20px 100px}
+.sc.open .sc-detail{display:block}
+.sc-detail .row3{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sc-detail .field{margin-bottom:14px}
+.sc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+/* New-run */
+.big-input{font-size:18px;padding:16px 18px}
+</style>
+</head>
+<body>
+
+<!-- ═════════ LEFT PANEL ═════════ -->
+<aside class="panel left" id="left">
+  <div class="p-head">
+    <span class="brand">CF <span style="color:var(--faint);font-weight:500">Studio</span></span>
+    <button class="icon-btn" onclick="toggleLeft(false)" title="Hide panel" aria-label="Hide panel">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path d="M15.5 10l-2 2 2 2"/></svg>
+    </button>
+  </div>
+  <div class="p-body">
+    <div class="sect" style="margin-top:6px">Projects</div>
+    <button class="nav-btn" data-nav="projects" onclick="stub('All projects')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>All projects</button>
+    <div class="sub">
+      <div class="proj">The Housing Equation</div>
+      <button class="nav-btn sm" onclick="stub('Overview')">Overview</button>
+      <button class="nav-btn sm" onclick="stub('Ideas')">Ideas</button>
+      <button class="nav-btn sm" data-nav="runs" onclick="go('runs')">Runs</button>
+      <button class="nav-btn sm" onclick="stub('Project settings')">Settings</button>
+    </div>
+    <div class="sect">Libraries</div>
+    <button class="nav-btn" onclick="stub('Videos')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>Videos</button>
+    <button class="nav-btn" onclick="stub('Assets')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Assets</button>
+    <button class="nav-btn" onclick="stub('BG music')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>BG music</button>
+    <div class="sect">Settings</div>
+    <button class="nav-btn" onclick="stub('Integrations')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M6 7h12v4a6 6 0 0 1-12 0zM12 17v4"/></svg>Integrations</button>
+    <button class="nav-btn" onclick="stub('Defaults')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Defaults</button>
+  </div>
+  <div style="padding:10px 18px 14px;border-top:1px solid var(--border)">
+    <button class="nav-btn" onclick="stub('Log out')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9"/></svg>Log out</button>
+  </div>
+</aside>
+
+<!-- ═════════ RIGHT PANEL ═════════ -->
+<aside class="panel right closed" id="right">
+  <div class="p-head">
+    <span class="brand">Run</span>
+    <button class="icon-btn" onclick="toggleRight(false)" aria-label="Close panel">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="tabs">
+    <button data-tab="settings" class="on" onclick="tab('settings')">Settings</button>
+    <button data-tab="help" onclick="tab('help')">Instructions</button>
+    <button data-tab="details" onclick="tab('details')">Details</button>
+  </div>
+  <div class="p-body" style="padding-top:8px">
+    <div class="tab on" id="tab-settings">
+      <div class="set-row">
+        <div><div class="k">Auto-advance</div><div class="h">Go to the next step when one finishes</div></div>
+        <button class="switch" id="autoadv" onclick="this.classList.toggle('on')" aria-label="Auto-advance"></button>
+      </div>
+      <div class="set-row">
+        <div class="k">Format</div>
+        <div class="seg" data-seg><button class="on">9:16</button><button>16:9</button></div>
+      </div>
+      <div class="set-row">
+        <div class="k">Visuals</div>
+        <div class="seg" data-seg><button class="on">Stock</button><button>AI</button></div>
+      </div>
+      <div class="set-row">
+        <div class="k">Language</div>
+        <select class="inline"><option>English</option><option>Russian</option></select>
+      </div>
+      <div class="set-row">
+        <div class="k">Captions</div>
+        <button class="switch on" onclick="this.classList.toggle('on')" aria-label="Captions"></button>
+      </div>
+      <div class="set-row">
+        <div class="k">Music</div>
+        <select class="inline"><option>Calm piano</option><option>Upbeat</option><option>None</option></select>
+      </div>
+    </div>
+    <div class="tab help" id="tab-help"><h3 id="help-title"></h3><ul id="help-list"></ul></div>
+    <div class="tab" id="tab-details">
+      <div class="kv"><span>Status</span><span>In progress</span></div>
+      <div class="kv"><span>Created</span><span>Oct 13, 2026</span></div>
+      <div class="kv"><span>Length</span><span>≈ 58 s</span></div>
+      <div class="kv"><span>Scenes</span><span>14</span></div>
+      <div class="kv"><span>Cost so far</span><span>$0.42</span></div>
+      <div class="kv"><span>Run ID</span><span style="color:var(--faint)">6fe35dab</span></div>
+    </div>
+  </div>
+</aside>
+
+<!-- Floating controls -->
+<button class="icon-btn fab l hidden" id="left-open" onclick="toggleLeft(true)" title="Show panel" aria-label="Show panel">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path d="M13.5 10l2 2-2 2"/></svg>
+</button>
+<div class="fab r hidden" id="right-open">
+  <button class="icon-btn" onclick="openRight('settings')" title="Run settings" aria-label="Run settings">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+  </button>
+  <button class="icon-btn" onclick="openRight('help')" title="Instructions & details" aria-label="Instructions and details">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+  </button>
+</div>
+
+<!-- ═════════ MAIN (centred) ═════════ -->
+<main class="main">
+
+  <!-- Runs list: the landing screen -->
+  <section class="screen on" id="s-runs">
+    <div class="page-head">
+      <div><div class="crumb">The Housing Equation</div><h1>Runs</h1></div>
+      <button class="btn primary" onclick="go('new')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New run
+      </button>
+    </div>
+    <div class="run-list" id="run-list"></div>
+  </section>
+
+  <!-- Stub for menu items outside this mockup -->
+  <section class="screen" id="s-stub">
+    <div class="page-head"><h1 id="stub-title"></h1></div>
+    <div class="stub-box">This screen keeps today's content and is only shown for navigation.<br><span class="tag">not redesigned in this mockup</span></div>
+  </section>
+
+  <!-- New run -->
+  <section class="screen" id="s-new">
+    <div class="page-head"><h1>New run</h1></div>
+    <label class="field"><span class="lbl">What is the video about?</span>
+      <input type="text" class="big-input" id="new-title" placeholder="Why starter homes disappeared from America">
+    </label>
+    <div class="step-foot" style="justify-content:flex-start">
+      <button class="btn primary" onclick="createRun()">Create run</button>
+      <button class="btn" onclick="go('runs')" style="border-color:transparent">Cancel</button>
+    </div>
+  </section>
+
+  <!-- Run -->
+  <section class="screen" id="s-run">
+    <div class="crumb"><a onclick="go('runs')">The Housing Equation</a> / <a onclick="go('runs')">Runs</a></div>
+    <h1 id="run-title">Why starter homes disappeared</h1>
+    <nav class="steps" id="steps" style="margin-top:22px"></nav>
+
+    <!-- Script -->
+    <div class="step" data-step="0">
+      <button class="link gen-toggle" onclick="document.getElementById('gen').classList.toggle('on')">Generate a script from an idea</button>
+      <div class="gen-box" id="gen">
+        <label class="field" style="margin-bottom:12px"><span class="lbl">Idea</span><input type="text" placeholder="Why starter homes disappeared from America"></label>
+        <button class="btn sm">Generate script</button>
+      </div>
+      <textarea id="script" placeholder="Paste your script here…">In 1980, a first home cost about three times a family's yearly income. Today it costs more than five. The starter home — small, simple, affordable — has quietly vanished from American neighbourhoods.
+
+Builders stopped making them because zoning, land costs and lending rules all pushed the same way: bigger houses, higher margins.</textarea>
+      <div class="step-foot"><span class="meta">64 words</span><button class="btn primary" onclick="next()">Next</button></div>
+    </div>
+
+    <!-- Voice -->
+    <div class="step" data-step="1">
+      <label class="field"><span class="lbl">Voice</span>
+        <select><option>Daniel — calm, neutral</option><option>Maya — warm, clear</option><option>Upload my own voiceover…</option></select>
+      </label>
+      <div class="row">
+        <label class="field"><span class="lbl">Pace</span><select><option>Normal</option><option>Slower</option><option>Faster</option></select></label>
+        <label class="field"><span class="lbl">Style</span><select><option>Documentary</option><option>Conversational</option><option>Energetic</option></select></label>
+      </div>
+      <div class="step-foot"><button class="btn accent" onclick="this.textContent='Voiceover ready ✓'">Generate voiceover</button><button class="btn primary" onclick="next()">Next</button></div>
+    </div>
+
+    <!-- Storyboard -->
+    <div class="step" data-step="2">
+      <div id="scenes"></div>
+      <div class="step-foot"><span class="meta" id="sc-meta"></span><button class="btn primary" onclick="next()">Confirm &amp; create assets</button></div>
+    </div>
+
+    <!-- Render -->
+    <div class="step" data-step="3">
+      <div class="preview">Preview</div>
+      <p class="meta" style="text-align:center;margin-bottom:28px">9:16 · ≈ 58 s</p>
+      <div class="cap-row">
+        <span class="switch on" onclick="this.classList.toggle('on')" role="button"></span><span>Captions</span>
+        <select class="inline" style="margin-left:auto"><option>Bold, centred</option><option>Minimal</option><option>Karaoke</option></select>
+      </div>
+      <div class="step-foot" style="margin-top:0"><button class="btn accent">Render video</button></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const runs=[
+  {t:'Why starter homes disappeared',s:'Storyboard',st:'run',d:'Today'},
+  {t:'The real cost of a 30-year mortgage',s:'Rendered',st:'ok',d:'Oct 11'},
+  {t:'Who is buying all the houses?',s:'Rendered',st:'ok',d:'Oct 8'},
+  {t:'Rent vs buy in 2026',s:'Script',st:'',d:'Oct 5'},
+];
+const stepNames=['Script','Voice','Storyboard','Render'];
+const help=[
+  ['Script','Paste or write your script. You can also generate one from an idea.'],
+  ['Voice','Choose how it sounds, then generate the voiceover.'],
+  ['Storyboard','Check each scene and change its asset type if needed.'],
+  ['Render','Choose captions and render the final video.'],
+];
+const scenes=[
+  {vo:"In 1980, a first home cost about three times a family's yearly income.",start:0,dur:4.6,motion:'Ken Burns',asset:'Stock video',q:'1980s suburban street, family house',ost:'',sfx:'',t:''},
+  {vo:"Today it costs more than five.",start:4.6,dur:2.4,motion:'Zoom in',asset:'Stock image',q:'expensive house for sale sign',ost:'5×',sfx:'',t:'b'},
+  {vo:"The starter home has quietly vanished from American neighbourhoods.",start:7.0,dur:4.1,motion:'Pan right',asset:'Stock video',q:'empty residential neighbourhood aerial',ost:'',sfx:'Whoosh',t:'c'},
+  {vo:"Builders stopped making them because of zoning and land costs.",start:11.1,dur:4.8,motion:'Static',asset:'AI image',q:'construction site cranes new homes',ost:'',sfx:'',t:'b'},
+];
+const MOTIONS=['Ken Burns','Zoom in','Zoom out','Pan right','Pan left','Static'];
+const ASSETS=['Stock video','Stock image','AI image','Upload'];
+const SFX=['','Whoosh','Click','Riser'];
+const fmt=t=>{const m=Math.floor(t/60),s=(t%60).toFixed(1);return m+':'+(s<10?'0':'')+s};
+const opts=(a,sel)=>a.map(o=>`<option value="${o}"${o===sel?' selected':''}>${o||'None'}</option>`).join('');
+function renderScenes(){
+  $('#scenes').innerHTML=scenes.map((s,i)=>{
+    const words=s.vo.split(' ').map((w,j)=>j?`<span class="w" title="Split the scene before this word">${w}</span>`:w).join(' ');
+    const last=i===scenes.length-1;
+    return `<div class="sc" data-i="${i}">
+      <div class="sc-row" onclick="toggleScene(${i})">
+        <div class="sc-thumb ${s.t}"></div>
+        <div>
+          <div class="sc-top"><b>Scene ${i+1}</b><span>${fmt(s.start)} – ${fmt(s.start+s.dur)}</span><span>${s.dur.toFixed(1)}s</span><span class="grow"></span>
+            <svg class="sc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+          <div class="sc-vo">${words}</div>
+          <div class="sc-foot" onclick="event.stopPropagation()">
+            <select class="inline" title="Motion effect">${opts(MOTIONS,s.motion)}</select>
+            <span style="flex:1"></span>
+            ${last?'':'<button class="sc-merge">Merge with next</button>'}
+          </div>
+        </div>
+      </div>
+      <div class="sc-detail">
+        <div class="row3">
+          <label class="field"><span class="lbl">Asset type</span><select>${opts(ASSETS,s.asset)}</select></label>
+          <label class="field"><span class="lbl">Search words</span><input type="text" value="${s.q}"></label>
+          <label class="field"><span class="lbl">On-screen text</span><input type="text" value="${s.ost}" placeholder="None"></label>
+          <label class="field"><span class="lbl">Sound effect</span><select>${opts(SFX,s.sfx)}</select></label>
+        </div>
+        <div class="sc-actions">
+          <button class="btn sm">Find another</button><button class="btn sm">Upload</button><button class="btn sm">Generate with AI</button>
+        </div>
+      </div>
+    </div>`}).join('');
+  $('#sc-meta').textContent=scenes.length+' scenes · '+fmt(scenes.reduce((a,s)=>a+s.dur,0));
+}
+function toggleScene(i){$$('.sc').forEach(e=>e.classList.toggle('open',+e.dataset.i===i&&!e.classList.contains('open')))}
+function stub(t){$('#stub-title').textContent=t;$$('.screen').forEach(e=>e.classList.toggle('on',e.id==='s-stub'));$('#right-open').classList.add('hidden');toggleRight(false)}
+let cur=0,view='runs',leftOpen=true;
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+
+function go(v){view=v;$$('.screen').forEach(e=>e.classList.toggle('on',e.id==='s-'+v));
+  $('#right-open').classList.toggle('hidden',v!=='run');if(v!=='run')toggleRight(false);
+  $$('[data-nav=runs]').forEach(b=>b.classList.toggle('on',v==='runs'||v==='run'||v==='new'));window.scrollTo(0,0)}
+function toggleLeft(o){leftOpen=o;$('#left').classList.toggle('closed',!o);$('#left-open').classList.toggle('hidden',o)}
+function toggleRight(o){$('#right').classList.toggle('closed',!o);if(view==='run')$('#right-open').classList.toggle('hidden',o)}
+function openRight(t){tab(t);toggleRight(true)}
+function tab(t){$$('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
+  $$('.tab').forEach(e=>e.classList.toggle('on',e.id==='tab-'+t))}
+function renderSteps(){
+  $('#steps').innerHTML=stepNames.map((n,i)=>`${i?'<span class="bar"></span>':''}<button class="${i<cur?'done':i===cur?'cur':''}" onclick="setStep(${i})"><span class="n">${i<cur?'✓':i+1}</span>${n}</button>`).join('');
+  $$('.step').forEach(e=>e.style.display=+e.dataset.step===cur?'block':'none');
+  $('#help-title').textContent=help[cur][0];
+  $('#help-list').innerHTML=`<li>${help[cur][1]}</li><li>Open <b>Settings</b> to change format, visuals, language and auto-advance.</li>`;
+}
+function setStep(i){cur=i;renderSteps()}
+function next(){if(cur<3)setStep(cur+1)}
+function openRun(t){$('#run-title').textContent=t;setStep(0);go('run')}
+function createRun(){openRun($('#new-title').value.trim()||'Untitled run')}
+
+$('#run-list').innerHTML=runs.map(r=>`<button class="run-item" onclick="openRun('${r.t.replace(/'/g,"\\'")}')"><span class="dot ${r.st}"></span><span class="t">${r.t}</span><span class="m">${r.s} · ${r.d}</span></button>`).join('');
+renderScenes();
+$$('[data-seg]').forEach(g=>g.addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;[...g.children].forEach(b=>b.classList.toggle('on',b===e.target))}));
+renderSteps();go('runs');
+</script>
+</body>
+</html>

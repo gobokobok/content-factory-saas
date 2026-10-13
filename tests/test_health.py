@@ -45,7 +45,10 @@ class TestHealthEndpoint:
         response = client.get("/health")
 
         assert response.status_code == 200
-        assert response.json() == {"status": "ok", "environment": "dev"}
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["environment"] == "dev"
+        assert "migrations" in body
 
     def test_returns_200_with_prod_environment(self):
         """Health check returns 200 and correct environment for prod."""
@@ -55,7 +58,10 @@ class TestHealthEndpoint:
         response = client.get("/health")
 
         assert response.status_code == 200
-        assert response.json() == {"status": "ok", "environment": "prod"}
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["environment"] == "prod"
+        assert "migrations" in body
 
 
 class TestENVValidation:

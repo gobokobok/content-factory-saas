@@ -107,6 +107,17 @@ class Settings(BaseSettings):
     # single-operator tool; override via ENV if needed.
     LOGIN_MAX_ATTEMPTS: int = 5
     LOGIN_ATTEMPT_WINDOW_SECONDS: int = 900
+    # F18: the session cookie is Secure unless this is set — only for plain-http
+    # local development. DEV and PROD are https and must leave it false.
+    COOKIE_ALLOW_INSECURE: bool = False
+    # F14: key the login lockout on the right-most X-Forwarded-For entry (the one
+    # Railway's proxy appends) instead of the proxy's own address.
+    TRUST_PROXY_HEADERS: bool = True
+    # Shortest OPERATOR_PASSWORD / SESSION_SECRET_KEY the app starts with (F7).
+    AUTH_SECRET_MIN_LENGTH: int = 12
+    # Encryption key for tenant-stored integration keys. Read here only so a prod
+    # start-up without one is refused (F7); the platform reads it in its own settings.
+    SETTINGS_ENCRYPTION_KEY: str = ""
 
     @field_validator("LOG_LEVEL")
     @classmethod
@@ -119,6 +130,21 @@ class Settings(BaseSettings):
         return upper
 
 
+def check_deployment_settings(settings: Settings) -> Settings:
+    """Raise ValueError for auth secrets that are empty or too short, or a prod start without the encryption key (F7).
+
+    Applied in get_settings() — the path the running app takes — rather than as a
+    model validator, so tests that build Settings from a dict are unaffected.
+    """
+    minimum = max(1, settings.AUTH_SECRET_MIN_LENGTH)
+    for name in ("OPERATOR_PASSWORD", "SESSION_SECRET_KEY"):
+        if len(getattr(settings, name)) < minimum:
+            raise ValueError(f"{name} must be at least {minimum} characters")
+    if settings.ENVIRONMENT == "prod" and not settings.SETTINGS_ENCRYPTION_KEY:
+        raise ValueError("SETTINGS_ENCRYPTION_KEY must be set when ENVIRONMENT=prod")
+    return settings
+
+
 def get_settings() -> Settings:
     """Return a validated Settings instance. Called once at startup and injected via Depends()."""
-    return Settings()
+    return check_deployment_settings(Settings())

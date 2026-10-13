@@ -55,14 +55,16 @@ class TestRunMigrations:
         assert result == "ok"
         mock_conn.commit.assert_awaited_once()
 
-        # First execute creates schema_migrations, second selects applied versions,
-        # then one execute per pending migration's SQL + one INSERT per migration.
+        # First execute takes the advisory lock (F11), second creates schema_migrations,
+        # third selects applied versions, then one execute per pending migration's SQL
+        # + one INSERT per migration.
         executed_sql = [call.args[0] for call in mock_cursor.execute.call_args_list]
-        assert "CREATE TABLE IF NOT EXISTS schema_migrations" in executed_sql[0]
-        assert executed_sql[1] == "SELECT version FROM schema_migrations"
+        assert "pg_advisory_xact_lock" in executed_sql[0]
+        assert "CREATE TABLE IF NOT EXISTS schema_migrations" in executed_sql[1]
+        assert executed_sql[2] == "SELECT version FROM schema_migrations"
 
         num_migrations = len(migrations.list_migrations())
-        assert len(executed_sql) == 2 + num_migrations * 2
+        assert len(executed_sql) == 3 + num_migrations * 2
 
         inserted_versions = [
             call.args[1][0]
@@ -94,9 +96,9 @@ class TestRunMigrations:
 
         assert result == "ok"
 
-        # Only the schema_migrations CREATE + SELECT — no migration SQL/INSERTs run.
+        # Only the lock, the schema_migrations CREATE and SELECT — no migration SQL/INSERTs run.
         executed_sql = [call.args[0] for call in mock_cursor.execute.call_args_list]
-        assert len(executed_sql) == 2
+        assert len(executed_sql) == 3
 
     @pytest.mark.asyncio
     async def test_unavailable_path_never_raises_and_error_path_never_raises(self):

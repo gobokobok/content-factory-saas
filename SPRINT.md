@@ -38,7 +38,8 @@ Legacy Script→Video stays untouched and operable (D047).
 | UI build | Build the redesigned UI | — | folded into P-UX3 (2026-10-08, operator request) | The new UI, live on DEV |
 | P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | **done** 2026-10-11 | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
 | P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Create a run from the minimal modal and walk all five steps with Next only |
-| P-HARD1 | Audit and hardening: first `/audit`, loud voice failure, word-matching regression suite, bulk-job guard, cost-log backfill | ~11 | **planned** (review 2026-10-13) | Read `docs/SECURITY.md`; a failed voice says so and offers Retry |
+| P-HARD1 | Audit and hardening: first `/audit`, loud voice failure, word-matching regression suite, bulk-job guard, cost-log backfill | ~11 | **done** 2026-10-13 | Read `docs/SECURITY.md`; a failed voice says so and offers Retry |
+| P-HARD2 | Backups and restore drill, the audit's small fixes, deploy safety (EPIC 60) | ~8 | **in progress** (started 2026-10-13) | Read the RUNBOOK backup section; `/legacy` gone; a failed migration shows in health |
 | P-AUTH | Google sign-in, accounts, tiers with View-as, per-user isolation (EPIC 59, D114); `/audit` first | ~16 | planned | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
 | P-LITE | The Creator flow for regular users (EPIC 59, D114) | ~16 | planned | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
 | P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114) | ~13 | planned | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
@@ -87,6 +88,28 @@ Legacy Script→Video stays untouched and operable (D047).
 **Execution order:** S1 first (findings may reshape S2–S4); S2, S3, S4 independent; S5 last.
 **Human touchpoint:** the operator reads `docs/SECURITY.md`, regenerates a voice with the TTS provider failing (it says so and offers Retry), and pastes a script with spelled-out numbers into the script view.
 **Not in this sprint:** INT2-S1 (Integrations rework; dropped 2026-10-13, remains a candidate), P-AUTH, P-LITE, P-BILL-1 follow per D114. v0.17 vs v0.18 storyboard prompt side-by-side is the operator's call and is not scheduled. PROD release stays the operator's call (not a blocker).
+
+## Scope changes
+
+_None._
+
+---
+
+# Sprint P-HARD2 — Make PROD recoverable and close the audit's cheap findings (before P-AUTH)
+
+**Goal:** Make PROD recoverable and close the audit's cheap findings before P-AUTH lets strangers in (`docs/SECURITY.md` F1, F3, F7, F9–F12, F14, F18, F20).
+**Status:** in progress — started 2026-10-13, built in one pass.
+**Points:** ~8
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| HARD2-S1 | Backups and a restore drill: RUNBOOK section only (F1) | 3 | in-progress |
+| HARD2-S2 | Small audit fixes: start-up validators (F7), `run_id` pattern (F9), cookie `Secure` (F18), proxy-aware lockout (F14), unmount `/legacy` (F3, F10), upload streaming (F12) | 3 | in-progress |
+| HARD2-S3 | Migration status in health, CD post-deploy check, `pip-audit`, non-root container (F11, F20) | 2 | in-progress |
+
+**Execution order:** S2 and S3 are independent code stories and can run in parallel; S1 is documentation and is written last so it can name the health check from S3.
+**Human touchpoint:** the operator follows the RUNBOOK backup section (enable Railway backups, check R2 versioning, restore onto a scratch DB), then sees `/legacy` return 404 and `/platform/health` report migration status.
+**Not in this sprint:** F2, F5, F6, F8, F13 (open at P-AUTH, D115); F16 key rotation; F19 `ffprobe` upload validation; lockfile.
 
 ## Scope changes
 

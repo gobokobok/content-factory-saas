@@ -34,3 +34,38 @@ jobs:
         run: railway up --service content-factory-saas --ci
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PROD }}
+
+      # F11: the deploy command only proves the container started. /health also reports
+      # whether the start-up migrations finished, so a deploy that is serving on a
+      # half-built schema fails here instead of being found by an operator.
+      # PROD_URL is a repository variable (Settings > Variables), e.g. https://<host>.
+      - name: Verify the deploy (health and migrations)
+        env:
+          PROD_URL: ${{ vars.PROD_URL }}
+        run: |
+          if [ -z "${PROD_URL}" ]; then
+            echo "::warning::PROD_URL repository variable is not set - post-deploy check skipped"
+            exit 0
+          fi
+          for attempt in 1 2 3 4 5 6; do
+            body="$(curl -fsS --max-time 20 "${PROD_URL%/}/health" || true)"
+            echo "attempt ${attempt}: ${body}"
+            if [ -n "${body}" ]; then
+              python3 - "${body}" <<'PY'
+          import json, sys
+          data = json.loads(sys.argv[1])
+          if data.get("migrations") == "error" or data.get("status") != "ok":
+              print("::error::deploy is degraded:", data)
+              sys.exit(2)
+          if data.get("migrations") == "unavailable":
+              print("::warning::no database configured - migrations not applied")
+          sys.exit(0)
+          PY
+              rc=$?
+              if [ "${rc}" -eq 2 ]; then exit 1; fi
+              if [ "${rc}" -eq 0 ]; then exit 0; fi
+            fi
+            sleep 20
+          done
+          echo "::error::health check never answered"
+          exit 1

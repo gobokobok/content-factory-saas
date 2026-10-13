@@ -19,6 +19,19 @@ logger = logging.getLogger(__name__)
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "db" / "migrations"
 
+# Arbitrary constant: two instances starting together (a deploy overlap) queue on this
+# Postgres advisory lock instead of applying the same migration twice (F11).
+MIGRATION_LOCK_KEY = 7_041_302_001
+
+# What the last run_migrations call in this process returned: "not_run" before start-up
+# finishes, then "ok" | "unavailable" | "error". /health reports it (F11).
+_last_status = "not_run"
+
+
+def get_migration_status() -> str:
+    """Return the result of this process's start-up migration run, or "not_run"."""
+    return _last_status
+
 
 def list_migrations() -> list[Path]:
     """Return all migration SQL files in cf_platform/db/migrations, sorted by filename."""
@@ -32,6 +45,13 @@ async def run_migrations(database_url: str) -> str:
     pending), "unavailable" if database_url is empty, "error" if a connection or
     migration failure occurred. Never raises (D048 fault isolation).
     """
+    global _last_status
+    _last_status = await _apply_migrations(database_url)
+    return _last_status
+
+
+async def _apply_migrations(database_url: str) -> str:
+    """Apply pending migrations under an advisory lock and return the status string."""
     pool = get_pool(database_url)
     if pool is None:
         return "unavailable"
@@ -41,6 +61,8 @@ async def run_migrations(database_url: str) -> str:
             await pool.open(wait=False)
         async with pool.connection() as conn:
             async with conn.cursor() as cur:
+                # Transaction-level: released by the commit below (or a rollback).
+                await cur.execute("SELECT pg_advisory_xact_lock(%s)", (MIGRATION_LOCK_KEY,))
                 await cur.execute(
                     """
                     CREATE TABLE IF NOT EXISTS schema_migrations (
