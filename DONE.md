@@ -15,8 +15,11 @@ _This file holds the last sprints (P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus ev
 - **S5** `.apex/cost-log.jsonl`: P-PROJ1 and P-INT1 entries backfilled from commit times (flagged `backfilled`, estimates; session ids unknown). P-UX4 already had one. This sprint has its own range entry.
 - Tests: 3000 passing (+70). No migration, no new dependency, no ENV change.
 **Not verified:** nothing ran on DEV (not pushed). The "real DEV pastes" for S3 were the pastes recorded in earlier handovers plus constructed forms — if DEV shows another way a number is written, add it to `CORPUS`. The Retry label was checked by reading the code, not in a browser.
-**Smoke test:** PENDING (after merge and DEV deploy): (1) Settings: temporarily blank the Gemini key on DEV (or use a bad voice) and press Generate voiceover — expect a red message naming the provider failure and a "Retry voiceover" button, and the stage not "done"; restore the key and Retry. (2) In the script view paste the script with spelled-out numbers and a year as "twenty twenty four" — expect it to be accepted. (3) Start a bulk image generation and press Split on a scene — expect "Images are being generated…". (4) Read `docs/SECURITY.md`.
-**Promoted to backlog:** HARD2-S1..S3 (see BACKLOG_ACTIVE.md).
+**Smoke test:** DEFERRED — the branch `sprint/p-hard1` is not merged or deployed (a DEV → PROD copy was running in another session) → cleared by HARD1-S6 in Sprint P-AUTH. Steps for HARD1-S6: (1) blank the Gemini key or set a bad voice on DEV and press Generate voiceover — expect a red message naming the provider failure, a "Retry voiceover" button and the stage not "done"; restore the key and Retry; (2) in the script view paste a script with spelled-out numbers and a year as "twenty twenty four" — expect it accepted; (3) start a bulk image generation and press Split on a scene — expect "Images are being generated…"; (4) read `docs/SECURITY.md`.
+**Promoted to backlog:**
+- HARD1-S6: DEV smoke sweep of P-HARD1 (steps above), first story of Sprint P-AUTH.
+- HARD2-S1..S3 (see BACKLOG_ACTIVE.md): backups and restore drill, small audit fixes, deploy safety.
+- VERIFY (operator, on DEV): a number written another way than the corpus covers (ordinals "21st", "one twenty") in the script view; the Retry button in a browser.
 
 ---
 

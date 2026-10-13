@@ -73,16 +73,16 @@ Legacy Script→Video stays untouched and operable (D047).
 # Sprint P-HARD1 — Audit and hardening (before P-AUTH)
 
 **Goal:** Close the rework the 2026-10-13 review found (a silent voice failure on PROD, word matching fixed three times on data nobody saw, cost blind for two sprints) and run the first security audit before accounts exist.
-**Status:** built 2026-10-13 in one pass on branch `sprint/p-hard1` (not pushed — a DEV → PROD copy was running in another session). Tests 3000 passing. Smoke test pending the merge and DEV deploy.
+**Status:** built 2026-10-13 in one pass on branch `sprint/p-hard1` (not pushed — a DEV → PROD copy was running in another session). Tests 3000 passing. Closed 2026-10-13; smoke deferred to HARD1-S6 (Sprint P-AUTH), after the merge and DEV deploy.
 **Points:** ~11
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| HARD1-S1 | `/audit` — first `docs/SECURITY.md` (tenant keys, `SETTINGS_ENCRYPTION_KEY`, log redaction, upload paths, the open moderation stance for strangers' text) | 3 | done (branch) |
-| HARD1-S2 | Voice: a failed TTS call fails the job loudly with Retry, never "complete" with no audio (PROD 2026-10-10, run `6fe35dab`) | 2 | done (branch) |
-| HARD1-S3 | Word-matching regression suite from real DEV pastes — transcript editor and script view (numbers, currency, percent, years said as two pairs) | 3 | done (branch) |
-| HARD1-S4 | Guard split / merge while a bulk image job runs (carried from P-AN1) | 2 | done (branch) |
-| HARD1-S5 | Cost log: write range entries for sprint-at-a-time builds; backfill P-UX4, P-PROJ1, P-INT1 from commit times | 1 | done (branch) |
+| HARD1-S1 | `/audit` — first `docs/SECURITY.md` (tenant keys, `SETTINGS_ENCRYPTION_KEY`, log redaction, upload paths, the open moderation stance for strangers' text) | 3 | done |
+| HARD1-S2 | Voice: a failed TTS call fails the job loudly with Retry, never "complete" with no audio (PROD 2026-10-10, run `6fe35dab`) | 2 | done |
+| HARD1-S3 | Word-matching regression suite from real DEV pastes — transcript editor and script view (numbers, currency, percent, years said as two pairs) | 3 | done |
+| HARD1-S4 | Guard split / merge while a bulk image job runs (carried from P-AN1) | 2 | done |
+| HARD1-S5 | Cost log: write range entries for sprint-at-a-time builds; backfill P-UX4, P-PROJ1, P-INT1 from commit times | 1 | done |
 
 **Execution order:** S1 first (findings may reshape S2–S4); S2, S3, S4 independent; S5 last.
 **Human touchpoint:** the operator reads `docs/SECURITY.md`, regenerates a voice with the TTS provider failing (it says so and offers Retry), and pastes a script with spelled-out numbers into the script view.
