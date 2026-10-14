@@ -147,8 +147,33 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `CREATOR_VOICE_MALE` | No | Gemini TTS voice for a Creator run whose voice is "male" (D117). Default: empty, which means `GEMINI_TTS_VOICE` — the voice the channel already uses. Male is the page's default choice. |
 | `CREATOR_VOICE_FEMALE` | No | Gemini TTS voice for a Creator run whose voice is "female" (D117). Default: `Kore` (a placeholder until a female voice is chosen after listening). |
 | `CREATOR_PROJECT_NAME` | No | Name given to the project the Creator pages (`/create`) keep their runs in when it is first created (D117). Default: `My videos`. Renaming the project later does not create a second one. |
-| `CREATOR_SCRIPT_MAX_WORDS` | No | Word limit the Creator's Script step shows and will not go past (D117). Default: `450` (about three minutes). Not enforced by the server yet. |
+| `CREATOR_SCRIPT_MAX_WORDS` | No | Word limit the Creator's Script step shows and will not go past (D117). Default: `450` (about three minutes). What the page shows; the server's hard bound is `CAP_SCRIPT_WORDS` (P-AUTH S8). |
 | `SFX_ENABLED` | No | Per-scene sound effects in the render and the CapCut export (D114). Default: `false` — off for every run, in the Studio too; the storyboard keeps each scene's choice, so `true` brings them back. |
+| `GOOGLE_OAUTH_CLIENT_ID` | P-AUTH | Google OAuth client id (D119). Empty = Google sign-in is off and the login page shows only the operator password. |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | P-AUTH | Google OAuth client secret (D119). |
+| `GOOGLE_OAUTH_REDIRECT_URI` | P-AUTH | The fixed callback URL registered with Google, e.g. `https://<dev host>/auth/google/callback`. Never derived from the request. |
+| `OWNER_EMAILS` | P-AUTH | Comma-separated. These Google accounts map onto the owner's legacy tenant (`operator`) and are Super — the owner keeps every run, project and key (D119). |
+| `SUPER_EMAILS` | P-AUTH | Comma-separated. Super accounts with their own tenant (D118, D119). |
+| `ALLOWED_EMAILS` | P-AUTH | Comma-separated Basic users who may sign in while `SIGNUP_OPEN` is false. |
+| `SIGNUP_OPEN` | P-AUTH | `true` lets any verified Google account sign in. Default `false`. Leave false until the caps and the moderation gate are checked on DEV. |
+| `SESSION_TTL_DAYS` | P-AUTH | Lifetime of a session. Default `14`. |
+| `ACCEPT_LEGACY_COOKIE` | P-AUTH | Accept the pre-P-AUTH constant session cookie as the owner (F6 bridge). Default `true`; set `false` after the owner has signed in once. |
+| `ALLOW_IN_MEMORY_STORE` | P-AUTH | Allow process-memory repositories when `DATABASE_URL` is empty. Default `false` — a server without a database answers 503 (S6). Only for a laptop. |
+| `ALLOWED_ORIGINS` | P-AUTH | Comma-separated extra origins that may send POST / PUT / PATCH / DELETE; the site's own origin is always allowed. |
+| `TERMS_VERSION` | P-AUTH | Version of the terms a first sign-in must accept (S9). Bumping it asks everyone again. Default `2026-10-14`. |
+| `ABUSE_CONTACT_EMAIL` | P-AUTH | Address "Report a problem" mails (S9, D115). Empty hides the link. |
+| `TELEGRAM_ROUTES_ENABLED` | P-AUTH | `true` mounts the Telegram webhook. Default off (D093, S6). Read at import time. |
+| `CAP_SCRIPT_WORDS` | P-AUTH | Server cap on a script's words for non-owner tenants (S8, D120). Default `1200`. |
+| `CAP_PROMPT_CHARS` / `CAP_STYLE_CHARS` / `CAP_CHARACTER_CHARS` | P-AUTH | Server caps on a prompt, a master style, a character or entry description (D120). Defaults `4000` / `2000` / `1500`. |
+| `CAP_RUNS_PER_DAY` | P-AUTH | New videos per tenant per UTC day (D120). Default `10`. |
+| `CAP_DAILY_SPEND_USD` | P-AUTH | Estimated provider spend a tenant may reserve per UTC day (D120). Default `5.0`. The owner is exempt. |
+| `EST_LLM_CALL_USD` / `EST_TTS_CALL_USD` / `EST_RENDER_USD` | P-AUTH | Estimated dollars reserved for a call with no exact price. Defaults `0.05` / `0.05` / `0`. |
+| `CAP_CONCURRENT_RENDERS` | P-AUTH | Renders one tenant may run at once (D120). Default `1`. |
+| `CAP_STORAGE_MB` | P-AUTH | Uploaded megabytes per tenant (D120). Default `2048`. |
+| `MODERATION_MODE` | P-AUTH | `block` (default) refuses a flagged text; `log` records and never blocks — for tuning (D115, D120). |
+| `MODERATION_PROVIDER` | P-AUTH | `local` (default) or `openai` — adds OpenAI's free moderation endpoint using `OPENAI_API_KEY`. |
+| `MODERATION_MODEL` | P-AUTH | OpenAI moderation model. Default `omni-moderation-latest`. |
+| `MODERATION_BLOCKLIST` | P-AUTH | Extra comma-separated phrases that are always refused (case-insensitive). |
 | `DEEPGRAM_API_KEY` | P6-S7+ | Deepgram Nova-2 API key for word-level timestamp alignment (D045). When absent, voice_production falls back to proportional timestamps (confidence=0.0). |
 
 > Discovery may optionally use `praw`/`pytrends` instead of raw httpx — only if pragmatic, and only with a DECISIONS.md entry. X/Twitter is intentionally excluded (free-tier constraint); added later via Apify.

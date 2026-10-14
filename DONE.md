@@ -1,7 +1,44 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last sprints (P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last sprints (P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P-AUTH] Accounts and isolation — S1 Google sign-in and sessions, S2 tenants, S3 scoped repos and guards, S4 Basic / Super + View as, S5 isolation tests, S6 deny-by-default gating, S7 Super menu, S8 caps and spend bounds, S9 moderation and terms
+**Completed:** 2026-10-14 (built in one pass on branch `sprint/p-auth` while the operator was away; **not merged, not pushed, nothing run on DEV**). AUTH-S0 (`PROD_URL`) is the operator's.
+**Handover:**
+- **S1** `cf_platform/core/accounts.py` (users, sessions, principal), `google_oauth.py` (code flow + PKCE, no dependency), `src/routes/auth.py` (`/auth/google/start|callback`, `/auth/me`, `/auth/view-as`, `/auth/terms/accept`, `/auth/providers`; password login now issues a session), migration `0005_accounts.sql` (`users`, `sessions`, `oauth_states`, `tenant_usage`, `prompt_log`), `src/main.py` middleware (principal, Origin check, terms gate, Basic gating). The legacy constant cookie works as the owner while `ACCEPT_LEGACY_COOKIE` (default true).
+- **S2** a Google user gets tenant `u_<random>` and a hidden default project `default-<tenant>` that is also their Creator project; the owner's e-mail (`OWNER_EMAILS`) maps onto tenant `operator`, so the owner keeps every run, project and key.
+- **S3** `PLATFORM_USER_ID` is gone from the routes (87 uses → `current_tenant_id()`); `interfaces/guards.py` (router-level scope guard on path and JSON-body `run_id`, `require_owner`); repos take `tenant_id`; library, run and project lists, counts and activity are tenant-filtered; `DELETE /runs/{id}` and run settings are behind the guard; F5 fixed (a non-owner's unreadable key is a 409, never the owner's key).
+- **S4** account type is a field, re-derived from `OWNER_EMAILS` / `SUPER_EMAILS` at each sign-in; View as Basic is a flag on one session (`POST /auth/view-as`), checked against the account's own type.
+- **S5** `tests/test_p_auth_accounts.py` (92 tests, real middleware and real cookies): sessions, OAuth, isolation across read / write / list / import / delete, deny-by-default over every route in the OpenAPI schema, a snapshot of Basic's allow-list, every call `creator.js` makes is open to Basic.
+- **S6** `cf_platform/core/gating.py` (allow-list), `require_super` on routers, `/platform/version` / echo / produce Super-only, Telegram unmounted unless `TELEGRAM_ROUTES_ENABLED`, in-memory repos refused unless `ALLOW_IN_MEMORY_STORE` (503).
+- **S7** `src/static/ui/super-menu.js` (Projects, Libraries, Integrations, Defaults, Open in Studio) loaded by `creator.js` only for an effective Super session; View as Basic toggle and banner; the Basic page contains none of it.
+- **S8** `cf_platform/core/limits.py` + `CAP_*` / `EST_*` settings; hooks in the storyboard / voice / render workers, scene generate, bulk generate, write-prompt, scene patch, continuity, Creator run, run settings, uploads. The owner is exempt. Spend is reserved atomically before the provider call.
+- **S9** `cf_platform/core/moderation.py` (local rules + optional OpenAI), `prompt_log`, `src/static/terms.html` at `/terms`, owner routes `/platform/admin/users`, `…/disable|enable`, `…/prompt-log`; "Report a problem" via `ABUSE_CONTACT_EMAIL`.
+- ENV added: see ENV.md (Google, `OWNER_EMAILS`, `SUPER_EMAILS`, `ALLOWED_EMAILS`, `SIGNUP_OPEN`, `SESSION_TTL_DAYS`, `ACCEPT_LEGACY_COOKIE`, `ALLOW_IN_MEMORY_STORE`, `ALLOWED_ORIGINS`, `TERMS_VERSION`, `ABUSE_CONTACT_EMAIL`, `TELEGRAM_ROUTES_ENABLED`, `CAP_*`, `EST_*`, `MODERATION_*`). Decisions: D119, D120. Migration 0005. No new dependency. Tests: 3293 passing (+136).
+- **Files that mattered:** `src/main.py` (middleware), `cf_platform/core/accounts.py`, `cf_platform/interfaces/guards.py`, `cf_platform/core/gating.py`, `cf_platform/interfaces/dependencies.py`, `docs/SECURITY.md` ("Fixed in P-AUTH").
+**Not verified:**
+- The real Google round trip (consent screen, token endpoint, redirect URI) — mocked only.
+- Migration 0005 and the conditional-upsert SQL on a real Postgres — mock-checked only.
+- The Basic pages in a browser (the Super menu, the banner, the terms page, the Google button).
+- A start-up surface: DEV needs no variable to start; sign-in is off until the Google variables are set, and the owner's password and old cookie keep working.
+**Smoke test (after the DEV deploy lands):**
+1. Set the Google variables (RUNBOOK) and redeploy. `/health` shows `"migrations": "ok"`.
+2. Open `/login`: a "Continue with Google" button appears. Sign in as the owner's Google account → lands on `/`, all existing projects and runs are there (the owner maps onto the old tenant).
+3. `GET /auth/me` (in the address bar): `account_type: super`, `is_owner: true`. Then set `ACCEPT_LEGACY_COOKIE=false`.
+4. In a private window sign in with a friend's Google account (in `ALLOWED_EMAILS`) → the terms page → accept → `/create`, empty "My videos". A Google account not on the list → "not invited".
+5. As the friend: make a short video through script → voice → storyboard → one image. Try `/studio`, `/settings`, `/library` → sent back to `/create`; the address `/platform/version` → 403.
+6. As the friend, paste the owner's run id into `/runs/<id>/settings` → 404 (not a different error than for a made-up id).
+7. As the owner: left menu shows Projects / Libraries / Integrations / Defaults; "View as Basic" → banner, menu disappears, `/studio` bounces to `/create`; "Switch back" restores it.
+8. Lower `CAP_RUNS_PER_DAY=1` on DEV: the friend's second video → "limit of 1 new videos". Put a banned phrase in `MODERATION_BLOCKLIST` → the script step refuses it; `GET /platform/admin/prompt-log` shows the row.
+9. Log out → the old cookie value no longer works.
+**Promoted to backlog:**
+- Run the scoped `/audit` on DEV before P-BILL-1 (the live OAuth flow, the admin routes, the Origin rule).
+- Purge expired sessions and unused OAuth states (a janitor); tenant-prefixed keys for generated assets (with P-BILL-1).
+- Allow-list the image `model` string (audit medium, still open); F16, F19, CSP header, restore drill as listed in SECURITY.md.
+- VERIFY (Claude, DEV logs): that no request reaches a route without a principal (a 401 spike after the deploy would mean a route the middleware skips).
 
 ---
 

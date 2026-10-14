@@ -19,7 +19,7 @@ history (555 commits) holds no keys. **Do not let strangers in until F1–F5 are
 | ID | Severity | Finding | Evidence | Status | Fix |
 |----|----------|---------|----------|--------|-----|
 | F1 | High | No documented Postgres or R2 backup, and no restore drill. D025's R2 versioning is an operator action nobody verified; R2's object versioning support itself needs a dashboard check | DECISIONS.md D025; nothing in docs/ | **procedure written** (RUNBOOK, 2026-10-13); closes when a drill is recorded; R2 versioning unverified | Story **HARD2-S1**: enable Railway Postgres backups, verify R2, write the RUNBOOK section, run one restore onto a scratch database |
-| F2 | High | One shared identity: `PLATFORM_USER_ID="operator"` (75 uses); run repos have no user filter; run content is keyed `runs/{run_id}/…` with no tenant prefix | `cf_platform/interfaces/dependencies.py:68`, `core/postgres_repos.py:122,133`, `routes/studio.py` | accepted until P-AUTH (D114) | P-AUTH must scope everything by tenant (R2 prefix, repos, a central run-ownership dependency) |
+| F2 | High | One shared identity: `PLATFORM_USER_ID="operator"` (75 uses); run repos have no user filter; run content is keyed `runs/{run_id}/…` with no tenant prefix | `cf_platform/interfaces/dependencies.py:68`, `core/postgres_repos.py:122,133`, `routes/studio.py` | **fixed in P-AUTH** (see below; unverified on DEV) | P-AUTH must scope everything by tenant (R2 prefix, repos, a central run-ownership dependency) |
 | F3 | High | Legacy routes list, read and delete every run in the bucket; legacy ids are guessable `{date}_{slug}`; the legacy UI is served at `/legacy` | `src/routes/runs.py:70,80-92,257-273`, `src/main.py:197` | **fixed** 2026-10-13 (D116): `/legacy` and the legacy run routes mount only with `LEGACY_ROUTES_ENABLED=true`; Studio's delete and run-settings routes remain | Unmount `/legacy` and the `src/routes/runs.py` router, or admin-gate them, **before P-AUTH ships** |
 | F4 | High | `max_iterations` taken from the client with no bound (paid LLM calls); script and niche fields have no length cap | `routes/blocks.py:139`, `routes/workers.py:76,402` | **max_iterations fixed** (bounded 1–5, this sprint); length caps open | Server-side script length cap (word count tied to the video length) — decided in D115 |
 | F5 | High (at beta) | A tenant key that cannot be decrypted falls back to the operator's Railway key, so one stranger's broken key spends the operator's account | `core/integrations.py:111-113` | open | At P-AUTH: for non-operator tenants fail the call with a readable error instead of falling back |
@@ -92,3 +92,32 @@ Cloudflare access rules. These are the first things to check in the dashboards.
 **Accepted risks now expired:** F2 shared identity, F6 constant cookie, F5 operator-key fallback, D117 "Creator is simpler, not restricted" — each expires the moment a second account can sign in. Telegram (F17): holds only if PROD has a webhook secret, unverified.
 **Ordering rule from this audit:** do not open Google sign-in before the `current_user` dependency, tenant-scoped repos with `require_run`, and `require_super` are merged — until then a second account is a full operator.
 **Next audit due:** at the P-AUTH close, before P-BILL-1 (money) ships.
+
+
+## Fixed in P-AUTH (2026-10-14, built on `sprint/p-auth`; decisions D119–D120 → D119, D120)
+
+Built from the 2026-10-14 audit's "ordering rule": sign-in is allow-listed, and the principal, tenant-scoped repositories with
+the run / project guards, and deny-by-default gating are all in. **Nothing has run on DEV yet; the live Google flow, the
+Postgres SQL (conditional upserts, the `tenant_id` clauses) and the new migration 0005 have only been exercised against mocks
+and in-memory stores — the DEV smoke test is the first real check.**
+
+| Finding | Status | What changed |
+|---------|--------|--------------|
+| F2 / audit 1, 6, 7 | **fixed in code** | `current_tenant_id()` replaces `PLATFORM_USER_ID` in every route (the Telegram module keeps the owner constant and is unmounted). A router-level guard (`interfaces/guards.py`) checks `run_id` / `project_id` from the path **and** `run_id` from a JSON body; another tenant's run is a 404 like a missing one; a run with no row is the owner's only. Repos take `tenant_id`; `/platform/runs`, project lists, run counts, activity and the library are filtered; `DELETE /runs/{id}` and the run settings moved behind the guard; importing another tenant's run id claims nothing. |
+| F5 / audit 3 | **fixed** | A non-owner tenant's unreadable saved key raises a readable 409 instead of using the owner's Railway key. The owner's tenant keeps the old fallback. |
+| F6 / audit 2 | **fixed** | Sessions are rows: random token, hashed at rest, 14-day expiry, revoked at logout, new at every login. The constant cookie is accepted as the owner only while `ACCEPT_LEGACY_COOKIE` is on — **set it false once the owner has signed in again**. |
+| F4 / F8 / audit 4 | **fixed (interim)** | Server caps on script words, prompt, style and character text; runs per day; a per-tenant daily spend row reserved atomically before every paid call; one render at a time per tenant; an upload quota. D120. The spend figure is an estimate. |
+| F13 / audit 5 | **built** | Moderation gate in front of storyboard, voice, scene prompts, write-with-the-director, image generate, continuity entries, Creator run text and run settings; terms click-through; per-tenant prompt log; owner routes to read the log and switch accounts off. The keyword rule is narrow by design. |
+| audit 8 | **fixed** | Basic is a deny-by-default allow-list in the middleware and `require_super` on routers; `/platform/version` / health / echo / produce are Super-only; the Telegram router is unmounted unless `TELEGRAM_ROUTES_ENABLED` (F17's allow-list issue goes with it). |
+| audit medium | **fixed** | Origin check on every mutating request (`ALLOWED_ORIGINS`); `redirect_uri` from config; single-use `state` + PKCE; `next` allow-list; in-memory repositories refused outside local (`ALLOW_IN_MEMORY_STORE`); `run_id` path params are checked as ownership (unknown or foreign = 404). |
+
+**Still open or accepted after P-AUTH**
+
+- Generated assets live under `runs/{run_id}/…` with no tenant prefix; ownership is the `runs` row and the ids are UUIDs. Revisit with P-BILL-1 (per-tenant delete / export).
+- The login lockout limiter is in memory and per IP (the owner's password route); Google sign-in has no per-IP limiter.
+- The moderation keyword rule can false-positive and cannot see impersonation or harassment; `MODERATION_PROVIDER=openai` adds a classifier. No review pipeline (D115).
+- Image-model strings are still not allow-listed (audit medium); F16 key rotation, F19 `ffprobe`, F1 restore drill, CSP / `X-Frame-Options` header: unchanged, listed as "not in this sprint".
+- Several session / OAuth rows are never purged (expired sessions, unused states): small, but add a janitor before the beta grows.
+- A Super account that is not the owner is trusted with Studio routes of its own tenant only; it cannot read `/platform/admin/*`.
+
+**Next audit:** at the P-AUTH close as planned — run it against DEV once the smoke test has exercised the real flow, and before P-BILL-1.

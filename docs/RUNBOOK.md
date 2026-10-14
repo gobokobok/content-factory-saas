@@ -13,6 +13,24 @@ Entries are newest first.
 
 ---
 
+## Accounts and Google sign-in (P-AUTH, D119, D120)
+
+**Set up Google sign-in (once per environment)**
+1. Google Cloud console → APIs & Services → Credentials → Create OAuth client ID → Web application.
+2. Authorised redirect URI: `https://<the environment's host>/auth/google/callback` (exactly; DEV and PROD are separate clients or separate URIs).
+3. Railway variables: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI` (the same URI), `OWNER_EMAILS` (the owner's Google address — maps onto the existing data), `ALLOWED_EMAILS` (the friends), `ABUSE_CONTACT_EMAIL`.
+4. Sign in with Google as the owner once; then set `ACCEPT_LEGACY_COOKIE=false` so the old constant cookie stops working.
+5. Open the beta beyond the list only by setting `SIGNUP_OPEN=true` — and only after the caps (`CAP_*`) are checked.
+
+**Act on abuse** (owner session only)
+- `GET /platform/admin/prompt-log?tenant_id=<tenant>` — what was sent, with the verdict.
+- `GET /platform/admin/users` → `POST /platform/admin/users/<user_id>/disable` — sessions stop on their next request; `/enable` undoes it.
+- Tighten a cap by changing its `CAP_*` variable and redeploying; no code change.
+
+**What a user sees when a bound is hit:** 422 for text over a cap or refused by moderation, 429 for the daily run or spend limit and for a second render, 413 for the upload quota — each with a readable message.
+
+---
+
 ## Backups and restore (HARD2-S1, SECURITY.md F1)
 
 **Status 2026-10-13: procedure written, no drill recorded yet.** F1 stays open until the first row of the drill table below is filled in. Nothing here has been run against DEV or PROD by the author; every "expected" line is what to look for, not a verified result.
