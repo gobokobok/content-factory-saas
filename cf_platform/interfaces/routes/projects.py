@@ -32,6 +32,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from cf_platform.core import limits
+from cf_platform.core.moderation import moderate_many
 from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage, read_artifact
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.integrations import resolve_defaults, resolve_run_values
@@ -578,6 +580,9 @@ async def create_run_from_shortlist(
     brief = (body.brief or "").strip()
     if not body.item_ids and not title:
         raise HTTPException(status_code=422, detail="Give the run a title, or start it from an idea.")
+    # P-AUTH S8 / S9: the server bounds how many videos a day and screens what is typed.
+    await limits.enforce_runs_per_day(runs, settings)
+    await moderate_many([title, brief], "run_title", run_id="")
     items: list[ShortlistItem] = []
     if body.item_ids:
         try:

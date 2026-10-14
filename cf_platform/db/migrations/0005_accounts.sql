@@ -50,6 +50,8 @@ CREATE TABLE IF NOT EXISTS tenant_usage (
     runs       INT NOT NULL DEFAULT 0,
     spend_usd  DOUBLE PRECISION NOT NULL DEFAULT 0,
     renders    INT NOT NULL DEFAULT 0,
+    -- Cumulative uploaded bytes live on the row dated 2000-01-01 (a storage quota is not per day).
+    uploaded_bytes BIGINT NOT NULL DEFAULT 0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (tenant_id, day)
 );

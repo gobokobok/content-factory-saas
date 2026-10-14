@@ -663,7 +663,15 @@ async def studio_patch_scene(
     of the wrong kind is released so the scene is acquired again; the response
     lists the scenes that now need one in needs_acquisition.
     """
+    from cf_platform.core import limits
+    from cf_platform.core.moderation import moderate
     from cf_platform.workers.scene_images import run_lock
+
+    # P-AUTH S8 / S9: the prompt and the on-screen text are bounded and screened server-side.
+    for text, label in ((body.ai_prompt, "The prompt"), (body.on_screen_text, "The on-screen text")):
+        if text:
+            limits.check_prompt(text, label)
+            await moderate(text, "scene_prompt", run_id=run_id)
 
     async with run_lock(run_id):
         return await _patch_scene(run_id, scene_id, body, storage)
@@ -1307,6 +1315,9 @@ async def studio_upload_scene_asset(
         raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type!r}. Allowed: mp4, webm, jpg, png, webp.")
 
     data = await _read_upload_capped(file, _MAX_BYTES, "200 MB")
+    from cf_platform.core import limits
+
+    await limits.reserve_upload(len(data))  # P-AUTH S8: per-tenant storage quota
 
     ext = _MIME_TO_EXT[content_type]
     is_video = content_type.startswith("video/")
@@ -1428,6 +1439,9 @@ async def studio_upload_music(
         raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type!r}. Allowed: mp3, wav, m4a.")
 
     data = await _read_upload_capped(file, _MAX_BYTES, "50 MB")
+    from cf_platform.core import limits
+
+    await limits.reserve_upload(len(data))  # P-AUTH S8: per-tenant storage quota
 
     ext = _MIME_TO_EXT[content_type]
     r2_key = f"runs/{run_id}/music/track{ext}"

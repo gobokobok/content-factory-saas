@@ -31,6 +31,8 @@ from cf_platform.core.ai_images import (
     read_spend,
     spend_summary,
 )
+from cf_platform.core import limits
+from cf_platform.core.moderation import moderate
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.image_provider import ImageGenerationError, build_image_provider
@@ -227,11 +229,14 @@ async def studio_generate_scene_image(
 
     if not body.prompt.strip():
         raise HTTPException(status_code=422, detail="Write a prompt first.")
+    limits.check_prompt(body.prompt)
+    await moderate(body.prompt, "scene_prompt", run_id=run_id)
     _, storyboard = await _load_storyboard(storage, run_id)
     if not any(str(sc.scene) == scene_n for sc in storyboard.scenes):
         raise HTTPException(status_code=404, detail=f"Scene {scene_n!r} not found in storyboard.")
 
     ctx = await _generation_context(run_id, storage, settings, tenant_repo, runs, projects)
+    await limits.spend_gate(ctx.cost_usd, "image generation", settings)
     try:
         result = await generate_scene_image(ctx, scene_n, body.prompt)
     except SceneNotFoundError as exc:
@@ -382,6 +387,8 @@ async def studio_generate_all_images(
     if not plan["scene_ids"]:
         return {"status": "nothing_to_do", "already_running": False, "plan": plan}
     ctx = await _generation_context(run_id, storage, settings, tenant_repo, runs, projects)
+    # P-AUTH S8: reserve the whole batch against the tenant's daily bound before any image is paid for.
+    await limits.spend_gate(ctx.cost_usd * len(plan["scene_ids"]), "image generation", settings)
 
     if not claim_job(run_id):
         return {"status": JOB_RUNNING, "already_running": True, "job": await read_job(storage, run_id)}

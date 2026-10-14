@@ -16,7 +16,9 @@ exactly those (the bulk job, which shows the cost first).
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from cf_platform.core import limits
 from cf_platform.core.artifact_manager import ArtifactStorage
+from cf_platform.core.moderation import moderate
 from cf_platform.core.config import PlatformSettings
 from cf_platform.core.run_visuals import load_run_visuals
 from cf_platform.interfaces.dependencies import get_artifact_storage, get_effective_platform_settings
@@ -87,6 +89,8 @@ async def studio_add_continuity_entry(
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
     """Add a character, prop or setting to the bible. Attach it to scenes in their edit dialog."""
+    limits.check_character(body.description, "The description")
+    await moderate(f"{body.name}. {body.description}", "continuity", run_id=run_id)
     async with run_lock(run_id):
         artifact_body, storyboard = await _load_animation_storyboard(storage, run_id)
         try:
@@ -104,6 +108,9 @@ async def studio_edit_continuity_entry(
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
     """Edit a bible entry. `newly_out_of_date` lists the scenes this edit flagged."""
+    if body.description is not None:
+        limits.check_character(body.description, "The description")
+    await moderate(f"{body.name or ''}. {body.description or ''}", "continuity", run_id=run_id)
     async with run_lock(run_id):
         artifact_body, storyboard = await _load_animation_storyboard(storage, run_id)
         manifest = await _load_manifest(storage, run_id)
@@ -179,6 +186,7 @@ async def studio_write_scene_prompt(
         raise HTTPException(status_code=404, detail=f"Scene {scene_id} is not in the storyboard.")
     visuals = await load_run_visuals(storage, run_id)
     format_track = "landscape" if visuals.aspect_ratio == "16:9" else "portrait"
+    await limits.spend_gate(getattr(settings, "EST_LLM_CALL_USD", 0.05), "the director", settings)
     try:
         written = await write_scene_prompt(
             storyboard, scene_id, settings.ANTHROPIC_API_KEY,

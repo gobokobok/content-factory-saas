@@ -17,7 +17,9 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from cf_platform.core import limits
 from cf_platform.core.artifact_manager import ArtifactStorage
+from cf_platform.core.moderation import moderate_many
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.projects import CREATOR_CONFIG_FLAG, Project, ProjectRepository, create_project
 from cf_platform.core.run_manager import RunRepository, create_run
@@ -110,6 +112,14 @@ async def create_creator_run(
     title = body.title.strip()
     if not title:
         raise HTTPException(status_code=422, detail="Say what the video is about.")
+    # P-AUTH S8 / S9: bounds and moderation are the server's, whatever the page does.
+    await limits.enforce_runs_per_day(runs, settings)
+    limits.check_style(body.master_style, settings)
+    for character in body.characters:
+        limits.check_character(character.description, f"The description of {character.name}", settings)
+    await moderate_many(
+        [title, body.master_style, *[f"{c.name}. {c.description}" for c in body.characters]], "creator_run"
+    )
     project = await creator_project(projects, settings.CREATOR_PROJECT_NAME)
     context = build_idea_context([])
     context["idea_title"] = title

@@ -294,8 +294,26 @@ def delete_run(
         raise HTTPException(status_code=500, detail=msg) from exc
 
 
+def _enforce_settings_caps(body: VideoSettings) -> None:
+    """P-AUTH S8: server-side length caps on the free-text settings, for every non-owner tenant.
+
+    Lazy import: the platform package is optional for the legacy app (D047), and
+    the caps only exist with it. Raises HTTPException(422) from cf_platform.core.limits.
+    """
+    try:
+        from cf_platform.core import limits
+    except Exception:  # platform unavailable — nothing to enforce against
+        return
+    if body.master_style:
+        limits.check_style(body.master_style)
+    if body.protagonist_text:
+        limits.check_character(body.protagonist_text, "The protagonist description")
+    for character in body.characters:
+        limits.check_character(character.description, f"The description of {character.name}")
+
+
 @router.post("/runs/{run_id}/settings", response_model=VideoSettingsResponse)
-def save_video_settings(
+async def save_video_settings(
     run_id: str,
     body: VideoSettings,
     settings: Settings = Depends(get_settings),
@@ -306,6 +324,16 @@ def save_video_settings(
     newer field (visual mode, master style, the per-run image cap) leaves the
     stored value as it is instead of resetting it to the default.
     """
+    _enforce_settings_caps(body)
+    try:
+        from cf_platform.core.moderation import moderate_many
+
+        await moderate_many(
+            [body.master_style, body.protagonist_text, *[f"{c.name}. {c.description}" for c in body.characters]],
+            "run_settings", run_id=run_id,
+        )
+    except ImportError:
+        pass
     client = _make_r2_client(settings)
     key = f"runs/{run_id}/settings.json"
     merged = merge_video_settings(_stored_video_settings(client, key), body)

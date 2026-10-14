@@ -87,6 +87,10 @@ class PlatformSettings(BaseSettings):
     # P-AUTH (S9, D115) — the moderation gate. "block" refuses a flagged text, "log" only
     # records it. MODERATION_BLOCKLIST is extra comma-separated phrases, case-insensitive.
     MODERATION_MODE: str = "block"
+    # "local" runs only the built-in rules; "openai" adds OpenAI's free moderation endpoint
+    # (uses OPENAI_API_KEY). A provider outage never blocks generation.
+    MODERATION_PROVIDER: str = "local"
+    MODERATION_MODEL: str = "omni-moderation-latest"
     MODERATION_BLOCKLIST: str = ""
     DEEPGRAM_API_KEY: str = ""
     # Same ENV var names as src/config.py — reused by the native AcquisitionWorker (P9-S3).

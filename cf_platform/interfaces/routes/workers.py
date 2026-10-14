@@ -13,6 +13,8 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from cf_platform.core import limits
+from cf_platform.core.moderation import moderate
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.cast import resolve_cast, resolve_listed_cast
 from cf_platform.core.config import PlatformSettings
@@ -125,7 +127,7 @@ async def _run_storyboard_background(
             name="verified_storyboard",
             stage="storyboard",
             run_id=run_id,
-            user_id=current_tenant_id(),
+            user_id=state.user_id,
             lineage=storyboard_lineage,
         )
 
@@ -190,6 +192,11 @@ async def storyboard_worker_endpoint(
 
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
+
+    # P-AUTH S8 / S9: the server bounds and screens what reaches the paid model.
+    limits.check_script(body.script)
+    await moderate(body.script, "script", run_id=body.run_id)
+    await limits.spend_gate(getattr(settings, "EST_LLM_CALL_USD", 0.05), "writing the storyboard", settings)
 
     uploaded_script_key = await _uploaded_script_key(storage, body.run_id)
     if uploaded_script_key:
@@ -453,7 +460,7 @@ async def _run_voice_background(
             name="voice_alignment",
             stage="voice",
             run_id=run_id,
-            user_id=current_tenant_id(),
+            user_id=state.user_id,
             lineage=voice_lineage,
         )
         await storage.put_json(job_key, {
@@ -491,6 +498,11 @@ async def voice_worker_endpoint(
 
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
+
+    # P-AUTH S8 / S9: the server bounds and screens what reaches the paid model.
+    limits.check_script(body.script)
+    await moderate(body.script, "script", run_id=body.run_id)
+    await limits.spend_gate(getattr(settings, "EST_TTS_CALL_USD", 0.05), "the voiceover", settings)
 
     # D109: a voice can always be generated. An uploaded recording is the run's current
     # voice, not a run type: generating replaces it (after the operator confirms), and the
@@ -719,8 +731,13 @@ async def _run_render_background(
     worker: Any,
     storage: ArtifactStorage,
     settings: Any,
+    render_slot: str | None = None,
 ) -> None:
-    """Background task: runs FFmpeg render and updates current_job.json in R2."""
+    """Background task: runs FFmpeg render and updates current_job.json in R2.
+
+    `render_slot` is the tenant whose concurrent-render slot (P-AUTH S8) this job holds;
+    it is given back when the job ends, whatever the outcome.
+    """
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
@@ -745,7 +762,7 @@ async def _run_render_background(
             name="render_result",
             stage="render",
             run_id=run_id,
-            user_id=current_tenant_id(),
+            user_id=state.user_id,
             lineage=render_lineage,
         )
         from cf_platform.core.final_video import record_final_source
@@ -767,6 +784,8 @@ async def _run_render_background(
             await storage.put_json(job_key, {"job_id": job_id, "status": "error", "error": str(exc)})
         except Exception:
             pass
+    finally:
+        limits.release_render_slot(render_slot)
 
 
 @router.post("/workers/render", response_model=RenderWorkerResponse, status_code=202)
@@ -897,6 +916,10 @@ async def render_worker_endpoint(
         {"job_id": job_id, "status": "running"},
     )
 
-    background_tasks.add_task(_run_render_background, body.run_id, job_id, state, worker, storage, settings)
+    # P-AUTH S8: one render at a time per tenant; the slot is held until the job ends.
+    render_slot = limits.claim_render_slot(settings)
+    background_tasks.add_task(
+        _run_render_background, body.run_id, job_id, state, worker, storage, settings, render_slot
+    )
     _logger.info("RenderWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return RenderWorkerResponse(status="accepted", run_id=body.run_id)
