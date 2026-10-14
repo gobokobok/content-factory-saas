@@ -1,6 +1,6 @@
 /* Creator pages (P-LITE, D114, D117) — the simplified flow beside the Studio.
  *
- * One page, three screens: My videos (#runs), New video (#new) and one video
+ * One page, three screens: Runs (#runs), New video (#new) and one video
  * (#run/<id>/<step>) with four steps: Script, Voice, Storyboard, Render.
  * Everything a run does after it exists goes through the Studio's routes; only
  * the list's project and the New video form have routes of their own
@@ -22,7 +22,7 @@
     image_out_of_date: ['Image out of date', 'Its prompt, or a character it uses, changed after this image was made.'],
   };
   const HELP = {
-    runs: ['My videos', ['Every video you have started. Open one to continue it, or start a new one.']],
+    runs: ['Runs', ['Every video you have started. Open one to continue it, or start a new one.']],
     new: ['New video', ['Say what the video is about and choose its format and language.',
       'The master visual style is the look every image shares. You can change it until the storyboard is created.',
       'List the characters if you want specific people. Describe each one in detail: what you write is used for every image they appear in.']],
@@ -139,8 +139,7 @@
       if (window.Core) window.Core.onNew(id);
     } else {
       stopAudio();
-      // A Super account lands on its projects; Basic on its videos (D118).
-      if (!name && S.me && S.me.effective_type === 'super' && window.Core) { go('#projects'); return; }
+      // Everything starts at the Runs page, for Basic and Super alike.
       show('runs');
       await loadRuns();
     }
@@ -180,6 +179,7 @@
     $('#view-as').classList.toggle('hidden', !isSuper);
     $('#view-as-label').textContent = me.view_as_basic ? 'Switch back to Super' : 'View as Basic';
     document.querySelectorAll('.view-banner').forEach(b => b.remove());
+    document.body.classList.toggle('has-banner', !!me.view_as_basic);
     if (me.view_as_basic) {
       const bar = document.createElement('div');
       bar.className = 'view-banner';

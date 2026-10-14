@@ -78,10 +78,14 @@ class TestScope:
     def test_what_the_creator_leaves_out_is_not_there(self, page, js, needle):
         assert needle not in page and needle not in js
 
-    def test_the_left_panel_is_my_videos_and_log_out(self, page):
+    def test_the_left_panel_starts_with_runs_and_has_no_buttons_or_rules(self, page):
+        """The beta panel: Runs, then sections flowing top to bottom — no New video / My videos, no rule, no pinned footer."""
         left = page[page.index('id="left"'):page.index("RIGHT PANEL")]
-        assert "My videos" in left and "New video" in left and "Log out" in left
-        assert left.count('class="nav-btn"') == 3
+        assert left.index(">Runs<") < left.index("Log out")
+        assert "margin-top:auto" in left and left.index("margin-top:auto") < left.index("View as Basic")  # switch + log out at the bottom
+        assert "New video" not in left and "My videos" not in left
+        assert "border-top" not in left and "border-bottom" not in left
+        assert left.count('class="p-body"') == 1
 
 
 class TestNewVideo:

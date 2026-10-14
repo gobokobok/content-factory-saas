@@ -90,6 +90,16 @@
     document.querySelectorAll('#super-menu [data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === key));
     const runs = qs('nav-runs');
     if (runs) runs.classList.remove('on');
+    if (!key.startsWith('project:') && key !== 'projects') paintProjectNav(null);
+  }
+  /** Under "All projects": the open project and its pages, as the beta panel had them. */
+  function paintProjectNav(tab) {
+    const box = qs('nav-project');
+    if (!box) return;
+    if (!tab || !C.project) { box.innerHTML = ''; return; }
+    const id = encodeURIComponent(C.project.project_id);
+    const item = (t, label) => `<a class="nav-btn sm${t === tab ? ' on' : ''}" href="#project/${id}${t === 'overview' ? '' : '/' + t}" style="text-decoration:none">${label}</a>`;
+    box.innerHTML = `<div class="sub"><div class="proj">${esc(C.project.name)}</div>${item('overview', 'Overview')}${item('ideas', 'Ideas')}${item('runs', 'Runs')}${item('settings', 'Settings')}</div>`;
   }
   function clearNav() { document.querySelectorAll('#super-menu [data-nav].on').forEach(a => a.classList.remove('on')); }
 
@@ -143,6 +153,7 @@
       <span>${p.run_count} video${p.run_count === 1 ? '' : 's'}${p.last_activity ? ' · ' + esc(fmtDate(p.last_activity)) : ''}</span></div></div>${arrow}</a>`;
   }
   async function viewProjects() {
+    paintProjectNav(null);
     setNav('projects');
     loading();
     await tenantDefaults();
@@ -235,7 +246,9 @@
   }
   function paintProject() {
     const p = C.project, tab = C.tab;
-    const tabs = [['overview', 'Overview'], ['ideas', 'Ideas'], ['runs', 'Videos'], ['settings', 'Settings']]
+    document.querySelectorAll('#super-menu [data-nav].on').forEach(a => a.classList.remove('on'));
+    paintProjectNav(tab);
+    const tabs = [['overview', 'Overview'], ['ideas', 'Ideas'], ['runs', 'Runs'], ['settings', 'Settings']]
       .map(([k, l]) => `<button class="${k === tab ? 'on' : ''}" onclick="location.hash='${tabHref(k)}'">${l}</button>`).join('');
     const body = { overview: viewOverview, ideas: viewIdeas, runs: viewRuns, settings: viewProjectSettings }[tab]();
     frame(crumbs([['Projects', '#projects'], [p.name]]),

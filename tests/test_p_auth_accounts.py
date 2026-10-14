@@ -701,7 +701,7 @@ class TestSuperMenuPage:
         html = Path("src/static/creator.html").read_text()
         js = Path("src/static/ui/creator.js").read_text()
         menu = Path("src/static/ui/super-menu.js").read_text()
-        for needle in ("Integrations", "Defaults", "Libraries", "#settings/integrations"):
+        for needle in ("Integrations", "Defaults", "Libraries", "BG music"):
             assert needle not in html and needle not in js
             assert needle in menu
         assert "/ui/super-menu.js" in js and "me.effective_type === 'super'" in js

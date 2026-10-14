@@ -111,10 +111,21 @@ class TestScreens:
     def test_starting_a_video_from_ideas_goes_through_the_new_video_screen(self, core):
         assert "#new/${encodeURIComponent(C.project.project_id)}" in core and "itemIds" in core
 
-    def test_the_menu_links_to_the_screens(self):
+    def test_the_menu_is_the_beta_panel(self):
+        """Projects, Libraries (Videos, AI generations, BG music) and Settings, as section headers over one flowing list."""
         menu = (_UI / "super-menu.js").read_text()
-        for href in ("#projects", "#library/${k}", "#settings/integrations", "#settings/defaults"):
-            assert href in menu
+        for needle in ("#projects", "'#library/' + k", "#settings/integrations", "#settings/defaults", "All projects",
+                       "'Videos'", "'AI generations'", "'BG music'", "Projects</div>", "Libraries</div>", "Settings</div>"):
+            assert needle in menu, needle
+        assert "Audio" not in menu and "Footage" not in menu and "New video" not in menu
+
+    def test_a_project_lists_its_pages_under_all_projects(self, core):
+        for page in ("Overview", "Ideas", "Runs", "Settings"):
+            assert f"'{page}'" in core
+        assert 'id="nav-project"' not in core and "nav-project" in core
+
+    def test_everyone_starts_at_runs(self, host):
+        assert "go('#projects')" not in host
 
 
 class TestRunControls:
