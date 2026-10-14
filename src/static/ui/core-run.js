@@ -55,15 +55,16 @@
     // Script: source bar, generate box, voiceover box.
     const script = qs('script');
     script.insertAdjacentHTML('beforebegin', `
-      <div class="core-src seg" id="src-bar" style="margin-bottom:16px">
-        <button data-s="paste" onclick="CoreRun.setSource('paste')">Paste</button>
-        <button data-s="generate" onclick="CoreRun.setSource('generate')">Generate</button>
-        ${BASIC ? '' : '<button data-s="upload" onclick="CoreRun.setSource(\'upload\')">From a voiceover</button>'}</div>
+      <div class="core-src" id="src-bar" style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="link" data-s="generate" onclick="CoreRun.setSource('generate')">Generate script with AI</button>
+        ${BASIC ? '' : '<button class="link" data-s="upload" onclick="CoreRun.setSource(\'upload\')">Start from a voiceover</button>'}</div>
       <div class="gen-box" id="gen-box">
-        <label class="field"><span class="lbl">Idea</span><input type="text" id="gen-idea" maxlength="300" placeholder="What is the script about?"></label>
-        <label class="field"${BASIC ? ' hidden' : ''}><span class="lbl">Niche (optional)</span><input type="text" id="gen-niche" maxlength="200"></label>
-        <label class="field"><span class="lbl">Length: <b id="gen-dur-val">90 s</b></span><input type="range" id="gen-dur" min="30" max="600" step="30" value="90" oninput="document.getElementById('gen-dur-val').textContent=this.value+' s'" style="width:100%"></label>
-        <button class="btn accent" id="gen-btn" onclick="CoreRun.genScript()">Generate script</button>
+        <input type="hidden" id="gen-idea"><input type="hidden" id="gen-niche">
+        <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+          <label class="field" style="margin:0"><span class="lbl">Duration</span>
+            <select id="gen-dur" style="width:160px"><option value="30">30 seconds</option><option value="60">1 minute</option><option value="90" selected>1.5 minutes</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option></select></label>
+          <button class="btn accent" id="gen-btn" onclick="CoreRun.genScript()">Generate script</button>
+        </div>
         <div class="job" id="job-gen"></div>
       </div>
       ${BASIC ? '' : `<div class="gen-box" id="up-box">
@@ -128,7 +129,7 @@
 
   function paintScriptSource() {
     const src = CR.src || (uploadedVoice() ? 'upload' : 'paste');
-    qs('src-bar').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === src));
+    qs('src-bar').querySelectorAll('button').forEach(b => { b.style.fontWeight = b.dataset.s === src ? '700' : ''; });
     qs('gen-box').classList.toggle('on', src === 'generate');
     if (!BASIC) qs('up-box').classList.toggle('on', src === 'upload');
     const ta = qs('script');
@@ -141,8 +142,6 @@
   /** The idea and the niche hint, then the Next button. */
   function finishScriptSource() {
     if (!qs('gen-idea').value) qs('gen-idea').value = S().run.name || '';
-    const niche = qs('gen-niche');
-    niche.placeholder = (S().context && S().context.project && S().context.project.niche) || 'american housing economics';
     qs('script-next').disabled = !A.scriptOk() && !(uploadedVoice() && S().upload);
   }
 
@@ -154,6 +153,7 @@
       }
       CR.src = 'upload';
     } else {
+      if (src === 'generate' && CR.src === 'generate') src = 'paste';   // the blue link toggles the box
       if (uploadedVoice()) {
         // Generated or pasted text replaces an uploaded recording, after the user confirms.
         if (!await A.confirmBox('Replace the uploaded voiceover?', 'Your recording and the storyboard made from it are discarded. The transcript stays as text you can edit.', 'Replace')) return;
@@ -180,7 +180,7 @@
   }
 
   async function genScript() {
-    const idea = qs('gen-idea').value.trim();
+    const idea = (S().run.name || '').trim() || qs('gen-idea').value.trim();
     if (!idea) { A.err('#err-script', 'Say what the script is about.'); return; }
     A.err('#err-script', '');
     const body = { idea_title: idea, target_duration_seconds: parseInt(qs('gen-dur').value, 10), run_id: S().run.id };
