@@ -883,14 +883,14 @@
   }
   async function renderVideo() {
     err('#err-render', ''); clearJob('#job-render');
-    // A video uploaded from CapCut is never replaced silently (P13b-S4).
-    const fromCapcut = !!(S.video && S.video.source === 'capcut');
-    if (fromCapcut && !await confirmBox('Replace the CapCut video?', "This video was uploaded from CapCut. Rendering here replaces it.", 'Render and replace')) return;
+    // A video that was uploaded rather than rendered here is never replaced silently (P13b-S4).
+    const uploaded = !!(S.video && S.video.source && S.video.source !== 'ffmpeg');
+    if (uploaded && !await confirmBox('Replace the uploaded video?', 'This video was uploaded, not rendered here. Rendering replaces it.', 'Render and replace')) return;
     const cap = captionChoice();
     const res = await api('/platform/workers/render', { method: 'POST', body: {
       run_id: S.run.id, format_track: S.run.format === '16:9' ? 'landscape' : 'portrait',
       captions: cap !== 'none', caption_style: cap === 'punch' ? 'punch' : 'standard', music_enabled: !!S.musicKey,
-      confirm_overwrite: fromCapcut,
+      confirm_overwrite: uploaded,
     } });
     if (!res.ok) { failure('#job-render', 'Render was not started.', why(res), renderVideo); return; }
     watchRender();

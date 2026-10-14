@@ -1,7 +1,45 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last sprints (P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last sprints (P-CORE, P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P-CORE] The Studio in the new design — S1 shell and Projects, S2 project page, S3 Libraries, S4 Integrations and Defaults, S5 New video and Script sources, S6 Voice, S7 realistic look, S8 cast / language / look, S9 Metadata / CapCut / Auto-advance, S10 retire the old pages
+**Completed:** 2026-10-14 (built in one pass on `sprint/p-core` while the operator was away, scope confirmed at the start; **not merged, not pushed, not on DEV**)
+**Handover:**
+- **Host:** `src/static/ui/creator.js` hands unknown hash routes to `window.Core`, exposes `window.CFApp` (state and helpers) and loads `/ui/core.js` only when `/auth/me` says the session is effectively Super. `core.js` loads `core-run.js`. `super-menu.js` links to the screens. `/ui/*` is served `no-cache`.
+- **S1–S4 (`core.js`):** routes `#projects`, `#project/<id>[/ideas|runs|settings]`, `#library/<kind>`, `#settings/integrations|defaults`. Ports of the old projects, project, library and settings pages onto the same routes, in the new design; nothing new on the server. A tenant's hidden personal project is filtered out of `/platform/projects`.
+- **S5:** New video for Super picks a project and a look; language and format come from the project, else Defaults; "Start video" from ideas passes the ideas through `POST /projects/{id}/runs` and then writes the run's settings. `POST /platform/creator/runs` accepts `look` (realistic = stock, no characters) and `project_id`; both are Super-only and the project is scoped to the caller's tenant. Script step: Paste / Generate (length 30–600 s via `/platform/blocks/idea-to-script`, now capped, moderated and spend-gated for non-owners) / From a voiceover.
+- **S6:** narration pace and style on the Voice step; voiceover upload (`voice-source`, `voice/upload`, transcription poll), transcript word editing and "Rebuild from text", language check and `PUT …/language`; replacing an uploaded voice asks first.
+- **S7:** `isStock()`; "Acquire footage / Acquire N missing / Re-acquire all" through `/platform/workers/acquisition`; per scene: asset type, search words, "Find again" (`reacquire`), own file, sound effect when `SFX_ENABLED`; Script view (boundaries with a dry run).
+- **S8:** right panel: Look (realistic ↔ animated through `PUT …/visuals` with the 409 confirm), Language, Cast (free / one person with a project character or text); "Save to project assets" in the character dialog.
+- **S9:** a fifth step Metadata (`/platform/workers/metadata`, copy buttons); CapCut package download and edited-video upload; Auto-advance (script → voice → storyboard → footage → render → metadata; stops at image generation, which asks for the estimate, and after one failed attempt at a step).
+- **S10:** `/`, `/studio` → hop page; `/project`, `/library`, `/settings` → 302 to the screen; deleted `studio-v2.html`, `studio.html`, `projects.html`, `project.html`, `library.html`, `settings.html`, `create-run.html`, `ui/shell.*`, `ui/app.*` and the five test files that grepped them. New: `tests/test_p_core_pages.py`. D121.
+- **Server changes:** creator config adds `sfx_enabled` and a script limit by account type (Basic 450, Super tenant `CAP_SCRIPT_WORDS`, owner 20000); empty Railway variables count as unset (found on DEV after P-AUTH).
+- **Preview harness:** `scripts/preview_core.py` + `core-preview` in `.claude/launch.json` — local server, in-memory storage, `GET /__seed/{run_id}` seeds a 3-scene stock storyboard. Never for real data.
+- No new dependency, no migration, no new ENV variable. Tests: 3218 passing (about 80 old page tests removed, about 60 added).
+- **Files that mattered:** `src/static/ui/core.js`, `core-run.js`, `creator.js`, `cf_platform/interfaces/routes/creator.py`, the retired `studio-v2.html` (git history) for the call sequences.
+**Not verified:**
+- Everything above was looked at in a local preview with fake storage: screens render, routes switch, the realistic storyboard shows its controls and the settings panel works. **No provider call was made**: script generation, voice upload and transcription, stock acquisition, re-acquire, metadata, CapCut export and upload, render of a realistic run, and Auto-advance end to end have not run.
+- Pixel-level parity with the old pages was not checked, and the mobile layout of the new screens was not looked at.
+**Smoke test:** DEFERRED — the operator's DEV run of the steps below, after the push → cleared by P-CORE-S11 (the DEV smoke, 1 pt) in Sprint P-BILL-1.
+**Steps (after the DEV deploy lands, as the owner):**
+1. `/create` lands on Projects. The old addresses `/studio`, `/project?id=…`, `/library?kind=ai`, `/settings?tab=defaults` land on their screens.
+2. Project → Settings: change the niche and a default; Ideas: add an idea; Videos: filter.
+3. Start a video from the idea: Realistic, English. Script → Generate (90 s) → a script appears. Next.
+4. Voice: pace Fast, Generate voiceover, play it. Next.
+5. Storyboard: Create storyboard; "Acquire footage". Open a scene: change the search words, "Find again"; set one scene to Upload and upload a file.
+6. Render: render the video; play it; download the CapCut package.
+7. Metadata: generate; copy the title.
+8. Second video: Auto-advance from a pasted script: it should run voice → storyboard → footage → render → metadata, and stop with a readable message if anything fails.
+9. Script step → From a voiceover: upload a recording; edit a word in the transcript; the storyboard step works from it.
+10. Libraries: the video appears with its project and a working Download. Integrations: a provider's model change saves. Defaults: spend cap saves.
+**Promoted to backlog:**
+- P-CORE-S11 (1 pt, Sprint P-BILL-1): run the DEV smoke above; each failure becomes a fix story.
+- VERIFY (operator, DEV): the new screens on a phone-width window.
+- VERIFY (Claude, DEV logs): no 4xx from `/platform/studio/runs/*/…` calls the screens make that the Studio used not to make.
+- Candidate: delete the pre-P12 import, `pipeline.html` and the legacy routes when `LEGACY_ROUTES_ENABLED` is no longer wanted.
 
 ---
 

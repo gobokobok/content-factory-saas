@@ -5,6 +5,7 @@ import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -281,28 +282,41 @@ async def auth_middleware(request: Request, call_next):
 _NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate"}
 
 
+# P-CORE S10: the Studio and the shell pages (projects, project, library, settings) are retired.
+# Every one of them is a screen of the Creator page (/create) now; the old addresses stay as redirects
+# so bookmarks and links in old run logs keep working.
 @app.get("/", include_in_schema=False)
-def projects_ui() -> FileResponse:
-    """Serve the project list — the operator's landing page (P12, D092)."""
-    return FileResponse(_STATIC_DIR / "projects.html", headers=_NO_CACHE)
+def root_ui() -> FileResponse:
+    """Serve the redirect page: it carries an old `#run/...` bookmark over to /create (a server never sees the fragment)."""
+    return FileResponse(_STATIC_DIR / "go.html", headers=_NO_CACHE)
+
+
+@app.get("/studio", include_in_schema=False)
+def studio_ui() -> FileResponse:
+    """Serve the redirect page for the retired Studio (`/studio#run/<id>/<stage>` → `/create#run/<id>/<stage>`)."""
+    return FileResponse(_STATIC_DIR / "go.html", headers=_NO_CACHE)
 
 
 @app.get("/project", include_in_schema=False)
-def project_ui() -> FileResponse:
-    """Serve one project's page (shortlist + runs); the project id is the `id` query param."""
-    return FileResponse(_STATIC_DIR / "project.html", headers=_NO_CACHE)
+def project_ui(id: str = "", tab: str = "") -> RedirectResponse:
+    """Old project page address → the project screen of /create."""
+    if not id:
+        return RedirectResponse("/create#projects", status_code=302)
+    tab_part = f"/{quote(tab)}" if tab in {"ideas", "runs", "settings"} else ""
+    return RedirectResponse(f"/create#project/{quote(id)}{tab_part}", status_code=302)
 
 
 @app.get("/library", include_in_schema=False)
-def library_ui() -> FileResponse:
-    """Serve a tenant-wide asset library (videos, audio, footage, AI generations, music); `?kind=` picks it."""
-    return FileResponse(_STATIC_DIR / "library.html", headers=_NO_CACHE)
+def library_ui(kind: str = "videos") -> RedirectResponse:
+    """Old library page address → the library screen of /create."""
+    kind = kind if kind in {"videos", "audio", "footage", "ai", "music"} else "videos"
+    return RedirectResponse(f"/create#library/{kind}", status_code=302)
 
 
 @app.get("/settings", include_in_schema=False)
-def settings_ui() -> FileResponse:
-    """Serve the tenant settings pages — Integrations and Defaults; `?tab=` picks one (P14, D104, P-UX build)."""
-    return FileResponse(_STATIC_DIR / "settings.html", headers=_NO_CACHE)
+def settings_ui(tab: str = "integrations") -> RedirectResponse:
+    """Old settings page address → Integrations or Defaults in /create."""
+    return RedirectResponse(f"/create#settings/{'defaults' if tab == 'defaults' else 'integrations'}", status_code=302)
 
 
 @app.get("/create", include_in_schema=False)
@@ -315,12 +329,6 @@ def creator_ui() -> FileResponse:
 def terms_ui() -> FileResponse:
     """Serve the terms page — a first sign-in must accept it before anything else (S9, D115)."""
     return FileResponse(_STATIC_DIR / "terms.html", headers=_NO_CACHE)
-
-
-@app.get("/studio", include_in_schema=False)
-def studio_ui() -> FileResponse:
-    """Serve the Studio pipeline UI for one run (`/studio#run/<run_id>/<stage>`)."""
-    return FileResponse(_STATIC_DIR / "studio-v2.html", headers=_NO_CACHE)
 
 
 if _LEGACY_ROUTES_ENABLED:

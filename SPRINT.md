@@ -42,7 +42,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-HARD2 | Backups and restore drill, the audit's small fixes, deploy safety (EPIC 60) | ~8 | **done** 2026-10-14 (smoke cleared 2026-10-14 review) | Read the RUNBOOK backup section; `/legacy` gone; a failed migration shows in health |
 | P-AUTH | Google sign-in, accounts, Basic / Super with View as Basic, per-user isolation, server-side gating (EPIC 59, D114, D118); `/audit` first | ~24 | **done 2026-10-14, smoke partial → AUTH-S10** (S0 is the operator's) | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
 | P-LITE | The Creator flow for regular users (EPIC 59, D114, D117); S1..S5 built before P-AUTH, S6 gating moves to P-AUTH | ~16 | **done** 2026-10-14 (smoke passed) | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
-| P-CORE | The full Studio in the new design, for Super (D118) | ~20–30 | planned (after P-AUTH; order against P-BILL-1 set at the P-AUTH close) | Every Studio feature reachable in the new design; the old Studio pages retire |
+| P-CORE | The full Studio in the new design, for Super (D118) | ~28 | **built 2026-10-14 (branch `sprint/p-core`, not merged; DEV smoke pending)** — was: planned (after P-AUTH; order against P-BILL-1 set at the P-AUTH close) | Every Studio feature reachable in the new design; the old Studio pages retire |
 | P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114) | ~13 | planned | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
 | P-PROJ1 | Visual source model and project settings (EPIC 57) | ~18 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Channel identity and a saved project character reused by a new animated run |
 | P-INT1 | Integrations v2 (EPIC 58) | ~16 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Add a second provider with an own key, make it default, generate on it |
@@ -73,6 +73,26 @@ Legacy Script→Video stays untouched and operable (D047).
 ---
 
 # Current sprint
+
+## Sprint P-CORE — the full Studio in the new design, for Super (D118, D121)
+
+**Goal:** the owner makes a whole realistic video — from an idea in a project to a rendered file and metadata — without leaving `/create`, and the old Studio can retire.
+**Status:** **built 2026-10-14 on `sprint/p-core` (not merged, not pushed; DEV smoke pending).** One pass, full scope confirmed by the operator.
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| CORE-S1 | Super shell: hash routes, left menu, Projects list, New project | 2 | built, smoke pending |
+| CORE-S2 | Project page: overview, ideas, videos, settings, project assets | 4 | built, smoke pending |
+| CORE-S3 | Libraries: videos, audio, footage, AI generations, music | 2 | built, smoke pending |
+| CORE-S4 | Integrations and Defaults | 3 | built, smoke pending |
+| CORE-S5 | New video for Super (project, realistic / animated); Script step sources: paste, generate, from a voiceover | 3 | built, smoke pending |
+| CORE-S6 | Voice: pace and style, upload, transcript editing, language check | 3 | built, smoke pending |
+| CORE-S7 | Realistic look: stock acquisition, asset type, search words, re-acquire, script view, SFX | 4 | built, smoke pending |
+| CORE-S8 | Cast, run language, look change, save to project assets | 2 | built, smoke pending |
+| CORE-S9 | Metadata step, CapCut export and upload, Auto-advance | 3 | built, smoke pending |
+| CORE-S10 | Retire the old pages: redirects, deleted files, tests, docs | 2 | built, smoke pending |
+
+**Human touchpoint:** as the owner on DEV, open `/create`, start a video in a project from an idea, make it realistic, and take it to metadata.
 
 ## Sprint P-AUTH — Google sign-in, accounts, Basic / Super, isolation (EPIC 59, D114, D118)
 

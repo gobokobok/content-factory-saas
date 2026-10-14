@@ -1,9 +1,8 @@
-"""Tests for P-UX1-S4: Studio becomes the default UI; legacy pipeline moves to /legacy.
+"""Tests for P-UX1-S4 (as changed by P-CORE S10): the legacy pipeline stays at /legacy.
 
 Covers:
-- GET / no longer serves studio.html (P12-S2: it serves the project list)
+- GET / and GET /studio serve the redirect page (the Studio is retired; its screens live at /create)
 - GET /legacy serves pipeline.html unchanged
-- GET /studio still serves studio.html (alias for bookmarked links)
 """
 
 from fastapi.testclient import TestClient
@@ -36,12 +35,12 @@ def _authenticated_client() -> tuple[TestClient, dict]:
     return client, {AUTH_COOKIE_NAME: token}
 
 
-def test_root_no_longer_serves_studio_html():
-    """P12-S2 moved the landing page to the project list; Studio lives at /studio."""
+def test_root_serves_the_redirect_page_not_the_studio():
+    """P-CORE S10: "/" hops to /create (a bookmark's #run fragment is carried over by the page)."""
     client, cookies = _authenticated_client()
     r = client.get("/", cookies=cookies)
     assert r.status_code == 200
-    assert "Content Factory Studio" not in r.text
+    assert "Content Factory Studio" not in r.text and "/create" in r.text
 
 
 def test_legacy_serves_pipeline_html():
@@ -51,8 +50,8 @@ def test_legacy_serves_pipeline_html():
     assert "Content Factory Studio" not in r.text
 
 
-def test_studio_alias_serves_studio_html():
+def test_studio_alias_serves_the_redirect_page():
     client, cookies = _authenticated_client()
     r = client.get("/studio", cookies=cookies)
     assert r.status_code == 200
-    assert "Content Factory Studio" in r.text
+    assert "Content Factory Studio" not in r.text and "location.replace('/create#run/'" in r.text

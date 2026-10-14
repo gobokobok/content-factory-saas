@@ -65,3 +65,8 @@ async function downloadFile(btn, url, filename) {
 }
 ```
 This applies to every rendered video, voiceover, library asset and any artifact served by a presigned URL.
+
+
+## One application page (P-CORE, D121)
+
+`/create` is the only application page. Super-only screens are drawn by `ui/core.js` (Projects, project, Libraries, Integrations, Defaults) and run controls by `ui/core-run.js`; they are loaded only for an effective Super session, so a Basic page never contains them. A new Super feature is a screen or a control there, using the page's tokens and classes (`.btn`, `.field`, `.run-item`, `.core-card`). The server gates every call; hiding a control is not protection. File downloads still go through a blob (see "File downloads").

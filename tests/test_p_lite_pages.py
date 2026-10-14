@@ -59,9 +59,9 @@ class TestServing:
             r = _client().get(path, headers={"accept": "text/html"}, follow_redirects=False)
         assert r.status_code == 302 and r.headers["location"] == "/login"
 
-    def test_the_studio_page_is_still_the_studio(self):
+    def test_the_studio_address_hops_to_the_creator(self):
         r = _client().get("/studio")
-        assert r.status_code == 200 and "Content Factory Studio" in r.text and "creator.js" not in r.text
+        assert r.status_code == 200 and "location.replace('/create" in r.text and "creator.js" not in r.text
 
 
 class TestScope:

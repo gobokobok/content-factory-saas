@@ -16,7 +16,7 @@
   'use strict';
 
   let A = null, H = null, started = false;
-  const CR = { src: null, sel: null, audioEl: null, auto: false, autoBusy: false, cfgSfx: [], acquiring: false };
+  const CR = { src: null, sel: null, audioEl: null, auto: false, autoBusy: false, lastStep: null, cfgSfx: [], acquiring: false };
 
   const $ = sel => document.querySelector(sel);
   const qs = id => document.getElementById(id);
@@ -614,20 +614,30 @@
     const st = S();
     const busy = st.busy.voice || st.busy.sb || st.busy.images || st.busy.render || CR.acquiring;
     if (busy) return;
+    // The step that is ready next, by name. Asking for the same one twice in a row means the last
+    // attempt made no progress (it failed), so Auto-advance stops there instead of retrying forever.
+    let name = null;
+    if (!A.scriptOk() && !(uploadedVoice() && st.upload)) name = 'script';
+    else if (!st.voice) name = 'voice';
+    else if (!st.sb || st.sbStale) name = 'storyboard';
+    else if (!A.allAssets()) name = isStock() ? 'footage' : 'images';
+    else if (!st.video) name = 'render';
+    else if (!st.meta) name = 'metadata';
+    const stop = why => { CR.auto = false; CR.lastStep = null; paintAuto(); if (why) H.toast(why); };
+    if (!name) return stop();
+    if (name === 'script') return stop('Auto-advance needs the script first.');
+    if (name === 'images') { stop(); A.planAssets(); return; }   // image generation always asks first
+    if (CR.lastStep === name) return stop(`Auto-advance stopped: the ${name} step did not finish.`);
+    CR.lastStep = name;
     CR.autoBusy = true;
-    const done = () => { CR.autoBusy = false; };
     setTimeout(async () => {
       try {
-        if (!A.scriptOk() && !(uploadedVoice() && st.upload)) { CR.auto = false; paintAuto(); }
-        else if (!st.voice) { await A.genVoice(); }
-        else if (!st.sb || st.sbStale) { await A.createSb(); }
-        else if (!A.allAssets()) {
-          if (isStock()) await acquire();
-          else { CR.auto = false; paintAuto(); await A.planAssets(); }   // image generation always asks first
-        } else if (!st.video) { await A.renderVideo(); }
-        else if (!st.meta) { await genMeta(); CR.auto = false; paintAuto(); }
-        else { CR.auto = false; paintAuto(); }
-      } finally { done(); }
+        if (name === 'voice') await A.genVoice();
+        else if (name === 'storyboard') await A.createSb();
+        else if (name === 'footage') await acquire();
+        else if (name === 'render') await A.renderVideo();
+        else if (name === 'metadata') { await genMeta(); stop(); }
+      } finally { CR.autoBusy = false; }
     }, 300);
   }
 

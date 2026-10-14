@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content Factory</title>
+<script>
+  // The old Studio and project list lived at "/" and "/studio". Their run links carried the
+  // run in the fragment (#run/<id>/<stage>), which only the browser can see, so the hop is here.
+  (function () {
+    var hash = location.hash || '';
+    var m = hash.match(/^#run\/([^\/?]+)(?:\/(\w+))?/);
+    if (m) {
+      var stage = { upload: 'script', transcript: 'script', settings: 'script', video: 'render' }[m[2]] || m[2] || 'script';
+      location.replace('/create#run/' + m[1] + '/' + stage);
+    } else {
+      location.replace('/create');
+    }
+  })();
+</script>
+</head>
+<body><p style="font:14px system-ui;margin:24px">Opening Content Factory…</p></body>
+</html>
