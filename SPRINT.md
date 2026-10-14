@@ -39,9 +39,9 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | **done** 2026-10-11 | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
 | P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Create a run from the minimal modal and walk all five steps with Next only |
 | P-HARD1 | Audit and hardening: first `/audit`, loud voice failure, word-matching regression suite, bulk-job guard, cost-log backfill | ~11 | **done** 2026-10-13 | Read `docs/SECURITY.md`; a failed voice says so and offers Retry |
-| P-HARD2 | Backups and restore drill, the audit's small fixes, deploy safety (EPIC 60) | ~8 | **in progress** (started 2026-10-13) | Read the RUNBOOK backup section; `/legacy` gone; a failed migration shows in health |
+| P-HARD2 | Backups and restore drill, the audit's small fixes, deploy safety (EPIC 60) | ~8 | **done** 2026-10-14 (smoke deferred to AUTH-S0) | Read the RUNBOOK backup section; `/legacy` gone; a failed migration shows in health |
 | P-AUTH | Google sign-in, accounts, Basic / Super with View as Basic, per-user isolation, server-side gating (EPIC 59, D114, D118); `/audit` first | ~18 | planned | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
-| P-LITE | The Creator flow for regular users (EPIC 59, D114, D117); S1..S5 built before P-AUTH, S6 gating moves to P-AUTH | ~16 | **in progress** (started 2026-10-14) | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
+| P-LITE | The Creator flow for regular users (EPIC 59, D114, D117); S1..S5 built before P-AUTH, S6 gating moves to P-AUTH | ~16 | **done** 2026-10-14 (smoke passed) | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
 | P-CORE | The full Studio in the new design, for Super (D118) | ~20–30 | planned (after P-AUTH; order against P-BILL-1 set at the P-AUTH close) | Every Studio feature reachable in the new design; the old Studio pages retire |
 | P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114) | ~13 | planned | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
 | P-PROJ1 | Visual source model and project settings (EPIC 57) | ~18 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Channel identity and a saved project character reused by a new animated run |
@@ -72,71 +72,6 @@ Legacy Script→Video stays untouched and operable (D047).
 
 ---
 
-# Sprint P-HARD1 — Audit and hardening (before P-AUTH)
+# Current sprint
 
-**Goal:** Close the rework the 2026-10-13 review found (a silent voice failure on PROD, word matching fixed three times on data nobody saw, cost blind for two sprints) and run the first security audit before accounts exist.
-**Status:** built 2026-10-13 in one pass on branch `sprint/p-hard1` (not pushed — a DEV → PROD copy was running in another session). Tests 3000 passing. Closed 2026-10-13; smoke passed on DEV 2026-10-13.
-**Points:** ~11
-
-| ID | Title | Points | Status |
-|----|-------|--------|--------|
-| HARD1-S1 | `/audit` — first `docs/SECURITY.md` (tenant keys, `SETTINGS_ENCRYPTION_KEY`, log redaction, upload paths, the open moderation stance for strangers' text) | 3 | done |
-| HARD1-S2 | Voice: a failed TTS call fails the job loudly with Retry, never "complete" with no audio (PROD 2026-10-10, run `6fe35dab`) | 2 | done |
-| HARD1-S3 | Word-matching regression suite from real DEV pastes — transcript editor and script view (numbers, currency, percent, years said as two pairs) | 3 | done |
-| HARD1-S4 | Guard split / merge while a bulk image job runs (carried from P-AN1) | 2 | done |
-| HARD1-S5 | Cost log: write range entries for sprint-at-a-time builds; backfill P-UX4, P-PROJ1, P-INT1 from commit times | 1 | done |
-
-**Execution order:** S1 first (findings may reshape S2–S4); S2, S3, S4 independent; S5 last.
-**Human touchpoint:** the operator reads `docs/SECURITY.md`, regenerates a voice with the TTS provider failing (it says so and offers Retry), and pastes a script with spelled-out numbers into the script view.
-**Not in this sprint:** INT2-S1 (Integrations rework; dropped 2026-10-13, remains a candidate), P-AUTH, P-LITE, P-BILL-1 follow per D114. v0.17 vs v0.18 storyboard prompt side-by-side is the operator's call and is not scheduled. PROD release stays the operator's call (not a blocker).
-
-## Scope changes
-
-_None._
-
----
-
-# Sprint P-LITE — The Creator flow: new pages from the approved mockup, beside `/studio` (before P-AUTH, D117)
-
-**Goal:** On DEV, open `/create`, start a new animated video and take it from a pasted script to a downloaded file in the new pages, without touching `/studio`.
-**Status:** in progress — started 2026-10-14, built in one pass on branch `sprint/p-lite` (not pushed).
-**Points:** ~16
-
-| ID | Title | Points | Status |
-|----|-------|--------|--------|
-| LITE-S1 | New run stores format, language, master visual style and characters; `VideoSettings` keeps every run setting | 3 | in-progress |
-| LITE-S2 | The director uses only the listed characters (several; enforced in code) | 3 | in-progress |
-| LITE-S3 | Voice is a per-run choice: male / female | 2 | in-progress |
-| LITE-S4 | The Creator pages at `/create`: My videos, New video, Script, Voice, Storyboard (with images and their estimate), Render and download | 7 | in-progress |
-| LITE-S5 | `SFX_ENABLED` (default false) honoured by the render and the CapCut export | 1 | in-progress |
-
-**Execution order:** S5, S3 and S1 are independent; S2 builds on S1; S4 last (it uses all of them).
-**Human touchpoint:** the operator opens `/create` on DEV, makes a short animated video with two listed characters and a chosen voice, and downloads it.
-**Not in this sprint:** LITE-S6 (server-side gating by tier) and the D115 moderation checks — both need P-AUTH and move there; estimates for voice, storyboard and render (P-BILL-1, with the ledger that prices them); the hidden personal project (P-AUTH).
-
-## Scope changes
-
-- 2026-10-14 (operator): P-LITE S1..S5 pulled ahead of P-AUTH and reshaped by the reviewed mockup (D117). D114's separate Images step is folded into Storyboard.
-- 2026-10-14 (operator, DEV smoke): added to LITE-S4 — "Write with the director": the Visual Director writes one scene's image prompt (for a scene made by splitting), with its own rules, without re-cutting the storyboard. One model call per click.
-
----
-
-# Sprint P-HARD2 — Make PROD recoverable and close the audit's cheap findings (before P-AUTH)
-
-**Goal:** Make PROD recoverable and close the audit's cheap findings before P-AUTH lets strangers in (`docs/SECURITY.md` F1, F3, F7, F9–F12, F14, F18, F20).
-**Status:** in progress — started 2026-10-13, built in one pass.
-**Points:** ~8
-
-| ID | Title | Points | Status |
-|----|-------|--------|--------|
-| HARD2-S1 | Backups and a restore drill: RUNBOOK section only (F1) | 3 | in-progress |
-| HARD2-S2 | Small audit fixes: start-up validators (F7), `run_id` pattern (F9), cookie `Secure` (F18), proxy-aware lockout (F14), unmount `/legacy` (F3, F10), upload streaming (F12) | 3 | in-progress |
-| HARD2-S3 | Migration status in health, CD post-deploy check, `pip-audit`, non-root container (F11, F20) | 2 | in-progress |
-
-**Execution order:** S2 and S3 are independent code stories and can run in parallel; S1 is documentation and is written last so it can name the health check from S3.
-**Human touchpoint:** the operator follows the RUNBOOK backup section (enable Railway backups, check R2 versioning, restore onto a scratch DB), then sees `/legacy` return 404 and `/platform/health` report migration status.
-**Not in this sprint:** F2, F5, F6, F8, F13 (open at P-AUTH, D115); F16 key rotation; F19 `ffprobe` upload validation; lockfile.
-
-## Scope changes
-
-_None._
+_None started. Next: P-AUTH (Google sign-in, Basic / Super, per-user isolation, gating — D114, D118); `/start-story` writes its stories. A `/sprint-review` is due first (three sprints closed since the 2026-10-13 review)._

@@ -5,6 +5,39 @@ _This file holds the last sprints (P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus ev
 
 ---
 
+## [P-LITE] The Creator flow — S1 New run with characters, S2 listed characters only, S3 per-run voice, S4 the Creator pages at /create, S5 sound effects off by default
+**Completed:** 2026-10-14 (built in one pass on branch `sprint/p-lite`, before P-AUTH by operator decision — D117; the design became the platform's core the same day — D118)
+**Handover:**
+- **S1** `GET /platform/creator/config` (the Creator's project — found by a `creator` flag in its config, created on first use as `CREATOR_PROJECT_NAME` — voices, script limit) and `POST /platform/creator/runs` (an animated run with format, language, master style and up to 6 characters written to settings.json). `VideoSettings` now carries `look`, `cast_mode` (free / single / listed), `protagonist_*`, `characters`, `voice` — this fixed a DEV defect: `POST /runs/{id}/settings` dropped them, so D113's single cast was never stored from the Studio and any save erased the look.
+- **S2** `cast_mode: "listed"`: `resolve_listed_cast`, `listed_prompt_block`, `enforce_listed_cast` (`cf_platform/core/cast.py`). One listed character = D113's rule; several = an invented person is removed from bible and scenes, never swapped; project characters are not added to a listed cast.
+- **S3** per-run `voice` (male / female) → `resolve_tts_voice` (`routes/workers.py`). Male is listed first and is the default; empty `CREATOR_VOICE_MALE` = `GEMINI_TTS_VOICE` (Sadachbia on DEV). Female = `Kore`, a placeholder.
+- **S4** `src/static/creator.html` + `src/static/ui/creator.js` at `/create`: My videos, New video, Script (paste, word limit), Voice (one dropdown, audio track), Storyboard (cards, split / merge, chips, characters-props-settings cards and modal, pencil dialog, "Write with the director", Create assets with the estimate first), Render (captions default none, music upload, Render / Re-render, Download through a blob). Progress lines and Retry on every long action; jobs resumed on reload. Studio routes reused; `/studio` unchanged.
+- **Added at the DEV smoke:** status routes (voice / storyboard / render) answer `none` for a job never started (they said `running`, so the page showed phantom generation); `GET …/video` 404s without a final.mp4 (a presigned URL was made for a missing file); `POST …/storyboard/scenes/{id}/write-prompt` + `scene_prompt_writer.py` — the Visual Director writes one scene's prompt with sections 2, 5, 6, 7 of its own prompt (D117 (9)).
+- **S5** `SFX_ENABLED` (default false) — `sfx_enabled()`, `without_sfx()`; honoured by the timeline / render / CapCut routes and the render worker. Off in the Studio too (D114 (6)). The full-pipeline orchestrator path does not pass it.
+- ENV added: `CREATOR_VOICE_MALE`, `CREATOR_VOICE_FEMALE`, `CREATOR_PROJECT_NAME`, `CREATOR_SCRIPT_MAX_WORDS`, `SFX_ENABLED`. Decisions: D117, D118. No migration, no new dependency. Tests: 3157 passing (+100).
+- **Files that mattered:** `src/static/studio-v2.html` (the API calls the Studio makes — the reference for the Creator client), `cf_platform/interfaces/routes/studio.py` (status, video, patch routes), `cf_platform/interfaces/routes/workers.py` (storyboard / voice / render), `cf_platform/workers/animation_storyboard_worker.py` (director prompt sections), `src/models.py#VideoSettings`, `docs/mockups/studio-beta-ui.html`, `docs/UI_GUIDELINES.md` (file downloads, Creator section).
+**Smoke test:** PASSED — operator on DEV 2026-10-14: new video with characters, script, voice, storyboard, split + "Write with the director", images, render with no sound effects, download, My videos shows Rendered, `/studio` still works. Three defects found and fixed during the smoke (phantom jobs, female default voice, never-rendered run read as rendered).
+**Promoted to backlog:**
+- LITE-S6 → AUTH-S6 (server-side gating, D118); the Super menu → AUTH-S7; P-CORE outlined (D118).
+- VERIFY (operator, DEV): choose the female voice after listening and set `CREATOR_VOICE_FEMALE`.
+- VERIFY (operator, DEV): a run whose listed character has a Cyrillic name (ids fall back to `character_N`).
+- VERIFY (Claude, DEV logs): the cost of one "Write with the director" call.
+
+---
+
+## [P-HARD2] Make PROD recoverable — S1 backups runbook, S2 the audit's small fixes, S3 deploy safety
+**Completed:** 2026-10-14 (built 2026-10-13 in `b6a8b6a`, base image pinned in `0caa757`; closed at the P-LITE close by operator request)
+**Handover:**
+- **S1** `docs/RUNBOOK.md` "Backups and restore" section — procedure only; F1 stays open until a restore drill is recorded.
+- **S2** start-up validators (`OPERATOR_PASSWORD` / `SESSION_SECRET_KEY` at least `AUTH_SECRET_MIN_LENGTH` = 12; prod refuses to start without `SETTINGS_ENCRYPTION_KEY`), `run_id` pattern (`_run_id.py`), Secure cookie, proxy-aware lockout, legacy routes off unless `LEGACY_ROUTES_ENABLED`, capped uploads (F7, F9, F18, F14, F3, F10, F12). D116.
+- **S3** migration advisory lock and status in `/platform/health`, a PROD post-deploy check in `cd.yml`, `pip-audit` warn-only in CI, non-root container on a pinned base image (F11, F20).
+- **Found at the P-LITE push:** DEV crashed on start because its `OPERATOR_PASSWORD` was 6 characters (the S2 validator, as D116 warned). The operator set a longer one on 2026-10-14; DEV has run since.
+**Smoke test:** DEFERRED — `/legacy` 404, `/platform/health` migration status, the RUNBOOK backup steps → cleared by AUTH-S0 in Sprint P-AUTH
+**Promoted to backlog:**
+- AUTH-S0 (P-AUTH): the deferred smoke above.
+
+---
+
 ## [P-HARD1] Audit and hardening — S1 first SECURITY.md, S2 loud voice failure, S3 word-matching suite, S4 bulk-job guard, S5 cost-log backfill
 **Completed:** 2026-10-13 (built in one pass on branch `sprint/p-hard1`; **not pushed** — the operator was copying DEV to PROD in another session, and a push to `main` redeploys DEV)
 **Handover:**

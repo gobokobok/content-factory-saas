@@ -27,9 +27,9 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 **EPIC 59 — The friends beta: accounts, the Creator flow, credits and payments (D114).** Order: `/audit` → P-AUTH → P-LITE → P-BILL-1 (**beta opens**) → P-BILL-2. Review items C30–C32, reshaped by the operator on 2026-10-13. Detail at each sprint boundary; outline and defaults below.
 
-**P-AUTH — Google sign-in, accounts, tiers, isolation (~16).** AUTH-S1 Google OAuth sign-in and account creation; a session per user (replaces the single operator password; the legacy login stays for the owner until switched). AUTH-S2 the user ↔ tenant model: one personal tenant and one hidden default project per user, created at first sign-in. AUTH-S3 thread the user through storage keys, repositories and routes instead of `PLATFORM_USER_ID` (~80 uses) — every run, artifact, library and setting is the user's own. AUTH-S4 **account type Basic / Super (D118, replaces regular / premium / owner)** as an account field and a server-side capability check; the operator's **View as Basic** toggle that changes what the server allows for that session and never charges. AUTH-S6 (was LITE-S6, D118) server-side gating of everything Basic does not have — every Studio route and page answers Basic with 403; Basic lands on `/create`. AUTH-S7 Super's left menu in the new design: My videos, plus Projects, Libraries, Integrations, Defaults and "Open in Studio" on a run, linking to the old pages until P-CORE (D118). AUTH-S5 isolation tests: user A cannot read or write user B's run, project, artifact or library.
+**P-AUTH — Google sign-in, accounts, tiers, isolation (~16).** AUTH-S0 (2 pts, first) clear P-HARD2's smoke on DEV: `/legacy` answers 404, `/platform/health` shows the applied migration and `ok`, the operator follows the RUNBOOK backup section (Railway backups on, R2 versioning checked; the restore drill stays F1's own item). AUTH-S1 Google OAuth sign-in and account creation; a session per user (replaces the single operator password; the legacy login stays for the owner until switched). AUTH-S2 the user ↔ tenant model: one personal tenant and one hidden default project per user, created at first sign-in. AUTH-S3 thread the user through storage keys, repositories and routes instead of `PLATFORM_USER_ID` (~80 uses) — every run, artifact, library and setting is the user's own. AUTH-S4 **account type Basic / Super (D118, replaces regular / premium / owner)** as an account field and a server-side capability check; the operator's **View as Basic** toggle that changes what the server allows for that session and never charges. AUTH-S6 (was LITE-S6, D118) server-side gating of everything Basic does not have — every Studio route and page answers Basic with 403; Basic lands on `/create`. AUTH-S7 Super's left menu in the new design: My videos, plus Projects, Libraries, Integrations, Defaults and "Open in Studio" on a run, linking to the old pages until P-CORE (D118). AUTH-S5 isolation tests: user A cannot read or write user B's run, project, artifact or library.
 
-**P-LITE — the Creator flow for Basic users (D118) (~16; S1..S5 IN PROGRESS since 2026-10-14, built before P-AUTH at `/create` from the reviewed mockup — D117; the detail is in SPRINT.md; S6 gating and the D115 moderation checks move to P-AUTH; estimates other than images move to P-BILL-1).** Original outline: LITE-S1 minimal New run: aspect ratio, style (Animation; Realistic greyed), master visual prompt, characters (name + description); stored on the run. LITE-S2 the director works around the given characters: they are given to the storyboard worker as assets and are the **only** characters it may use (extends D113 to several). LITE-S3 voice dropdown (male / female Gemini voice; a per-run `voice` setting; two voices chosen after listening). LITE-S4 the Creator pages: Script (paste only), Voice, Storyboard (scene review, split / merge, motion effect; Script tab hidden; no sound-effect control), Images (estimated cost first, Generate all or per scene, upload your own), Render (captions dropdown, default "none"), download; no Metadata, no Auto-advance, no Integrations / Defaults / Libraries (a "My videos" list), no voiceover upload or CapCut. LITE-S5 `SFX_ENABLED` (default false) honoured by the render and the CapCut export. LITE-S6 server-side gating of everything LITE hides, by tier. Estimates are computed (and shown) here; charging arrives in P-BILL-1.
+**P-LITE — the Creator flow for Basic users (D118) (~16; S1..S5 DONE 2026-10-14, smoke PASSED, handover in DONE.md; started 2026-10-14, built before P-AUTH at `/create` from the reviewed mockup — D117; the detail is in SPRINT.md; S6 gating and the D115 moderation checks move to P-AUTH; estimates other than images move to P-BILL-1).** Original outline: LITE-S1 minimal New run: aspect ratio, style (Animation; Realistic greyed), master visual prompt, characters (name + description); stored on the run. LITE-S2 the director works around the given characters: they are given to the storyboard worker as assets and are the **only** characters it may use (extends D113 to several). LITE-S3 voice dropdown (male / female Gemini voice; a per-run `voice` setting; two voices chosen after listening). LITE-S4 the Creator pages: Script (paste only), Voice, Storyboard (scene review, split / merge, motion effect; Script tab hidden; no sound-effect control), Images (estimated cost first, Generate all or per scene, upload your own), Render (captions dropdown, default "none"), download; no Metadata, no Auto-advance, no Integrations / Defaults / Libraries (a "My videos" list), no voiceover upload or CapCut. LITE-S5 `SFX_ENABLED` (default false) honoured by the render and the CapCut export. LITE-S6 server-side gating of everything LITE hides, by tier. Estimates are computed (and shown) here; charging arrives in P-BILL-1.
 
 **P-CORE — the full Studio in the new design, for Super (~20–30, D118; after P-AUTH, order against P-BILL-1 set at the P-AUTH close).** Rebuild the Studio's remaining features as Super-only parts of the new design, so `studio-v2.html` and the shell pages can retire: projects and ideas; libraries (videos, assets, BG music); Integrations and Defaults; the realistic look with stock footage, search words and re-acquire; script generation with length; voice pace and style, voiceover upload and transcript editing; Cast setting and Save to library; Auto-advance; the Metadata step; CapCut export; sound effects when `SFX_ENABLED`. Each piece removes one "open in the old page" link. Stories are written at the P-AUTH close.
 
@@ -41,53 +41,59 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 **EPIC 60 — Hardening after the 2026-10-13 review (Sprint P-HARD1, DONE 2026-10-13, handover in DONE.md; smoke PASSED 2026-10-13).** HARD1-S1 `/audit` and the first `docs/SECURITY.md` (also decides the moderation stance D114 left open). HARD1-S2 a failed TTS call must fail the voice job with a readable error and Retry — today `voice_production.py` sets `mp3_r2_key=""`, falls back to proportional timing and the job reads "complete" with no audio (PROD run `6fe35dab`, 2026-10-10). HARD1-S3 regression suite for `word_match.py` / `align_text_to_words` / `align_text` built from real pastes, including years said as two pairs. HARD1-S4 guard split / merge while a bulk image job runs. HARD1-S5 backfill `.apex/cost-log.jsonl` range entries for P-UX4, P-PROJ1, P-INT1 from commit times. INT2-S1 (Integrations rework) was considered and dropped from this sprint by the operator on 2026-10-13; it stays a candidate under EPIC 58. VERIFY items still unrun: the cap stop and "Regenerate those…" after a bible edit (P-AN1), the v0.17 vs v0.18 side-by-side (PROJ1-S6), a real render after the D107 zoom fix.
 
-**EPIC 60 (continued) — Sprint P-HARD2 (in progress, started 2026-10-13; findings in docs/SECURITY.md).** Open at P-AUTH: F2, F5, F6, F8, F13 (D115).
+**EPIC 60 (continued) — Sprint P-HARD2 (DONE 2026-10-14, handover in DONE.md; smoke DEFERRED to AUTH-S0; findings in docs/SECURITY.md).** Open at P-AUTH: F2, F5, F6, F8, F13 (D115).
 
 ## [HARD2-S1] Backups and a restore drill — RUNBOOK section
-**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** in-progress · **Points:** 3 · **Finding:** F1
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 3 · **Finding:** F1
 ### Goal
 The operator has one written, verifiable procedure for backing up and restoring PROD's Postgres and R2 data, before any stranger's data exists.
 ### Acceptance Criteria
-- [ ] `docs/RUNBOOK.md` gains a "Backups and restore" section: what holds state (Postgres, R2; Drive is legacy), what is backed up and how (Railway Postgres backups, R2 object versioning), retention, and who does what
-- [ ] Exact operator steps to enable Railway backups and to check R2 versioning in the Cloudflare dashboard, each with the expected result
-- [ ] A restore drill onto a scratch database: steps, how to confirm the data is intact (row counts, one run opens), and a table to record each drill's date and result
-- [ ] DEV and PROD are named separately; PROD stays on its working version (no release implied)
-- [ ] `docs/SECURITY.md` F1 status updated to "procedure written; drill pending operator" (it closes only when a drill is recorded); no code and no script (decided 2026-10-13)
-- [ ] Tests: none for code; link / anchor check if the docs have one
+- [x] `docs/RUNBOOK.md` gains a "Backups and restore" section: what holds state (Postgres, R2; Drive is legacy), what is backed up and how (Railway Postgres backups, R2 object versioning), retention, and who does what
+- [x] Exact operator steps to enable Railway backups and to check R2 versioning in the Cloudflare dashboard, each with the expected result
+- [x] A restore drill onto a scratch database: steps, how to confirm the data is intact (row counts, one run opens), and a table to record each drill's date and result
+- [x] DEV and PROD are named separately; PROD stays on its working version (no release implied)
+- [x] `docs/SECURITY.md` F1 status updated to "procedure written; drill pending operator" (it closes only when a drill is recorded); no code and no script (decided 2026-10-13)
+- [x] Tests: none for code; link / anchor check if the docs have one
 ### Definition of Done
-- [ ] All AC checked · CI green · DONE.md updated · status `done`
+- [x] All AC checked · CI green · DONE.md updated · status `done`
 ### Files to read
 - `docs/SECURITY.md` F1, `DECISIONS.md` D025, `docs/RUNBOOK.md`, `ENV.md` (R2 and DB variables)
+### Handover
+Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
 
 ## [HARD2-S2] The audit's small fixes
-**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** in-progress · **Points:** 3 · **Findings:** F7, F9, F18, F14, F3, F10, F12
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 3 · **Findings:** F7, F9, F18, F14, F3, F10, F12
 ### Goal
 Close the one-sitting findings so a stranger's request cannot hit a weak default or a legacy route.
 ### Acceptance Criteria
-- [ ] F7: `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` rejected when empty or shorter than a minimum (ENV-configurable); start-up refuses `ENVIRONMENT=prod` without `SETTINGS_ENCRYPTION_KEY`
-- [ ] F9: `run_id` in worker request models constrained to the uuid / legacy-id pattern; 422 otherwise
-- [ ] F18: session cookie `Secure` for every non-local environment
-- [ ] F14: login lockout keys on the real client IP behind the proxy (`--proxy-headers` / trusted forwarded IP)
-- [ ] F3 / F10: `/legacy` and the `src/routes/runs.py` router unmounted (or admin-gated, see open point)
-- [ ] F12: scene and music uploads abort early past the size limit, as the MP4 upload does
-- [ ] Tests: one failure case per fix; `docs/SECURITY.md` statuses updated; `ENV.md` for any new variable
+- [x] F7: `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` rejected when empty or shorter than a minimum (ENV-configurable); start-up refuses `ENVIRONMENT=prod` without `SETTINGS_ENCRYPTION_KEY`
+- [x] F9: `run_id` in worker request models constrained to the uuid / legacy-id pattern; 422 otherwise
+- [x] F18: session cookie `Secure` for every non-local environment
+- [x] F14: login lockout keys on the real client IP behind the proxy (`--proxy-headers` / trusted forwarded IP)
+- [x] F3 / F10: `/legacy` and the `src/routes/runs.py` router unmounted (or admin-gated, see open point)
+- [x] F12: scene and music uploads abort early past the size limit, as the MP4 upload does
+- [x] Tests: one failure case per fix; `docs/SECURITY.md` statuses updated; `ENV.md` for any new variable
 ### Open points to settle in the story
 - Unmount `/legacy` outright or admin-gate it? CLAUDE.md names it as the legacy pipeline UI.
 - F7 and PROD: PROD is on v0.24.0, so the prod-key check takes effect only at release (CLAUDE.md already says to set a new `SETTINGS_ENCRYPTION_KEY` then). Confirm DEV has the key set before pushing, or DEV will not start.
 ### Files to read
 - `src/config.py`, `cf_platform/core/config.py`, `src/routes/auth.py`, `src/auth.py`, `src/main.py`, `src/routes/runs.py`, `cf_platform/interfaces/routes/workers.py`, `cf_platform/interfaces/routes/studio.py` (upload handlers), `entrypoint.sh`
+### Handover
+Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
 
 ## [HARD2-S3] Deploy safety
-**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** in-progress · **Points:** 2 · **Findings:** F11, F20
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 2 · **Findings:** F11, F20
 ### Goal
 A failed migration or a vulnerable dependency is visible instead of silent.
 ### Acceptance Criteria
-- [ ] F11: `/platform/health` reports migration status (applied version, any failure); a failed migration makes it non-OK; an advisory lock stops two instances migrating at once
-- [ ] A CD post-deploy check calls health and fails the workflow on a failed migration
-- [ ] F20: `pip-audit` runs in CI (failure policy stated in the story: block on high / known-exploited, warn otherwise); the container runs as a non-root user; the base image is pinned
-- [ ] Tests: migration-failure health response; `docs/TESTING.md` and RUNBOOK updated
+- [x] F11: `/platform/health` reports migration status (applied version, any failure); a failed migration makes it non-OK; an advisory lock stops two instances migrating at once
+- [x] A CD post-deploy check calls health and fails the workflow on a failed migration
+- [x] F20: `pip-audit` runs in CI (failure policy stated in the story: block on high / known-exploited, warn otherwise); the container runs as a non-root user; the base image is pinned
+- [x] Tests: migration-failure health response; `docs/TESTING.md` and RUNBOOK updated
 ### Files to read
 - `cf_platform/core/migrations.py`, `src/main.py:73-85`, `/platform/health` route, `Dockerfile`, `.github/workflows/ci.yml` and the deploy workflow, `requirements.txt`
+### Handover
+Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
 
 **EPIC 53 — Multi-language: Russian (new 2026-10-05, after P-AN1, before P15)** — see the section below.
 
