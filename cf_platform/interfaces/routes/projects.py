@@ -33,10 +33,10 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from cf_platform.core import limits
-from cf_platform.core.moderation import moderate_many
 from cf_platform.core.artifact_manager import ArtifactRepository, ArtifactStorage, read_artifact
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.integrations import resolve_defaults, resolve_run_values
+from cf_platform.core.moderation import moderate_many
 from cf_platform.core.project_assets import (
     ProjectAssetError,
     ProjectAssetNotFoundError,

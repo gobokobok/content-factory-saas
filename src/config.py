@@ -138,6 +138,8 @@ class Settings(BaseSettings):
     ALLOW_IN_MEMORY_STORE: bool = False
     # Origins besides the request's own that may send mutating requests (comma-separated).
     ALLOWED_ORIGINS: str = ""
+    # Where "Report a problem" mails (S9, D115). Empty hides the link.
+    ABUSE_CONTACT_EMAIL: str = ""
     # The version of the terms a first sign-in accepts (S9); bumping it asks again.
     TERMS_VERSION: str = "2026-10-14"
     # Encryption key for tenant-stored integration keys. Read here only so a prod

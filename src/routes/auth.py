@@ -267,6 +267,7 @@ async def me(request: Request, settings: Settings = Depends(get_settings)) -> di
         "view_as_basic": principal.view_as_basic,
         "terms_accepted": principal.terms_accepted,
         "terms_version": settings.TERMS_VERSION,
+        "abuse_contact": settings.ABUSE_CONTACT_EMAIL,
         "is_owner": principal.is_owner,
     }
 

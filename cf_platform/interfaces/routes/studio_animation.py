@@ -18,8 +18,8 @@ from pydantic import BaseModel
 
 from cf_platform.core import limits
 from cf_platform.core.artifact_manager import ArtifactStorage
-from cf_platform.core.moderation import moderate
 from cf_platform.core.config import PlatformSettings
+from cf_platform.core.moderation import moderate
 from cf_platform.core.run_visuals import load_run_visuals
 from cf_platform.interfaces.dependencies import get_artifact_storage, get_effective_platform_settings
 from cf_platform.interfaces.routes.studio import (

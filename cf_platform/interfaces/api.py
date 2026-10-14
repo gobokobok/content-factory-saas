@@ -27,6 +27,7 @@ from cf_platform.interfaces.dependencies import (  # noqa: F401
 )
 from cf_platform.interfaces.guards import enforce_scope
 from cf_platform.interfaces.routes import (
+    admin,
     blocks,
     creator,
     echo,
@@ -97,5 +98,6 @@ router.include_router(projects.router, dependencies=_SCOPED)
 router.include_router(tenant_settings.router, dependencies=_SUPER_ONLY)
 router.include_router(library.router, dependencies=_SUPER_ONLY)
 router.include_router(pipeline.router, dependencies=_SUPER_ONLY)
+router.include_router(admin.router, dependencies=_SUPER_ONLY)
 if os.environ.get("TELEGRAM_ROUTES_ENABLED", "").strip().lower() in {"1", "true", "yes"}:
     router.include_router(telegram_webhook.router)

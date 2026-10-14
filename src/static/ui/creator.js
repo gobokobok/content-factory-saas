@@ -157,6 +157,51 @@
   }
   async function logOut() { await fetch('/auth/logout', { method: 'POST' }); location.href = '/login'; }
 
+  // ── Account: who is signed in, Super's menu, View as Basic (P-AUTH S7, D118) ──
+
+  /** Paint the account area from /auth/me. The server enforces; this only shows what it allows. */
+  async function paintAccount() {
+    const r = await api('/auth/me');
+    if (!r.ok) return;
+    const me = r.data;
+    S.me = me;
+    if (me.email) { $('#who').textContent = me.email; $('#who').classList.remove('hidden'); }
+    const isSuper = me.account_type === 'super';
+    if (me.effective_type === 'super') await mountSuperMenu(); else $('#super-menu').classList.add('hidden');
+    $('#view-as').classList.toggle('hidden', !isSuper);
+    $('#view-as-label').textContent = me.view_as_basic ? 'Switch back to Super' : 'View as Basic';
+    document.querySelectorAll('.view-banner').forEach(b => b.remove());
+    if (me.view_as_basic) {
+      const bar = document.createElement('div');
+      bar.className = 'view-banner';
+      bar.innerHTML = 'Viewing as a Basic user. Nothing is charged to a Basic account. <button onclick="Creator.toggleViewAs()">Switch back</button>';
+      document.body.appendChild(bar);
+    }
+    if (me.abuse_contact) { const a = $('#report-abuse'); a.href = 'mailto:' + me.abuse_contact + '?subject=Content%20Factory%20problem'; a.classList.remove('hidden'); }
+  }
+  /** Load Super's menu script once and mount it; a Basic session never fetches it. */
+  async function mountSuperMenu() {
+    if (!window.SuperMenu) {
+      await new Promise(resolve => {
+        const el = document.createElement('script');
+        el.src = '/ui/super-menu.js';
+        el.onload = el.onerror = resolve;
+        document.head.appendChild(el);
+      });
+    }
+    if (window.SuperMenu) { S.studioLink = window.SuperMenu.mount($('#super-menu')); setStudioLink(); }
+  }
+  /** Point "Open in Studio" at the run on screen. */
+  function setStudioLink() {
+    if (S.studioLink && S.run) S.studioLink.href = `/studio#run/${encodeURIComponent(S.run.id)}/script`;
+  }
+  /** Flip this session between its own account type and Basic, then reload so every call is re-checked. */
+  async function toggleViewAs() {
+    const res = await api('/auth/view-as', { method: 'POST', body: { basic: !(S.me && S.me.view_as_basic) } });
+    if (!res.ok) { err('#runs-err', why(res)); return; }
+    location.reload();
+  }
+
   // ── Right panel ───────────────────────────────────────────────────────────
 
   function openRight(mode) { S.right = S.right === mode ? null : mode; paintRight(); }
@@ -290,6 +335,7 @@
     const ctx = await api(`/platform/studio/runs/${encodeURIComponent(id)}/context`);
     if (!ctx.ok) { show('runs'); await loadRuns(); err('#runs-err', ctx.status === 404 ? 'That video no longer exists.' : why(ctx)); return; }
     S.run = { id, name: ctx.data.name || ctx.data.idea_title || 'Untitled', language: ctx.data.language || 'en', format: ctx.data.format || '9:16', created: ctx.data.created_at };
+    setStudioLink();
     const [settings, script, voice, sb, manifest, video] = await Promise.all([
       api(`/runs/${encodeURIComponent(id)}/settings`), api(runUrl('/script')), api(runUrl('/voice')),
       api(runUrl('/storyboard')), api(runUrl('/manifest')), api(runUrl('/video')),
@@ -875,12 +921,13 @@
     const res = await api('/platform/creator/config');
     if (!res.ok) { err('#runs-err', `The page could not start: ${why(res)}`); return; }
     S.cfg = res.data;
+    paintAccount();
     window.addEventListener('hashchange', route);
     route();
   }
 
   window.Creator = {
-    toggleLeft, logOut, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
+    toggleLeft, logOut, toggleViewAs, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
     saveVoice, genVoice, toggleVo, askCreateSb, planAssets, toggleScene, patchScene, openSplit, confirmSplit, mergeScene,
     writePrompt, writePromptInModal, openModal, closeModal, toggleEntity, genSceneImage, uploadSceneImage, openEntry, closeEntry, saveEntry, deleteEntry,
     saveCaptions, onMusicPick, uploadMusic, renderVideo, downloadVideo, closeConfirm,

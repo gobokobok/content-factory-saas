@@ -19,8 +19,8 @@ from pydantic import BaseModel, Field
 
 from cf_platform.core import limits
 from cf_platform.core.artifact_manager import ArtifactStorage
-from cf_platform.core.moderation import moderate_many
 from cf_platform.core.config import PlatformSettings, get_platform_settings
+from cf_platform.core.moderation import moderate_many
 from cf_platform.core.projects import CREATOR_CONFIG_FLAG, Project, ProjectRepository, create_project
 from cf_platform.core.run_manager import RunRepository, create_run
 from cf_platform.core.run_visuals import settings_key

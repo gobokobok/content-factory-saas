@@ -24,6 +24,7 @@ import psycopg
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from cf_platform.core import limits
 from cf_platform.core.ai_images import (
     SpendCapReachedError,
     effective_spend_cap,
@@ -31,12 +32,11 @@ from cf_platform.core.ai_images import (
     read_spend,
     spend_summary,
 )
-from cf_platform.core import limits
-from cf_platform.core.moderation import moderate
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.image_provider import ImageGenerationError, build_image_provider
 from cf_platform.core.integrations import resolve_defaults
+from cf_platform.core.moderation import moderate
 from cf_platform.core.projects import ProjectRepository
 from cf_platform.core.run_manager import RunRepository
 from cf_platform.core.run_visuals import RunVisuals, load_run_visuals, save_run_spend_cap

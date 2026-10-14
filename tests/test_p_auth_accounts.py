@@ -16,7 +16,6 @@ from cf_platform.core.accounts import (
     InMemoryAccountStore,
     OAuthState,
     create_session,
-    ensure_owner_user,
     hash_token,
     parse_email_list,
     provision_google_user,
@@ -659,3 +658,84 @@ class TestTerms:
         r = world.client().post("/auth/login", json={"password": "correct-horse-battery"})
         c = world.client(r.cookies[AUTH_COOKIE_NAME])
         assert c.get("/platform/creator/config").status_code == 200
+
+
+# ── S9 / S7: owner administration, the Super menu ────────────────────────
+
+
+class TestAdmin:
+    def test_only_the_owner_reaches_admin_routes(self, world):
+        sup, _ = run(world.sign_in("boss@example.com", "sub-boss"))      # Super, own tenant
+        friend, _ = run(world.sign_in("friend@example.com", "sub-a"))    # Basic
+        owner, _ = run(world.sign_in("owner@example.com", "sub-owner"))  # owner tenant
+        assert world.client(friend).get("/platform/admin/users").status_code == 403
+        assert world.client(sup).get("/platform/admin/users").status_code == 403
+        assert world.client(owner).get("/platform/admin/users").status_code == 200
+
+    def test_disabling_an_account_ends_its_sessions_at_once(self, world):
+        friend, user = run(world.sign_in("friend@example.com", "sub-a"))
+        owner, _ = run(world.sign_in("owner@example.com", "sub-owner"))
+        assert world.client(friend).get("/platform/creator/config").status_code == 200
+        r = world.client(owner).post(f"/platform/admin/users/{user.user_id}/disable")
+        assert r.status_code == 200 and r.json()["disabled"] is True
+        assert world.client(friend).get("/platform/creator/config").status_code == 401
+        world.client(owner).post(f"/platform/admin/users/{user.user_id}/enable")
+        assert world.client(friend).get("/platform/creator/config").status_code == 200
+
+    def test_the_owner_account_cannot_be_disabled(self, world):
+        owner, _ = run(world.sign_in("owner@example.com", "sub-owner"))
+        assert world.client(owner).post("/platform/admin/users/operator/disable").status_code == 409
+
+    def test_the_owner_reads_the_prompt_log(self, world):
+        friend, user = run(world.sign_in("friend@example.com", "sub-a"))
+        owner, _ = run(world.sign_in("owner@example.com", "sub-owner"))
+        world.client(friend).post("/platform/creator/runs", json={"title": "Rent versus buy"})
+        rows = world.client(owner).get(f"/platform/admin/prompt-log?tenant_id={user.tenant_id}").json()
+        assert rows and rows[0]["tenant_id"] == user.tenant_id and rows[0]["kind"] == "creator_run"
+
+
+class TestSuperMenuPage:
+    def test_a_basic_page_does_not_contain_supers_menu_and_the_script_is_mounted_on_demand(self):
+        from pathlib import Path
+
+        html = Path("src/static/creator.html").read_text()
+        js = Path("src/static/ui/creator.js").read_text()
+        menu = Path("src/static/ui/super-menu.js").read_text()
+        for needle in ("Integrations", "Defaults", "Libraries", "/settings?tab="):
+            assert needle not in html and needle not in js
+            assert needle in menu
+        assert "/ui/super-menu.js" in js and "me.effective_type === 'super'" in js
+        assert "/auth/me" in js and "/auth/view-as" in js
+
+    def test_the_menu_script_is_served(self, world):
+        cookie, _ = run(world.sign_in("boss@example.com", "sub-boss"))
+        r = world.client(cookie).get("/ui/super-menu.js")
+        assert r.status_code == 200 and "SuperMenu" in r.text
+
+
+class TestBasicCanUseTheCreator:
+    """Every call creator.js makes must be open to a Basic session (a 403 here breaks the product)."""
+
+    def test_every_creator_call_is_allowed_for_basic(self, world):
+        cookie, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        c = world.client(cookie)
+        rid = make_run(world, cookie)
+        base = f"/platform/studio/runs/{rid}"
+        calls = [
+            ("GET", "/platform/creator/config"), ("GET", f"{base}/context"), ("GET", f"/runs/{rid}/settings"),
+            ("POST", f"/runs/{rid}/settings"), ("GET", f"{base}/script"), ("GET", f"{base}/voice"),
+            ("GET", f"{base}/voice/status"), ("GET", f"{base}/storyboard"), ("GET", f"{base}/storyboard/status"),
+            ("GET", f"{base}/manifest"), ("GET", f"{base}/video"), ("GET", f"{base}/images/status"),
+            ("GET", f"{base}/images/plan"), ("GET", f"{base}/render/status"), ("GET", f"{base}/ai-spend"),
+            ("POST", f"{base}/images/generate"), ("POST", f"{base}/scenes/1/generate"),
+            ("PATCH", f"{base}/storyboard/scenes/1"), ("POST", f"{base}/storyboard/scenes/1/write-prompt"),
+            ("POST", f"{base}/storyboard/scenes/1/split"), ("POST", f"{base}/storyboard/scenes/1/merge"),
+            ("PUT", f"{base}/storyboard/boundaries"), ("POST", f"{base}/storyboard/continuity"),
+            ("PATCH", f"{base}/storyboard/continuity/e1"), ("DELETE", f"{base}/storyboard/continuity/e1"),
+            ("POST", "/platform/workers/voice"), ("POST", "/platform/workers/storyboard"),
+            ("POST", "/platform/workers/render"), ("GET", "/auth/me"),
+        ]
+        for method, path in calls:
+            r = c.request(method, path, json={"run_id": rid} if method != "GET" else None)
+            assert r.status_code != 403, (method, path, r.text)
+            assert r.status_code != 401, (method, path)

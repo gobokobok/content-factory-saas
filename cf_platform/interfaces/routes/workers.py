@@ -14,11 +14,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from cf_platform.core import limits
-from cf_platform.core.moderation import moderate
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.cast import resolve_cast, resolve_listed_cast
 from cf_platform.core.config import PlatformSettings
 from cf_platform.core.llm import LLMError, build_llm_client
+from cf_platform.core.moderation import moderate
 from cf_platform.core.project_assets import list_assets
 from cf_platform.core.projects import ProjectRepository
 from cf_platform.core.providers import resolve_block

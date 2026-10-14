@@ -77,6 +77,15 @@ class PostgresAccountStore:
         )
         return user
 
+    async def list_users(self) -> list[User]:
+        """Every user, newest first."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(f"SELECT {_USER_COLUMNS} FROM users ORDER BY created_at DESC")
+                rows = await cur.fetchall()
+        return [_user_from_row(row) for row in rows]
+
     async def save_session(self, session: SessionRecord) -> SessionRecord:
         """Insert or overwrite the session keyed on token_hash."""
         await self._execute(

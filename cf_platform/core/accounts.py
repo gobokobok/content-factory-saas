@@ -187,6 +187,10 @@ class AccountStore(Protocol):
         """Insert or overwrite the user."""
         ...
 
+    async def list_users(self) -> list[User]:
+        """Every user, newest first (the owner's admin view)."""
+        ...
+
     async def save_session(self, session: SessionRecord) -> SessionRecord:
         """Insert or overwrite the session."""
         ...
@@ -229,6 +233,10 @@ class InMemoryAccountStore:
         """Insert or overwrite the user."""
         self._users[user.user_id] = user
         return user
+
+    async def list_users(self) -> list[User]:
+        """Every user, newest first."""
+        return sorted(self._users.values(), key=lambda u: u.created_at, reverse=True)
 
     async def save_session(self, session: SessionRecord) -> SessionRecord:
         """Insert or overwrite the session."""

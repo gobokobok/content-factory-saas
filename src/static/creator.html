@@ -152,6 +152,9 @@ textarea{resize:vertical;line-height:1.65;min-height:260px;font-size:13.5px;font
 .help h3{font-size:15px;margin:6px 0 14px}
 
 .nav-btn.sm{padding:5px 8px}
+.menu-label{font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:2px 8px 6px}
+.view-banner{position:fixed;top:0;left:0;right:0;z-index:50;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;text-align:center;padding:6px 12px}
+.view-banner button{text-decoration:underline;font-weight:700;color:inherit;margin-left:8px}
 .sub{margin:2px 0 6px 17px;padding-left:9px;border-left:1px solid var(--border)}
 .proj{padding:7px 8px;font-size:13px;font-weight:600;color:var(--text)}
 .crumb{height:20px;line-height:20px;font-size:13px;color:var(--faint);margin-bottom:8px;white-space:nowrap}
@@ -328,7 +331,15 @@ a.btn{text-decoration:none}
     <a class="nav-btn" id="nav-runs" href="#runs" style="text-decoration:none">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>My videos</a>
   </div>
+  <!-- Super's menu (P-AUTH S7, D118) is not in this page: /ui/super-menu.js adds it, and
+       creator.js loads that only when the server says this session is Super. -->
+  <div class="p-body hidden" id="super-menu" style="border-top:1px solid var(--border);padding-top:10px"></div>
   <div style="padding:10px 18px 14px;border-top:1px solid var(--border)">
+    <div class="who hidden" id="who" style="font-size:12px;color:var(--muted);padding:0 8px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <button class="nav-btn hidden" id="view-as" onclick="Creator.toggleViewAs()" title="Switch between your own account type and what a Basic user sees">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="view-as-label">View as Basic</span></button>
+    <a class="nav-btn sm hidden" id="report-abuse" href="#" style="text-decoration:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4m0 0h11l-2 4 2 4H5"/></svg>Report a problem</a>
     <button class="nav-btn" onclick="Creator.logOut()">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9"/></svg>Log out</button>
   </div>
