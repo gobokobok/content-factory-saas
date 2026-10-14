@@ -23,6 +23,7 @@ _BASIC_ROUTES: tuple[tuple[frozenset[str] | None, re.Pattern[str]], ...] = tuple
         # Pages and shared assets.
         (frozenset({"GET"}), r"/create"),
         (frozenset({"GET"}), r"/login"),
+        (frozenset({"GET"}), r"/terms"),
         (frozenset({"GET"}), r"/health"),
         (frozenset({"GET"}), r"/ui/.+"),
         # Session routes (view-as and the like check Super themselves).
