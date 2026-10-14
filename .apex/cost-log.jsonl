@@ -23,3 +23,4 @@
 {"story":"P-AUTH-S0..S9","sprint":"P-AUTH","session_id":"0f09abe6-2528-4c10-a4d6-5bdf5bdae591","started_at":"2026-10-14T12:00:08Z"}
 {"story":"P-AUTH-S0..S9","sprint":"P-AUTH","session_id":"0f09abe6-2528-4c10-a4d6-5bdf5bdae591","started_at":"2026-10-14T12:00:08Z","ended_at":"2026-10-14T13:19:51Z","close_commit":"c5a7dbe00fda2358697293aaf99d0a36b3756e98"}
 {"story":"P-CORE-S1..S10","sprint":"P-CORE","session_id":"0f09abe6-2528-4c10-a4d6-5bdf5bdae591","started_at":"2026-10-14T13:34:01Z"}
+{"story":"P-CORE-S1..S10","sprint":"P-CORE","session_id":"0f09abe6-2528-4c10-a4d6-5bdf5bdae591","started_at":"2026-10-14T13:34:01Z","ended_at":"2026-10-14T13:50:41Z","close_commit":"13115399deed09b1050261595c72a0c157cab160","note":"built; DEV smoke deferred to P-CORE-S11"}
