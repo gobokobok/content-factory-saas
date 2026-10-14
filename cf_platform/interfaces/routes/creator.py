@@ -37,8 +37,9 @@ router = APIRouter()
 # Marks the Creator's project in its config, so a renamed project is still found.
 CREATOR_CONFIG_FLAG = "creator"
 _RUN_NAME_MAX_CHARS = 120
-# The voices a run may choose, in the order the page lists them.
-CREATOR_VOICES = (("female", "Female"), ("male", "Male"))
+# The voices a run may choose, in the order the page lists them; the first is the default.
+# Male first: it is the deployment's own voice (GEMINI_TTS_VOICE) unless one is set.
+CREATOR_VOICES = (("male", "Male"), ("female", "Female"))
 
 
 class CreatorRunRequest(BaseModel):

@@ -56,8 +56,9 @@ class PlatformSettings(BaseSettings):
     GEMINI_API_KEY: str = ""
     GEMINI_TTS_VOICE: str = ""
     # D117 — the two narrator voices a run may choose in the Creator pages (Gemini TTS
-    # voice names). A run with no choice uses GEMINI_TTS_VOICE.
-    CREATOR_VOICE_MALE: str = "Charon"
+    # voice names). Empty male means GEMINI_TTS_VOICE, the voice the channel already uses;
+    # a run with no choice uses GEMINI_TTS_VOICE too.
+    CREATOR_VOICE_MALE: str = ""
     CREATOR_VOICE_FEMALE: str = "Kore"
     # D117 — the fixed project the Creator pages keep their runs in until every user
     # has a hidden personal project (P-AUTH).

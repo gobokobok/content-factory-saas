@@ -123,7 +123,8 @@ class TestCreatorRoutes:
                 self._clear()
             assert first["project_id"] == second["project_id"] and first["project_name"] == "My videos"
             assert first["script_max_words"] == 450 and first["max_characters"] == 6
-            assert [v["id"] for v in first["voices"]] == ["female", "male"]
+            # Male first: the default, and the channel's own voice unless one is set.
+            assert [v["id"] for v in first["voices"]] == ["male", "female"]
             flagged = [p for p in env.client.get("/platform/projects").json() if p["config"].get("creator")]
             assert len(flagged) == 1
 
@@ -282,6 +283,13 @@ class TestRunVoice:
     def test_no_or_an_unknown_choice_is_the_deployment_voice(self, choice):
         assert resolve_tts_voice(choice, self.SETTINGS) == "Zephyr"
 
+    def test_the_male_default_is_the_deployments_own_voice(self):
+        from cf_platform.core.config import PlatformSettings
+
+        assert PlatformSettings.model_fields["CREATOR_VOICE_MALE"].default == ""
+        own = SimpleNamespace(GEMINI_TTS_VOICE="Sadachbia", CREATOR_VOICE_MALE="", CREATOR_VOICE_FEMALE="Kore")
+        assert resolve_tts_voice("male", own) == "Sadachbia" and resolve_tts_voice("female", own) == "Kore"
+
     def test_a_choice_whose_voice_is_not_configured_falls_back(self):
         bare = SimpleNamespace(GEMINI_TTS_VOICE="Zephyr", CREATOR_VOICE_MALE=" ")
         assert resolve_tts_voice("male", bare) == "Zephyr"
@@ -370,3 +378,38 @@ class TestSfxSwitch:
             with patch.object(rw, "_copy_all_scene_sfx_to_run", spy), pytest.raises(RuntimeError, match="stop here"):
                 await worker(state)
             assert seen["sfx"] == expected
+
+
+# ── Smoke fix: a job that never started is "none", not "running" ─────────
+
+
+class TestJobStatusNone:
+    @pytest.mark.parametrize("kind", ["voice", "storyboard", "render"])
+    def test_a_run_that_never_started_the_job_says_none(self, kind):
+        with p13_env() as env:
+            status = env.client.get(f"/platform/studio/runs/{RUN_ID}/{kind}/status").json()
+        assert status == {"status": "none"}
+
+    @pytest.mark.parametrize("kind", ["voice", "storyboard", "render"])
+    def test_a_started_job_still_says_running(self, kind):
+        with p13_env() as env:
+            asyncio.run(env.storage.put_json(f"runs/{RUN_ID}/{kind}/current_job.json", {"job_id": "j", "status": "running"}))
+            status = env.client.get(f"/platform/studio/runs/{RUN_ID}/{kind}/status").json()
+        assert status == {"status": "running"}
+
+    def test_storage_that_cannot_list_counts_as_started(self):
+        from cf_platform.interfaces.routes.studio import _job_started
+
+        class Broken:
+            async def list_keys(self, prefix):
+                raise RuntimeError("R2 blip")
+
+        assert asyncio.run(_job_started(Broken(), "runs/x/voice/current_job.json")) is True
+
+    def test_the_page_resumes_only_a_running_job_and_gives_up_on_one_that_never_appears(self):
+        from pathlib import Path
+
+        js = (Path(__file__).resolve().parents[2] / "src" / "static" / "ui" / "creator.js").read_text(encoding="utf-8")
+        resume = js[js.index("async function resumeJobs"):js.index("const draftKey")]
+        assert resume.count("=== 'running'") == 4
+        assert "st.status === 'none' && ++missing >= 5" in js
