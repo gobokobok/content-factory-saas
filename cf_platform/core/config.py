@@ -37,6 +37,9 @@ class PlatformSettings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore",
+        # An empty Railway variable ("SIGNUP_OPEN=") means "not set", not a parse error that
+        # stops the app from starting (P-AUTH DEV crash, 2026-10-14).
+        env_ignore_empty=True,
     )
 
     R2_ACCOUNT_ID: str

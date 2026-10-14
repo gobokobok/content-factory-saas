@@ -739,3 +739,15 @@ class TestBasicCanUseTheCreator:
             r = c.request(method, path, json={"run_id": rid} if method != "GET" else None)
             assert r.status_code != 403, (method, path, r.text)
             assert r.status_code != 401, (method, path)
+
+
+class TestEmptyVariables:
+    def test_an_empty_variable_means_not_set(self, monkeypatch):
+        """DEV crashed at start-up on SIGNUP_OPEN="" (an empty Railway variable)."""
+        from src.config import Settings
+
+        monkeypatch.setenv("SIGNUP_OPEN", "")
+        monkeypatch.setenv("SESSION_TTL_DAYS", "")
+        monkeypatch.setenv("ALLOW_IN_MEMORY_STORE", "")
+        settings = Settings()
+        assert settings.SIGNUP_OPEN is False and settings.SESSION_TTL_DAYS == 14
