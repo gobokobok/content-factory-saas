@@ -116,6 +116,7 @@ _None._
 ## Scope changes
 
 - 2026-10-14 (operator): P-LITE S1..S5 pulled ahead of P-AUTH and reshaped by the reviewed mockup (D117). D114's separate Images step is folded into Storyboard.
+- 2026-10-14 (operator, DEV smoke): added to LITE-S4 — "Write with the director": the Visual Director writes one scene's image prompt (for a scene made by splitting), with its own rules, without re-cutting the storyboard. One model call per click.
 
 ---
 

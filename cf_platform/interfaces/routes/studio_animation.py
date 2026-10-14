@@ -3,6 +3,8 @@
     POST   /studio/runs/{run_id}/storyboard/continuity               add an entry
     PATCH  /studio/runs/{run_id}/storyboard/continuity/{entry_id}    edit an entry
     DELETE /studio/runs/{run_id}/storyboard/continuity/{entry_id}    remove an unused entry
+    POST   /studio/runs/{run_id}/storyboard/scenes/{scene_id}/write-prompt
+                                                                     the Visual Director writes one scene's prompt
 
 Thin wrappers over cf_platform/workers/continuity_edit.py. Every edit writes a
 new storyboard version under the run's lock, so it cannot collide with images
@@ -15,7 +17,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from cf_platform.core.artifact_manager import ArtifactStorage
-from cf_platform.interfaces.dependencies import get_artifact_storage
+from cf_platform.core.config import PlatformSettings
+from cf_platform.core.run_visuals import load_run_visuals
+from cf_platform.interfaces.dependencies import get_artifact_storage, get_effective_platform_settings
 from cf_platform.interfaces.routes.studio import (
     _load_manifest,
     _load_storyboard,
@@ -30,8 +34,9 @@ from cf_platform.workers.continuity_edit import (
     edit_entry,
     remove_entry,
 )
-from cf_platform.workers.scene_images import run_lock, stale_scene_ids
-from src.models import ANIMATION_MODE
+from cf_platform.workers.scene_images import run_lock, scene_has_image, stale_scene_ids
+from cf_platform.workers.scene_prompt_writer import ScenePrompt, ScenePromptError, write_scene_prompt
+from src.models import ANIMATION_MODE, SCENE_FLAG_IMAGE_STALE, SceneShot
 
 router = APIRouter()
 
@@ -125,3 +130,65 @@ async def studio_remove_continuity_entry(
         except ContinuityEditError as exc:
             raise _http_error(exc) from exc
         return await _respond(storage, run_id, artifact_body, storyboard)
+
+
+def apply_scene_prompt(storyboard, scene_id: str, written: ScenePrompt, manifest):
+    """The storyboard with one scene's prompt, entities, shot and concept replaced.
+
+    The scene's flags are recomputed: it no longer needs a prompt, and an image it
+    already had is out of date. Returns None when the scene is gone (merged or split
+    while the director was writing).
+    """
+    from cf_platform.workers.animation_storyboard_worker import animation_scene_flags
+
+    scenes, found = [], False
+    for scene in storyboard.scenes:
+        if str(scene.scene) != scene_id:
+            scenes.append(scene)
+            continue
+        found = True
+        flags = animation_scene_flags(scene.duration_s, written.ai_prompt, scene.flags)
+        if scene_has_image(scene, manifest) and SCENE_FLAG_IMAGE_STALE not in flags:
+            flags.append(SCENE_FLAG_IMAGE_STALE)
+        update = {"ai_prompt": written.ai_prompt, "entities": written.entities, "flags": flags}
+        if written.visual_concept:
+            update["visual_concept"] = written.visual_concept
+        if written.shot_size or written.shot_angle:
+            update["shot"] = SceneShot(size=written.shot_size, angle=written.shot_angle)
+        scenes.append(scene.model_copy(update=update))
+    return storyboard.model_copy(update={"scenes": scenes}) if found else None
+
+
+@router.post("/studio/runs/{run_id}/storyboard/scenes/{scene_id}/write-prompt")
+async def studio_write_scene_prompt(
+    run_id: str,
+    scene_id: str,
+    storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
+) -> dict:
+    """Ask the Visual Director for one scene's image prompt, with its usual rules, and save it.
+
+    For a scene made by splitting another (it has no prompt), or one whose prompt the
+    user wants rewritten, without re-cutting the whole storyboard. One model call; the
+    storyboard is read again under the run's lock before it is written, so an edit made
+    while the director was writing is kept. 404 unknown scene, 409 not an Animation
+    storyboard or the scene was merged meanwhile, 502 when no usable prompt came back.
+    """
+    _, storyboard = await _load_animation_storyboard(storage, run_id)
+    if not any(str(s.scene) == scene_id for s in storyboard.scenes):
+        raise HTTPException(status_code=404, detail=f"Scene {scene_id} is not in the storyboard.")
+    visuals = await load_run_visuals(storage, run_id)
+    format_track = "landscape" if visuals.aspect_ratio == "16:9" else "portrait"
+    try:
+        written = await write_scene_prompt(
+            storyboard, scene_id, settings.ANTHROPIC_API_KEY,
+            master_style=visuals.master_style or "", format_track=format_track,
+        )
+    except ScenePromptError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    async with run_lock(run_id):
+        artifact_body, storyboard = await _load_animation_storyboard(storage, run_id)
+        updated = apply_scene_prompt(storyboard, scene_id, written, await _load_manifest(storage, run_id))
+        if updated is None:
+            raise HTTPException(status_code=409, detail="The scene changed while the prompt was written. Try again.")
+        return await _respond(storage, run_id, artifact_body, updated, ai_prompt=written.ai_prompt)

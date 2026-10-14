@@ -30,7 +30,7 @@
       'Generating again replaces the voiceover. A storyboard made for the old one has to be created again.']],
     storyboard: ['Storyboard', ['Create the storyboard, check each scene, then create the images.',
       'Click a scene to change its image prompt, motion or on-screen text. Click the pencil to change its image.',
-      'Click a word to split the scene there. "Merge with next" joins two scenes.',
+      'Click a word to split the scene there. "Merge with next" joins two scenes. A new scene has no image prompt: open it and click "Write with the director".',
       'Creating images costs money. You see the estimate before anything is made.']],
     render: ['Render', ['Choose captions and background music, then render the video.', 'When it is done you can play it here and download it.']],
   };
@@ -495,7 +495,8 @@
           </div>
         </div>
         ${open ? `<div class="sc-detail" style="display:block"><div class="row3">
-          <label class="field wide"><span class="lbl">Image prompt</span><textarea rows="2" onchange="Creator.patchScene('${esc(id)}',{ai_prompt:this.value})">${esc(s.ai_prompt || '')}</textarea></label>
+          <div class="field wide"><span class="lbl">Image prompt</span><textarea rows="2" onchange="Creator.patchScene('${esc(id)}',{ai_prompt:this.value})">${esc(s.ai_prompt || '')}</textarea>
+            <div class="m-line" style="margin-top:8px"><button class="btn sm" onclick="Creator.writePrompt('${esc(id)}', this)"${S.busy.prompt ? ' disabled' : ''}>${S.busy.prompt === id ? 'Writing…' : s.ai_prompt ? 'Rewrite with the director' : 'Write with the director'}</button></div></div>
           <label class="field"><span class="lbl">Motion effect</span><select onchange="Creator.patchScene('${esc(id)}',{motion_effect:this.value})">${MOTIONS.map(m => `<option value="${m[0]}"${m[0] === s.motion_effect ? ' selected' : ''}>${m[1]}</option>`).join('')}${s.motion_effect && !motion ? `<option value="${esc(s.motion_effect)}" selected>${esc(s.motion_effect)}</option>` : ''}</select></label>
           <label class="field"><span class="lbl">On-screen text</span><input type="text" maxlength="120" value="${esc(s.on_screen_text || '')}" placeholder="None" onchange="Creator.patchScene('${esc(id)}',this.value.trim()?{on_screen_text:this.value.trim()}:{clear_on_screen_text:true})"></label>
         </div></div>` : ''}
@@ -509,6 +510,31 @@
     if (!res.ok) { err('#err-sb', `That change was not saved: ${why(res)}`); return false; }
     await reloadStoryboard();
     return true;
+  }
+
+  /** The Visual Director writes this scene's image prompt with its usual rules (one model call). */
+  async function writePrompt(id, btn) {
+    if (S.busy.prompt) return;
+    err('#err-sb', '');
+    S.busy.prompt = id;
+    if (btn) { btn.disabled = true; btn.textContent = 'Writing…'; }
+    const res = await api(runUrl(`/storyboard/scenes/${encodeURIComponent(id)}/write-prompt`), { method: 'POST' });
+    S.busy.prompt = null;
+    if (!res.ok) { err('#err-sb', `The prompt was not written: ${why(res)}`); paintStoryboard(); return null; }
+    S.sb = res.data;
+    await refreshManifest();
+    paintStoryboard();
+    return res.data.ai_prompt || '';
+  }
+  async function writePromptInModal() {
+    const btn = $('#m-write'), msg = $('#m-msg');
+    btn.disabled = true; btn.textContent = 'Writing…'; msg.textContent = '';
+    const prompt = await writePrompt(S.modalScene);
+    btn.disabled = false; btn.textContent = 'Write with the director';
+    if (prompt == null) { msg.textContent = 'The prompt was not written. See the message above the scenes.'; return; }
+    $('#m-ai').value = prompt;
+    paintModalEntities();
+    msg.textContent = 'Written. Click Generate to make the image.';
   }
 
   function openSplit(event, id, atWord) {
@@ -855,7 +881,7 @@
   window.Creator = {
     toggleLeft, logOut, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
     saveVoice, genVoice, toggleVo, askCreateSb, planAssets, toggleScene, patchScene, openSplit, confirmSplit, mergeScene,
-    openModal, closeModal, toggleEntity, genSceneImage, uploadSceneImage, openEntry, closeEntry, saveEntry, deleteEntry,
+    writePrompt, writePromptInModal, openModal, closeModal, toggleEntity, genSceneImage, uploadSceneImage, openEntry, closeEntry, saveEntry, deleteEntry,
     saveCaptions, onMusicPick, uploadMusic, renderVideo, downloadVideo, closeConfirm,
   };
   start();
