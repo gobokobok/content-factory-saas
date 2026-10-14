@@ -413,3 +413,16 @@ class TestJobStatusNone:
         resume = js[js.index("async function resumeJobs"):js.index("const draftKey")]
         assert resume.count("=== 'running'") == 4
         assert "st.status === 'none' && ++missing >= 5" in js
+
+
+class TestVideoOnlyWhenRendered:
+    def test_a_run_without_final_mp4_has_no_video(self):
+        with p13_env() as env:
+            r = env.client.get(f"/platform/studio/runs/{RUN_ID}/video")
+        assert r.status_code == 404
+
+    def test_a_rendered_run_returns_its_url(self):
+        with p13_env() as env:
+            asyncio.run(env.storage.put_bytes(f"runs/{RUN_ID}/output/final.mp4", b"MP4", "video/mp4"))
+            r = env.client.get(f"/platform/studio/runs/{RUN_ID}/video")
+        assert r.status_code == 200 and r.json()["video_url"] and r.json()["source"] == "ffmpeg"

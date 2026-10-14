@@ -771,9 +771,10 @@
     else { pv.innerHTML = 'Preview'; pv.dataset.url = ''; }
     const length = S.video && S.video.duration_s ? clock(S.video.duration_s) : S.voice && S.voice.total_duration_s ? clock(S.voice.total_duration_s) : '';
     $('#render-meta').textContent = S.video ? `Rendered · ${S.run.format}${length ? ' · ' + length : ''}` : ready ? `${S.run.format}${length ? ' · ≈ ' + length : ''}` : 'Create the images on the Storyboard step first.';
-    $('#render-foot').innerHTML = S.video
-      ? `<button class="btn accent" onclick="Creator.downloadVideo(this)">Download video</button><button class="btn quiet" id="render-btn" onclick="Creator.renderVideo()"${busy || !ready ? ' disabled' : ''}>${busy ? 'Rendering…' : 'Re-render video'}</button>`
-      : `<button class="btn accent" id="render-btn" onclick="Creator.renderVideo()"${busy || !ready ? ' disabled' : ''}>${busy ? 'Rendering…' : 'Render video'}</button>`;
+    // Render first and always blue (it becomes Re-render once a video exists); Download beside it, outlined.
+    const label = busy ? 'Rendering…' : S.video ? 'Re-render video' : 'Render video';
+    $('#render-foot').innerHTML = `<button class="btn accent" id="render-btn" onclick="Creator.renderVideo()"${busy || !ready ? ' disabled' : ''}>${label}</button>`
+      + (S.video ? '<button class="btn outline" onclick="Creator.downloadVideo(this)">Download video</button>' : '');
   }
   /** Download the rendered video through a blob: `<a download>` is ignored for a presigned (cross-origin) URL. */
   async function downloadVideo(btn) {

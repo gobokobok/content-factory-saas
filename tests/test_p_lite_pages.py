@@ -142,6 +142,12 @@ class TestTheRun:
         download = js[js.index("async function downloadVideo"):js.index("async function saveCaptions")]
         assert "URL.createObjectURL" in download and ".blob()" in download and 'download="' not in js
 
+    def test_render_is_first_and_blue_and_download_is_outlined_beside_it(self, js, page):
+        foot = js[js.index("const label = busy"):js.index("async function downloadVideo")]
+        assert foot.index('class="btn accent" id="render-btn"') < foot.index('class="btn outline"')
+        assert "'Re-render video' : 'Render video'" in foot
+        assert ".btn.outline{" in page
+
     def test_format_look_and_language_are_fixed(self, page):
         settings = page[page.index('id="tab-settings"'):page.index('id="tab-help"')]
         assert "were chosen when the video was created" in settings

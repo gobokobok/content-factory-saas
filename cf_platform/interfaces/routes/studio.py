@@ -549,15 +549,21 @@ async def studio_get_video_url(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
-    """Return a 24-hour presigned URL for this run's final.mp4."""
+    """Return a 24-hour presigned URL for this run's final.mp4; 404 when the run has no video.
+
+    A presigned URL can be made for a key that does not exist, so the file is checked
+    first (P-LITE smoke, 2026-10-14: a never-rendered run read as rendered).
+    """
     from cf_platform.core.final_video import final_video_state
 
     video_key = f"runs/{run_id}/output/final.mp4"
+    state = await final_video_state(storage, run_id)
+    if not state["exists"]:
+        raise HTTPException(status_code=404, detail="This run has no rendered video yet.")
     try:
         url = await storage.generate_presigned_url(video_key, expires_in=86400)
     except Exception as exc:
         raise HTTPException(status_code=404, detail=f"Video not found for this run: {exc}")
-    state = await final_video_state(storage, run_id)
     return {"video_url": url, "video_key": video_key, "source": state["source"], "source_at": state["at"]}
 
 
