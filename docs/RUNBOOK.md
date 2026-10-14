@@ -97,6 +97,18 @@ Purpose: prove a backup restores and the app can read it, **without touching DEV
 ---
 
 
+## Prod check — 2026-10-14 (Sprint review: P-HARD1, P-HARD2, P-LITE)
+**Range:** the live deployment's log, 2026-10-13 10:37 UTC → 2026-10-14 11:06 UTC (947 lines, 10 container starts; every start logged `cf_platform migrations: ok`; PROD still v0.24.0). Three runs (`cc4d2c5c`, `7d79732d`, `c75923bc`): 3 voice, 3 storyboard, 4 render, 1 metadata. All four renders uploaded a final.mp4; all three voice jobs completed.
+
+**Errors:** no 5xx, no tracebacks, zero `key=` matches. 4× 422 on run `7d79732d` (split of scenes 6 and 7, one `PUT …/boundaries`) — the operator hit the word-matching refusals; not a crash. 3× 401 on `/`, `/platform/health`, `/platform/version` from unauthenticated callers (an uptime probe or scanner; PROD has no post-deploy check yet — `PROD_URL` is unset). 46× 404: 23 `manifest` before the step ran, 7 `favicon.ico`, rest step reads before the step ran.
+**Degraded:** 2 storyboard `coverage check failed` warnings (number written as digits vs words: "720000 discs" for "seven hundred twenty thousand dollars"; "rate" for "rig") — the storyboard was produced anyway. Same family as 2026-10-03 and 2026-10-13: the voice recording transcribes a number or a word differently from the script.
+**Silent:** none found. The 2026-10-10 empty-audio path is fixed in HARD1-S2 but that code is not on PROD, so it can still happen there.
+**Could not look:** trace-event FK failures (they were visible last time; none logged this window, no scene uploads in it). DEV was not read.
+**Usage:** the operator uses PROD for real content (3 runs / 4 renders in 24 h) while DEV carries every feature since v0.24.0, including the security fixes of P-HARD1/P-HARD2 (F5, F7, F9 …) that PROD does not have.
+**Next check due:** before `/release`.
+
+---
+
 ## Prod check — 2026-10-13 (Sprint review: P14b, P-UX3, P-AN1, P-UX4, P-PROJ1, P-INT1)
 **Range:** the live deployment's log, 2026-10-07 18:01 UTC → 2026-10-11 15:39 UTC (839 lines, 22 container starts, PROD still v0.24.0). First check with real traffic since 2026-10-03: four runs (`09ec9c83`, `6fe35dab`, `b285c66c`, `597e4d62`), 5 voice, 3 storyboard, 2 acquisition, 2 render, 2 metadata, 5 scene uploads, 2 re-acquires. Both renders completed (final.mp4 uploaded).
 

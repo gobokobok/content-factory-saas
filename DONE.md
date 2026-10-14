@@ -1,7 +1,7 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last sprints (P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last sprints (P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
 
 ---
 
@@ -32,9 +32,8 @@ _This file holds the last sprints (P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus ev
 - **S2** start-up validators (`OPERATOR_PASSWORD` / `SESSION_SECRET_KEY` at least `AUTH_SECRET_MIN_LENGTH` = 12; prod refuses to start without `SETTINGS_ENCRYPTION_KEY`), `run_id` pattern (`_run_id.py`), Secure cookie, proxy-aware lockout, legacy routes off unless `LEGACY_ROUTES_ENABLED`, capped uploads (F7, F9, F18, F14, F3, F10, F12). D116.
 - **S3** migration advisory lock and status in `/platform/health`, a PROD post-deploy check in `cd.yml`, `pip-audit` warn-only in CI, non-root container on a pinned base image (F11, F20).
 - **Found at the P-LITE push:** DEV crashed on start because its `OPERATOR_PASSWORD` was 6 characters (the S2 validator, as D116 warned). The operator set a longer one on 2026-10-14; DEV has run since.
-**Smoke test:** DEFERRED — `/legacy` 404, `/platform/health` migration status, the RUNBOOK backup steps → cleared by AUTH-S0 in Sprint P-AUTH
-**Promoted to backlog:**
-- AUTH-S0 (P-AUTH): the deferred smoke above.
+**Smoke test:** PASSED — cleared by the operator at the 2026-10-14 sprint review ("closed"); no per-step detail was recorded. The restore drill (F1) is a separate open item in `docs/RUNBOOK.md`.
+**Promoted to backlog:** none. AUTH-S0 is now the `PROD_URL` check.
 
 ---
 

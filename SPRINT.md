@@ -4,7 +4,7 @@
 > - Studio is the only operator interface; Telegram is dormant (D093).
 > - Sprints **S14–S17** (video-UX polish) remain paused. The legacy Script→Video pipeline stays operable at `/legacy` (D047, D066).
 > - Full history — every closed sprint's story table and Definition of Done: **SPRINT_ARCHIVE.md**.
-> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P-UX3 complete** (2026-10-11). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Sprint P14b complete** (2026-10-07). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then **Multi-language: Russian** (EPIC 53), then P15 Research. **Current sprint:** P-HARD1 (planned 2026-10-13). P-UX3, P-AN1, P-UX4, P-PROJ1 and P-INT1 are closed.
+> - **Sprints P12 and P13 complete** (2026-10-03). **Sprint P-UX3 complete** (2026-10-11). **Sprint P13b complete** (2026-10-04). **Sprint P14 complete** (2026-10-05). **Sprint P14b complete** (2026-10-07). **Roadmap change 2026-10-05 (operator, at the P14 review):** two sprints go ahead of P15 — **P14b Uploaded voiceover**, then **P-UX3 UI/UX redesign (discovery and design)**, then the build sprint(s) for the new UI, then **Multi-language: Russian** (EPIC 53), then P15 Research. **Current sprint:** P-AUTH (planned 2026-10-14). P-UX3, P-AN1, P-UX4, P-PROJ1, P-INT1, P-HARD1, P-HARD2 and P-LITE are closed.
 
 ---
 
@@ -39,8 +39,8 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-AN1 | Animation mode: AI-image videos from a Visual Director storyboard (EPIC 55) | 26 | **done** 2026-10-11 | One sub-minute run in 9:16 and one in 16:9, script to rendered video, generated images in one master style |
 | P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Create a run from the minimal modal and walk all five steps with Next only |
 | P-HARD1 | Audit and hardening: first `/audit`, loud voice failure, word-matching regression suite, bulk-job guard, cost-log backfill | ~11 | **done** 2026-10-13 | Read `docs/SECURITY.md`; a failed voice says so and offers Retry |
-| P-HARD2 | Backups and restore drill, the audit's small fixes, deploy safety (EPIC 60) | ~8 | **done** 2026-10-14 (smoke deferred to AUTH-S0) | Read the RUNBOOK backup section; `/legacy` gone; a failed migration shows in health |
-| P-AUTH | Google sign-in, accounts, Basic / Super with View as Basic, per-user isolation, server-side gating (EPIC 59, D114, D118); `/audit` first | ~18 | planned | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
+| P-HARD2 | Backups and restore drill, the audit's small fixes, deploy safety (EPIC 60) | ~8 | **done** 2026-10-14 (smoke cleared 2026-10-14 review) | Read the RUNBOOK backup section; `/legacy` gone; a failed migration shows in health |
+| P-AUTH | Google sign-in, accounts, Basic / Super with View as Basic, per-user isolation, server-side gating (EPIC 59, D114, D118); `/audit` first | ~18 | **planned** (approved 2026-10-14 review) | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
 | P-LITE | The Creator flow for regular users (EPIC 59, D114, D117); S1..S5 built before P-AUTH, S6 gating moves to P-AUTH | ~16 | **done** 2026-10-14 (smoke passed) | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
 | P-CORE | The full Studio in the new design, for Super (D118) | ~20–30 | planned (after P-AUTH; order against P-BILL-1 set at the P-AUTH close) | Every Studio feature reachable in the new design; the old Studio pages retire |
 | P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114) | ~13 | planned | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
@@ -61,8 +61,8 @@ Legacy Script→Video stays untouched and operable (D047).
 # Open items carried from closed sprints
 
 - **Smoke tests not fully cleared: 0** — P-INT1's OpenAI default / metadata path was marked done by the operator at the 2026-10-13 review; INT2-S1 (Integrations rework) is not in P-HARD1 (dropped by the operator 2026-10-13) and stays a candidate. INT1-S5 (the P-UX4 / P-PROJ1 / P-INT1 sweep) was run by the operator on DEV 2026-10-13. (P14b, P-UX3 and P-AN1 smoke passed on real runs; their unverified items are listed in DONE.md, not deferred. P-UX3: re-render a run with zooms to confirm D107.)
-- **PROD is six sprints behind DEV.** PROD runs v0.24.0 (`edc92ba`); P12, P13, P13b, P14, P14b and P-UX3 (including migrations `0002_projects_shortlist.sql`, `0003_tenant_settings.sql` and `0004_tenant_defaults.sql`, and the new `SETTINGS_ENCRYPTION_KEY`) are on DEV only. Operator action: `/release`, with `/prod-check` first.
-- **Security audit never run** — there is no `docs/SECURITY.md`. P12 added the tenant / project model and 2026-07-26 changed login handling. Operator action: `/audit`.
+- **PROD is many sprints behind DEV (on purpose, operator).** PROD runs v0.24.0 (`edc92ba`); P12 … P-LITE, migrations `0002`–`0004`, `SETTINGS_ENCRYPTION_KEY` and the P-HARD1/P-HARD2 start-up validators (`OPERATOR_PASSWORD` ≥ 12 characters) are on DEV only. Operator action at release: `/prod-check`, then `/release`, setting a new `SETTINGS_ENCRYPTION_KEY` and a 12+ character `OPERATOR_PASSWORD` first.
+- **Security audit run 2026-10-13** — `docs/SECURITY.md`, 23 findings. Open at P-AUTH: F2, F5, F6, F8, F13 (D115); F1 stays open until a restore drill is recorded in `docs/RUNBOOK.md`.
 - **PROD sleeps when idle** (Railway app sleeping, 6–10 minutes without requests). Harmless while the browser polls; it will stop a server-side Auto Advance run with the tab closed. To be settled in P17.
 - **API keys in DEV logs (found 2026-10-05, P14 smoke) — code fixed in P14b-S5 (2026-10-07), operator actions open:** (1) rotate the Pixabay key on DEV and revoke the old one — the key is still in Railway's DEV log history; do the same on PROD at release; (2) check the DEV log for `key=` (should now read `key=REDACTED`) and re-check PROD at the next `/prod-check`, before `/release`. Fold into `/audit` if that is run first.
 - **Google API audit application** (P12 lead-time task) — in progress; operator will submit. Needed for P16.
@@ -74,4 +74,28 @@ Legacy Script→Video stays untouched and operable (D047).
 
 # Current sprint
 
-_None started. Next: P-AUTH (Google sign-in, Basic / Super, per-user isolation, gating — D114, D118); `/start-story` writes its stories. A `/sprint-review` is due first (three sprints closed since the 2026-10-13 review)._
+## Sprint P-AUTH — Google sign-in, accounts, Basic / Super, isolation (EPIC 59, D114, D118)
+
+**Goal:** a stranger can sign in with Google and use only their own space; the owner can see the product as a Basic user.
+**Status:** planned 2026-10-14 (review of P-HARD1 .. P-LITE). **Before AUTH-S1:** run a scoped `/audit` on the auth and tenant design (the sprint touches auth and personal data).
+**Points:** ~18 (estimates are the review's; refine at `/start-story`)
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| AUTH-S0 | Set `PROD_URL`; see the post-deploy check pass on PROD (operator action, F11) | 1 | planned |
+| AUTH-S1 | Google OAuth sign-in and account creation; a session per user, legacy login kept for the owner | 3 | planned |
+| AUTH-S2 | User ↔ tenant model: one personal tenant and one hidden default project per user | 2 | planned |
+| AUTH-S3 | Thread the user through storage keys, repositories and routes (replace `PLATFORM_USER_ID`, ~80 uses) | 4 | planned |
+| AUTH-S4 | Account type Basic / Super (D118) as a field and a server-side check; View-as-Basic toggle | 2 | planned |
+| AUTH-S5 | Isolation tests: user A cannot read or write user B's run, project, artifact, library | 2 | planned |
+| AUTH-S6 | Server-side gating of everything Basic does not have (was LITE-S6); D115 moderation checks | 2 | planned |
+| AUTH-S7 | Super's left menu in the new design, linking to the old pages until P-CORE | 1 | planned |
+| AUDIT-F | Fixes for F2, F5, F6, F8, F13 from `docs/SECURITY.md` (inside S3 / S6 where they belong) | — | planned |
+
+**Execution order:** `/audit` → S0 → S1 → S2 → S3 → S4 → S6 → S5 → S7. Check the DEV Railway variables each story touches before coding (`/start-story` v0.8 step 6.5).
+**Human touchpoint:** a friend signs in with Google and lands in their own, empty space; the owner flips View-as between Basic and Super.
+**Not in this sprint:** P-CORE, P-BILL-1 (charging; the Creator shows estimates only), INT2-S1, the restore drill (F1).
+
+## Scope changes
+
+_None._

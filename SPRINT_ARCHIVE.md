@@ -1217,7 +1217,7 @@ _None._
 # Sprint P-HARD2 — Make PROD recoverable and close the audit's cheap findings (before P-AUTH)
 
 **Goal:** Make PROD recoverable and close the audit's cheap findings before P-AUTH lets strangers in (`docs/SECURITY.md` F1, F3, F7, F9–F12, F14, F18, F20).
-**Status:** done 2026-10-14 — built 2026-10-13 in one pass; smoke deferred to AUTH-S0.
+**Status:** done 2026-10-14 — built 2026-10-13 in one pass; smoke cleared by the operator at the 2026-10-14 review.
 **Points:** ~8
 
 | ID | Title | Points | Status |
