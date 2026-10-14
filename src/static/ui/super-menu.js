@@ -1,8 +1,7 @@
 /*
  * Super's left menu for the Creator pages (P-AUTH S7, P-CORE S1; D118).
  *
- * Loaded by creator.js only when /auth/me reports an effective Super account, so a Basic
- * user's page never contains it. Every entry is a screen of this same page (core.js);
+ * Loaded by creator.js for every session; a Basic one gets only the Libraries section. Every entry is a screen of this same page (core.js);
  * the server gates the calls those screens make, so hiding the menu is a convenience.
  */
 (function () {
@@ -14,14 +13,16 @@
     ['settings/integrations', '#settings/integrations', 'Integrations', '<path d="M9 7V3M15 7V3M6 7h12v4a6 6 0 0 1-12 0zM12 17v4"/>'],
     ['settings/defaults', '#settings/defaults', 'Defaults', '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'],
   ];
-  /** Fill the (hidden) #super-menu container: section headers and entries, one list, nothing pinned. */
-  function mount(container) {
-    const link = (nav, href, label, svg, sm) => `<a class="nav-btn${sm ? ' sm' : ''}" data-nav="${nav}" href="${href}" style="text-decoration:none">${icon(svg)}${label}</a>`;
+  /** Fill the (hidden) #super-menu container: section headers and entries, one list, nothing pinned.
+   *  A Basic session gets only Libraries; a Super session gets Projects, Libraries and Settings. */
+  function mount(container, basic) {
+    const link = (nav, href, label, svg) => `<a class="nav-btn" data-nav="${nav}" href="${href}" style="text-decoration:none">${icon(svg)}${label}</a>`;
+    const libraries = '<div class="sect">Libraries</div>' + LIBRARIES.map(([k, l, svg]) => link('library/' + k, '#library/' + k, l, svg)).join('');
+    if (basic) { container.innerHTML = libraries; container.classList.remove('hidden'); return; }
     container.innerHTML = '<div class="sect">Projects</div>'
       + link('projects', '#projects', 'All projects', '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>')
       + '<div id="nav-project"></div>'
-      + '<div class="sect">Libraries</div>'
-      + LIBRARIES.map(([k, l, svg]) => link('library/' + k, '#library/' + k, l, svg)).join('')
+      + libraries
       + '<div class="sect">Settings</div>'
       + SETTINGS.map(([nav, href, l, svg]) => link(nav, href, l, svg)).join('');
     container.classList.remove('hidden');

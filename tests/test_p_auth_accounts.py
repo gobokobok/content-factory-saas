@@ -485,7 +485,8 @@ class TestBasicGating:
             ("GET", "/platform/tenant/integrations"),
             ("PUT", "/platform/tenant/integrations/pexels"),
             ("GET", "/platform/tenant/defaults"),
-            ("GET", "/platform/library/videos"),
+            ("GET", "/platform/library/audio"),
+            ("GET", "/platform/library/footage"),
             ("GET", "/platform/projects"),
             ("POST", "/platform/projects"),
             ("GET", "/platform/runs"),
@@ -543,6 +544,9 @@ class TestBasicGating:
             ("POST", "/platform/studio/runs/r/images/generate"),
             ("GET", "/runs/r/settings"),
             ("POST", "/runs/r/settings"),
+            ("GET", "/platform/library/videos"),
+            ("GET", "/platform/library/ai"),
+            ("GET", "/platform/library/music"),
         ]
         assert all(basic_may(m, p) for m, p in allowed)
         refused = [
@@ -552,7 +556,7 @@ class TestBasicGating:
             ("PUT", "/platform/tenant/integrations/pexels"),
             ("POST", "/platform/projects"),
             ("GET", "/studio"),
-            ("GET", "/platform/library/ai"),
+            ("GET", "/platform/library/footage"),
         ]
         assert not any(basic_may(m, p) for m, p in refused)
 
@@ -701,10 +705,10 @@ class TestSuperMenuPage:
         html = Path("src/static/creator.html").read_text()
         js = Path("src/static/ui/creator.js").read_text()
         menu = Path("src/static/ui/super-menu.js").read_text()
-        for needle in ("Integrations", "Defaults", "Libraries", "BG music"):
+        for needle in ("Integrations", "Defaults", "All projects"):
             assert needle not in html and needle not in js
             assert needle in menu
-        assert "/ui/super-menu.js" in js and "me.effective_type === 'super'" in js
+        assert "/ui/super-menu.js" in js and "me.effective_type !== 'super'" in js
         assert "/auth/me" in js and "/auth/view-as" in js
 
     def test_the_menu_script_is_served(self, world):
@@ -778,3 +782,24 @@ class TestCreatorConfigByAccount:
         assert b.post("/platform/creator/runs", json={"title": "T", "project_id": pid}).status_code == 201
         foreign = f"default-{uf.tenant_id}"
         assert b.post("/platform/creator/runs", json={"title": "T", "project_id": foreign}).status_code == 404
+
+
+class TestBasicLibraries:
+    def test_basic_has_videos_ai_and_music_but_not_audio_or_footage(self, world):
+        friend, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        c = world.client(friend)
+        for kind in ("videos", "ai", "music"):
+            assert c.get(f"/platform/library/{kind}").status_code == 200, kind
+        for kind in ("audio", "footage"):
+            assert c.get(f"/platform/library/{kind}").status_code == 403, kind
+
+    def test_a_basic_library_shows_only_its_own_tenants_runs(self, world):
+        friend, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        other, _ = run(world.sign_in("other@example.com", "sub-b"))
+        rid = make_run(world, friend, "Friend video")
+        # Give the run a rendered video so the Videos library has something to list.
+        run(world.storage.put_bytes(f"runs/{rid}/output/final.mp4", b"x", "video/mp4"))
+        mine = world.client(friend).get("/platform/library/videos").json()["items"]
+        theirs = world.client(other).get("/platform/library/videos").json()["items"]
+        assert any(rid in str(i) for i in mine)
+        assert all(rid not in str(i) for i in theirs)

@@ -22,11 +22,15 @@ from cf_platform.core.projects import ProjectRepository
 from cf_platform.core.run_manager import RunRepository
 from cf_platform.interfaces.dependencies import (
     current_tenant_id,
+    current_user,
     get_artifact_storage,
     get_project_repository,
     get_run_repository,
 )
 from cf_platform.interfaces.routes._helpers import latest_artifact_key
+
+# The libraries a Basic account has.
+BASIC_LIBRARY_KINDS = ("videos", "ai", "music")
 
 router = APIRouter()
 
@@ -51,6 +55,9 @@ async def get_library(
     """List one library's assets across the tenant, newest run first; 404 for an unknown library."""
     if kind not in LIBRARY_KINDS:
         raise HTTPException(status_code=404, detail=f"Unknown library {kind!r} — expected one of {list(LIBRARY_KINDS)}")
+    # Basic has Videos, AI generations and BG music; Audio and Footage are Super's (D118).
+    if kind not in BASIC_LIBRARY_KINDS and not current_user().is_super:
+        raise HTTPException(status_code=403, detail="This needs a Super account.")
     project_list = await projects.list_projects(current_tenant_id(), include_archived=True)
     names = {p.project_id: p.name for p in project_list}
     if kind == "music":

@@ -175,7 +175,8 @@
     S.me = me;
     if (me.email) { $('#who').textContent = me.email; $('#who').classList.remove('hidden'); }
     const isSuper = me.account_type === 'super';
-    if (me.effective_type === 'super') { await mountSuperMenu(); await loadCore(); } else $('#super-menu').classList.add('hidden');
+    await mountSuperMenu(me.effective_type !== 'super');
+    await loadCore(me.effective_type !== 'super');
     $('#view-as').classList.toggle('hidden', !isSuper);
     $('#view-as-label').textContent = me.view_as_basic ? 'Switch back to Super' : 'View as Basic';
     document.querySelectorAll('.view-banner').forEach(b => b.remove());
@@ -189,7 +190,7 @@
     if (me.abuse_contact) { const a = $('#report-abuse'); a.href = 'mailto:' + me.abuse_contact + '?subject=Content%20Factory%20problem'; a.classList.remove('hidden'); }
   }
   /** Load Super's menu script once and mount it; a Basic session never fetches it. */
-  async function mountSuperMenu() {
+  async function mountSuperMenu(basic) {
     if (!window.SuperMenu) {
       await new Promise(resolve => {
         const el = document.createElement('script');
@@ -198,10 +199,10 @@
         document.head.appendChild(el);
       });
     }
-    if (window.SuperMenu) window.SuperMenu.mount($('#super-menu'));
+    if (window.SuperMenu) window.SuperMenu.mount($('#super-menu'), !!basic);
   }
-  /** Load the Super screens and run controls (P-CORE) once; a Basic session never fetches them. */
-  async function loadCore() {
+  /** Load the screens (P-CORE) once: the Libraries for Basic, everything for Super. Run controls are Super's. */
+  async function loadCore(basic) {
     if (window.Core) return;
     await new Promise(resolve => {
       const el = document.createElement('script');
@@ -209,7 +210,7 @@
       el.onload = el.onerror = resolve;
       document.head.appendChild(el);
     });
-    if (window.Core) window.Core.init(window.CFApp);
+    if (window.Core) window.Core.init(window.CFApp, !!basic);
   }
   /** Flip this session between its own account type and Basic, then reload so every call is re-checked. */
   async function toggleViewAs() {

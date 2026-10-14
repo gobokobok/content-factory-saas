@@ -72,9 +72,11 @@ class TestOldAddressesRedirect:
 
 
 class TestTheHost:
-    def test_super_screens_load_only_for_a_super_session(self, host):
-        assert "/ui/core.js" in host
-        assert host.index("me.effective_type === 'super'") < host.index("await loadCore()")
+    def test_a_basic_session_gets_only_the_libraries(self, host, core):
+        assert "/ui/core.js" in host and "loadCore(me.effective_type !== 'super')" in host
+        assert "BASIC ? name === 'library'" in core
+        # The run controls (core-run.js) are never loaded for Basic.
+        assert core.index("if (BASIC) return;") < core.index("/ui/core-run.js")
 
     def test_the_host_hands_unknown_routes_to_core(self, host):
         assert "window.Core.handles(name)" in host and "window.Core.route(name, id, step, more)" in host
@@ -118,6 +120,7 @@ class TestScreens:
                        "'Videos'", "'AI generations'", "'BG music'", "Projects</div>", "Libraries</div>", "Settings</div>"):
             assert needle in menu, needle
         assert "Audio" not in menu and "Footage" not in menu and "New video" not in menu
+        assert "if (basic) { container.innerHTML = libraries" in menu   # Basic: Libraries only
 
     def test_a_project_lists_its_pages_under_all_projects(self, core):
         for page in ("Overview", "Ideas", "Runs", "Settings"):

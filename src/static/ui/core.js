@@ -12,6 +12,7 @@
   'use strict';
 
   let A = null;                       // window.CFApp from creator.js
+  let BASIC = false;                  // a Basic session gets the Libraries screen only
   const ROUTES = ['projects', 'project', 'library', 'settings'];
   const LANGS = { en: 'English', ru: 'Русский' };
   const FORMATS = { '9:16': '9:16 Portrait', '16:9': '16:9 Landscape' };
@@ -20,6 +21,7 @@
   const NARR_STYLES = { educational: 'Educational', emotional: 'Emotional' };
   const STEP_LABELS = { script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Render', metadata: 'Metadata' };
   const ASSET_KINDS = { character: 'Character', setting: 'Place', prop: 'Object' };
+  const BASIC_LIBS = ['videos', 'ai', 'music'];
   const LIBS = {
     videos: ['Videos', 'Every final video — server renders and videos uploaded from CapCut.'],
     audio: ['Audio', 'Every voiceover, generated or uploaded.'],
@@ -127,14 +129,14 @@
 
   // ── Routing ───────────────────────────────────────────────────────────────
 
-  const handles = name => ROUTES.includes(name);
+  const handles = name => (BASIC ? name === 'library' : ROUTES.includes(name));
 
   async function route(name, id, step, more) {
     showErr('');
     try {
       if (name === 'projects') return await viewProjects();
       if (name === 'project') return await viewProject(id, ['ideas', 'runs', 'settings'].includes(step) ? step : 'overview');
-      if (name === 'library') return await viewLibrary(LIBS[id] ? id : 'videos');
+      if (name === 'library') return await viewLibrary(LIBS[id] && (!BASIC || BASIC_LIBS.includes(id)) ? id : 'videos');
       if (name === 'settings') return await viewSettings(id === 'defaults' ? 'defaults' : 'integrations');
     } catch (e) {
       frame('', '');
@@ -421,7 +423,7 @@
     return `<div style="padding:12px 12px 0"><audio controls preload="none" src="${esc(u)}" style="width:100%;height:34px"></audio></div>`;
   }
   function libCard(a) {
-    const project = a.project_id ? `<a class="link" href="#project/${encodeURIComponent(a.project_id)}">${esc(a.project_name)}</a>` : '<span class="meta">Shared — all projects</span>';
+    const project = BASIC ? '' : a.project_id ? `<a class="link" href="#project/${encodeURIComponent(a.project_id)}">${esc(a.project_name)}</a>` : '<span class="meta">Shared — all projects</span>';
     const run = a.run_id ? `<a class="link" href="#run/${encodeURIComponent(a.run_id)}/storyboard">↳ ${esc(a.run_name)}</a>` : '';
     return `<div class="core-asset">${libPreview(a)}<div class="core-asset-body"><div class="t">${esc(a.name)}</div>${project}${run}
       <div class="meta">${esc(a.facts)}${a.created_at ? ' · ' + esc(fmtDate(a.created_at)) : ''}</div>
@@ -439,7 +441,7 @@
     frame(crumbs([['Libraries'], [LIBS[kind][0]]]), `<div class="page-head"><h1>${LIBS[kind][0]}</h1></div>
       <p class="meta" style="margin:-14px 0 18px">${LIBS[kind][1]}</p>
       <div class="core-bar" style="gap:8px"><input type="text" id="lib-q" placeholder="Search by name, ID, video or project" value="${esc(f.q)}" oninput="Core.libFilter('q',this.value,true)" style="max-width:340px">
-      ${kind !== 'music' ? `<select class="inline" onchange="Core.libFilter('project',this.value)" aria-label="Project"><option value="">All projects</option>${d.projects.map(p => `<option value="${esc(p.project_id)}"${f.project === p.project_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
+      ${kind !== 'music' && !BASIC ? `<select class="inline" onchange="Core.libFilter('project',this.value)" aria-label="Project"><option value="">All projects</option>${d.projects.map(p => `<option value="${esc(p.project_id)}"${f.project === p.project_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
       ${facets.length > 1 ? `<select class="inline" onchange="Core.libFilter('facet',this.value)" aria-label="Type"><option value="">All types</option>${facets.map(x => `<option${f.facet === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}</div>
       <p class="meta" style="margin-bottom:10px">${list.length} of ${d.items.length}</p>
       ${list.length ? `<div class="core-assets">${list.map(libCard).join('')}</div>`
@@ -625,8 +627,9 @@
   .core-auto.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
   @media (max-width:720px){.core-stats{grid-template-columns:repeat(2,1fr)}.core-integ-main{grid-template-columns:1fr}}`;
 
-  function init(app) {
+  function init(app, basic) {
     A = app;
+    BASIC = !!basic;
     const style = document.createElement('style');
     style.textContent = injectedStyles;
     document.head.appendChild(style);
@@ -636,6 +639,7 @@
       sec.id = 's-x';
       document.querySelector('main.main').appendChild(sec);
     }
+    if (BASIC) return;   // the run-flow controls are Super's
     // core-run.js adds the run-flow controls; it reads this module's helpers through Core.
     const el = document.createElement('script');
     el.src = '/ui/core-run.js';
