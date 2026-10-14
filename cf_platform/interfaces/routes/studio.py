@@ -239,13 +239,29 @@ async def studio_get_sfx_library(
     return await list_available_sfx(storage)
 
 
+async def _job_started(storage: ArtifactStorage, job_key: str) -> bool:
+    """True when a job document exists at job_key; True as well when storage cannot say.
+
+    A status route answers "none" for a run that never started that job, so a page that
+    opens a run cannot mistake "never started" for "still running" (P-LITE smoke,
+    2026-10-14). An unreadable listing counts as started: polling a live job must not
+    stop on a storage blip.
+    """
+    try:
+        return job_key in await storage.list_keys(job_key)
+    except Exception:
+        return True
+
+
 @router.get("/studio/runs/{run_id}/storyboard/status")
 async def studio_get_storyboard_status(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
-    """Poll storyboard generation progress. Returns {status: running|complete|error}."""
+    """Poll storyboard generation progress. Returns {status: running|complete|error}; "none" when this run never started one."""
     job_key = f"runs/{run_id}/storyboard/current_job.json"
+    if not await _job_started(storage, job_key):
+        return {"status": "none"}
     try:
         job = await storage.get_json(job_key)
         if job:
@@ -318,8 +334,10 @@ async def studio_get_voice_status(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
-    """Poll voice generation progress. Returns {status: running|complete|error}."""
+    """Poll voice generation progress. Returns {status: running|complete|error}; "none" when this run never started one."""
     job_key = f"runs/{run_id}/voice/current_job.json"
+    if not await _job_started(storage, job_key):
+        return {"status": "none"}
     try:
         job = await storage.get_json(job_key)
         if job:
@@ -548,12 +566,16 @@ async def studio_get_render_status(
     run_id: str,
     storage: ArtifactStorage = Depends(get_artifact_storage),
 ) -> dict:
-    """Poll render progress.  Returns {status: running|complete|error, video_url?, error?}.
+    """Poll render progress.  Returns {status: running|complete|error|none, video_url?, error?}.
+
+    "none" when this run never started a render.
 
     Uses current_job.json written by the render endpoint as the source of truth so that
     a stale final.mp4 from a previously-killed render is not mistaken for a completed job.
     """
     job_key = f"runs/{run_id}/render/current_job.json"
+    if not await _job_started(storage, job_key):
+        return {"status": "none"}
     try:
         job = await storage.get_json(job_key)
         if job:

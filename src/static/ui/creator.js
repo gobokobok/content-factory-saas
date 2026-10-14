@@ -102,11 +102,15 @@
 
   /** Poll a status route until it says complete or error. Resolves to the last answer. */
   async function poll(path, intervalMs, maxPolls) {
+    let missing = 0;
     for (let i = 0; i < maxPolls; i++) {
       await sleep(intervalMs);
       const res = await api(path);
       const st = res.ok ? res.data : { status: 'running' };
       if (st.status === 'complete' || st.status === 'error') return st;
+      // "none": the server has no job for this run. Right after a start that is a short
+      // write delay; for long it means the job never began.
+      if (st.status === 'none' && ++missing >= 5) return { status: 'error', error: 'The job did not start on the server.' };
     }
     return { status: 'error', error: 'This is taking longer than expected. Reload the page to check again.' };
   }
@@ -290,6 +294,7 @@
       api(`/runs/${encodeURIComponent(id)}/settings`), api(runUrl('/script')), api(runUrl('/voice')),
       api(runUrl('/storyboard')), api(runUrl('/manifest')), api(runUrl('/video')),
     ]);
+    if (S.run.id !== id) return;
     if (settings.ok) S.settings = settings.data.settings || {};
     if (S.settings.aspect_ratio) S.run.format = S.settings.aspect_ratio;
     const draft = readDraft();
