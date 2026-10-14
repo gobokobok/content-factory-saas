@@ -103,6 +103,8 @@ textarea{resize:vertical;line-height:1.65;min-height:260px;font-size:13.5px;font
 /* ── Step content ────────────────────────────────────────────────── */
 .step-foot{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;margin-top:28px;gap:10px 12px}
 .btn{white-space:nowrap;max-width:100%}
+.foot-hint{font-size:12.5px;color:var(--muted);flex:1 1 200px;min-width:0}
+.foot-hint:empty{display:none}
 .step-foot .meta{margin-left:auto}
 .meta{font-size:12.5px;color:var(--muted)}
 .gen-toggle{margin-bottom:14px}
@@ -518,6 +520,7 @@ a.btn{text-decoration:none}
       <div class="step-foot">
         <button class="btn accent" id="vo-gen" onclick="Creator.genVoice()">Generate voiceover</button>
         <button class="btn next" id="vo-next" onclick="Creator.next()" disabled>Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <span class="foot-hint" id="hint-voice"></span>
       </div>
       <div class="job" id="job-voice"></div>
     </div>
@@ -532,6 +535,7 @@ a.btn{text-decoration:none}
         <button class="btn accent" id="sb-create" onclick="Creator.askCreateSb()">Create storyboard</button>
         <button class="btn accent" id="sb-assets" onclick="Creator.planAssets()" disabled>Create assets</button>
         <button class="btn next" id="sb-next" onclick="Creator.next()" disabled>Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <span class="foot-hint" id="hint-sb"></span>
         <span class="meta" id="sc-meta"></span>
       </div>
       <div class="job" id="job-sb"></div>

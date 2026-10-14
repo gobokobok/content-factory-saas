@@ -570,7 +570,9 @@
       }
       paintAudio();
     }
-    if (!scriptOk() && !S.voice) err('#err-voice', 'Write the script first.'); else if (!S.busy.voiceErr) err('#err-voice', '');
+    // What is missing is a hint beside the button, not an error box.
+    $('#hint-voice').textContent = !scriptOk() && !S.voice && !S.busy.voice ? 'Write the script first.' : '';
+    if (!S.busy.voiceErr) err('#err-voice', '');
   }
   async function saveVoice() { stopSample(); S.settings.voice = $('#voice-pick').value; await saveSettings({ voice: S.settings.voice }); }
 
@@ -660,9 +662,9 @@
     $('#sb-next').disabled = busy || !allAssets() || S.sbStale;
     const total = scenes.reduce((a, s) => a + (s.duration_s || 0), 0);
     $('#sc-meta').textContent = scenes.length ? `${plural(scenes.length, 'scene')} · ${clock((S.voice && S.voice.total_duration_s) || total)}${missing ? ` · ${missing} without an image` : ''}` : '';
-    if (!S.voice) err('#err-sb', 'Generate the voiceover first: the scenes are cut on its timing.');
-    else if (S.sbStale) err('#err-sb', 'The voiceover changed. Create the storyboard again so the scenes match it.');
-    else if (!S.busy.sbErr) err('#err-sb', '');
+    $('#hint-sb').textContent = !S.voice ? 'Generate the voiceover first. The scenes are cut on its timing.'
+      : S.sbStale ? 'The voiceover changed. Create the storyboard again so the scenes match it.' : '';
+    if (!S.busy.sbErr) err('#err-sb', '');
     paintContinuity();
     const box = $('#scenes');
     if (!scenes.length) { box.innerHTML = placeholder('storyboard', 'No storyboard yet', 'The scenes appear here once you create the storyboard from your script and voiceover.'); if (window.Core) window.Core.afterStoryboard(); return; }
@@ -971,11 +973,12 @@
     if (S.video) { if (pv.dataset.url !== S.video.video_url) { pv.innerHTML = `<video controls preload="metadata" src="${esc(S.video.video_url)}"></video>`; pv.dataset.url = S.video.video_url; } }
     else { pv.innerHTML = placeholder('video', 'No video yet', 'The rendered video plays here.'); pv.dataset.url = ''; }
     const length = S.video && S.video.duration_s ? clock(S.video.duration_s) : S.voice && S.voice.total_duration_s ? clock(S.voice.total_duration_s) : '';
-    $('#render-meta').textContent = S.video ? `Rendered · ${S.run.format}${length ? ' · ' + length : ''}` : ready ? `${S.run.format}${length ? ' · ≈ ' + length : ''}` : 'Create the images on the Storyboard step first.';
+    $('#render-meta').textContent = S.video ? `Rendered · ${S.run.format}${length ? ' · ' + length : ''}` : ready ? `${S.run.format}${length ? ' · ≈ ' + length : ''}` : '';
     // Render first and always blue (it becomes Re-render once a video exists); Download beside it, outlined.
     const label = busy ? 'Rendering…' : S.video ? 'Re-render video' : 'Render video';
     $('#render-foot').innerHTML = `<button class="btn accent" id="render-btn" onclick="Creator.renderVideo()"${busy || !ready ? ' disabled' : ''}>${label}</button>`
-      + (S.video ? '<button class="btn outline" onclick="Creator.downloadVideo(this)">Download video</button>' : '');
+      + (S.video ? '<button class="btn outline" onclick="Creator.downloadVideo(this)">Download video</button>' : '')
+      + (!ready && !busy ? '<span class="foot-hint">Create the images on the Storyboard step first.</span>' : '');
   }
   /** Download the rendered video through a blob: `<a download>` is ignored for a presigned (cross-origin) URL. */
   async function downloadVideo(btn) {
