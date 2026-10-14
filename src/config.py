@@ -115,6 +115,31 @@ class Settings(BaseSettings):
     TRUST_PROXY_HEADERS: bool = True
     # Shortest OPERATOR_PASSWORD / SESSION_SECRET_KEY the app starts with (F7).
     AUTH_SECRET_MIN_LENGTH: int = 12
+    # Google sign-in and accounts (P-AUTH, D114, D118). The redirect URI is fixed here,
+    # never derived from the request Host header. Empty client id = Google sign-in off.
+    GOOGLE_OAUTH_CLIENT_ID: str = ""
+    GOOGLE_OAUTH_CLIENT_SECRET: str = ""
+    GOOGLE_OAUTH_REDIRECT_URI: str = ""
+    # Comma-separated e-mails. OWNER_EMAILS map onto the legacy tenant (the owner keeps
+    # their data) and are Super; SUPER_EMAILS are Super with their own tenant;
+    # ALLOWED_EMAILS may sign in as Basic while SIGNUP_OPEN is false.
+    OWNER_EMAILS: str = ""
+    SUPER_EMAILS: str = ""
+    ALLOWED_EMAILS: str = ""
+    # When true any verified Google account may sign in. Leave false until the caps (S8)
+    # and the moderation gate (S9) are deployed and checked.
+    SIGNUP_OPEN: bool = False
+    SESSION_TTL_DAYS: int = 14
+    # Accept the pre-P-AUTH constant cookie as the owner (F6). Set false once the owner
+    # has signed in again; the cookie cannot expire or be revoked, so this is a bridge.
+    ACCEPT_LEGACY_COOKIE: bool = True
+    # The repositories fall back to process memory when DATABASE_URL is empty. That is
+    # right on a laptop and wrong on a server, so it is refused unless this is set (S6).
+    ALLOW_IN_MEMORY_STORE: bool = False
+    # Origins besides the request's own that may send mutating requests (comma-separated).
+    ALLOWED_ORIGINS: str = ""
+    # The version of the terms a first sign-in accepts (S9); bumping it asks again.
+    TERMS_VERSION: str = "2026-10-14"
     # Encryption key for tenant-stored integration keys. Read here only so a prod
     # start-up without one is refused (F7); the platform reads it in its own settings.
     SETTINGS_ENCRYPTION_KEY: str = ""

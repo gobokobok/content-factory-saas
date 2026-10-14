@@ -14,7 +14,7 @@ from cf_platform.core.worker_registry import (
     build_observed_node_graph,
 )
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_repository,
     get_artifact_storage,
     get_execution_repository,
@@ -59,7 +59,7 @@ async def echo(
     The graph is checkpointed via Postgres when DATABASE_URL is set (P2-S4), so a
     run resumes from its last checkpoint after a process restart.
     """
-    run = await create_run(PLATFORM_USER_ID, "echo", {"text": body.text}, runs)
+    run = await create_run(current_tenant_id(), "echo", {"text": body.text}, runs)
     run = await transition_run(run.run_id, "running", runs)
 
     graph = build_observed_node_graph(
@@ -72,7 +72,7 @@ async def echo(
         artifact_repo=artifacts,
         checkpointer=checkpointer,
     )
-    state = StageState(run_id=run.run_id, user_id=PLATFORM_USER_ID, inputs={"message": body.text})
+    state = StageState(run_id=run.run_id, user_id=current_tenant_id(), inputs={"message": body.text})
     result = await run_graph(graph, state, thread_id=run.run_id)
 
     await transition_run(run.run_id, "complete", runs)

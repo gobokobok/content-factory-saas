@@ -26,7 +26,7 @@ from cf_platform.core.schemas import StageState
 from cf_platform.core.tenant_settings import TenantSettingsRepository
 from cf_platform.core.worker_registry import WorkerRegistration
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_storage,
     get_effective_platform_settings,
     get_project_repository,
@@ -125,7 +125,7 @@ async def _run_storyboard_background(
             name="verified_storyboard",
             stage="storyboard",
             run_id=run_id,
-            user_id=PLATFORM_USER_ID,
+            user_id=current_tenant_id(),
             lineage=storyboard_lineage,
         )
 
@@ -219,7 +219,7 @@ async def storyboard_worker_endpoint(
             name="script",
             stage="script",
             run_id=body.run_id,
-            user_id=PLATFORM_USER_ID,
+            user_id=current_tenant_id(),
             lineage=script_lineage,
         )
 
@@ -268,7 +268,7 @@ async def storyboard_worker_endpoint(
             })
     state = StageState(
         run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         inputs=inputs,
         artifacts=state_artifacts,
     )
@@ -333,7 +333,7 @@ async def metadata_worker_endpoint(
 
     # The Thinking-models block's default decides who writes the metadata (P-INT1).
     # Anthropic stays the direct path; another provider goes through the LLMClient adapter.
-    choice = await resolve_block(tenant_repo, PLATFORM_USER_ID, settings, "llm")
+    choice = await resolve_block(tenant_repo, current_tenant_id(), settings, "llm")
     llm = None
     used_model = YOUTUBE_METADATA_REGISTRATION.model
     if choice["provider_id"] != "anthropic":
@@ -366,7 +366,7 @@ async def metadata_worker_endpoint(
         pass
     state = StageState(
         run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         inputs=inputs,
         artifacts={"script": script_key},
     )
@@ -392,7 +392,7 @@ async def metadata_worker_endpoint(
         name="youtube_metadata",
         stage="metadata",
         run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         lineage=lineage,
     )
 
@@ -453,7 +453,7 @@ async def _run_voice_background(
             name="voice_alignment",
             stage="voice",
             run_id=run_id,
-            user_id=PLATFORM_USER_ID,
+            user_id=current_tenant_id(),
             lineage=voice_lineage,
         )
         await storage.put_json(job_key, {
@@ -526,7 +526,7 @@ async def voice_worker_endpoint(
         name="script",
         stage="script",
         run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         lineage=script_lineage,
     )
 
@@ -554,7 +554,7 @@ async def voice_worker_endpoint(
     )
     worker_state = StageState(
         run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         inputs=voice_inputs,
         artifacts={"script": script_record.r2_key},
     )
@@ -623,7 +623,7 @@ async def acquisition_worker_endpoint(
     from cf_platform.core.schemas import LineageEnvelope
 
     # Locate the latest verified_storyboard artifact for this run
-    prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/storyboard/verified_storyboard@v"
+    prefix = f"users/{current_tenant_id()}/runs/{body.run_id}/storyboard/verified_storyboard@v"
     storyboard_keys = await storage.list_keys(prefix)
     # A storyboard discarded by re-uploading the voiceover counts as absent (P14b-S4).
     if not await _latest_artifact_key(storage, body.run_id, "storyboard", "verified_storyboard"):
@@ -655,7 +655,7 @@ async def acquisition_worker_endpoint(
         artifacts["asset_manifest"] = prior_manifest_key
     state = StageState(
         run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         inputs={"only_missing": body.only_missing},
         artifacts=artifacts,
     )
@@ -678,7 +678,7 @@ async def acquisition_worker_endpoint(
         name="asset_manifest",
         stage="acquisition",
         run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         lineage=manifest_lineage,
     )
 
@@ -745,7 +745,7 @@ async def _run_render_background(
             name="render_result",
             stage="render",
             run_id=run_id,
-            user_id=PLATFORM_USER_ID,
+            user_id=current_tenant_id(),
             lineage=render_lineage,
         )
         from cf_platform.core.final_video import record_final_source
@@ -792,7 +792,7 @@ async def render_worker_endpoint(
             raise HTTPException(status_code=404, detail="No versioned artifact found.")
         return key
 
-    sb_prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/storyboard/verified_storyboard@v"
+    sb_prefix = f"users/{current_tenant_id()}/runs/{body.run_id}/storyboard/verified_storyboard@v"
     sb_keys = await storage.list_keys(sb_prefix)
     if not await _latest_artifact_key(storage, body.run_id, "storyboard", "verified_storyboard"):
         sb_keys = []
@@ -802,7 +802,7 @@ async def render_worker_endpoint(
             detail=f"No verified_storyboard artifact for run_id={body.run_id!r}.",
         )
 
-    mf_prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/acquisition/asset_manifest@v"
+    mf_prefix = f"users/{current_tenant_id()}/runs/{body.run_id}/acquisition/asset_manifest@v"
     mf_keys = await storage.list_keys(mf_prefix)
     if not mf_keys:
         raise HTTPException(
@@ -846,7 +846,7 @@ async def render_worker_endpoint(
                    "confirm to continue.",
         )
 
-    va_prefix = f"users/{PLATFORM_USER_ID}/runs/{body.run_id}/voice/voice_alignment@v"
+    va_prefix = f"users/{current_tenant_id()}/runs/{body.run_id}/voice/voice_alignment@v"
     va_keys = await storage.list_keys(va_prefix)
     if va_keys:
         artifacts["voice_alignment"] = _latest_key(va_keys)
@@ -878,7 +878,7 @@ async def render_worker_endpoint(
     )
     state = StageState(
         run_id=body.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         inputs={
             "format_track": body.format_track,
             "captions": body.captions,

@@ -21,7 +21,7 @@ from cf_platform.core.library import (
 from cf_platform.core.projects import ProjectRepository
 from cf_platform.core.run_manager import RunRepository
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_storage,
     get_project_repository,
     get_run_repository,
@@ -51,7 +51,7 @@ async def get_library(
     """List one library's assets across the tenant, newest run first; 404 for an unknown library."""
     if kind not in LIBRARY_KINDS:
         raise HTTPException(status_code=404, detail=f"Unknown library {kind!r} — expected one of {list(LIBRARY_KINDS)}")
-    project_list = await projects.list_projects(PLATFORM_USER_ID, include_archived=True)
+    project_list = await projects.list_projects(current_tenant_id(), include_archived=True)
     names = {p.project_id: p.name for p in project_list}
     if kind == "music":
         from cf_platform.workers.render_worker import list_available_sfx
@@ -59,7 +59,7 @@ async def get_library(
         items = await list_shared_music(storage, await list_available_sfx(storage))
         return {"kind": kind, "items": items, "projects": []}
 
-    records = [r for r in await runs.list_runs() if r.archived_at is None]
+    records = [r for r in await runs.list_runs(current_tenant_id()) if r.archived_at is None]
     refs = [
         RunRef(r.run_id, r.name or "Untitled run", r.project_id, names.get(r.project_id, r.project_id),
                r.created_at.isoformat())

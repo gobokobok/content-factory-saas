@@ -16,6 +16,7 @@ from cf_platform.core.schemas import SourceAdapter
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.core.worker_registry import ExecutionRepository, WorkerRegistry
 from cf_platform.interfaces.dependencies import (
+    current_tenant_id,
     get_artifact_repository,
     get_artifact_storage,
     get_discovery_adapters,
@@ -85,7 +86,7 @@ class RunDetailResponse(BaseModel):
 @router.get("/runs", response_model=list[RunSummary])
 async def list_runs(runs: RunRepository = Depends(get_run_repository)) -> list[RunSummary]:
     """Return all platform runs, most recently created first."""
-    records = await runs.list_runs()
+    records = await runs.list_runs(current_tenant_id())
     return [RunSummary.model_validate(record.model_dump()) for record in records]
 
 
@@ -101,7 +102,7 @@ async def get_run(
     Raises 404 if run_id is unknown.
     """
     try:
-        run = await runs.get(run_id)
+        run = await runs.get(run_id, current_tenant_id())
     except RunNotFoundError:
         raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
 

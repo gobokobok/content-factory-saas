@@ -12,7 +12,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
-from cf_platform.core.schemas import DEFAULT_PROJECT_ID, RunRecord
+from cf_platform.core.accounts import default_project_id
+from cf_platform.core.schemas import RunRecord
 
 RunStatus = Literal["created", "running", "complete", "failed"]
 
@@ -39,20 +40,27 @@ class RunRepository(Protocol):
         """Insert or overwrite the RunRecord for run.run_id. Returns the stored record."""
         ...
 
-    async def get(self, run_id: str) -> RunRecord:
-        """Return the RunRecord for run_id. Raises RunNotFoundError if absent."""
+    async def get(self, run_id: str, tenant_id: str | None = None) -> RunRecord:
+        """Return the RunRecord for run_id. Raises RunNotFoundError if absent.
+
+        With tenant_id, a run of another tenant is "absent" too (P-AUTH, F2).
+        """
         ...
 
-    async def list_runs(self) -> list[RunRecord]:
-        """Return all RunRecords, most recently created first."""
+    async def list_runs(self, tenant_id: str | None = None) -> list[RunRecord]:
+        """Return RunRecords (only tenant_id's when given), most recently created first."""
         ...
 
-    async def list_for_project(self, project_id: str) -> list[RunRecord]:
-        """Return project_id's non-archived RunRecords, most recently created first."""
+    async def list_for_project(self, project_id: str, tenant_id: str | None = None) -> list[RunRecord]:
+        """Return project_id's non-archived RunRecords (only tenant_id's when given), newest first."""
         ...
 
-    async def count_by_project(self) -> dict[str, int]:
-        """Return {project_id: number of non-archived runs} for every project that has runs."""
+    async def count_by_project(self, tenant_id: str | None = None) -> dict[str, int]:
+        """Return {project_id: non-archived run count} (only tenant_id's runs when given)."""
+        ...
+
+    async def count_created_since(self, tenant_id: str, since: datetime) -> int:
+        """Return how many runs tenant_id created at or after since (the daily run cap, S8)."""
         ...
 
 
@@ -68,32 +76,40 @@ class InMemoryRunRepository:
         self._runs[run.run_id] = run
         return run
 
-    async def get(self, run_id: str) -> RunRecord:
-        """Return the RunRecord for run_id. Raises RunNotFoundError if absent."""
-        try:
-            return self._runs[run_id]
-        except KeyError:
-            raise RunNotFoundError(f"Run not found: {run_id}") from None
+    async def get(self, run_id: str, tenant_id: str | None = None) -> RunRecord:
+        """Return the RunRecord for run_id. Raises RunNotFoundError if absent or another tenant's."""
+        run = self._runs.get(run_id)
+        if run is None or (tenant_id is not None and (run.tenant_id or run.user_id) != tenant_id):
+            raise RunNotFoundError(f"Run not found: {run_id}")
+        return run
 
-    async def list_runs(self) -> list[RunRecord]:
-        """Return all RunRecords, most recently created first."""
-        return sorted(self._runs.values(), key=lambda run: run.created_at, reverse=True)
+    async def list_runs(self, tenant_id: str | None = None) -> list[RunRecord]:
+        """Return RunRecords (only tenant_id's when given), most recently created first."""
+        runs = [
+            run for run in self._runs.values()
+            if tenant_id is None or (run.tenant_id or run.user_id) == tenant_id
+        ]
+        return sorted(runs, key=lambda run: run.created_at, reverse=True)
 
-    async def list_for_project(self, project_id: str) -> list[RunRecord]:
-        """Return project_id's non-archived RunRecords, most recently created first."""
+    async def list_for_project(self, project_id: str, tenant_id: str | None = None) -> list[RunRecord]:
+        """Return project_id's non-archived RunRecords (only tenant_id's when given), newest first."""
         return [
             run
-            for run in await self.list_runs()
+            for run in await self.list_runs(tenant_id)
             if run.project_id == project_id and run.archived_at is None
         ]
 
-    async def count_by_project(self) -> dict[str, int]:
-        """Return {project_id: number of non-archived runs} for every project that has runs."""
+    async def count_by_project(self, tenant_id: str | None = None) -> dict[str, int]:
+        """Return {project_id: non-archived run count} (only tenant_id's runs when given)."""
         counts: dict[str, int] = {}
-        for run in self._runs.values():
+        for run in await self.list_runs(tenant_id):
             if run.archived_at is None:
                 counts[run.project_id] = counts.get(run.project_id, 0) + 1
         return counts
+
+    async def count_created_since(self, tenant_id: str, since: datetime) -> int:
+        """Return how many runs tenant_id created at or after since."""
+        return sum(1 for run in await self.list_runs(tenant_id) if run.created_at >= since)
 
 
 async def create_run(
@@ -102,17 +118,20 @@ async def create_run(
     inputs: dict[str, Any],
     repository: RunRepository,
     *,
-    project_id: str = DEFAULT_PROJECT_ID,
+    project_id: str | None = None,
     name: str = "",
     run_id: str | None = None,
 ) -> RunRecord:
     """Mint a new RunRecord with status 'created', persist it via repository, and return it.
 
-    Every run belongs to a project (D092): `project_id` defaults to the default
-    project and an empty value raises ValueError. `run_id` is minted when not
+    Every run belongs to a project (D092): `project_id` defaults to the tenant's
+    default project (the owner's legacy one, or the hidden personal one) and an
+    empty value raises ValueError. `run_id` is minted when not
     given; passing one registers a run whose id already exists elsewhere (a
     Studio run known only to a browser's local history).
     """
+    if project_id is None:
+        project_id = default_project_id(user_id)
     if not project_id:
         raise ValueError("A run cannot be created without a project_id")
     now = datetime.now(UTC)

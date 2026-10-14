@@ -41,7 +41,7 @@ from cf_platform.core.run_visuals import RunVisuals, load_run_visuals, save_run_
 from cf_platform.core.secret_box import SecretBoxError
 from cf_platform.core.tenant_settings import ImageConfig, TenantSettingsRepository, resolve_image_config
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_storage,
     get_project_repository,
     get_run_repository,
@@ -109,7 +109,7 @@ def _image_cost(settings: PlatformSettings, model: str) -> float:
 async def _default_cap(tenant_repo: TenantSettingsRepository, settings: PlatformSettings) -> float:
     """The tenant's default per-run AI image cap, else IMAGE_RUN_SPEND_CAP_USD (never raises)."""
     try:
-        return float((await resolve_defaults(tenant_repo, PLATFORM_USER_ID, settings))["spend_cap"])
+        return float((await resolve_defaults(tenant_repo, current_tenant_id(), settings))["spend_cap"])
     except Exception:
         _logger.warning("studio_generate: tenant defaults unavailable — using the ENV spend cap", exc_info=True)
         return settings.IMAGE_RUN_SPEND_CAP_USD
@@ -125,7 +125,7 @@ async def _run_cap(
 async def _image_model(tenant_repo: TenantSettingsRepository, settings: PlatformSettings) -> str:
     """The model images would be generated on, '' when it cannot be resolved (never raises)."""
     try:
-        return (await resolve_image_config(tenant_repo, PLATFORM_USER_ID, settings)).model
+        return (await resolve_image_config(tenant_repo, current_tenant_id(), settings)).model
     except Exception:
         return ""
 
@@ -139,7 +139,7 @@ async def _resolve_config(
     database is unreachable.
     """
     try:
-        config = await resolve_image_config(tenant_repo, PLATFORM_USER_ID, settings)
+        config = await resolve_image_config(tenant_repo, current_tenant_id(), settings)
     except SecretBoxError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (psycopg.Error, OSError) as exc:

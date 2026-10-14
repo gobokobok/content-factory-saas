@@ -73,12 +73,14 @@ class TestLogin:
         res = client.post("/auth/login", json={"password": "correct-horse-battery"})
         assert AUTH_COOKIE_NAME in res.cookies
 
-    def test_cookie_value_matches_expected_hmac(self):
-        """Cookie value equals sign_cookie(SESSION_SECRET_KEY)."""
+    def test_cookie_is_a_server_side_session_token_not_a_constant(self):
+        """P-AUTH F6: the cookie is a random session token (new at every login), not the constant HMAC."""
         client = _client()
-        res = client.post("/auth/login", json={"password": "correct-horse-battery"})
-        expected = sign_cookie("test-hmac-secret")
-        assert res.cookies[AUTH_COOKIE_NAME] == expected
+        first = client.post("/auth/login", json={"password": "correct-horse-battery"}).cookies[AUTH_COOKIE_NAME]
+        second = client.post("/auth/login", json={"password": "correct-horse-battery"}).cookies[AUTH_COOKIE_NAME]
+        assert first.startswith("s1.") and second.startswith("s1.")
+        assert first != second
+        assert first != sign_cookie("test-hmac-secret")
 
     def test_wrong_password_returns_401(self):
         """POST /auth/login with wrong password returns 401."""

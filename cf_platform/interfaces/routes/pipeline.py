@@ -14,7 +14,7 @@ from cf_platform.core.schemas import PipelineState, SourceAdapter
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.core.worker_registry import ExecutionRepository, WorkerRegistry
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_repository,
     get_artifact_storage,
     get_discovery_adapters,
@@ -69,7 +69,7 @@ async def produce(
     (~5–10 minutes).  For fire-and-forget use, prefer the Telegram `/produce` command.
     """
     run_inputs: dict[str, Any] = {"niche": body.niche}
-    run = await create_run(PLATFORM_USER_ID, "full_pipeline", run_inputs, runs)
+    run = await create_run(current_tenant_id(), "full_pipeline", run_inputs, runs)
     run = await transition_run(run.run_id, "running", runs)
 
     graph = build_full_pipeline_graph(
@@ -87,7 +87,7 @@ async def produce(
     )
     state = PipelineState(
         run_id=run.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         inputs=run_inputs,
         target_duration_seconds=body.target_duration_seconds,
         idea_title=body.idea_title,

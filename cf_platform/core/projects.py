@@ -21,6 +21,8 @@ from pydantic import BaseModel
 from cf_platform.core.schemas import DEFAULT_PROJECT_ID
 
 DEFAULT_PROJECT_NAME = "Default project"
+# Marks a tenant's Creator project in its config, so a renamed project is still found (P-LITE, P-AUTH).
+CREATOR_CONFIG_FLAG = "creator"
 
 # Sentinel for "field not supplied" in update_project, so None stays a real value.
 _UNSET: Any = object()

@@ -72,7 +72,7 @@ from cf_platform.core.shortlist import (
 )
 from cf_platform.core.tenant_settings import TenantSettingsRepository
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_repository,
     get_artifact_storage,
     get_project_repository,
@@ -290,7 +290,7 @@ def _run_response(
 async def _activity_by_project(runs: RunRepository) -> dict[str, datetime]:
     """Latest run activity (updated_at) per project, ignoring archived runs."""
     latest: dict[str, datetime] = {}
-    for run in await runs.list_runs():
+    for run in await runs.list_runs(current_tenant_id()):
         if run.archived_at is None and (run.project_id not in latest or run.updated_at > latest[run.project_id]):
             latest[run.project_id] = run.updated_at
     return latest
@@ -320,7 +320,7 @@ async def _project_or_404(project_id: str, projects: ProjectRepository) -> Proje
         project = await projects.get(project_id)
     except ProjectNotFoundError:
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
-    if project.tenant_id != PLATFORM_USER_ID:
+    if project.tenant_id != current_tenant_id():
         raise HTTPException(status_code=404, detail=f"Project not found: {project_id}")
     return project
 
@@ -335,8 +335,8 @@ async def list_projects(
     runs: RunRepository = Depends(get_run_repository),
 ) -> list[ProjectResponse]:
     """Return the operator's projects, newest first, each with its run count."""
-    records = await projects.list_projects(PLATFORM_USER_ID, include_archived=include_archived)
-    counts = await runs.count_by_project()
+    records = await projects.list_projects(current_tenant_id(), include_archived=include_archived)
+    counts = await runs.count_by_project(current_tenant_id())
     activity = await _activity_by_project(runs)
     return [
         _project_response(project, counts.get(project.project_id, 0), activity.get(project.project_id))
@@ -352,7 +352,7 @@ async def create_project_route(
     """Create a project. Returns 422 when the name is blank."""
     try:
         project = await create_project(
-            PLATFORM_USER_ID, body.name, projects, niche=body.niche, config=body.config
+            current_tenant_id(), body.name, projects, niche=body.niche, config=body.config
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
@@ -367,7 +367,7 @@ async def get_project(
 ) -> ProjectResponse:
     """Return one project with its run count. Raises 404 if project_id is unknown."""
     project = await _project_or_404(project_id, projects)
-    counts = await runs.count_by_project()
+    counts = await runs.count_by_project(current_tenant_id())
     activity = await _activity_by_project(runs)
     return _project_response(project, counts.get(project_id, 0), activity.get(project_id))
 
@@ -403,7 +403,7 @@ async def patch_project(
         project = await update_project(project_id, projects, **fields)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    counts = await runs.count_by_project()
+    counts = await runs.count_by_project(current_tenant_id())
     return _project_response(project, counts.get(project_id, 0))
 
 
@@ -551,7 +551,7 @@ async def list_project_runs(
 ) -> list[ProjectRunResponse]:
     """Return the project's runs, newest first, each with its mode, language and progress."""
     await _project_or_404(project_id, projects)
-    records = await runs.list_for_project(project_id)
+    records = await runs.list_for_project(project_id, current_tenant_id())
     progress = await asyncio.gather(*(collect_run_progress(run.run_id, artifacts, storage) for run in records))
     return [_run_response(run, prog) for run, prog in zip(records, progress, strict=True)]
 
@@ -596,14 +596,14 @@ async def create_run_from_shortlist(
         context["supporting_points"] = [*context["supporting_points"], brief]
     item_ids = [item.item_id for item in items]
     try:
-        tenant_defaults = await resolve_defaults(tenant_repo, PLATFORM_USER_ID, settings)
+        tenant_defaults = await resolve_defaults(tenant_repo, current_tenant_id(), settings)
     except Exception:
         tenant_defaults = {"language": "en", "format": "9:16"}
     values = resolve_run_values(
         tenant_defaults, project.config, language=body.language, aspect_ratio=body.aspect_ratio
     )
     run = await create_run(
-        PLATFORM_USER_ID,
+        current_tenant_id(),
         STUDIO_BLOCK,
         {
             "item_ids": item_ids,
@@ -638,9 +638,12 @@ async def import_local_runs(
     imported = 0
     for entry in body.runs:
         created_at = datetime.fromtimestamp(entry.ts / 1000, tz=UTC) if entry.ts else None
-        _, created = await register_existing_run(
-            entry.id, PLATFORM_USER_ID, project_id, runs, name=entry.name.strip(), created_at=created_at
+        record, created = await register_existing_run(
+            entry.id, current_tenant_id(), project_id, runs, name=entry.name.strip(), created_at=created_at
         )
+        # A run id another tenant already owns is never claimed, and never confirmed (F2).
+        if (record.tenant_id or record.user_id) != current_tenant_id():
+            continue
         imported += int(created)
     return RunImportResponse(imported=imported, already_known=len(body.runs) - imported)
 
@@ -691,7 +694,7 @@ async def add_shortlist_item(
     await _project_or_404(project_id, projects)
     try:
         item = await add_manual_item(
-            PLATFORM_USER_ID,
+            current_tenant_id(),
             project_id,
             body.title,
             shortlist,
@@ -787,7 +790,7 @@ async def get_run_context(
     items = await shortlist.items_for_run(run_id)
     context = build_idea_context(items)
     try:
-        tenant_defaults = await resolve_defaults(tenant_repo, PLATFORM_USER_ID, settings)
+        tenant_defaults = await resolve_defaults(tenant_repo, current_tenant_id(), settings)
     except Exception:
         tenant_defaults = {}
     return RunContextResponse(

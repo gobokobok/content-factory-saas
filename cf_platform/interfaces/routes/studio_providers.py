@@ -17,7 +17,7 @@ from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.providers import BLOCKS, resolve_block
 from cf_platform.core.tenant_settings import TenantSettingsRepository
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_storage,
     get_tenant_settings_repository,
 )
@@ -59,7 +59,7 @@ async def studio_run_providers(
     now: list[dict[str, Any]] = []
     for block in BLOCKS:
         for role in block.roles:
-            choice = await resolve_block(repo, PLATFORM_USER_ID, settings, block.block_id, role)
+            choice = await resolve_block(repo, current_tenant_id(), settings, block.block_id, role)
             now.append({
                 "block": block.name, "role": role, "provider": choice["provider"],
                 "model": choice["model"], "has_key": bool(choice["api_key"]),

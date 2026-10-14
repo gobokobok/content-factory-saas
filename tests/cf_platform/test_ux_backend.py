@@ -114,11 +114,22 @@ class TestIntegrations:
         assert await effective_platform_settings(InMemoryTenantSettingsRepository(), "t", s) is s
 
     @pytest.mark.asyncio
-    async def test_unreadable_saved_key_falls_back_to_env(self):
+    async def test_unreadable_saved_key_falls_back_to_env_for_the_owner(self):
         repo, s = InMemoryTenantSettingsRepository(), _settings()
-        await save_integration_key(repo, "t", s, "pexels", api_key="tenant-pexels")
+        await save_integration_key(repo, "operator", s, "pexels", api_key="tenant-pexels")
         changed = _settings(SETTINGS_ENCRYPTION_KEY=Fernet.generate_key().decode())
-        assert (await effective_platform_settings(repo, "t", changed)).PEXELS_API_KEY == "env-pexels"
+        assert (await effective_platform_settings(repo, "operator", changed)).PEXELS_API_KEY == "env-pexels"
+
+    @pytest.mark.asyncio
+    async def test_unreadable_saved_key_fails_for_another_tenant_instead_of_using_the_owners_key(self):
+        """F5: a stranger's broken key must never spend the owner's account."""
+        from cf_platform.core.integrations import TenantKeyError
+
+        repo, s = InMemoryTenantSettingsRepository(), _settings()
+        await save_integration_key(repo, "u_friend", s, "pexels", api_key="tenant-pexels")
+        changed = _settings(SETTINGS_ENCRYPTION_KEY=Fernet.generate_key().decode())
+        with pytest.raises(TenantKeyError):
+            await effective_platform_settings(repo, "u_friend", changed)
 
 
 class TestIntegrationRoutes:

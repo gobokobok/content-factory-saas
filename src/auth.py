@@ -72,3 +72,13 @@ def verify_cookie(cookie_value: str, secret_key: str) -> bool:
     """Return True if cookie_value matches the expected HMAC token for secret_key."""
     expected = sign_cookie(secret_key)
     return hmac.compare_digest(cookie_value, expected)
+
+
+def origin_allowed(origin: str, own_origin: str, extra_origins: set[str]) -> bool:
+    """Whether a mutating request's Origin header may be served (login-CSRF / CSRF defence).
+
+    A request with no Origin is not a browser form or fetch from another site (SameSite=Lax
+    already stops the cookie there), so it is the caller's job to allow it; this checks a
+    present header: it must be the site's own origin or an explicitly allowed one.
+    """
+    return origin == own_origin or origin in extra_origins

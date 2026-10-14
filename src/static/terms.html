@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Terms of use</title>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --ink:#1c1b19; --muted:#6b6a66; --line:#e2e0da; --accent:#2b5cff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161513; --card:#201f1c; --ink:#f1efe9; --muted:#a09e97; --line:#35332e; --accent:#7c9bff; } }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  main { max-width:620px; margin:6vh auto; padding:0 16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:28px; }
+  h1 { font-size:22px; margin:0 0 12px; }
+  ul { padding-left:20px; color:var(--ink); }
+  li { margin:8px 0; }
+  p.muted { color:var(--muted); font-size:14px; }
+  button { margin-top:12px; background:var(--accent); color:#fff; border:0; border-radius:10px; padding:11px 20px; font-size:15px; cursor:pointer; }
+  button[disabled] { opacity:.6; cursor:default; }
+  #err { color:#c0392b; min-height:1.2em; font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <h1>Before you start</h1>
+    <p>This is an early beta. By continuing you agree to the following.</p>
+    <ul>
+      <li><strong>Your content.</strong> You are responsible for the scripts, characters and images you create, and you confirm you have the right to use them.</li>
+      <li><strong>What is not allowed.</strong> No sexual content involving minors, no content that targets or harasses a real person, no hateful or violent extremist material, no impersonation, and nothing illegal.</li>
+      <li><strong>Moderation.</strong> What you type is checked before it is sent to an AI model, and refused when it breaks these rules. A record of your prompts and the result is kept to run the service and handle abuse.</li>
+      <li><strong>Limits.</strong> There are daily limits on videos and on cost. They can change, and accounts that abuse the service can be switched off.</li>
+      <li><strong>Beta.</strong> Videos and projects can be lost or changed while this is built. Keep a copy of anything you need.</li>
+    </ul>
+    <p class="muted">Terms version <span id="ver"></span>. These terms are a short beta notice, not a full legal agreement.</p>
+    <div id="err"></div>
+    <button id="accept">I agree — continue</button>
+  </div>
+</main>
+<script>
+  const btn = document.getElementById('accept'), err = document.getElementById('err');
+  fetch('/auth/me').then(r => r.json()).then(d => { document.getElementById('ver').textContent = d.terms_version || ''; }).catch(() => {});
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; err.textContent = '';
+    try {
+      const r = await fetch('/auth/terms/accept', { method: 'POST' });
+      if (!r.ok) throw new Error('Could not record your answer (' + r.status + ').');
+      const me = await (await fetch('/auth/me')).json();
+      location.href = me.effective_type === 'super' ? '/' : '/create';
+    } catch (e) { err.textContent = e.message; btn.disabled = false; }
+  });
+</script>
+</body>
+</html>

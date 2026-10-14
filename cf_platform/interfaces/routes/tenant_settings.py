@@ -32,7 +32,7 @@ from cf_platform.core.tenant_settings import (
     public_image_settings,
     save_image_settings,
 )
-from cf_platform.interfaces.dependencies import PLATFORM_USER_ID, get_tenant_settings_repository
+from cf_platform.interfaces.dependencies import current_tenant_id, get_tenant_settings_repository
 
 router = APIRouter()
 
@@ -53,7 +53,7 @@ async def get_image_settings(
     settings: PlatformSettings = Depends(get_platform_settings),
 ) -> dict:
     """Return the tenant's image settings with key hints only."""
-    return await public_image_settings(repo, PLATFORM_USER_ID, settings)
+    return await public_image_settings(repo, current_tenant_id(), settings)
 
 
 @router.put("/tenant/settings/image")
@@ -65,7 +65,7 @@ async def put_image_settings(
     """Save provider / model / key; 422 for an unknown provider, 409 when keys cannot be encrypted."""
     try:
         await save_image_settings(
-            repo, PLATFORM_USER_ID, settings,
+            repo, current_tenant_id(), settings,
             provider=body.provider, model=body.model,
             api_key=body.api_key, clear_key_for=body.clear_key_for,
         )
@@ -73,7 +73,7 @@ async def put_image_settings(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except SecretBoxError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return await public_image_settings(repo, PLATFORM_USER_ID, settings)
+    return await public_image_settings(repo, current_tenant_id(), settings)
 
 
 class IntegrationPatch(BaseModel):
@@ -89,7 +89,7 @@ async def get_integrations(
     settings: PlatformSettings = Depends(get_platform_settings),
 ) -> dict:
     """Return every service with its key source and hint (never a key)."""
-    return await public_integrations(repo, PLATFORM_USER_ID, settings)
+    return await public_integrations(repo, current_tenant_id(), settings)
 
 
 @router.put("/tenant/integrations/{service_id}")
@@ -102,13 +102,13 @@ async def put_integration(
     """Save or remove one service's key; 422 for an unknown service or empty key, 409 when keys cannot be encrypted."""
     try:
         await save_integration_key(
-            repo, PLATFORM_USER_ID, settings, service_id, api_key=body.api_key, clear_key=body.clear_key
+            repo, current_tenant_id(), settings, service_id, api_key=body.api_key, clear_key=body.clear_key
         )
     except (UnknownServiceError, ValueError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except SecretBoxError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return await public_integrations(repo, PLATFORM_USER_ID, settings)
+    return await public_integrations(repo, current_tenant_id(), settings)
 
 
 class BlockPatch(BaseModel):
@@ -125,7 +125,7 @@ async def get_blocks(
     settings: PlatformSettings = Depends(get_platform_settings),
 ) -> dict:
     """Return every block with its providers, key state, default and model (never a key)."""
-    return await public_blocks(repo, PLATFORM_USER_ID, settings)
+    return await public_blocks(repo, current_tenant_id(), settings)
 
 
 @router.put("/tenant/blocks/{block_id}")
@@ -140,10 +140,10 @@ async def put_block(
     if body.model is not None:
         model = (str(body.model.get("provider") or ""), str(body.model.get("model") or ""))
     try:
-        await set_block_choice(repo, PLATFORM_USER_ID, settings, block_id, default=body.default, model=model)
+        await set_block_choice(repo, current_tenant_id(), settings, block_id, default=body.default, model=model)
     except UnknownProviderError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return await public_blocks(repo, PLATFORM_USER_ID, settings)
+    return await public_blocks(repo, current_tenant_id(), settings)
 
 
 @router.get("/tenant/defaults")
@@ -152,7 +152,7 @@ async def get_defaults(
     settings: PlatformSettings = Depends(get_platform_settings),
 ) -> dict:
     """Return the tenant's defaults over the built-in ones."""
-    return await resolve_defaults(repo, PLATFORM_USER_ID, settings)
+    return await resolve_defaults(repo, current_tenant_id(), settings)
 
 
 @router.put("/tenant/defaults")
@@ -163,7 +163,7 @@ async def put_defaults(
 ) -> dict:
     """Change any of language, format, captions, spend_cap; 422 names the first bad field."""
     try:
-        await save_defaults(repo, PLATFORM_USER_ID, body)
+        await save_defaults(repo, current_tenant_id(), body)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return await resolve_defaults(repo, PLATFORM_USER_ID, settings)
+    return await resolve_defaults(repo, current_tenant_id(), settings)

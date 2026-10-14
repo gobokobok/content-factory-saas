@@ -29,7 +29,7 @@ from cf_platform.core.run_manager import RunNotFoundError, RunRepository
 from cf_platform.core.schemas import LineageEnvelope, RunRecord, StageState, TraceEvent
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_storage,
     get_effective_platform_settings,
     get_run_repository,
@@ -101,7 +101,7 @@ async def _write_transcript_artifacts(
     )
     await write_artifact(
         storage, alignment, name="voice_alignment", stage="voice",
-        run_id=run_id, user_id=PLATFORM_USER_ID, lineage=lineage,
+        run_id=run_id, user_id=current_tenant_id(), lineage=lineage,
     )
     text = transcript_text(alignment.word_timestamps)
     script = ScriptArtifact(
@@ -110,7 +110,7 @@ async def _write_transcript_artifacts(
     )
     await write_artifact(
         storage, script, name="script", stage="script",
-        run_id=run_id, user_id=PLATFORM_USER_ID, lineage=lineage,
+        run_id=run_id, user_id=current_tenant_id(), lineage=lineage,
     )
 
 
@@ -297,7 +297,7 @@ async def studio_upload_voice(
     )
     language = run_language(run)
     state = StageState(
-        run_id=run_id, user_id=PLATFORM_USER_ID,
+        run_id=run_id, user_id=current_tenant_id(),
         inputs={"audio_r2_key": audio_key, "language": language}, artifacts={},
     )
     job_id = str(uuid.uuid4())

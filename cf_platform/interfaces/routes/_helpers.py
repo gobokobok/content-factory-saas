@@ -1,7 +1,7 @@
 """Small helpers shared by multiple route modules (not a route module itself)."""
 
 from cf_platform.core.artifact_manager import ArtifactStorage, latest_version_key
-from cf_platform.interfaces.dependencies import PLATFORM_USER_ID
+from cf_platform.interfaces.dependencies import current_tenant_id
 
 DISCARDED_STORYBOARD_MARKER = "runs/{run_id}/storyboard/discarded.json"
 
@@ -13,7 +13,7 @@ async def latest_artifact_key(storage: ArtifactStorage, run_id: str, stage: str,
     A storyboard the operator discarded by re-uploading the voiceover (P14b-S4) counts
     as absent until a newer version is generated.
     """
-    prefix = f"users/{PLATFORM_USER_ID}/runs/{run_id}/{stage}/{name}@v"
+    prefix = f"users/{current_tenant_id()}/runs/{run_id}/{stage}/{name}@v"
     keys = await storage.list_keys(prefix)
     key = latest_version_key(keys)
     if key and stage == "storyboard" and name == "verified_storyboard":
@@ -132,7 +132,7 @@ async def prepare_run_timeline(
     if write:
         record = await write_artifact(
             storage, TimelineArtifact(timeline=timeline, generated_at=datetime.now()),
-            name="timeline", stage="render", run_id=run_id, user_id=PLATFORM_USER_ID,
+            name="timeline", stage="render", run_id=run_id, user_id=current_tenant_id(),
             lineage=LineageEnvelope(
                 run_id=run_id, worker="timeline_builder", worker_version="1.0.0",
                 prompt_version="none", model="none", created_at=datetime.now(),

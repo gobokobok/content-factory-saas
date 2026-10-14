@@ -6,7 +6,9 @@ module assembles them into one router and re-exports the names older tests
 and call sites still import directly from here.
 """
 
-from fastapi import APIRouter
+import os
+
+from fastapi import APIRouter, Depends
 
 from cf_platform.core.config import get_platform_settings  # noqa: F401
 from cf_platform.core.db import get_pool  # noqa: F401
@@ -21,7 +23,9 @@ from cf_platform.interfaces.dependencies import (  # noqa: F401
     get_shortlist_repository,
     get_trace_event_repository,
     get_worker_registry,
+    require_super,
 )
+from cf_platform.interfaces.guards import enforce_scope
 from cf_platform.interfaces.routes import (
     blocks,
     creator,
@@ -68,20 +72,30 @@ from cf_platform.interfaces.routes.workers import (  # noqa: F401
 )
 
 router = APIRouter()
-router.include_router(meta.router)
-router.include_router(echo.router)
-router.include_router(blocks.router)
-router.include_router(workers.router)
-router.include_router(studio.router)
-router.include_router(studio_ai.router)
-router.include_router(studio_animation.router)
-router.include_router(studio_providers.router)
-router.include_router(studio_visuals.router)
-router.include_router(creator.router)
-router.include_router(studio_voice.router)
-router.include_router(runs.router)
-router.include_router(projects.router)
-router.include_router(tenant_settings.router)
-router.include_router(library.router)
-router.include_router(pipeline.router)
-router.include_router(telegram_webhook.router)
+
+# P-AUTH S3: every route module answers only for the signed-in user's own runs and
+# projects. The scope guard reads run_id / project_id from the path, so a route added
+# later cannot forget it. The Telegram webhook authenticates by its own secret, not a
+# session, so it stays outside (and is unmounted unless TELEGRAM_ROUTES_ENABLED, S6).
+_SCOPED = [Depends(enforce_scope)]
+# Routes Basic never reaches: closed at the router too, not only by the middleware's allow-list.
+_SUPER_ONLY = [Depends(require_super), Depends(enforce_scope)]
+
+router.include_router(meta.router, dependencies=_SCOPED)
+router.include_router(echo.router, dependencies=_SUPER_ONLY)
+router.include_router(blocks.router, dependencies=_SUPER_ONLY)
+router.include_router(workers.router, dependencies=_SCOPED)
+router.include_router(studio.router, dependencies=_SCOPED)
+router.include_router(studio_ai.router, dependencies=_SCOPED)
+router.include_router(studio_animation.router, dependencies=_SCOPED)
+router.include_router(studio_providers.router, dependencies=_SUPER_ONLY)
+router.include_router(studio_visuals.router, dependencies=_SUPER_ONLY)
+router.include_router(creator.router, dependencies=_SCOPED)
+router.include_router(studio_voice.router, dependencies=_SCOPED)
+router.include_router(runs.router, dependencies=_SUPER_ONLY)
+router.include_router(projects.router, dependencies=_SCOPED)
+router.include_router(tenant_settings.router, dependencies=_SUPER_ONLY)
+router.include_router(library.router, dependencies=_SUPER_ONLY)
+router.include_router(pipeline.router, dependencies=_SUPER_ONLY)
+if os.environ.get("TELEGRAM_ROUTES_ENABLED", "").strip().lower() in {"1", "true", "yes"}:
+    router.include_router(telegram_webhook.router)

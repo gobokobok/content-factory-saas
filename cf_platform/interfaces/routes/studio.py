@@ -11,7 +11,7 @@ from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
 from cf_platform.core.config import PlatformSettings
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_storage,
     get_effective_platform_settings,
     get_trace_event_repository,
@@ -124,7 +124,7 @@ async def _write_storyboard(storage: ArtifactStorage, run_id: str, artifact_body
     record = await write_artifact(
         storage, artifact,
         name="verified_storyboard", stage="storyboard",
-        run_id=run_id, user_id=PLATFORM_USER_ID,
+        run_id=run_id, user_id=current_tenant_id(),
         lineage=LineageEnvelope(
             run_id=run_id, worker=worker, worker_version="1.0.0",
             prompt_version="manual", model="none", created_at=datetime.now(),
@@ -194,7 +194,7 @@ async def _write_manifest(storage: ArtifactStorage, run_id: str, manifest, worke
     record = await write_artifact(
         storage, build_manifest_artifact(manifest, datetime.now()),
         name="asset_manifest", stage="acquisition",
-        run_id=run_id, user_id=PLATFORM_USER_ID,
+        run_id=run_id, user_id=current_tenant_id(),
         lineage=LineageEnvelope(
             run_id=run_id, worker=worker,
             worker_version=ACQUISITION_WORKER_REGISTRATION.worker_version,
@@ -1128,7 +1128,7 @@ async def studio_reacquire_scene(
     await write_artifact(
         storage, new_artifact,
         name="asset_manifest", stage="acquisition",
-        run_id=run_id, user_id=PLATFORM_USER_ID, lineage=lineage,
+        run_id=run_id, user_id=current_tenant_id(), lineage=lineage,
     )
 
     # Emit operator override trace event. Best-effort: Studio run_ids are generated
@@ -1244,7 +1244,7 @@ async def _rederive_scene_media_contract(
             generated_at=datetime.now(),
         ),
         name="verified_storyboard", stage="storyboard",
-        run_id=run_id, user_id=PLATFORM_USER_ID,
+        run_id=run_id, user_id=current_tenant_id(),
         lineage=LineageEnvelope(
             run_id=run_id,
             worker="studio_upload",
@@ -1362,7 +1362,7 @@ async def studio_upload_scene_asset(
     await write_artifact(
         storage, new_artifact,
         name="asset_manifest", stage="acquisition",
-        run_id=run_id, user_id=PLATFORM_USER_ID, lineage=lineage,
+        run_id=run_id, user_id=current_tenant_id(), lineage=lineage,
     )
     latency_ms = int((time.monotonic() - t0) * 1000)
 

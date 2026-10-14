@@ -22,7 +22,7 @@ from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, RunRe
 from cf_platform.core.trace_repo import TraceEventRepository
 from cf_platform.core.worker_registry import ExecutionRepository, WorkerRegistry
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_repository,
     get_artifact_storage,
     get_discovery_adapters,
@@ -85,7 +85,7 @@ async def niche_to_ideas(
     if body.audience:
         run_inputs["audience"] = body.audience
 
-    run = await create_run(PLATFORM_USER_ID, "niche_to_ideas", run_inputs, runs)
+    run = await create_run(current_tenant_id(), "niche_to_ideas", run_inputs, runs)
     run = await transition_run(run.run_id, "running", runs)
 
     graph = build_niche_to_ideas_graph(
@@ -101,7 +101,7 @@ async def niche_to_ideas(
     mode = body.mode if body.mode in ("single", "top_n") else "single"
     state = NicheToIdeasState(
         run_id=run.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         inputs=run_inputs,
         mode=mode,  # type: ignore[arg-type]
     )
@@ -200,7 +200,7 @@ async def idea_to_script(
         run_inputs["supporting_points"] = body.supporting_points
 
     if existing_run is None:
-        run = await create_run(PLATFORM_USER_ID, "idea_to_script", run_inputs, runs)
+        run = await create_run(current_tenant_id(), "idea_to_script", run_inputs, runs)
         run = await transition_run(run.run_id, "running", runs)
         thread_id = run.run_id
     else:
@@ -228,7 +228,7 @@ async def idea_to_script(
     )
     state = IdeaToScriptState(
         run_id=run.run_id,
-        user_id=PLATFORM_USER_ID,
+        user_id=current_tenant_id(),
         inputs=run_inputs,
         **state_kwargs,
     )

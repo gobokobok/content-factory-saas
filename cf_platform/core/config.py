@@ -68,6 +68,26 @@ class PlatformSettings(BaseSettings):
     # D114 (6) — per-scene sound effects in the render and the CapCut export. Off by
     # default for every tier: they did not sound natural.
     SFX_ENABLED: bool = False
+    # P-AUTH (S6) — same ENV var as src/config.py: allow the process-memory repositories.
+    ALLOW_IN_MEMORY_STORE: bool = False
+    # P-AUTH (S8, F4, F8) — server-side caps and the interim per-tenant cost bound, applied
+    # to every tenant except the owner's. Replaced by the credit ledger in P-BILL-1.
+    CAP_SCRIPT_WORDS: int = 1200
+    CAP_PROMPT_CHARS: int = 4000
+    CAP_STYLE_CHARS: int = 2000
+    CAP_CHARACTER_CHARS: int = 1500
+    CAP_RUNS_PER_DAY: int = 10
+    CAP_DAILY_SPEND_USD: float = 5.0
+    CAP_CONCURRENT_RENDERS: int = 1
+    CAP_STORAGE_MB: int = 2048
+    # Estimated dollars of one paid call that has no exact price (LLM, TTS, a prompt rewrite).
+    EST_LLM_CALL_USD: float = 0.05
+    EST_TTS_CALL_USD: float = 0.05
+    EST_RENDER_USD: float = 0.0
+    # P-AUTH (S9, D115) — the moderation gate. "block" refuses a flagged text, "log" only
+    # records it. MODERATION_BLOCKLIST is extra comma-separated phrases, case-insensitive.
+    MODERATION_MODE: str = "block"
+    MODERATION_BLOCKLIST: str = ""
     DEEPGRAM_API_KEY: str = ""
     # Same ENV var names as src/config.py — reused by the native AcquisitionWorker (P9-S3).
     PEXELS_API_KEY: str = ""

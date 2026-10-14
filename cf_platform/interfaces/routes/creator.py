@@ -19,12 +19,12 @@ from pydantic import BaseModel, Field
 
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings, get_platform_settings
-from cf_platform.core.projects import Project, ProjectRepository, create_project
+from cf_platform.core.projects import CREATOR_CONFIG_FLAG, Project, ProjectRepository, create_project
 from cf_platform.core.run_manager import RunRepository, create_run
 from cf_platform.core.run_visuals import settings_key
 from cf_platform.core.shortlist import build_idea_context
 from cf_platform.interfaces.dependencies import (
-    PLATFORM_USER_ID,
+    current_tenant_id,
     get_artifact_storage,
     get_project_repository,
     get_run_repository,
@@ -34,8 +34,6 @@ from src.models import MAX_RUN_CHARACTERS, RunCharacter, VideoSettings
 
 router = APIRouter()
 
-# Marks the Creator's project in its config, so a renamed project is still found.
-CREATOR_CONFIG_FLAG = "creator"
 _RUN_NAME_MAX_CHARS = 120
 # The voices a run may choose, in the order the page lists them; the first is the default.
 # Male first: it is the deployment's own voice (GEMINI_TTS_VOICE) unless one is set.
@@ -60,10 +58,10 @@ async def creator_project(projects: ProjectRepository, name: str) -> Project:
     Found by the flag in its config, so renaming it in the Studio does not make a
     second one. `name` is only used when the project has to be created.
     """
-    for project in await projects.list_projects(PLATFORM_USER_ID, include_archived=False):
+    for project in await projects.list_projects(current_tenant_id(), include_archived=False):
         if (project.config or {}).get(CREATOR_CONFIG_FLAG):
             return project
-    return await create_project(PLATFORM_USER_ID, name, projects, config={CREATOR_CONFIG_FLAG: True})
+    return await create_project(current_tenant_id(), name, projects, config={CREATOR_CONFIG_FLAG: True})
 
 
 def creator_run_settings(body: CreatorRunRequest) -> dict[str, Any]:
@@ -116,7 +114,7 @@ async def create_creator_run(
     context = build_idea_context([])
     context["idea_title"] = title
     run = await create_run(
-        PLATFORM_USER_ID,
+        current_tenant_id(),
         STUDIO_BLOCK,
         {
             "item_ids": [],

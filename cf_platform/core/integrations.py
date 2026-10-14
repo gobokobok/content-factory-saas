@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from cf_platform.core.accounts import OWNER_TENANT_ID
 from cf_platform.core.secret_box import SecretBoxError, decrypt_secret, encrypt_secret, key_hint
 from cf_platform.core.tenant_settings import TenantSettings, TenantSettingsRepository
 
@@ -58,6 +59,10 @@ CAPTION_CHOICES = ("standard", "punch", "none")
 DEFAULT_KEYS = ("language", "format", "captions", "spend_cap")
 
 
+class TenantKeyError(Exception):
+    """A non-owner tenant's saved key cannot be decrypted — the call must fail, not use the owner's key (F5)."""
+
+
 class UnknownServiceError(ValueError):
     """Raised for a service id that is not in SERVICES or cannot hold a saved key."""
 
@@ -95,8 +100,10 @@ async def effective_platform_settings(
 ) -> Any:
     """Return a copy of the platform settings with the tenant's saved keys overlaid.
 
-    A key that cannot be decrypted (the encryption key changed) is skipped with a
-    warning, so the Railway variable keeps working instead of the call failing.
+    For the owner's tenant a key that cannot be decrypted (the encryption key changed)
+    is skipped with a warning, so the Railway variable keeps working. For any other
+    tenant it raises TenantKeyError: falling back would spend the owner's account on a
+    stranger's broken key (F5).
     """
     row = await repo.get(tenant_id)
     if not row or not row.api_keys:
@@ -109,6 +116,10 @@ async def effective_platform_settings(
         try:
             overlay[service.env_attr] = decrypt_secret(stored["encrypted"], platform_settings.SETTINGS_ENCRYPTION_KEY)
         except SecretBoxError:
+            if tenant_id != OWNER_TENANT_ID:
+                raise TenantKeyError(
+                    f"Your saved {service.name} key cannot be read. Save it again in Integrations."
+                ) from None
             _logger.warning("Saved %s key cannot be decrypted — using the Railway variable", service.service_id)
     return platform_settings.model_copy(update=overlay) if overlay else platform_settings
 

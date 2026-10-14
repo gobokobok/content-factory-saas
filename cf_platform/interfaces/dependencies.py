@@ -6,11 +6,20 @@ import only what it needs without pulling in the whole platform surface.
 
 import logging
 
-from fastapi import Depends
+from fastapi import Depends, HTTPException
 from langgraph.checkpoint.base import BaseCheckpointSaver
 
 from cf_platform.blocks.idea_to_script import register_idea_to_script_workers
 from cf_platform.blocks.niche_to_ideas import register_niche_to_ideas_workers
+from cf_platform.core.accounts import (
+    OWNER_TENANT_ID,
+    AccountStore,
+    InMemoryAccountStore,
+    NotAuthenticatedError,
+    Principal,
+    current_principal,
+    current_tenant_id,
+)
 from cf_platform.core.artifact_manager import (
     ArtifactRepository,
     ArtifactStorage,
@@ -19,7 +28,8 @@ from cf_platform.core.artifact_manager import (
 )
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.db import get_checkpointer, get_pool
-from cf_platform.core.integrations import effective_platform_settings
+from cf_platform.core.integrations import TenantKeyError, effective_platform_settings
+from cf_platform.core.postgres_accounts import PostgresAccountStore
 from cf_platform.core.postgres_project_repos import (
     PostgresProjectRepository,
     PostgresShortlistRepository,
@@ -50,8 +60,10 @@ from cf_platform.workers.echo import ECHO_REGISTRATION
 from cf_platform.workers.storyboard_worker import STORYBOARD_WORKER_REGISTRATION
 from cf_platform.workers.voice_production import VOICE_PRODUCTION_REGISTRATION
 
-# Single-operator platform — fixed user_id, also used as tenant_id on every new row (D092).
-PLATFORM_USER_ID = "operator"
+# The owner's tenant — where every run made before P-AUTH lives (D092). Kept under its old
+# name for tests and the Telegram path; routes no longer scope by it: they read the signed-in
+# user's tenant from current_tenant_id() / current_user().
+PLATFORM_USER_ID = OWNER_TENANT_ID
 
 # In-memory fallback when DATABASE_URL is unset (D048) — process-local singletons.
 _run_repository = InMemoryRunRepository()
@@ -61,6 +73,7 @@ _trace_event_repository = InMemoryTraceEventRepository()
 _project_repository = InMemoryProjectRepository(PLATFORM_USER_ID)
 _shortlist_repository = InMemoryShortlistRepository()
 _tenant_settings_repository = InMemoryTenantSettingsRepository()
+_account_store = InMemoryAccountStore()
 _worker_registry = WorkerRegistry()
 _worker_registry.register("echo", ECHO_REGISTRATION)
 register_niche_to_ideas_workers(_worker_registry)
@@ -70,12 +83,60 @@ _worker_registry.register("storyboard_worker", STORYBOARD_WORKER_REGISTRATION)
 _worker_registry.register("acquisition_worker", ACQUISITION_WORKER_REGISTRATION)
 
 
+def _memory_store_allowed() -> bool:
+    """Whether process-memory repositories may stand in for Postgres (local development only, S6)."""
+    return bool(get_platform_settings().ALLOW_IN_MEMORY_STORE)
+
+
+def _memory_fallback(store):
+    """Return the in-memory store, or refuse with 503 when this is not a local run (S6).
+
+    Without DATABASE_URL a server would keep every user's data in one process's memory and
+    lose it on restart — and share it across tenants through the module singleton. Failing
+    closed is better than looking like it works.
+    """
+    if not _memory_store_allowed():
+        raise HTTPException(
+            status_code=503,
+            detail="Storage is not configured on this server (DATABASE_URL is empty).",
+        )
+    return store
+
+
+def get_account_store() -> AccountStore:
+    """Return the Postgres-backed account store when DATABASE_URL is set, else the in-memory one (local only)."""
+    pool = get_pool(get_platform_settings().DATABASE_URL)
+    if pool is not None:
+        return PostgresAccountStore(pool)
+    return _memory_fallback(_account_store)
+
+
+def current_user() -> Principal:
+    """Dependency: the signed-in principal. 401 when the request has none (the middleware sets it)."""
+    try:
+        return current_principal()
+    except NotAuthenticatedError:
+        raise HTTPException(status_code=401, detail="Unauthorized") from None
+
+
+def current_tenant() -> str:
+    """The tenant id of the signed-in user — every repository read and write is scoped to it."""
+    return current_user().tenant_id
+
+
+def require_super(principal: Principal = Depends(current_user)) -> Principal:
+    """Dependency: allow only a Super account that is not viewing as Basic (D118). 403 otherwise."""
+    if not principal.is_super:
+        raise HTTPException(status_code=403, detail="This needs a Super account.")
+    return principal
+
+
 def get_run_repository() -> RunRepository:
     """Return a Postgres-backed RunRepository when DATABASE_URL is set, else the in-memory fallback (D048)."""
     pool = get_pool(get_platform_settings().DATABASE_URL)
     if pool is not None:
         return PostgresRunRepository(pool)
-    return _run_repository
+    return _memory_fallback(_run_repository)
 
 
 def get_project_repository() -> ProjectRepository:
@@ -83,7 +144,7 @@ def get_project_repository() -> ProjectRepository:
     pool = get_pool(get_platform_settings().DATABASE_URL)
     if pool is not None:
         return PostgresProjectRepository(pool)
-    return _project_repository
+    return _memory_fallback(_project_repository)
 
 
 def get_shortlist_repository() -> ShortlistRepository:
@@ -91,7 +152,7 @@ def get_shortlist_repository() -> ShortlistRepository:
     pool = get_pool(get_platform_settings().DATABASE_URL)
     if pool is not None:
         return PostgresShortlistRepository(pool)
-    return _shortlist_repository
+    return _memory_fallback(_shortlist_repository)
 
 
 def get_tenant_settings_repository() -> TenantSettingsRepository:
@@ -99,7 +160,7 @@ def get_tenant_settings_repository() -> TenantSettingsRepository:
     pool = get_pool(get_platform_settings().DATABASE_URL)
     if pool is not None:
         return PostgresTenantSettingsRepository(pool)
-    return _tenant_settings_repository
+    return _memory_fallback(_tenant_settings_repository)
 
 
 def get_execution_repository() -> ExecutionRepository:
@@ -107,7 +168,7 @@ def get_execution_repository() -> ExecutionRepository:
     pool = get_pool(get_platform_settings().DATABASE_URL)
     if pool is not None:
         return PostgresExecutionRepository(pool)
-    return _execution_repository
+    return _memory_fallback(_execution_repository)
 
 
 def get_artifact_repository() -> ArtifactRepository:
@@ -115,7 +176,7 @@ def get_artifact_repository() -> ArtifactRepository:
     pool = get_pool(get_platform_settings().DATABASE_URL)
     if pool is not None:
         return PostgresArtifactRepository(pool)
-    return _artifact_repository
+    return _memory_fallback(_artifact_repository)
 
 
 def get_trace_event_repository() -> TraceEventRepository:
@@ -123,7 +184,7 @@ def get_trace_event_repository() -> TraceEventRepository:
     pool = get_pool(get_platform_settings().DATABASE_URL)
     if pool is not None:
         return PostgresTraceEventRepository(pool)
-    return _trace_event_repository
+    return _memory_fallback(_trace_event_repository)
 
 
 def get_worker_registry() -> WorkerRegistry:
@@ -186,7 +247,10 @@ async def get_effective_platform_settings(
     must not break the pipeline, so any error falls back to the plain Railway settings.
     """
     try:
-        return await effective_platform_settings(repo, PLATFORM_USER_ID, settings)
+        return await effective_platform_settings(repo, current_tenant_id(), settings)
+    except TenantKeyError as exc:
+        # F5: a non-owner tenant's saved key is unreadable. Say so; never spend the owner's key.
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     except Exception:
         _logger.warning("Tenant keys unavailable — using the Railway variables", exc_info=True)
         return settings

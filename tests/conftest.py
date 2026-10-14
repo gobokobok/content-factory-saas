@@ -8,6 +8,8 @@ import pytest
 # Routes are mounted when src.main is imported, so this must be set at import time.
 # Production leaves it off (F3, F10); the suite keeps exercising the legacy routes.
 os.environ.setdefault("LEGACY_ROUTES_ENABLED", "true")
+# The Telegram webhook is unmounted by default (S6, D093); its tests mount it.
+os.environ.setdefault("TELEGRAM_ROUTES_ENABLED", "true")
 
 # The settings every app instance needs. CI provides only some of them as environment
 # variables and has no .env.local, so a test that builds the app passed on a developer's
@@ -29,6 +31,8 @@ _TEST_ENV_DEFAULTS = {
     "AUTH_SECRET_MIN_LENGTH": "1",
     # The test client talks plain http; a Secure cookie would never be sent back.
     "COOKIE_ALLOW_INSECURE": "true",
+    # The suite runs on the process-memory repositories (S6: refused outside local otherwise).
+    "ALLOW_IN_MEMORY_STORE": "true",
 }
 
 
@@ -51,13 +55,34 @@ def reset_login_rate_limiter():
 
 
 @pytest.fixture(autouse=True)
+def default_owner_principal(request, monkeypatch):
+    """Give code that runs outside the auth middleware the owner as its principal.
+
+    Production fails closed with no principal (every route needs the middleware's). Most
+    tests mount a router on a bare app or call a route function directly and only care
+    about route logic, so they act as the owner. Tests about accounts and isolation
+    (test_auth*.py, test_p_auth*.py) keep the real, fail-closed behaviour.
+    """
+    name = request.fspath.basename
+    if name.startswith("test_auth") or name.startswith("test_p_auth"):
+        yield
+        return
+    from contextvars import ContextVar
+
+    from cf_platform.core import accounts
+
+    monkeypatch.setattr(accounts, "_principal_var", ContextVar("cf_principal", default=accounts.owner_principal()))
+    yield
+
+
+@pytest.fixture(autouse=True)
 def bypass_auth_middleware(request):
     """Bypass the auth middleware for all tests except test_auth.py.
 
     test_auth.py tests the middleware and cookie behaviour directly.
     All other test files only care about route logic, not auth gating.
     """
-    if "test_auth" in request.fspath.basename:
+    if "test_auth" in request.fspath.basename or request.fspath.basename.startswith("test_p_auth"):
         yield
         return
     with patch("src.main.verify_cookie", return_value=True):

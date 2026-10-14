@@ -114,52 +114,73 @@ class PostgresRunRepository:
             await conn.commit()
         return run
 
-    async def get(self, run_id: str) -> RunRecord:
-        """Return the RunRecord for run_id. Raises RunNotFoundError if absent."""
+    async def get(self, run_id: str, tenant_id: str | None = None) -> RunRecord:
+        """Return the RunRecord for run_id. Raises RunNotFoundError if absent or another tenant's."""
+        sql = f"SELECT {_RUN_COLUMNS} FROM runs WHERE run_id = %s"
+        params: tuple = (run_id,)
+        if tenant_id is not None:
+            sql += " AND tenant_id = %s"
+            params += (tenant_id,)
         await _ensure_open(self._pool)
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(f"SELECT {_RUN_COLUMNS} FROM runs WHERE run_id = %s", (run_id,))
+                await cur.execute(sql, params)
                 row = await cur.fetchone()
         if row is None:
             raise RunNotFoundError(f"Run not found: {run_id}")
         return _run_from_row(row)
 
-    async def list_runs(self) -> list[RunRecord]:
-        """Return all RunRecords, most recently created first."""
+    async def list_runs(self, tenant_id: str | None = None) -> list[RunRecord]:
+        """Return RunRecords (only tenant_id's when given), most recently created first."""
+        where, params = ("WHERE tenant_id = %s ", (tenant_id,)) if tenant_id is not None else ("", ())
         await _ensure_open(self._pool)
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
-                await cur.execute(f"SELECT {_RUN_COLUMNS} FROM runs ORDER BY created_at DESC")
+                await cur.execute(f"SELECT {_RUN_COLUMNS} FROM runs {where}ORDER BY created_at DESC", params)
                 rows = await cur.fetchall()
         return [_run_from_row(row) for row in rows]
 
-    async def list_for_project(self, project_id: str) -> list[RunRecord]:
-        """Return project_id's non-archived RunRecords, most recently created first."""
+    async def list_for_project(self, project_id: str, tenant_id: str | None = None) -> list[RunRecord]:
+        """Return project_id's non-archived RunRecords (only tenant_id's when given), newest first."""
+        tenant_clause, params = ("AND tenant_id = %s", (project_id, tenant_id)) if tenant_id is not None else ("", (project_id,))
         await _ensure_open(self._pool)
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
                     f"""
                     SELECT {_RUN_COLUMNS} FROM runs
-                    WHERE project_id = %s AND archived_at IS NULL
+                    WHERE project_id = %s AND archived_at IS NULL {tenant_clause}
                     ORDER BY created_at DESC
                     """,
-                    (project_id,),
+                    params,
                 )
                 rows = await cur.fetchall()
         return [_run_from_row(row) for row in rows]
 
-    async def count_by_project(self) -> dict[str, int]:
-        """Return {project_id: number of non-archived runs} for every project that has runs."""
+    async def count_by_project(self, tenant_id: str | None = None) -> dict[str, int]:
+        """Return {project_id: non-archived run count} (only tenant_id's runs when given)."""
+        tenant_clause, params = ("AND tenant_id = %s", (tenant_id,)) if tenant_id is not None else ("", ())
         await _ensure_open(self._pool)
         async with self._pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute(
-                    "SELECT project_id, COUNT(*) FROM runs WHERE archived_at IS NULL GROUP BY project_id"
+                    f"SELECT project_id, COUNT(*) FROM runs WHERE archived_at IS NULL {tenant_clause} "
+                    "GROUP BY project_id",
+                    params,
                 )
                 rows = await cur.fetchall()
         return {project_id: count for project_id, count in rows}
+
+    async def count_created_since(self, tenant_id: str, since) -> int:
+        """Return how many runs tenant_id created at or after since."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    "SELECT COUNT(*) FROM runs WHERE tenant_id = %s AND created_at >= %s", (tenant_id, since)
+                )
+                row = await cur.fetchone()
+        return int(row[0]) if row else 0
 
 
 class PostgresArtifactRepository:
