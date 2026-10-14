@@ -94,7 +94,7 @@ Cloudflare access rules. These are the first things to check in the dashboards.
 **Next audit due:** at the P-AUTH close, before P-BILL-1 (money) ships.
 
 
-## Fixed in P-AUTH (2026-10-14, built on `sprint/p-auth`; decisions D119–D120 → D119, D120)
+## Fixed in P-AUTH (2026-10-14, built on `sprint/p-auth`; decisions D119, D120)
 
 Built from the 2026-10-14 audit's "ordering rule": sign-in is allow-listed, and the principal, tenant-scoped repositories with
 the run / project guards, and deny-by-default gating are all in. **Nothing has run on DEV yet; the live Google flow, the
