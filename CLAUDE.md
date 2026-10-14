@@ -15,7 +15,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 **Review 2026-10-13 done** (P14b, P-UX3, P-AN1, P-UX4, P-PROJ1, P-INT1; six sprints, no review in between). Rework: fix:feat 1.0 overall, 1.75 for P-PROJ1 + P-INT1; two clusters (word matching, `.env.local`-dependent tests); PROD showed a silent TTS failure (run `6fe35dab`). Smoke deferrals: 0.
 **Sprint P-HARD1 — Audit and hardening (built 2026-10-13, ~11 pts, merged):** first `docs/SECURITY.md` (23 findings, 3 fixed inline; D115 moderation stance), loud voice failure with Retry, word-matching regression suite (+ years as two pairs, hyphenated and multi-magnitude numbers fixed), split / merge guarded during a bulk image job, cost-log backfill. Merged and on DEV; smoke passed.
 Studio is the only operator interface; Telegram is dormant (D093); legacy pipeline UI lives at `/legacy`.
-_Roadmap (D114): ~~P-HARD1~~ (built) → P-AUTH → P-LITE → P-BILL-1 (**friends beta opens**) → P-BILL-2 → **P-LANG Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene", long-form animation._
+_Roadmap (D114, D117, D118): ~~P-HARD1~~ → P-HARD2 → P-LITE (built, in smoke) → P-AUTH (Basic / Super) → P-CORE (full Studio in the new design, Super) / P-BILL-1 (**friends beta opens**) → P-BILL-2 → **P-LANG Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene", long-form animation._
 
 ## Active story
 **None started.** Next: `/start-story HARD2-S1` (backups and restore drill, before any stranger's data), then P-AUTH.
