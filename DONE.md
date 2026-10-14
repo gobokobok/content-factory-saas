@@ -6,7 +6,7 @@ _This file holds the last sprints (P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-P
 ---
 
 ## [P-AUTH] Accounts and isolation — S1 Google sign-in and sessions, S2 tenants, S3 scoped repos and guards, S4 Basic / Super + View as, S5 isolation tests, S6 deny-by-default gating, S7 Super menu, S8 caps and spend bounds, S9 moderation and terms
-**Completed:** 2026-10-14 (built in one pass on branch `sprint/p-auth` while the operator was away; **not merged, not pushed, nothing run on DEV**). AUTH-S0 (`PROD_URL`) is the operator's.
+**Completed:** 2026-10-14 (built in one pass on `sprint/p-auth` while the operator was away; merged to `main` and deployed to DEV the same day, commit `c5a7dbe`). AUTH-S0 (`PROD_URL`) is the operator's.
 **Handover:**
 - **S1** `cf_platform/core/accounts.py` (users, sessions, principal), `google_oauth.py` (code flow + PKCE, no dependency), `src/routes/auth.py` (`/auth/google/start|callback`, `/auth/me`, `/auth/view-as`, `/auth/terms/accept`, `/auth/providers`; password login now issues a session), migration `0005_accounts.sql` (`users`, `sessions`, `oauth_states`, `tenant_usage`, `prompt_log`), `src/main.py` middleware (principal, Origin check, terms gate, Basic gating). The legacy constant cookie works as the owner while `ACCEPT_LEGACY_COOKIE` (default true).
 - **S2** a Google user gets tenant `u_<random>` and a hidden default project `default-<tenant>` that is also their Creator project; the owner's e-mail (`OWNER_EMAILS`) maps onto tenant `operator`, so the owner keeps every run, project and key.
@@ -24,20 +24,13 @@ _This file holds the last sprints (P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-P
 - Migration 0005 and the conditional-upsert SQL on a real Postgres — mock-checked only.
 - The Basic pages in a browser (the Super menu, the banner, the terms page, the Google button).
 - A start-up surface: DEV needs no variable to start; sign-in is off until the Google variables are set, and the owner's password and old cookie keep working.
-**Smoke test (after the DEV deploy lands):**
-1. Set the Google variables (RUNBOOK) and redeploy. `/health` shows `"migrations": "ok"`.
-2. Open `/login`: a "Continue with Google" button appears. Sign in as the owner's Google account → lands on `/`, all existing projects and runs are there (the owner maps onto the old tenant).
-3. `GET /auth/me` (in the address bar): `account_type: super`, `is_owner: true`. Then set `ACCEPT_LEGACY_COOKIE=false`.
-4. In a private window sign in with a friend's Google account (in `ALLOWED_EMAILS`) → the terms page → accept → `/create`, empty "My videos". A Google account not on the list → "not invited".
-5. As the friend: make a short video through script → voice → storyboard → one image. Try `/studio`, `/settings`, `/library` → sent back to `/create`; the address `/platform/version` → 403.
-6. As the friend, paste the owner's run id into `/runs/<id>/settings` → 404 (not a different error than for a made-up id).
-7. As the owner: left menu shows Projects / Libraries / Integrations / Defaults; "View as Basic" → banner, menu disappears, `/studio` bounces to `/create`; "Switch back" restores it.
-8. Lower `CAP_RUNS_PER_DAY=1` on DEV: the friend's second video → "limit of 1 new videos". Put a banned phrase in `MODERATION_BLOCKLIST` → the script step refuses it; `GET /platform/admin/prompt-log` shows the row.
-9. Log out → the old cookie value no longer works.
+**Smoke test:** PARTIAL — PASSED on DEV 2026-10-14 (operator): deploy, `/health` `migrations: ok`, Google sign-in as the owner (existing data present, `account_type: super`), `ACCEPT_LEGACY_COOKIE=false` and still signed in. REMAINS: a second (Basic) Google account through the terms and the Creator, the isolation 404, the View-as toggle, a cap and a moderation refusal, logout invalidation → cleared by AUTH-S10 in Sprint P-BILL-1.
 **Promoted to backlog:**
+- AUTH-S10 (1 pt, Sprint P-BILL-1, first): run the friend-account smoke steps 4–9 listed in BACKLOG_ACTIVE.md; clears this entry's PARTIAL.
 - Run the scoped `/audit` on DEV before P-BILL-1 (the live OAuth flow, the admin routes, the Origin rule).
 - Purge expired sessions and unused OAuth states (a janitor); tenant-prefixed keys for generated assets (with P-BILL-1).
 - Allow-list the image `model` string (audit medium, still open); F16, F19, CSP header, restore drill as listed in SECURITY.md.
+- VERIFY (operator, DEV): the terms page, Super menu, View-as banner and Google button look right in a browser.
 - VERIFY (Claude, DEV logs): that no request reaches a route without a principal (a 401 spike after the deploy would mean a route the middleware skips).
 
 ---
