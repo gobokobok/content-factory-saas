@@ -701,7 +701,7 @@ class TestSuperMenuPage:
         html = Path("src/static/creator.html").read_text()
         js = Path("src/static/ui/creator.js").read_text()
         menu = Path("src/static/ui/super-menu.js").read_text()
-        for needle in ("Integrations", "Defaults", "Libraries", "/settings?tab="):
+        for needle in ("Integrations", "Defaults", "Libraries", "#settings/integrations"):
             assert needle not in html and needle not in js
             assert needle in menu
         assert "/ui/super-menu.js" in js and "me.effective_type === 'super'" in js
@@ -751,3 +751,30 @@ class TestEmptyVariables:
         monkeypatch.setenv("ALLOW_IN_MEMORY_STORE", "")
         settings = Settings()
         assert settings.SIGNUP_OPEN is False and settings.SESSION_TTL_DAYS == 14
+
+
+class TestCreatorConfigByAccount:
+    def test_script_limit_follows_the_account_type(self, world):
+        friend, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        boss, _ = run(world.sign_in("boss@example.com", "sub-boss"))
+        owner, _ = run(world.sign_in("owner@example.com", "sub-owner"))
+        assert world.client(friend).get("/platform/creator/config").json()["script_max_words"] == 450
+        assert world.client(boss).get("/platform/creator/config").json()["script_max_words"] == 1200
+        assert world.client(owner).get("/platform/creator/config").json()["script_max_words"] == 20000
+
+    def test_realistic_and_a_chosen_project_need_super(self, world):
+        friend, uf = run(world.sign_in("friend@example.com", "sub-a"))
+        boss, ub = run(world.sign_in("boss@example.com", "sub-boss"))
+        c = world.client(friend)
+        assert c.post("/platform/creator/runs", json={"title": "T", "look": "realistic"}).status_code == 403
+        assert c.post("/platform/creator/runs", json={"title": "T", "project_id": "default"}).status_code == 403
+        b = world.client(boss)
+        r = b.post("/platform/creator/runs", json={"title": "T", "look": "realistic"})
+        assert r.status_code == 201
+        stored = run(world.storage.get_json(f"runs/{r.json()['run_id']}/settings.json"))
+        assert stored["visual_mode"] == "stock" and stored["look"] == "realistic"
+        # A Super user's project choice is still scoped to their own tenant.
+        pid = b.post("/platform/projects", json={"name": "Mine"}).json()["project_id"]
+        assert b.post("/platform/creator/runs", json={"title": "T", "project_id": pid}).status_code == 201
+        foreign = f"default-{uf.tenant_id}"
+        assert b.post("/platform/creator/runs", json={"title": "T", "project_id": foreign}).status_code == 404

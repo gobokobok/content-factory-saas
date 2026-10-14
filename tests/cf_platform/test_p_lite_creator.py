@@ -122,7 +122,7 @@ class TestCreatorRoutes:
             finally:
                 self._clear()
             assert first["project_id"] == second["project_id"] and first["project_name"] == "My videos"
-            assert first["script_max_words"] == 450 and first["max_characters"] == 6
+            assert first["script_max_words"] == 20000 and first["max_characters"] == 6  # the owner is Super: no cap (P-CORE)
             # Male first: the default, and the channel's own voice unless one is set.
             assert [v["id"] for v in first["voices"]] == ["male", "female"]
             flagged = [p for p in env.client.get("/platform/projects").json() if p["config"].get("creator")]

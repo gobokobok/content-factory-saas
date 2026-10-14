@@ -268,9 +268,14 @@ async def auth_middleware(request: Request, call_next):
 
     token = set_principal(principal)
     try:
-        return await call_next(request)
+        response = await call_next(request)
     finally:
         reset_principal(token)
+    if path.startswith("/ui/"):
+        # The page scripts change with every deploy; revalidate them (cheap, ETag) instead of
+        # letting a browser's heuristic cache keep an old core.js against a new server.
+        response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 _NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate"}

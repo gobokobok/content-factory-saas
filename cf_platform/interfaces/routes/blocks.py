@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from cf_platform.blocks.idea_to_script import build_idea_to_script_graph, register_idea_to_script_workers  # noqa: F401
 from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph, register_niche_to_ideas_workers  # noqa: F401
+from cf_platform.core import limits
 from cf_platform.core.artifact_manager import (
     ArtifactRepository,
     ArtifactStorage,
@@ -16,6 +17,7 @@ from cf_platform.core.artifact_manager import (
 )
 from cf_platform.core.config import PlatformSettings, get_platform_settings
 from cf_platform.core.execution_engine import run_graph
+from cf_platform.core.moderation import moderate_many
 from cf_platform.core.projects import ProjectNotFoundError, ProjectRepository
 from cf_platform.core.run_manager import RunNotFoundError, RunRepository, create_run, transition_run
 from cf_platform.core.schemas import IdeaToScriptState, NicheToIdeasState, RunRecord, SourceAdapter
@@ -181,6 +183,12 @@ async def idea_to_script(
     run keeps its id, project and shortlist links; its project's niche is used
     when the request names none. Returns 404 for an unknown `run_id`.
     """
+    # P-AUTH S8 / S9: bound and screen what a non-owner tenant sends to the paid model.
+    limits.check_prompt(body.idea_title, "The idea")
+    await moderate_many([body.idea_title, body.niche or "", *(body.supporting_points or [])], "idea", run_id=body.run_id or "")
+    await limits.spend_gate(
+        getattr(settings, "EST_LLM_CALL_USD", 0.05) * (body.max_iterations or 3), "writing the script", settings
+    )
     existing_run: RunRecord | None = None
     niche = body.niche
     if body.run_id:

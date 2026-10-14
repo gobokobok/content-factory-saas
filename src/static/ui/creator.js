@@ -9,6 +9,7 @@
 (function () {
   'use strict';
 
+  // The Metadata step is added for a Super session by core.js (P-CORE S9).
   const STEPS = ['script', 'voice', 'storyboard', 'render'];
   const STEP_NAMES = ['Script', 'Voice', 'Storyboard', 'Render'];
   const LANGS = { en: 'English', ru: 'Русский' };
@@ -119,8 +120,12 @@
 
   /** Read the address and show the screen it names. */
   async function route() {
-    const [name, id, step] = location.hash.replace(/^#/, '').split('/');
-    if (name === 'run' && id) {
+    const [name, id, step, more] = location.hash.replace(/^#/, '').split('/');
+    if (window.Core && window.Core.handles(name)) {
+      stopAudio();
+      show('x');
+      await window.Core.route(name, id, step, more);
+    } else if (name === 'run' && id) {
       if (!S.run || S.run.id !== id) await openRun(id);
       if (!S.run) return;
       const i = STEPS.indexOf(step);
@@ -131,8 +136,11 @@
       stopAudio();
       show('new');
       resetNewForm();
+      if (window.Core) window.Core.onNew(id);
     } else {
       stopAudio();
+      // A Super account lands on its projects; Basic on its videos (D118).
+      if (!name && S.me && S.me.effective_type === 'super' && window.Core) { go('#projects'); return; }
       show('runs');
       await loadRuns();
     }
@@ -145,6 +153,7 @@
     $$('.run-only').forEach(b => b.classList.toggle('hidden', view !== 'run'));
     if (view !== 'run' && S.right !== 'help') S.right = null;
     $('#nav-runs').classList.toggle('on', view === 'runs' || view === 'run');
+    if (view !== 'x' && window.Core) window.Core.clearNav();
     paintRight();
     window.scrollTo(0, 0);
   }
@@ -167,7 +176,7 @@
     S.me = me;
     if (me.email) { $('#who').textContent = me.email; $('#who').classList.remove('hidden'); }
     const isSuper = me.account_type === 'super';
-    if (me.effective_type === 'super') await mountSuperMenu(); else $('#super-menu').classList.add('hidden');
+    if (me.effective_type === 'super') { await mountSuperMenu(); await loadCore(); } else $('#super-menu').classList.add('hidden');
     $('#view-as').classList.toggle('hidden', !isSuper);
     $('#view-as-label').textContent = me.view_as_basic ? 'Switch back to Super' : 'View as Basic';
     document.querySelectorAll('.view-banner').forEach(b => b.remove());
@@ -189,11 +198,18 @@
         document.head.appendChild(el);
       });
     }
-    if (window.SuperMenu) { S.studioLink = window.SuperMenu.mount($('#super-menu')); setStudioLink(); }
+    if (window.SuperMenu) window.SuperMenu.mount($('#super-menu'));
   }
-  /** Point "Open in Studio" at the run on screen. */
-  function setStudioLink() {
-    if (S.studioLink && S.run) S.studioLink.href = `/studio#run/${encodeURIComponent(S.run.id)}/script`;
+  /** Load the Super screens and run controls (P-CORE) once; a Basic session never fetches them. */
+  async function loadCore() {
+    if (window.Core) return;
+    await new Promise(resolve => {
+      const el = document.createElement('script');
+      el.src = '/ui/core.js';
+      el.onload = el.onerror = resolve;
+      document.head.appendChild(el);
+    });
+    if (window.Core) window.Core.init(window.CFApp);
   }
   /** Flip this session between its own account type and Basic, then reload so every call is re-checked. */
   async function toggleViewAs() {
@@ -214,7 +230,7 @@
     $$('.tab').forEach(el => el.classList.toggle('on', el.id === 'tab-' + S.right));
     if (S.right === 'help') paintHelp();
     if (S.right === 'details') paintDetails();
-    if (S.right === 'settings') paintSettings();
+    if (S.right === 'settings') { paintSettings(); if (window.Core) window.Core.afterSettings(); }
   }
   function paintHelp() {
     const [title, lines] = HELP[S.view === 'run' ? STEPS[S.step] : S.view] || HELP.runs;
@@ -329,13 +345,13 @@
   async function openRun(id) {
     stopAudio();
     S.run = null; S.voice = null; S.sb = null; S.manifest = {}; S.video = null; S.imageJob = null;
-    S.sbStale = false; S.openScene = null; S.settings = {}; S.musicKey = null; S.spend = null; S.busy = {};
+    S.sbStale = false; S.openScene = null; S.settings = {}; S.musicKey = null; S.spend = null; S.busy = {}; S.meta = null; S.context = null;
     ['#job-voice', '#job-sb', '#job-render'].forEach(clearJob);
     ['#err-script', '#err-voice', '#err-sb', '#err-render'].forEach(e => err(e, ''));
     const ctx = await api(`/platform/studio/runs/${encodeURIComponent(id)}/context`);
     if (!ctx.ok) { show('runs'); await loadRuns(); err('#runs-err', ctx.status === 404 ? 'That video no longer exists.' : why(ctx)); return; }
     S.run = { id, name: ctx.data.name || ctx.data.idea_title || 'Untitled', language: ctx.data.language || 'en', format: ctx.data.format || '9:16', created: ctx.data.created_at };
-    setStudioLink();
+    S.context = ctx.data;
     const [settings, script, voice, sb, manifest, video] = await Promise.all([
       api(`/runs/${encodeURIComponent(id)}/settings`), api(runUrl('/script')), api(runUrl('/voice')),
       api(runUrl('/storyboard')), api(runUrl('/manifest')), api(runUrl('/video')),
@@ -350,6 +366,7 @@
     if (manifest.ok) applyManifest(manifest.data);
     if (video.ok && video.data.video_url) S.video = video.data;
     resumeJobs();
+    if (window.Core) await window.Core.onRunOpened();
   }
 
   /** Pick up work that was still running when the page was left. */
@@ -401,17 +418,19 @@
     paintStoryboard();
   }
   function setStep(i) { go(`#run/${encodeURIComponent(S.run.id)}/${STEPS[i]}`); }
-  function next() { if (S.step < 3) setStep(S.step + 1); }
+  function next() { if (S.step < STEPS.length - 1) setStep(S.step + 1); }
 
   // ── One video: painting ───────────────────────────────────────────────────
 
   function paintRun() {
     $('#run-title').textContent = S.run.name;
-    const done = [scriptOk() && !!S.voice, !!S.voice, !!S.sb && allAssets(), !!S.video];
+    const done = [scriptOk() && !!S.voice, !!S.voice, !!S.sb && allAssets(), !!S.video, !!(S.meta && S.meta.title)];
+    $('#steps').style.gridTemplateColumns = `repeat(${STEPS.length},1fr)`;
     $('#steps').innerHTML = STEP_NAMES.map((n, i) => `<button class="${i === S.step ? 'cur' : done[i] ? 'done' : ''}" onclick="Creator.setStep(${i})"><i>${i + 1}</i>${n}</button>`).join('');
     $$('.step').forEach(el => { el.style.display = +el.dataset.step === S.step ? 'block' : 'none'; });
     if (S.step !== 1) stopAudio();
     paintScript(); paintVoice(); paintStoryboard(); paintRender();
+    if (window.Core) window.Core.afterPaint();
     if (S.right) paintRight();
   }
 
@@ -512,7 +531,7 @@
     else if (!S.busy.sbErr) err('#err-sb', '');
     paintContinuity();
     const box = $('#scenes');
-    if (!scenes.length) { box.innerHTML = '<div class="sb-empty">No storyboard yet. It is created from your script and voiceover.</div>'; return; }
+    if (!scenes.length) { box.innerHTML = '<div class="sb-empty">No storyboard yet. It is created from your script and voiceover.</div>'; if (window.Core) window.Core.afterStoryboard(); return; }
     const byId = Object.fromEntries(continuity().map(e => [e.id, e]));
     const jobScenes = (S.imageJob && S.imageJob.status === 'running' && S.imageJob.scenes) || {};
     let offset = 0;
@@ -548,6 +567,7 @@
         </div></div>` : ''}
       </div>`;
     }).join('');
+    if (window.Core) window.Core.afterStoryboard();
   }
   function toggleScene(id) { S.openScene = S.openScene === id ? null : id; closeSplit(); paintStoryboard(); }
 
@@ -863,10 +883,14 @@
   }
   async function renderVideo() {
     err('#err-render', ''); clearJob('#job-render');
+    // A video uploaded from CapCut is never replaced silently (P13b-S4).
+    const fromCapcut = !!(S.video && S.video.source === 'capcut');
+    if (fromCapcut && !await confirmBox('Replace the CapCut video?', "This video was uploaded from CapCut. Rendering here replaces it.", 'Render and replace')) return;
     const cap = captionChoice();
     const res = await api('/platform/workers/render', { method: 'POST', body: {
       run_id: S.run.id, format_track: S.run.format === '16:9' ? 'landscape' : 'portrait',
       captions: cap !== 'none', caption_style: cap === 'punch' ? 'punch' : 'standard', music_enabled: !!S.musicKey,
+      confirm_overwrite: fromCapcut,
     } });
     if (!res.ok) { failure('#job-render', 'Render was not started.', why(res), renderVideo); return; }
     watchRender();
@@ -921,11 +945,19 @@
     const res = await api('/platform/creator/config');
     if (!res.ok) { err('#runs-err', `The page could not start: ${why(res)}`); return; }
     S.cfg = res.data;
-    paintAccount();
+    await paintAccount();
     window.addEventListener('hashchange', route);
     route();
   }
 
+  // What core.js (the Super screens and controls) builds on. Everything the server decides stays on the server.
+  window.CFApp = {
+    S, STEPS, STEP_NAMES, $, $$, esc, sleep, plural, money, clock, api, why, err, progress, failure, clearJob, poll,
+    runUrl, go, show, route, confirmBox, saveSettings, paintRun, paintStoryboard, paintVoice, paintScript, paintRender,
+    reloadStoryboard, refreshManifest, applyManifest, sbScenes, hasAsset, allAssets, scriptWords, scriptOk,
+    watchVoice, watchStoryboard, createSb, renderVideo, genVoice, planAssets, paintRight, firstOpenStep, watchRender,
+    watchImages, patchScene, openRun, stopAudio, paintContinuity, writeDraft, readDraft, onScript,
+  };
   window.Creator = {
     toggleLeft, logOut, toggleViewAs, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
     saveVoice, genVoice, toggleVo, askCreateSb, planAssets, toggleScene, patchScene, openSplit, confirmSplit, mergeScene,

@@ -337,7 +337,10 @@ async def list_projects(
     runs: RunRepository = Depends(get_run_repository),
 ) -> list[ProjectResponse]:
     """Return the operator's projects, newest first, each with its run count."""
-    records = await projects.list_projects(current_tenant_id(), include_archived=include_archived)
+    records = [
+        p for p in await projects.list_projects(current_tenant_id(), include_archived=include_archived)
+        if not (p.config or {}).get("hidden")  # a personal default project is not for the project list
+    ]
     counts = await runs.count_by_project(current_tenant_id())
     activity = await _activity_by_project(runs)
     return [

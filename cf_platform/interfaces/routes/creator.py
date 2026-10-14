@@ -27,10 +27,12 @@ from cf_platform.core.run_visuals import settings_key
 from cf_platform.core.shortlist import build_idea_context
 from cf_platform.interfaces.dependencies import (
     current_tenant_id,
+    current_user,
     get_artifact_storage,
     get_project_repository,
     get_run_repository,
 )
+from cf_platform.interfaces.guards import require_project
 from cf_platform.interfaces.routes.projects import STUDIO_BLOCK, ProjectRunResponse, _run_response
 from src.models import MAX_RUN_CHARACTERS, RunCharacter, VideoSettings
 
@@ -52,6 +54,10 @@ class CreatorRunRequest(BaseModel):
     master_style: str = Field(default="", max_length=2000)
     # The only people the director may show. Empty: the director invents the cast.
     characters: list[RunCharacter] = Field(default_factory=list, max_length=MAX_RUN_CHARACTERS)
+    # Super only (P-CORE): a realistic video made from stock footage, and a project of the
+    # caller's own to keep it in. Basic accounts always get an animated video in their hidden project.
+    look: Literal["animated", "realistic"] = "animated"
+    project_id: str | None = Field(default=None, max_length=128)
 
 
 async def creator_project(projects: ProjectRepository, name: str) -> Project:
@@ -67,7 +73,11 @@ async def creator_project(projects: ProjectRepository, name: str) -> Project:
 
 
 def creator_run_settings(body: CreatorRunRequest) -> dict[str, Any]:
-    """The settings.json a new Creator run starts with: animated, AI images, captions off."""
+    """The settings.json a new Creator run starts with: animated with AI images, or realistic with stock; captions off."""
+    if body.look == "realistic":
+        return VideoSettings(
+            aspect_ratio=body.aspect_ratio, visual_mode="stock", look="realistic", subtitles="none"
+        ).model_dump()
     return VideoSettings(
         aspect_ratio=body.aspect_ratio,
         visual_mode="ai_animation",
@@ -86,12 +96,23 @@ async def creator_config(
 ) -> dict[str, Any]:
     """What the Creator pages need before they can list or create runs."""
     project = await creator_project(projects, settings.CREATOR_PROJECT_NAME)
+    principal = current_user()
+    # The page's word limit is the Creator's; a Super account works at the server's cap (the
+    # owner's tenant has none), so a generated three-minute script still fits (P-CORE S5).
+    if not principal.is_super:
+        script_max = settings.CREATOR_SCRIPT_MAX_WORDS
+    elif principal.is_owner:
+        script_max = 20000
+    else:
+        script_max = int(getattr(settings, "CAP_SCRIPT_WORDS", 1200))
     return {
         "project_id": project.project_id,
         "project_name": project.name,
-        "script_max_words": settings.CREATOR_SCRIPT_MAX_WORDS,
+        "script_max_words": script_max,
         "max_characters": MAX_RUN_CHARACTERS,
         "voices": [{"id": voice_id, "label": label} for voice_id, label in CREATOR_VOICES],
+        # P-CORE: what the Super screens need to know without another round trip.
+        "sfx_enabled": bool(getattr(settings, "SFX_ENABLED", False)),
     }
 
 
@@ -120,7 +141,14 @@ async def create_creator_run(
     await moderate_many(
         [title, body.master_style, *[f"{c.name}. {c.description}" for c in body.characters]], "creator_run"
     )
-    project = await creator_project(projects, settings.CREATOR_PROJECT_NAME)
+    principal = current_user()
+    if (body.look == "realistic" or body.project_id) and not principal.is_super:
+        raise HTTPException(status_code=403, detail="This needs a Super account.")
+    if body.project_id:
+        await require_project(body.project_id, projects, principal)
+        project = await projects.get(body.project_id)
+    else:
+        project = await creator_project(projects, settings.CREATOR_PROJECT_NAME)
     context = build_idea_context([])
     context["idea_title"] = title
     run = await create_run(
