@@ -139,7 +139,7 @@ class TestRunControls:
         assert "/platform/workers/metadata" in run
 
     def test_script_has_three_sources(self, run):
-        for needle in ("data-s=\"paste\"", "data-s=\"generate\"", "data-s=\"upload\"", "/platform/blocks/idea-to-script",
+        for needle in ("Generate script with AI", "data-s=\"generate\"", "data-s=\"upload\"", "/platform/blocks/idea-to-script",
                        "target_duration_seconds", "/voice-source", "/voice/upload", "/transcript", "dry_run"):
             assert needle in run, needle
 
