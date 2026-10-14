@@ -197,7 +197,9 @@ async def list_run_assets(
     return items
 
 
-async def list_shared_music(storage: Any, runs: list["RunRef"] | tuple["RunRef", ...] = ()) -> list[dict[str, Any]]:
+async def list_shared_music(
+    storage: Any, runs: list["RunRef"] | tuple["RunRef", ...] = (), tenant_id: str = ""
+) -> list[dict[str, Any]]:
     """The background music: the platform's tracks (music-library/) and the tracks the tenant uploaded.
 
     Sound effects are not listed — they are not background music. An uploaded track is
@@ -224,6 +226,15 @@ async def list_shared_music(storage: Any, runs: list["RunRef"] | tuple["RunRef",
 
     for found in await asyncio.gather(*(uploaded(r) for r in runs)):
         items.extend(found)
+    if tenant_id:
+        # Tracks the account added from the BG music library itself.
+        try:
+            own = await storage.list_keys(f"tenant-music/{tenant_id}/")
+        except Exception:
+            own = []
+        items.extend({"key": k, "name": _name(k), "facts": "uploaded", "facet": "uploaded",
+                      "project_id": None, "project_name": None, "run_id": None, "run_name": None, "created_at": None}
+                     for k in sorted(own) if _ext(k) in _AUDIO_EXT)
     for item in items:
         item["asset_id"] = asset_id("music", item["key"])
         try:

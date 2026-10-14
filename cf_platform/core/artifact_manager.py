@@ -57,6 +57,10 @@ class ArtifactStorage(Protocol):
         """Return a presigned GET URL for key, valid for expires_in seconds."""
         ...
 
+    async def delete_key(self, key: str) -> None:
+        """Delete the object at key (JSON or bytes). Absent keys are ignored."""
+        ...
+
 
 class ArtifactRepository(Protocol):
     """Postgres-index interface for Artifact rows (P2-S3, D048).
@@ -132,6 +136,11 @@ class InMemoryArtifactStorage:
         byte_keys = [k for k in self._bytes if k.startswith(prefix)]
         return sorted(set(obj_keys + byte_keys))
 
+    async def delete_key(self, key: str) -> None:
+        """Drop the key from both stores; absent keys are ignored."""
+        self._objects.pop(key, None)
+        self._bytes.pop(key, None)
+
     async def generate_presigned_url(self, key: str, expires_in: int = 86400) -> str:
         """Return a fake presigned URL for testing — not a real R2 URL."""
         return f"https://fake-r2.example.com/{key}?expires={expires_in}"
@@ -195,6 +204,17 @@ class R2ArtifactStorage:
             )
         except (BotoCoreError, ClientError, Exception) as exc:
             raise ArtifactStorageError(f"R2 upload failed for '{key}': {exc}") from exc
+
+    async def delete_key(self, key: str) -> None:
+        """Delete one object from R2 (deleting an absent key is not an error)."""
+
+        def _delete() -> None:
+            try:
+                self._client.delete_object(Bucket=self._bucket, Key=key)
+            except (BotoCoreError, ClientError, Exception) as exc:
+                raise ArtifactStorageError(f"R2 delete failed for '{key}': {exc}") from exc
+
+        await asyncio.to_thread(_delete)
 
     async def get_json(self, key: str) -> dict[str, Any]:
         """Download and parse a JSON object from the given R2 key."""

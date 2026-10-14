@@ -226,14 +226,11 @@
     await loadCore(me.effective_type !== 'super');
     $('#view-as').classList.toggle('hidden', !isSuper);
     $('#view-as-label').textContent = me.view_as_basic ? 'View as Super' : 'View as Basic';
-    document.querySelectorAll('.view-banner').forEach(b => b.remove());
-    document.body.classList.toggle('has-banner', !!me.view_as_basic);
-    if (me.view_as_basic) {
-      const bar = document.createElement('div');
-      bar.className = 'view-banner';
-      bar.innerHTML = 'Viewing as a Basic user. Nothing is charged to a Basic account. <button onclick="Creator.toggleViewAs()">View as Super</button>';
-      document.body.appendChild(bar);
-    }
+    // A Super account sees which view it is in, as a small mark above its email (no bar over the page).
+    const chip = $('#view-chip');
+    chip.classList.toggle('hidden', !isSuper);
+    chip.textContent = me.view_as_basic ? 'Basic view' : 'Super view';
+    chip.classList.toggle('basic', !!me.view_as_basic);
     if (me.abuse_contact) { const a = $('#report-abuse'); a.href = 'mailto:' + me.abuse_contact + '?subject=Content%20Factory%20problem'; a.classList.remove('hidden'); }
   }
   /** Load Super's menu script once and mount it; a Basic session never fetches it. */

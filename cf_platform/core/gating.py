@@ -28,6 +28,8 @@ _BASIC_ROUTES: tuple[tuple[frozenset[str] | None, re.Pattern[str]], ...] = tuple
         (frozenset({"GET"}), r"/ui/.+"),
         # The Libraries Basic has: its own videos, AI generations and the shared BG music (tenant-scoped server-side).
         (frozenset({"GET"}), r"/platform/library/(videos|ai|images|music)"),
+        (frozenset({"DELETE"}), rf"/platform/library/(videos|ai|images|music)/{_ID}"),
+        (frozenset({"POST"}), r"/platform/library/music"),
         # Session routes (view-as and the like check Super themselves).
         (None, r"/auth/.+"),
         # The Creator's own routes.

@@ -21,6 +21,7 @@
   const NARR_STYLES = { educational: 'Educational', emotional: 'Emotional' };
   const STEP_LABELS = { script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Render', metadata: 'Metadata' };
   const ASSET_KINDS = { character: 'Character', setting: 'Place', prop: 'Object' };
+  const BIN = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>';
   const BASIC_LIBS = ['videos', 'ai', 'images', 'assets', 'music'];
   const LIBS = { videos: 'Videos', audio: 'Audio', footage: 'Footage', ai: 'AI generations', images: 'Images', assets: 'AI assets', music: 'BG music' };
   // What each screen says about itself lives in the right-hand Information panel, not on the page.
@@ -439,8 +440,8 @@
     frame(crumbs([['Libraries'], [LIBS.assets]]), `<div class="page-head"><h1>${LIBS.assets}</h1>
       <button class="btn primary" style="margin-left:auto" onclick="Core.libAssetDlg()">+ Add asset</button></div>
       ${items.length ? items.map(a => `<div class="as-card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="n">${esc(a.name)}</span><span class="chip">${esc(ASSET_KINDS[a.kind] || a.kind)}</span><span style="flex:1"></span>
-          <button class="btn sm" onclick="Core.libAssetDlg('${esc(a.id)}')">Edit</button><button class="btn sm e-del" onclick="Core.libAssetDelete('${esc(a.id)}')">Remove</button></div><p>${esc(a.description)}</p></div>`).join('')
-        : '<div class="empty"><b>No assets yet</b><p>Save a character from a storyboard, or add one here.</p><button class="btn primary" onclick="Core.libAssetDlg()">Add asset</button></div>'}`);
+          <button class="btn sm" onclick="Core.libAssetDlg('${esc(a.id)}')">Edit</button><button class="icon-btn lib-del" onclick="Core.libAssetDelete('${esc(a.id)}')" title="Delete" aria-label="Delete">${BIN}</button></div><p>${esc(a.description)}</p></div>`).join('')
+        : '<div class="empty"><b>No assets yet</b><p>Save a character from a storyboard, or add one with the button above.</p></div>'}`);
   }
   function libAssetDlg(id) {
     const a = (C.libAssets || []).find(x => x.id === id) || {};
@@ -493,7 +494,28 @@
     return `<div class="core-asset">${libPreview(a)}<div class="core-asset-body"><div class="t">${esc(a.name)}</div>${project}${run}
       <div class="meta">${esc(a.facts)}${a.created_at ? ' · ' + esc(fmtDate(a.created_at)) : ''}</div>
       <div class="core-asset-foot"><span class="meta" style="font-family:var(--mono);font-size:11px" title="Asset ID">${esc(a.asset_id)}</span>
-      <button class="btn sm" onclick="Core.download(this,'${esc(a.asset_id)}')" ${a.download_url ? '' : 'disabled'}>Download</button></div></div></div>`;
+      <span style="display:flex;gap:6px;align-items:center"><button class="btn sm" onclick="Core.download(this,'${esc(a.asset_id)}')" ${a.download_url ? '' : 'disabled'}>Download</button>
+      ${libDeletable(a) ? `<button class="icon-btn lib-del" onclick="Core.libDelete('${esc(a.asset_id)}')" title="Delete" aria-label="Delete">${BIN}</button>` : ''}</span></div></div></div>`;
+  }
+  /** The platform's shared tracks and an image a video still uses cannot be deleted. */
+  const libDeletable = a => a.facet !== 'platform' && !String(a.facts || '').endsWith('in use');
+  async function libDelete(assetId) {
+    const kind = C.lib.kind;
+    if (!await A.confirmBox('Delete this file?', 'It is removed from your library and cannot be restored.', 'Delete')) return;
+    const r = await call(`/platform/library/${kind}/${encodeURIComponent(assetId)}`, 'DELETE');
+    if (!r.ok) { showErr(A.why(r)); return; }
+    await viewLibrary(kind); toast('Deleted.');
+  }
+  /** Add a background-music track from the BG music page. */
+  async function addTrack(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const form = new FormData(); form.append('file', file);
+    toast(`Uploading ${file.name}…`);
+    const r = await A.api('/platform/library/music', { method: 'POST', form });
+    input.value = '';
+    if (!r.ok) { showErr(A.why(r)); return; }
+    await viewLibrary('music'); toast('Track added.');
   }
   function libVisible() {
     const f = C.lib.filters, q = f.q.toLowerCase();
@@ -504,6 +526,8 @@
     const kind = C.lib.kind, d = C.lib.data, f = C.lib.filters, list = libVisible();
     const facets = kind === 'images' ? ['Stock', 'AI generated'] : [...new Set(d.items.map(a => a.facet).filter(Boolean))];
     frame(crumbs([['Libraries'], [LIBS[kind]]]), `<div class="page-head"><h1>${LIBS[kind]}</h1>
+      ${kind === 'music' ? `<button class="btn primary" style="margin-left:auto" onclick="document.getElementById('lib-track').click()">+ Add track</button>
+      <input type="file" id="lib-track" class="hidden" accept="audio/mpeg,audio/wav,audio/mp4" onchange="Core.addTrack(this)">` : ''}
 </div>
       <div class="lib-bar">
         <div class="lib-search" id="lib-search">
@@ -513,7 +537,7 @@
       ${kind !== 'music' && (facets.length > 1 || kind === 'images') ? `<select class="inline" onchange="Core.libFilter('facet',this.value)" aria-label="Type"><option value="">All types</option>${facets.map(x => `<option${f.facet === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}</div></div>
       <p class="meta" style="margin-bottom:10px">${list.length} of ${d.items.length}</p>
       ${list.length ? `<div class="core-assets">${list.map(libCard).join('')}</div>`
-        : `<div class="empty"><b>${d.items.length ? 'Nothing matches' : 'Nothing here yet'}</b><p>${d.items.length ? 'Change the search or the filters.' : 'Assets appear here as videos produce them.'}</p></div>`}`);
+        : `<div class="empty"><b>${d.items.length ? 'Nothing matches' : 'Nothing here yet'}</b><p>${d.items.length ? 'Change the search or the filters.' : (kind === 'music' ? 'Add a track with the button above.' : 'Assets appear here as videos produce them.')}</p></div>`}`);
     if (keepFocus) { const q = qs('lib-q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
   }
   function libFilter(key, value, keepFocus) { C.lib.filters[key] = value; paintLibrary(keepFocus); }
@@ -692,6 +716,8 @@
   .core-meta-out textarea{min-height:90px}
   .core-auto.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
   .core-bar,.m-line,.e-foot,.core-asset-foot,.core-selbar{flex-wrap:wrap}
+  .lib-del{color:var(--faint)}
+  .lib-del:hover{color:var(--red);background:#FEF1F0}
   .lib-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
   .lib-search{flex:1;min-width:0;max-width:420px}
   .lib-search input{width:100%}
@@ -731,6 +757,6 @@
     // actions called from markup
     closeModal, dlgNewProject, createProject, dlgIdea, saveIdea, removeIdea, startRun, toggleIdea, clearSel, setRunFilter,
     patchProject, patchConfig, setDefault, dlgAsset, saveAsset, deleteAsset,
-    libAssetDlg, libAssetSave, libAssetDelete, libFilter, download, toggleKeyEdit, saveKey, removeKey, makeDefault, saveModel, saveDefault,
+    libAssetDlg, libAssetSave, libAssetDelete, libDelete, addTrack, libFilter, download, toggleKeyEdit, saveKey, removeKey, makeDefault, saveModel, saveDefault,
   };
 })();

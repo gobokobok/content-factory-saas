@@ -161,9 +161,8 @@ textarea{resize:vertical;line-height:1.65;min-height:260px;font-size:13.5px;font
 
 .nav-btn.sm{padding:5px 8px}
 .menu-label{font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:2px 8px 6px}
-.view-banner{position:fixed;top:0;left:0;right:0;z-index:50;background:var(--accent-soft);color:var(--accent);font-size:12px;font-weight:600;text-align:center;padding:6px 12px}
-.has-banner .panel{top:30px}.has-banner .fab{top:44px}.has-banner .main{padding-top:100px}
-.view-banner button{text-decoration:underline;font-weight:700;color:inherit;margin-left:8px}
+.view-chip{display:inline-block;margin:0 8px 6px;padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:600 10.5px/1.6 var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.view-chip.basic{background:var(--bg-soft);color:var(--muted)}
 .sub{margin:2px 0 6px 17px;padding-left:9px;border-left:1px solid var(--border)}
 .proj{padding:7px 8px;font-size:13px;font-weight:600;color:var(--text)}
 .crumb{height:20px;line-height:20px;font-size:13px;color:var(--faint);margin-bottom:8px;white-space:nowrap}
@@ -347,7 +346,6 @@ a.btn{text-decoration:none}
   /* The two buttons scroll away with the page; scrolling back up brings them back as a bar. */
   .fabbar{display:block;position:absolute;top:0;left:0;right:0;height:56px;z-index:30}
   .fab{position:absolute}
-  .has-banner .fabbar{top:30px}.has-banner .fab{top:14px}
   .fabbar.pinned{position:fixed;background:var(--bg);box-shadow:0 6px 14px -10px rgba(18,18,21,.35);animation:bar-in .18s ease-out}
   @keyframes bar-in{from{transform:translateY(-100%)}to{transform:none}}
   .main{padding-left:16px;padding-right:16px}
@@ -376,6 +374,7 @@ a.btn{text-decoration:none}
     <div id="super-menu" class="hidden"></div>
     <!-- Account: the switch and Log out sit at the bottom of the panel (no rule, no header). -->
     <div id="nav-account" style="margin-top:auto;padding-top:16px">
+    <div class="view-chip hidden" id="view-chip"></div>
     <div class="who hidden" id="who" style="font-size:12px;color:var(--muted);padding:2px 8px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
     <button class="nav-btn hidden" id="view-as" onclick="Creator.toggleViewAs()" title="Switch between your own account type and what a Basic user sees">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="view-as-label">View as Basic</span></button>

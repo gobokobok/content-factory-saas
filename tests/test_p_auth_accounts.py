@@ -846,3 +846,23 @@ class TestVoiceSamples:
         cookie, _ = run(world.sign_in("friend@example.com", "sub-a"))
         r = world.client(cookie).get("/platform/creator/voice-samples/NotAVoice")
         assert r.status_code == 404
+
+
+class TestLibraryDelete:
+    def test_an_account_adds_and_deletes_its_own_music_track_only(self, world):
+        a, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        b, _ = run(world.sign_in("other@example.com", "sub-b"))
+        ca, cb = world.client(a), world.client(b)
+        up = ca.post("/platform/library/music", files={"file": ("calm.mp3", b"ID3data", "audio/mpeg")})
+        assert up.status_code == 201, up.text
+        items = ca.get("/platform/library/music").json()["items"]
+        mine = next(i for i in items if i["name"] == "calm.mp3")
+        assert all(i["name"] != "calm.mp3" for i in cb.get("/platform/library/music").json()["items"])
+        assert cb.delete(f"/platform/library/music/{mine['asset_id']}").status_code == 404
+        assert ca.delete(f"/platform/library/music/{mine['asset_id']}").status_code == 204
+        assert all(i["name"] != "calm.mp3" for i in ca.get("/platform/library/music").json()["items"])
+
+    def test_basic_may_use_the_library_delete_and_upload_routes(self):
+        assert basic_may("DELETE", "/platform/library/videos/VID-ABC123")
+        assert basic_may("POST", "/platform/library/music")
+        assert not basic_may("DELETE", "/platform/library/footage/FTG-ABC123")
