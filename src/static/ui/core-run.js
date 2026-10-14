@@ -15,7 +15,7 @@
 (function () {
   'use strict';
 
-  let A = null, H = null, started = false;
+  let A = null, H = null, started = false, BASIC = false;
   const CR = { src: null, sel: null, audioEl: null, auto: false, autoBusy: false, lastStep: null, cfgSfx: [], acquiring: false };
 
   const $ = sel => document.querySelector(sel);
@@ -38,18 +38,19 @@
   // ── DOM that only a Super session has ─────────────────────────────────────
 
   function mountDom() {
-    // Fifth step.
-    A.STEPS.push('metadata'); A.STEP_NAMES.push('Metadata');
     const run = qs('s-run');
-    const meta = document.createElement('div');
-    meta.className = 'step';
-    meta.dataset.step = '4';
-    meta.innerHTML = `<div class="err-line" id="err-meta"></div>
-      <p class="meta" style="margin:0 0 16px">A title, description and tags for the channel, written from the script. Edit them here and copy them out.</p>
-      <div id="meta-out"></div>
-      <div class="step-foot"><button class="btn accent" id="meta-gen" onclick="CoreRun.genMeta()">Generate metadata</button></div>
-      <div class="job" id="job-meta"></div>`;
-    run.appendChild(meta);
+    if (!BASIC) {
+      // Fifth step.
+      A.STEPS.push('metadata'); A.STEP_NAMES.push('Metadata');
+      const meta = document.createElement('div');
+      meta.className = 'step';
+      meta.dataset.step = '4';
+      meta.innerHTML = `<div class="err-line" id="err-meta"></div>
+        <div id="meta-out"></div>
+        <div class="step-foot"><button class="btn accent" id="meta-gen" onclick="CoreRun.genMeta()">Generate metadata</button></div>
+        <div class="job" id="job-meta"></div>`;
+      run.appendChild(meta);
+    }
 
     // Script: source bar, generate box, voiceover box.
     const script = qs('script');
@@ -57,25 +58,27 @@
       <div class="core-src seg" id="src-bar" style="margin-bottom:16px">
         <button data-s="paste" onclick="CoreRun.setSource('paste')">Paste</button>
         <button data-s="generate" onclick="CoreRun.setSource('generate')">Generate</button>
-        <button data-s="upload" onclick="CoreRun.setSource('upload')">From a voiceover</button></div>
+        ${BASIC ? '' : '<button data-s="upload" onclick="CoreRun.setSource(\'upload\')">From a voiceover</button>'}</div>
       <div class="gen-box" id="gen-box">
         <label class="field"><span class="lbl">Idea</span><input type="text" id="gen-idea" maxlength="300" placeholder="What is the script about?"></label>
-        <label class="field"><span class="lbl">Niche (optional — the project's niche is used otherwise)</span><input type="text" id="gen-niche" maxlength="200"></label>
+        <label class="field"${BASIC ? ' hidden' : ''}><span class="lbl">Niche (optional)</span><input type="text" id="gen-niche" maxlength="200"></label>
         <label class="field"><span class="lbl">Length: <b id="gen-dur-val">90 s</b></span><input type="range" id="gen-dur" min="30" max="600" step="30" value="90" oninput="document.getElementById('gen-dur-val').textContent=this.value+' s'" style="width:100%"></label>
         <button class="btn accent" id="gen-btn" onclick="CoreRun.genScript()">Generate script</button>
         <div class="job" id="job-gen"></div>
       </div>
-      <div class="gen-box" id="up-box">
+      ${BASIC ? '' : `<div class="gen-box" id="up-box">
         <p class="meta" style="margin:0 0 12px" id="up-lang"></p>
         <div class="drop" id="up-drop" onclick="document.getElementById('up-file').click()">Drop your voiceover here, or click to choose (MP3, WAV, M4A)</div>
         <input type="file" id="up-file" class="hidden" accept="audio/mpeg,audio/wav,audio/mp4,audio/x-wav,audio/webm" onchange="CoreRun.uploadVo(this)">
         <div class="job" id="job-up"></div>
         <div id="tr-box" style="margin-top:16px"></div>
-      </div>`);
-    const warn = document.createElement('div');
-    warn.className = 'job warn';
-    warn.id = 'tr-warn';
-    qs('up-box').appendChild(warn);
+      </div>`}`);
+    if (!BASIC) {
+      const warn = document.createElement('div');
+      warn.className = 'job warn';
+      warn.id = 'tr-warn';
+      qs('up-box').appendChild(warn);
+    }
 
     // Voice: narration pace and style, and the uploaded-voice note.
     qs('voice-pick').closest('.field').insertAdjacentHTML('afterend', `
@@ -83,9 +86,11 @@
         <label class="field"><span class="lbl">Pace</span><select id="nar-pace" onchange="CoreRun.saveNarration()"></select></label>
         <label class="field"><span class="lbl">Style</span><select id="nar-style" onchange="CoreRun.saveNarration()"></select></label>
       </div>
-      <p class="meta hidden" id="vo-uploaded-note" style="margin:0 0 14px">Your uploaded voiceover is this video's voice. Generating a voiceover replaces it.</p>`);
+      ${BASIC ? '' : '<p class="meta hidden" id="vo-uploaded-note" style="margin:0 0 14px">Your uploaded voiceover is this video\'s voice. Generating a voiceover replaces it.</p>'}`);
     qs('nar-pace').innerHTML = Object.entries(H.PACES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
     qs('nar-style').innerHTML = Object.entries(H.NARR_STYLES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+
+    if (BASIC) return;
 
     // Storyboard toolbar.
     qs('scenes').insertAdjacentHTML('beforebegin', `
@@ -95,7 +100,6 @@
           <span class="meta" id="sb-acq-meta"></span>
         </div>
         <details class="gen-box on" id="sb-sv" style="display:block;padding:10px 16px"><summary style="cursor:pointer;font-size:13px;font-weight:600">Script view — move the scene boundaries as text</summary>
-          <p class="meta" style="margin:10px 0">One paragraph per scene. Move the blank lines to move the boundaries, then apply. Only the blank lines count; the words cannot change here.</p>
           <textarea id="sv-text" rows="10" style="min-height:160px" spellcheck="false" oninput="CoreRun.svInput()"></textarea>
           <div class="step-foot" style="margin-top:10px"><button class="btn sm" id="sv-apply" onclick="CoreRun.svApply()" disabled>Apply boundaries</button><span class="meta" id="sv-msg" style="margin-left:0"></span></div>
         </details>
@@ -105,7 +109,6 @@
     // Render: CapCut.
     qs('render-foot').insertAdjacentHTML('afterend', `
       <div class="core-card" style="margin-top:22px" id="cc-box"><h3 style="font-size:13px">Edit in CapCut instead</h3>
-        <p class="meta" style="margin:4px 0 12px">Download the timeline, the media and a CapCut guide as a zip; edit there; upload the finished video back here.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" id="cc-export" onclick="CoreRun.ccExport(this)">Download CapCut package</button>
         <button class="btn sm" id="cc-up" onclick="document.getElementById('cc-file').click()">Upload edited video</button></div>
         <input type="file" id="cc-file" class="hidden" accept="video/mp4" onchange="CoreRun.ccUpload(this)"><div class="m-msg" id="cc-msg"></div></div>`);
@@ -127,10 +130,16 @@
     const src = CR.src || (uploadedVoice() ? 'upload' : 'paste');
     qs('src-bar').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === src));
     qs('gen-box').classList.toggle('on', src === 'generate');
-    qs('up-box').classList.toggle('on', src === 'upload');
+    if (!BASIC) qs('up-box').classList.toggle('on', src === 'upload');
     const ta = qs('script');
-    ta.readOnly = src === 'upload' && uploadedVoice() && !!S().upload;
+    ta.readOnly = !BASIC && src === 'upload' && uploadedVoice() && !!S().upload;
+    if (BASIC) return finishScriptSource();
     qs('up-lang').textContent = `Language of this video: ${H.LANGS[S().run.language] || S().run.language}. The voiceover is transcribed in it. Its transcript becomes the script.`;
+    if (!qs('gen-idea').value) qs('gen-idea').value = S().run.name || '';
+    finishScriptSource();
+  }
+  /** The idea and the niche hint, then the Next button. */
+  function finishScriptSource() {
     if (!qs('gen-idea').value) qs('gen-idea').value = S().run.name || '';
     const niche = qs('gen-niche');
     niche.placeholder = (S().context && S().context.project && S().context.project.niche) || 'american housing economics';
@@ -317,12 +326,12 @@
   // ── Voice ─────────────────────────────────────────────────────────────────
 
   function paintVoiceExtras() {
-    const up = uploadedVoice() && !!S().upload;
+    const up = !BASIC && uploadedVoice() && !!S().upload;
     qs('nar-pace').value = S().settings.narration_pace || 'normal';
     qs('nar-style').value = S().settings.narration_style || 'educational';
     qs('nar-row').classList.toggle('hidden', up);
     qs('voice-pick').closest('.field').classList.toggle('hidden', up);
-    qs('vo-uploaded-note').classList.toggle('hidden', !up);
+    if (!BASIC) qs('vo-uploaded-note').classList.toggle('hidden', !up);
     if (up && !S().busy.voice) {
       const gen = qs('vo-gen');
       gen.textContent = 'Replace with a generated voice';
@@ -647,6 +656,7 @@
     if (!started || !S().run) return;
     paintScriptSource();
     paintVoiceExtras();
+    if (BASIC) return;
     paintStoryboardExtras();
     paintMeta();
     paintAuto();
@@ -654,11 +664,11 @@
     if (S().right === 'settings') paintSettingsExtras();
     autoStep();
   }
-  function afterStoryboard() { if (started && S().run) paintStoryboardExtras(); }
-  function afterSettings() { if (started && S().run) paintSettingsExtras(); }
+  function afterStoryboard() { if (started && !BASIC && S().run) paintStoryboardExtras(); }
+  function afterSettings() { if (started && !BASIC && S().run) paintSettingsExtras(); }
 
   async function onRunOpened() {
-    if (!started) return;
+    if (!started || BASIC) return;
     CR.src = null; CR.sel = null; S().upload = null;
     const st = S();
     const tasks = [];
@@ -670,7 +680,7 @@
 
   // New video: project, look, defaults from the project.
   async function onNew(projectIdFromHash) {
-    if (!started) return;
+    if (!started || BASIC) return;
     const nr = H.getNewRun();
     if (projectIdFromHash && nr.projectId !== decodeURIComponent(projectIdFromHash)) H.setNewRun({ projectId: decodeURIComponent(projectIdFromHash), itemIds: [], title: '', brief: '' });
     else if (!projectIdFromHash) H.setNewRun({ projectId: '', itemIds: [], title: '', brief: '' });
@@ -756,8 +766,19 @@
     A.go(`#run/${encodeURIComponent(res.data.run_id)}/script`);
   }
 
-  function init(app, core) {
-    A = app; H = core.helpers;
+  function init(app, core, basic) {
+    A = app; H = core.helpers; BASIC = !!basic;
+    if (!BASIC) {
+      A.addHelp({
+        render: ['Render', ['Choose captions and background music, then render the video.', 'When it is done you can play it here and download it.',
+          'Edit in CapCut instead: download the timeline, the media and a CapCut guide as a zip, edit there, and upload the finished video back here.']],
+        storyboard: ['Storyboard', ['Create the storyboard, check each scene, then create the images.',
+          'Click a scene to change its image prompt, motion or on-screen text. Click the pencil to change its image.',
+          'Click a word to split the scene there. "Merge with next" joins two scenes. A new scene has no image prompt: open it and click "Write with the director".',
+          'Script view: one paragraph per scene. Move the blank lines to move the boundaries, then apply. Only the blank lines count; the words cannot change there.',
+          'Creating images costs money. You see the estimate before anything is made.']],
+      });
+    }
     mountDom();
     started = true;
     window.CoreRun.afterPaint();   // the page may already be showing a run

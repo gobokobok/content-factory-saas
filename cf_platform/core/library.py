@@ -7,7 +7,7 @@ run folders — so a library can never disagree with the runs; the price is one 
 listing per run, which is fine at a single operator's scale.
 
 Libraries: videos, audio, footage (acquired or uploaded images and clips), ai
-(AI-generated images, including replaced ones) and music (shared tracks and SFX).
+(AI-generated images, including replaced ones) and music (the platform's background tracks and the ones the tenant uploaded; no sound effects).
 """
 
 import asyncio
@@ -184,23 +184,35 @@ async def list_run_assets(
     return items
 
 
-async def list_shared_music(storage: Any, sfx_entries: list[Any]) -> list[dict[str, Any]]:
-    """The shared music tracks (music-library/) and the curated SFX that have a file."""
+async def list_shared_music(storage: Any, runs: list["RunRef"] | tuple["RunRef", ...] = ()) -> list[dict[str, Any]]:
+    """The background music: the platform's tracks (music-library/) and the tracks the tenant uploaded.
+
+    Sound effects are not listed — they are not background music. An uploaded track is
+    labelled with the run it was uploaded to; the platform's tracks belong to no run.
+    """
     items: list[dict[str, Any]] = []
     try:
         music = await storage.list_keys("music-library/")
     except Exception:
         music = []
     for key in sorted(k for k in music if _ext(k) in _AUDIO_EXT):
-        items.append({"key": key, "name": _name(key), "facts": "music", "facet": "music"})
-    for entry in sfx_entries:
-        key = f"sfx-library/{entry['key']}.mp3"
-        items.append({"key": key, "name": entry.get("display_name", entry["key"]), "facts": "sound effect",
-                      "facet": "sfx"})
+        items.append({"key": key, "name": _name(key), "facts": "platform track", "facet": "platform",
+                      "project_id": None, "project_name": None, "run_id": None, "run_name": None, "created_at": None})
+
+    async def uploaded(run: "RunRef") -> list[dict[str, Any]]:
+        try:
+            keys = await storage.list_keys(f"runs/{run.run_id}/music/")
+        except Exception:
+            return []
+        return [{"key": k, "name": _name(k), "facts": "uploaded", "facet": "uploaded",
+                 "project_id": run.project_id, "project_name": run.project_name,
+                 "run_id": run.run_id, "run_name": run.run_name, "created_at": run.created_at}
+                for k in sorted(keys) if _ext(k) in _AUDIO_EXT]
+
+    for found in await asyncio.gather(*(uploaded(r) for r in runs)):
+        items.extend(found)
     for item in items:
         item["asset_id"] = asset_id("music", item["key"])
-        item["project_id"] = item["project_name"] = item["run_id"] = item["run_name"] = None
-        item["created_at"] = None
         try:
             item["download_url"] = await storage.generate_presigned_url(item["key"], expires_in=3600)
         except Exception:

@@ -48,6 +48,8 @@ _BASIC_ROUTES: tuple[tuple[frozenset[str] | None, re.Pattern[str]], ...] = tuple
         (frozenset({"POST"}), rf"/platform/studio/runs/{_ID}/scenes/{_ID}/(generate|upload|prompt-preview)"),
         # The run's own settings (the Creator reads and writes the look, cast and voice).
         (frozenset({"GET", "POST"}), rf"/runs/{_ID}/settings"),
+        # Writing a script from an idea (capped, moderated and spend-gated server-side; tenant-scoped by run_id).
+        (frozenset({"POST"}), r"/platform/blocks/idea-to-script"),
         # The three long jobs.
         (frozenset({"POST"}), r"/platform/workers/(voice|storyboard|render)"),
     )

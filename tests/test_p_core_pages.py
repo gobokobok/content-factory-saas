@@ -75,8 +75,10 @@ class TestTheHost:
     def test_a_basic_session_gets_only_the_libraries(self, host, core):
         assert "/ui/core.js" in host and "loadCore(me.effective_type !== 'super')" in host
         assert "BASIC ? name === 'library'" in core
-        # The run controls (core-run.js) are never loaded for Basic.
-        assert core.index("if (BASIC) return;") < core.index("/ui/core-run.js")
+        # core-run.js loads for Basic too, but mounts only script generation and narration.
+        assert "window.CoreRun.init(A, window.Core, BASIC)" in core
+        run = (Path(__file__).resolve().parents[1] / "src" / "static" / "ui" / "core-run.js").read_text()
+        assert "if (BASIC) return;\n\n    // Storyboard toolbar." in run
 
     def test_the_host_hands_unknown_routes_to_core(self, host):
         assert "window.Core.handles(name)" in host and "window.Core.route(name, id, step, more)" in host
@@ -98,7 +100,7 @@ class TestScreens:
 
     def test_the_five_libraries(self, core):
         for kind in ("videos", "audio", "footage", "ai", "music"):
-            assert f"{kind}: [" in core
+            assert f"{kind}: '" in core
         assert "/platform/library/${kind}" in core and "URL.createObjectURL" in core
 
     def test_projects_ideas_and_assets_use_the_projects_routes(self, core):

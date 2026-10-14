@@ -481,7 +481,6 @@ class TestBasicGating:
             ("POST", "/platform/echo"),
             ("POST", "/platform/pipeline/produce"),
             ("POST", "/platform/blocks/niche-to-ideas"),
-            ("POST", "/platform/blocks/idea-to-script"),
             ("GET", "/platform/tenant/integrations"),
             ("PUT", "/platform/tenant/integrations/pexels"),
             ("GET", "/platform/tenant/defaults"),
@@ -547,6 +546,7 @@ class TestBasicGating:
             ("GET", "/platform/library/videos"),
             ("GET", "/platform/library/ai"),
             ("GET", "/platform/library/music"),
+            ("POST", "/platform/blocks/idea-to-script"),
         ]
         assert all(basic_may(m, p) for m, p in allowed)
         refused = [

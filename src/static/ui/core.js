@@ -22,13 +22,31 @@
   const STEP_LABELS = { script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Render', metadata: 'Metadata' };
   const ASSET_KINDS = { character: 'Character', setting: 'Place', prop: 'Object' };
   const BASIC_LIBS = ['videos', 'ai', 'music'];
-  const LIBS = {
-    videos: ['Videos', 'Every final video — server renders and videos uploaded from CapCut.'],
-    audio: ['Audio', 'Every voiceover, generated or uploaded.'],
-    footage: ['Footage', 'Every image and clip acquired for a scene or uploaded by you.'],
-    ai: ['AI generations', 'Every AI-generated image, including the ones you replaced.'],
-    music: ['Music & SFX', 'Shared tracks and sound effects. These belong to no project.'],
+  const LIBS = { videos: 'Videos', audio: 'Audio', footage: 'Footage', ai: 'AI generations', music: 'BG music' };
+  // What each screen says about itself lives in the right-hand Information panel, not on the page.
+  const HELP = {
+    projects: ['Projects', ['A project is one channel or series: its ideas, its videos and its defaults.']],
+    'project-overview': ['Project', ['What is in progress, the newest ideas and the numbers for this project.']],
+    'project-ideas': ['Ideas', ['The shortlist. Start a video from one idea, or tick several to combine them into one video.']],
+    'project-runs': ['Videos', ['Every video made in this project.']],
+    'project-settings': ['Project settings', [
+      'The niche is passed to script generation for every video.',
+      'Channel identity: describe the channel once — topics, audience, tone. The description and tags are written for it.',
+      'Defaults for new videos: each shows where its value comes from. A project value wins over the Defaults.',
+      'Master visual prompt: the look every AI image in this project shares. A video can set its own; the video\'s wins.',
+      'Project assets: recurring characters, places and objects. An animated video\'s storyboard reuses them, with exactly this description, instead of inventing new ones. Save one from a video\'s characters and props, or add it here.']],
+    'library-videos': ['Videos', ['Every final video: server renders and videos uploaded from CapCut.']],
+    'library-audio': ['Audio', ['Every voiceover, generated or uploaded.']],
+    'library-footage': ['Footage', ['Every image and clip acquired for a scene or uploaded by you.']],
+    'library-ai': ['AI generations', ['Every AI-generated image, including the ones you replaced.']],
+    'library-music': ['BG music', ['Background music only: tracks you uploaded and tracks the platform provides.',
+      'Sound effects are not listed here.', 'Choose a track for a video in its Render step.']],
+    integrations: ['Integrations', ['The services the pipeline calls, in five blocks. Each provider has its own key; a block with several providers has one default.',
+      'A key saved here wins over the Railway variable of the same service. Without one, the Railway variable is used.']],
+    defaults: ['Defaults', ['What every project starts from. Order of precedence: the video, then the project, then these.',
+      'Existing videos are not changed by an edit here.', 'A video stops generating AI images when it reaches the spend cap.']],
   };
+
 
   const C = {
     tenant: null, projects: [], project: null, items: [], runs: [], tab: 'overview', selected: new Set(), runFilter: '',
@@ -129,10 +147,18 @@
 
   // ── Routing ───────────────────────────────────────────────────────────────
 
+  /** The Information panel's entry for a route. */
+  function helpKey(name, id, step) {
+    if (name === 'projects') return 'projects';
+    if (name === 'project') return 'project-' + (['ideas', 'runs', 'settings'].includes(step) ? step : 'overview');
+    if (name === 'library') return 'library-' + (LIBS[id] ? id : 'videos');
+    return id === 'defaults' ? 'defaults' : 'integrations';
+  }
   const handles = name => (BASIC ? name === 'library' : ROUTES.includes(name));
 
   async function route(name, id, step, more) {
     showErr('');
+    A.setHelp(helpKey(name, id, step));
     try {
       if (name === 'projects') return await viewProjects();
       if (name === 'project') return await viewProject(id, ['ideas', 'runs', 'settings'].includes(step) ? step : 'overview');
@@ -163,7 +189,6 @@
     if (!r.ok) throw new Error(A.why(r));
     C.projects = r.data;
     frame('&nbsp;', `<div class="page-head"><h1>Projects</h1><button class="btn primary" onclick="Core.dlgNewProject()">+ New project</button></div>
-      <p class="meta" style="margin:-14px 0 20px">A project is one channel or series: its ideas, its videos and its defaults.</p>
       <div class="run-list">${C.projects.length ? C.projects.map(projectRow).join('')
         : '<div class="empty"><b>No projects yet</b><p>Create a project to collect ideas and make videos for one channel.</p><button class="btn primary" onclick="Core.dlgNewProject()">New project</button></div>'}</div>`);
   }
@@ -269,7 +294,7 @@
   }
   function viewIdeas() {
     const live = [...C.selected].filter(id => C.items.some(i => i.item_id === id));
-    return `<div class="core-bar"><p class="meta">The shortlist. Start a video from one idea, or tick several to combine them into one.</p><button class="btn sm" onclick="Core.dlgIdea()">+ Add idea</button></div>
+    return `<div class="core-bar"><span></span><button class="btn sm" onclick="Core.dlgIdea()">+ Add idea</button></div>
       ${C.items.length ? C.items.map(i => ideaRow(i, true)).join('')
         : '<div class="empty"><b>No ideas yet</b><p>Add one by hand. You can also start a video without an idea.</p><button class="btn primary" onclick="Core.startRun([])">New video without an idea</button></div>'}
       ${live.length > 1 ? `<div class="core-selbar"><span>${live.length} ideas selected — combined into one video</span>
@@ -365,17 +390,17 @@
     return `<div class="core-card"><h3>Project</h3>
         <div class="row"><label class="field"><span class="lbl">Name</span><input type="text" maxlength="120" value="${esc(p.name)}" onchange="if(this.value.trim())Core.patchProject({name:this.value.trim()});else this.value='${esc(p.name)}'"></label>
         <label class="field"><span class="lbl">Niche — passed to script generation for every video</span><input type="text" maxlength="200" value="${esc(p.niche)}" placeholder="american housing economics" onchange="Core.patchProject({niche:this.value.trim()})"></label></div></div>
-      <div class="core-card"><h3>Channel identity</h3><p class="meta">A project is one channel. Describe it once — topics, audience, tone. The description and tags are written for it.</p>
+      <div class="core-card"><h3>Channel identity</h3>
         <textarea maxlength="2000" rows="4" style="min-height:96px" placeholder="Plain-spoken explainers on American housing for first-time buyers. Calm, numbers first, no hype."
           onchange="Core.patchConfig('channel_identity', this.value.trim(), 'Channel identity saved.')">${esc((p.config && p.config.channel_identity) || '')}</textarea></div>
-      <div class="core-card"><h3>Defaults for new videos</h3><p class="meta">Each shows where its value comes from.</p>
+      <div class="core-card"><h3>Defaults for new videos</h3>
         <div class="row">${inheritField('language', 'Language', LANGS)}${inheritField('format', 'Format', FORMATS)}${inheritField('captions', 'Captions', CAPTIONS)}
         <label class="field"><span class="lbl">Narration pace (generated voice)</span><select onchange="Core.setDefault('pace', this.value)"><option value="">Normal (built-in)</option>${opts(PACES, rd.narration_pace)}</select></label>
         <label class="field"><span class="lbl">Narration style (generated voice)</span><select onchange="Core.setDefault('style', this.value)"><option value="">Educational (built-in)</option>${opts(NARR_STYLES, rd.narration_style)}</select></label></div></div>
-      <div class="core-card"><h3>Master visual prompt</h3><p class="meta">The look every AI image in this project shares. A video can set its own; the video's wins.</p>
+      <div class="core-card"><h3>Master visual prompt</h3>
         <textarea maxlength="4000" rows="8" style="min-height:160px" placeholder="Muted editorial illustration, flat colours, soft grain, no text"
           onchange="Core.patchConfig('ai_image_style', this.value.trim())">${esc((p.config && p.config.ai_image_style) || '')}</textarea></div>
-      <div class="core-card"><h3>Project assets</h3><p class="meta">Recurring characters, places and objects. An animated video's storyboard reuses them, with exactly this description, instead of inventing new ones. Save one from a video's characters and props, or add it here.</p>
+      <div class="core-card"><h3>Project assets</h3>
         ${assets.length ? assets.map(a => `<div class="as-card"><div style="display:flex;gap:8px;align-items:center"><span class="n">${esc(a.name)}</span><span class="chip">${esc(ASSET_KINDS[a.kind] || a.kind)}</span><span style="flex:1"></span>
           <button class="btn sm" onclick="Core.dlgAsset('${esc(a.id)}')">Edit</button><button class="btn sm e-del" onclick="Core.deleteAsset('${esc(a.id)}')">Remove</button></div><p>${esc(a.description)}</p></div>`).join('')
           : '<p class="meta" style="margin-bottom:12px">No assets yet.</p>'}
@@ -407,7 +432,7 @@
   async function viewLibrary(kind) {
     setNav('library/' + kind);
     loading();
-    if (C.lib.kind !== kind) C.lib.filters = { q: '', project: '', facet: '' };
+    if (C.lib.kind !== kind) { C.lib.filters = { q: '', project: '', facet: '' }; C.lib.search = false; }
     C.lib.kind = kind;
     const r = await call(`/platform/library/${kind}`);
     if (!r.ok) throw new Error(A.why(r));
@@ -423,7 +448,7 @@
     return `<div style="padding:12px 12px 0"><audio controls preload="none" src="${esc(u)}" style="width:100%;height:34px"></audio></div>`;
   }
   function libCard(a) {
-    const project = BASIC ? '' : a.project_id ? `<a class="link" href="#project/${encodeURIComponent(a.project_id)}">${esc(a.project_name)}</a>` : '<span class="meta">Shared — all projects</span>';
+    const project = BASIC ? '' : a.project_id ? `<a class="link" href="#project/${encodeURIComponent(a.project_id)}">${esc(a.project_name)}</a>` : (C.lib.kind === 'music' ? '' : '<span class="meta">Shared — all projects</span>');
     const run = a.run_id ? `<a class="link" href="#run/${encodeURIComponent(a.run_id)}/storyboard">↳ ${esc(a.run_name)}</a>` : '';
     return `<div class="core-asset">${libPreview(a)}<div class="core-asset-body"><div class="t">${esc(a.name)}</div>${project}${run}
       <div class="meta">${esc(a.facts)}${a.created_at ? ' · ' + esc(fmtDate(a.created_at)) : ''}</div>
@@ -438,15 +463,23 @@
   function paintLibrary(keepFocus) {
     const kind = C.lib.kind, d = C.lib.data, f = C.lib.filters, list = libVisible();
     const facets = [...new Set(d.items.map(a => a.facet).filter(Boolean))];
-    frame(crumbs([['Libraries'], [LIBS[kind][0]]]), `<div class="page-head"><h1>${LIBS[kind][0]}</h1></div>
-      <p class="meta" style="margin:-14px 0 18px">${LIBS[kind][1]}</p>
-      <div class="core-bar" style="gap:8px"><input type="text" id="lib-q" placeholder="Search by name, ID, video or project" value="${esc(f.q)}" oninput="Core.libFilter('q',this.value,true)" style="max-width:340px">
+    const searching = !!f.q || C.lib.search;
+    const glass = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>';
+    frame(crumbs([['Libraries'], [LIBS[kind]]]), `<div class="page-head"><h1>${LIBS[kind]}</h1>
+      <button class="icon-btn" style="margin-left:auto" onclick="Core.libSearch()" title="Search" aria-label="Search">${glass}</button></div>
+      ${searching ? `<div class="core-bar"><input type="text" id="lib-q" placeholder="Search by name, ID, video or project" value="${esc(f.q)}" oninput="Core.libFilter('q',this.value,true)" style="max-width:340px"></div>` : ''}
+      <div class="core-bar" style="gap:8px">
       ${kind !== 'music' && !BASIC ? `<select class="inline" onchange="Core.libFilter('project',this.value)" aria-label="Project"><option value="">All projects</option>${d.projects.map(p => `<option value="${esc(p.project_id)}"${f.project === p.project_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
-      ${facets.length > 1 ? `<select class="inline" onchange="Core.libFilter('facet',this.value)" aria-label="Type"><option value="">All types</option>${facets.map(x => `<option${f.facet === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}</div>
+      ${kind !== 'music' && facets.length > 1 ? `<select class="inline" onchange="Core.libFilter('facet',this.value)" aria-label="Type"><option value="">All types</option>${facets.map(x => `<option${f.facet === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}</div>
       <p class="meta" style="margin-bottom:10px">${list.length} of ${d.items.length}</p>
       ${list.length ? `<div class="core-assets">${list.map(libCard).join('')}</div>`
         : `<div class="empty"><b>${d.items.length ? 'Nothing matches' : 'Nothing here yet'}</b><p>${d.items.length ? 'Change the search or the filters.' : 'Assets appear here as videos produce them.'}</p></div>`}`);
     if (keepFocus) { const q = qs('lib-q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
+  }
+  function libSearch() {
+    C.lib.search = !C.lib.search && !C.lib.filters.q;
+    if (!C.lib.search) C.lib.filters.q = '';
+    paintLibrary(true);
   }
   function libFilter(key, value, keepFocus) { C.lib.filters[key] = value; paintLibrary(keepFocus); }
   /** Download through a blob: the `download` attribute is ignored for a cross-origin presigned URL. */
@@ -542,17 +575,15 @@
     if (tab === 'defaults') {
       const d = C.settings.defaults;
       frame(crumbs([['Settings'], ['Defaults']]), `<div class="page-head"><h1>Defaults</h1></div>
-        <p class="meta" style="margin:-14px 0 18px">What every project starts from. Order of precedence: the video, then the project, then these.</p>
-        <div class="core-card"><h3>New projects and videos</h3><p class="meta">Existing videos are not changed by an edit here.</p>
+        <div class="core-card"><h3>New projects and videos</h3>
           <div class="row">${defaultField('language', 'Language', LANGS)}${defaultField('format', 'Format', FORMATS)}${defaultField('captions', 'Captions', CAPTIONS)}</div></div>
-        <div class="core-card"><h3>Spend</h3><p class="meta">A video stops generating AI images when it reaches the cap.</p>
+        <div class="core-card"><h3>Spend</h3>
           <label class="field" style="max-width:280px"><span class="lbl">AI image cap per video (USD)</span><input type="text" inputmode="decimal" value="${esc(d.spend_cap)}" onchange="Core.saveDefault('spend_cap', this.value)"></label></div>`);
       return;
     }
     const b = C.settings.blocks;
     frame(crumbs([['Settings'], ['Integrations']]), `<div class="page-head"><h1>Integrations</h1></div>
-      <p class="meta" style="margin:-14px 0 18px">The services the pipeline calls, in five blocks. Each provider has its own key; a block with several providers has one default.</p>
-      ${b.can_save_keys ? '<div class="job on" style="margin-bottom:16px">A key saved here wins over the Railway variable of the same service. Without one, the Railway variable is used.</div>'
+      ${b.can_save_keys ? ''
         : '<div class="job on err">Keys cannot be saved yet: SETTINGS_ENCRYPTION_KEY is not set on Railway. Railway key variables still work.</div>'}
       ${b.blocks.map(blockCard).join('')}`);
   }
@@ -630,6 +661,7 @@
   function init(app, basic) {
     A = app;
     BASIC = !!basic;
+    A.addHelp(HELP);
     const style = document.createElement('style');
     style.textContent = injectedStyles;
     document.head.appendChild(style);
@@ -639,11 +671,10 @@
       sec.id = 's-x';
       document.querySelector('main.main').appendChild(sec);
     }
-    if (BASIC) return;   // the run-flow controls are Super's
-    // core-run.js adds the run-flow controls; it reads this module's helpers through Core.
+    // core-run.js adds the run-flow controls (Basic: script generation and narration only); it reads this module's helpers through Core.
     const el = document.createElement('script');
     el.src = '/ui/core-run.js';
-    el.onload = () => { if (window.CoreRun) window.CoreRun.init(A, window.Core); };
+    el.onload = () => { if (window.CoreRun) window.CoreRun.init(A, window.Core, BASIC); };
     document.head.appendChild(el);
   }
 
@@ -660,6 +691,6 @@
     // actions called from markup
     closeModal, dlgNewProject, createProject, dlgIdea, saveIdea, removeIdea, startRun, toggleIdea, clearSel, setRunFilter,
     patchProject, patchConfig, setDefault, dlgAsset, saveAsset, deleteAsset,
-    libFilter, download, toggleKeyEdit, saveKey, removeKey, makeDefault, saveModel, saveDefault,
+    libFilter, libSearch, download, toggleKeyEdit, saveKey, removeKey, makeDefault, saveModel, saveDefault,
   };
 })();

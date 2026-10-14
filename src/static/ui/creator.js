@@ -25,15 +25,18 @@
     runs: ['Runs', ['Every video you have started. Open one to continue it, or start a new one.']],
     new: ['New video', ['Say what the video is about and choose its format and language.',
       'The master visual style is the look every image shares. You can change it until the storyboard is created.',
-      'List the characters if you want specific people. Describe each one in detail: what you write is used for every image they appear in.']],
-    script: ['Script', ['Paste the text the narrator will read.', 'The word limit keeps the video to a few minutes.']],
-    voice: ['Voice', ['Choose the voice, then generate the voiceover. Listen before you go on.',
+      'List the characters if you want specific people. Only the people you list appear in the video; with none, the characters are invented from the script.',
+      'Describe each character in detail: what you write is used for every image they appear in.']],
+    script: ['Script', ['Paste the text the narrator will read, or generate one from an idea.', 'The word limit keeps the video to a few minutes.']],
+    voice: ['Voice', ['Choose the voice, its speed and its style, then generate the voiceover. Listen before you go on.',
+      'Speed and style are sent to the voice model as an instruction in front of your script.',
       'Generating again replaces the voiceover. A storyboard made for the old one has to be created again.']],
     storyboard: ['Storyboard', ['Create the storyboard, check each scene, then create the images.',
       'Click a scene to change its image prompt, motion or on-screen text. Click the pencil to change its image.',
       'Click a word to split the scene there. "Merge with next" joins two scenes. A new scene has no image prompt: open it and click "Write with the director".',
       'Creating images costs money. You see the estimate before anything is made.']],
     render: ['Render', ['Choose captions and background music, then render the video.', 'When it is done you can play it here and download it.']],
+    metadata: ['Metadata', ['A title, description and tags for the channel, written from the script. Edit them here and copy them out.']],
   };
   const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
@@ -163,6 +166,24 @@
     $('#left').classList.toggle('closed', !open);
     $('#left-open').classList.toggle('hidden', open);
   }
+  const isNarrow = () => window.matchMedia('(max-width:820px)').matches;
+  /** Close whichever panels are open (the scrim and the Escape key use this). */
+  function closePanels() { toggleLeft(false); if (S.right) { S.right = null; paintRight(); } }
+  /** Narrow screens: the panel is a sheet over the page, so it starts closed and closes after a choice. */
+  function initPanels() {
+    if (isNarrow()) toggleLeft(false);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && isNarrow()) closePanels(); });
+    window.addEventListener('hashchange', () => { if (isNarrow()) toggleLeft(false); });
+    let last = window.scrollY;
+    window.addEventListener('scroll', () => {
+      const bar = $('#fabbar'), y = window.scrollY;
+      if (!isNarrow()) { bar.classList.remove('pinned'); last = y; return; }
+      if (y <= 8) bar.classList.remove('pinned');
+      else if (y < last - 6) bar.classList.add('pinned');
+      else if (y > last + 6) bar.classList.remove('pinned');
+      last = y;
+    }, { passive: true });
+  }
   async function logOut() { await fetch('/auth/logout', { method: 'POST' }); location.href = '/login'; }
 
   // ── Account: who is signed in, Super's menu, View as Basic (P-AUTH S7, D118) ──
@@ -221,6 +242,9 @@
 
   // ── Right panel ───────────────────────────────────────────────────────────
 
+  /** Core's screens register their Information entries and pick one per route. */
+  function addHelp(map) { Object.assign(HELP, map); }
+  function setHelp(key) { S.helpKey = key; if (S.right === 'help') paintHelp(); }
   function openRight(mode) { S.right = S.right === mode ? null : mode; paintRight(); }
   function paintRight() {
     $('#right').classList.toggle('closed', !S.right);
@@ -234,7 +258,8 @@
     if (S.right === 'settings') { paintSettings(); if (window.Core) window.Core.afterSettings(); }
   }
   function paintHelp() {
-    const [title, lines] = HELP[S.view === 'run' ? STEPS[S.step] : S.view] || HELP.runs;
+    const key = S.view === 'run' ? STEPS[S.step] : S.view === 'x' ? S.helpKey : S.view;
+    const [title, lines] = HELP[key] || HELP.runs;
     $('#help-title').textContent = title;
     $('#help-list').innerHTML = lines.map(l => `<li>${esc(l)}</li>`).join('');
   }
@@ -942,6 +967,8 @@
   window.addEventListener('scroll', () => { if (S.split) closeSplit(); }, true);
   $$('#new-ar button').forEach(b => b.addEventListener('click', () => $$('#new-ar button').forEach(x => x.classList.toggle('on', x === b))));
 
+  initPanels();
+
   async function start() {
     const res = await api('/platform/creator/config');
     if (!res.ok) { err('#runs-err', `The page could not start: ${why(res)}`); return; }
@@ -957,10 +984,10 @@
     runUrl, go, show, route, confirmBox, saveSettings, paintRun, paintStoryboard, paintVoice, paintScript, paintRender,
     reloadStoryboard, refreshManifest, applyManifest, sbScenes, hasAsset, allAssets, scriptWords, scriptOk,
     watchVoice, watchStoryboard, createSb, renderVideo, genVoice, planAssets, paintRight, firstOpenStep, watchRender,
-    watchImages, patchScene, openRun, stopAudio, paintContinuity, writeDraft, readDraft, onScript,
+    watchImages, patchScene, openRun, stopAudio, paintContinuity, writeDraft, readDraft, onScript, addHelp, setHelp,
   };
   window.Creator = {
-    toggleLeft, logOut, toggleViewAs, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
+    toggleLeft, closePanels, logOut, toggleViewAs, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
     saveVoice, genVoice, toggleVo, askCreateSb, planAssets, toggleScene, patchScene, openSplit, confirmSplit, mergeScene,
     writePrompt, writePromptInModal, openModal, closeModal, toggleEntity, genSceneImage, uploadSceneImage, openEntry, closeEntry, saveEntry, deleteEntry,
     saveCaptions, onMusicPick, uploadMusic, renderVideo, downloadVideo, closeConfirm,

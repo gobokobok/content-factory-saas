@@ -60,18 +60,14 @@ async def get_library(
         raise HTTPException(status_code=403, detail="This needs a Super account.")
     project_list = await projects.list_projects(current_tenant_id(), include_archived=True)
     names = {p.project_id: p.name for p in project_list}
-    if kind == "music":
-        from cf_platform.workers.render_worker import list_available_sfx
-
-        items = await list_shared_music(storage, await list_available_sfx(storage))
-        return {"kind": kind, "items": items, "projects": []}
-
     records = [r for r in await runs.list_runs(current_tenant_id()) if r.archived_at is None]
     refs = [
         RunRef(r.run_id, r.name or "Untitled run", r.project_id, names.get(r.project_id, r.project_id),
                r.created_at.isoformat())
         for r in records
     ]
+    if kind == "music":
+        return {"kind": kind, "items": await list_shared_music(storage, refs), "projects": []}
 
     async def manifest_keys(run_id: str) -> set[str]:
         return await _manifest_keys(storage, run_id)

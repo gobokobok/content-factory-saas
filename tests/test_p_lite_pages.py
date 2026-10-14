@@ -94,7 +94,7 @@ class TestNewVideo:
         for needle in ('id="new-title"', 'id="new-ar"', 'data-v="9:16"', 'data-v="16:9"', 'id="new-lang"',
                        'id="new-style"', 'id="new-chars"', "Add a character"):
             assert needle in form
-        assert "cannot be changed later" in form
+        assert "cannot be changed later" not in form   # explanatory text lives in the Information panel
 
     def test_realistic_is_greyed_out(self, page):
         assert '<button data-v="realistic" disabled title="Coming soon">' in page
@@ -154,7 +154,7 @@ class TestTheRun:
 
     def test_format_look_and_language_are_fixed(self, page):
         settings = page[page.index('id="tab-settings"'):page.index('id="tab-help"')]
-        assert "were chosen when the video was created" in settings
+        assert "were chosen when the video was created" not in settings
         assert "<select" not in settings and 'class="seg"' not in settings
 
 
