@@ -697,6 +697,23 @@ class AudioSettings(BaseModel):
     playback_mode: Literal["loop", "fit"] = "fit"
 
 
+class RunCharacter(BaseModel):
+    """One character a run lists up front: the only people the director may show (D114, D117)."""
+
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(min_length=1, max_length=1200)
+
+    @field_validator("name", "description", mode="before")
+    @classmethod
+    def _strip(cls, v: Any) -> Any:
+        """Surrounding whitespace is never part of a name or a description."""
+        return v.strip() if isinstance(v, str) else v
+
+
+# The most characters one run may list; more than a short video can keep apart.
+MAX_RUN_CHARACTERS = 6
+
+
 class VideoSettings(BaseModel):
     """Video production settings stored in settings.json and wired into the render pipeline."""
 
@@ -725,6 +742,17 @@ class VideoSettings(BaseModel):
     # Per-run AI image spend cap set from the Generate all dialog (D108). None means
     # the tenant default applies; never above IMAGE_RUN_SPEND_CAP_MAX_USD.
     image_spend_cap_usd: float | None = Field(default=None, ge=0)
+    # D111 — the look, independent of the image source. Written by PUT …/visuals; it is a
+    # field here so that saving any other setting does not drop it from settings.json.
+    look: Literal["realistic", "animated"] | None = None
+    # D113 / D117 — who appears. "free": the director decides; "single": one protagonist
+    # (a project asset or `protagonist_text`); "listed": only the run's `characters`.
+    cast_mode: Literal["free", "single", "listed"] = "free"
+    protagonist_asset_id: str = ""
+    protagonist_text: str = Field(default="", max_length=1200)
+    characters: list[RunCharacter] = Field(default_factory=list, max_length=MAX_RUN_CHARACTERS)
+    # D117 — the narrator's voice for this run; None means the deployment's GEMINI_TTS_VOICE.
+    voice: Literal["male", "female"] | None = None
 
     @field_validator("master_style", mode="before")
     @classmethod

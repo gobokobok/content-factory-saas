@@ -17,6 +17,7 @@ from cf_platform.interfaces.dependencies import (
     get_trace_event_repository,
 )
 from cf_platform.interfaces.routes._helpers import latest_artifact_key as _latest_artifact_key
+from cf_platform.interfaces.routes._helpers import sfx_enabled
 
 _logger = logging.getLogger(__name__)
 
@@ -345,6 +346,7 @@ async def studio_get_timeline(
     caption_style: str = "standard",
     music_enabled: bool = True,
     storage: ArtifactStorage = Depends(get_artifact_storage),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ) -> dict:
     """Return the run's Timeline (P13b-S1): scenes with resolved timing, assets, text, captions, audio.
 
@@ -360,7 +362,7 @@ async def studio_get_timeline(
 
     timeline, _ = await prepare_run_timeline(
         storage, run_id, format_track=format_track, captions=captions,
-        caption_style=caption_style, music_enabled=music_enabled,
+        caption_style=caption_style, music_enabled=music_enabled, sfx_enabled=sfx_enabled(settings),
     )
     return timeline.model_dump(mode="json")
 
@@ -374,6 +376,7 @@ async def studio_export_capcut(
     music_enabled: bool = True,
     storage: ArtifactStorage = Depends(get_artifact_storage),
     trace_events: TraceEventRepository = Depends(get_trace_event_repository),
+    settings: PlatformSettings = Depends(get_effective_platform_settings),
 ):
     """Stream a zip of the run's timeline and media for the CapCut path (P13b-S2, D100).
 
@@ -399,6 +402,7 @@ async def studio_export_capcut(
         storage, run_id, format_track=format_track, captions=captions,
         caption_style=caption_style, music_enabled=music_enabled,
         copy_media=True, write=True, require_alignment=True, existing_media_only=True,
+        sfx_enabled=sfx_enabled(settings),
     )
     # Best-effort, like the other Studio trace events: an observability write must never
     # fail the export (Studio runs may have no `runs` row for the FK).

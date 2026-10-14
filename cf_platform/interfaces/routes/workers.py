@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from cf_platform.core.artifact_manager import ArtifactStorage
-from cf_platform.core.cast import resolve_cast
+from cf_platform.core.cast import resolve_cast, resolve_listed_cast
 from cf_platform.core.config import PlatformSettings
 from cf_platform.core.llm import LLMError, build_llm_client
 from cf_platform.core.project_assets import list_assets
@@ -34,6 +34,7 @@ from cf_platform.interfaces.dependencies import (
     get_tenant_settings_repository,
 )
 from cf_platform.interfaces.routes._helpers import latest_artifact_key as _latest_artifact_key
+from cf_platform.interfaces.routes._helpers import sfx_enabled
 from cf_platform.interfaces.routes._run_id import RUN_ID_PATTERN
 from cf_platform.interfaces.routes.studio_voice import discard_for_generated_voice
 from cf_platform.workers.acquisition_worker import (
@@ -246,9 +247,15 @@ async def storyboard_worker_endpoint(
         assets = list_assets(project_config)
         if assets:
             inputs["project_assets"] = assets
-        cast = resolve_cast(await read_run_settings(storage, body.run_id), project_config)
+        run_settings = await read_run_settings(storage, body.run_id)
+        cast = resolve_cast(run_settings, project_config)
         if cast is not None:
             inputs["cast"] = cast.as_input()
+        listed = resolve_listed_cast(run_settings)
+        if listed:
+            inputs["cast_list"] = [rule.as_input() for rule in listed]
+            # The listed people are the whole cast: a saved project character is not one of them.
+            inputs["project_assets"] = [a for a in assets if a.get("kind") != "character"]
     else:
         inputs["look"] = visuals.look
         wanted = getattr(settings, "STORYBOARD_STOCK_PROMPT_VERSION", STORYBOARD_PROMPT_VERSION)
@@ -528,19 +535,21 @@ async def voice_worker_endpoint(
     # TTS — VoiceWorkerRequest deliberately carries nothing but run_id and script.
     # A missing/unreadable blob leaves the worker on its own defaults (D048).
     voice_inputs: dict = {}
+    run_voice: object = None
     try:
         settings_data = await storage.get_json(f"runs/{body.run_id}/settings.json")
         voice_inputs = {
             "narration_pace": settings_data.get("narration_pace"),
             "narration_style": settings_data.get("narration_style"),
         }
+        run_voice = settings_data.get("voice")
     except Exception:
         pass
 
     worker = build_voice_production_worker(
         storage,
         gemini_api_key=settings.GEMINI_API_KEY,
-        gemini_tts_voice=settings.GEMINI_TTS_VOICE,
+        gemini_tts_voice=resolve_tts_voice(run_voice, settings),
         deepgram_api_key=settings.DEEPGRAM_API_KEY,
     )
     worker_state = StageState(
@@ -558,6 +567,20 @@ async def voice_worker_endpoint(
     background_tasks.add_task(_run_voice_background, body.run_id, job_id, worker_state, worker, storage)
     _logger.info("VoiceWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return VoiceWorkerResponse(status="accepted", run_id=body.run_id)
+
+
+def resolve_tts_voice(run_voice: object, settings: PlatformSettings) -> str:
+    """The Gemini TTS voice name for a run's `voice` setting (D117).
+
+    "male" / "female" pick the deployment's two Creator voices; anything else — no
+    choice, an unknown value, or a choice whose voice is not configured — is the
+    deployment's GEMINI_TTS_VOICE, as before the setting existed.
+    """
+    chosen = {
+        "male": getattr(settings, "CREATOR_VOICE_MALE", ""),
+        "female": getattr(settings, "CREATOR_VOICE_FEMALE", ""),
+    }.get(str(run_voice or ""))
+    return (chosen or "").strip() or settings.GEMINI_TTS_VOICE
 
 
 class AcquisitionWorkerRequest(BaseModel):
@@ -837,7 +860,7 @@ async def render_worker_endpoint(
         _timeline, timeline_key = await prepare_run_timeline(
             storage, body.run_id, format_track=body.format_track, captions=body.captions,
             caption_style=body.caption_style, music_enabled=body.music_enabled,
-            copy_media=True, write=True,
+            copy_media=True, write=True, sfx_enabled=sfx_enabled(settings),
         )
         artifacts["timeline"] = timeline_key
     except HTTPException:
@@ -851,6 +874,7 @@ async def render_worker_endpoint(
         blur_fill_enabled=settings.BLUR_FILL_ENABLED,
         ffmpeg_timeout_seconds=settings.FFMPEG_TIMEOUT_SECONDS,
         ffmpeg_scene_threads=settings.FFMPEG_SCENE_THREADS,
+        sfx_enabled=sfx_enabled(settings),
     )
     state = StageState(
         run_id=body.run_id,

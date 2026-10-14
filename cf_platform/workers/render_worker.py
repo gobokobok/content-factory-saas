@@ -741,6 +741,7 @@ def build_render_worker(
     blur_fill_enabled: bool = True,
     ffmpeg_timeout_seconds: int = 1800,
     ffmpeg_scene_threads: int = 2,
+    sfx_enabled: bool = True,
 ) -> WorkerNode:
     """Build the native RenderWorker node.
 
@@ -756,7 +757,10 @@ def build_render_worker(
         ffmpeg_scene_threads: -threads cap per concurrent per-scene libx264 encoder
             (default 2). See D090 — without a cap, libx264 auto-detects the host's
             full CPU count per process and the parallel scene batch oversubscribes it.
+        sfx_enabled: False renders with no per-scene sound effects whatever the
+            storyboard names (pass the deployment's SFX_ENABLED, D114).
     """
+    from cf_platform.workers.timeline import without_sfx
     from src.models import AssetManifest, Storyboard
 
     async def _worker(state: StageState) -> WorkerOutput:
@@ -767,6 +771,8 @@ def build_render_worker(
         _, sb_body = await read_artifact(storage, state.artifacts["verified_storyboard"])
         sb_art = VerifiedStoryboardArtifact.model_validate(sb_body)
         storyboard = Storyboard.model_validate(_sanitize_storyboard_data(sb_art.storyboard))
+        if not sfx_enabled:
+            storyboard = without_sfx(storyboard)
 
         # Read asset manifest
         _, mf_body = await read_artifact(storage, state.artifacts["asset_manifest"])

@@ -38,6 +38,7 @@ def _zip(response) -> zipfile.ZipFile:
 
 def test_zip_holds_timeline_and_exactly_the_files_it_references():
     with p13_env(with_manifest=True, **{"1": {"sfx": "whoosh"}}) as env:
+        env.settings.SFX_ENABLED = True  # sound effects are off unless the deployment turns them on (D114)
         _seed_files(env, sfx=("whoosh",))
         r = env.client.get(URL)
     assert r.status_code == 200, r.text
