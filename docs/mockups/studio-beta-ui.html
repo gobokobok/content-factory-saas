@@ -4,24 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Content Factory — Beta UI mockup</title>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
 <style>
-/* Palette: clausewatch tokens (app.css), nudged warmer. */
+/* Tokens copied from DEV (studio-v2.html + ui/shell.css "Monochrome Console"). */
 :root{
-  --bg:#F8F6F1;          /* clausewatch #F7F7F5 → warmer */
-  --bg-soft:#F1EEE6;     /* hover / chips-free surfaces */
-  --border:#E2DDD2;      /* clausewatch #DEDED9 → warmer */
-  --border-strong:#CFC8BA;
-  --text:#1E1C18;
-  --muted:#6B665C;
-  --faint:#9A9488;
-  --accent:#1F4FD8;      /* clausewatch accent, unchanged */
-  --accent-soft:#E6ECFB;
-  --ok:#1B6E3C; --ok-bg:#E6F3EA;
-  --warn:#8A5A00; --dot-run:#E5A50A;
-  --danger:#A32020;
-  --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --left-w:248px; --right-w:328px; --main-w:780px;
-  --r:12px;
+  --bg:#FAFAFA; --bg-soft:#F0F0F2;
+  --border:#E7E7E9; --border-strong:#B4B4BA;
+  --text:#121215; --ink-sub:#55555C; --muted:#8B8B92; --faint:#B4B4BA;
+  --accent:#2743C9; --accent-h:#1D35A6; --accent-soft:#ECEFFB; --accent-ring:rgba(39,67,201,.26);
+  --ok:#12805C; --dot-run:#E5A50A; --red:#D92D20;
+  --font:'Schibsted Grotesk',system-ui,sans-serif;
+  --mono:'Fragment Mono',ui-monospace,monospace;
+  --left-w:244px; --right-w:328px; --main-w:780px;
+  --r:8px; --r-sm:6px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -33,95 +28,103 @@ svg{flex-shrink:0}
 .main{max-width:var(--main-w);margin:0 auto;padding:72px 24px 120px}
 .screen{display:none}.screen.on{display:block}
 
-h1{font-size:26px;line-height:1.25;font-weight:650;letter-spacing:-.015em}
-.page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:28px}
+h1{font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-.02em}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px;margin:0 0 28px}
 
 /* ── Buttons ─────────────────────────────────────────────────────── */
-.btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 18px;border-radius:999px;font-weight:550;border:1px solid var(--border-strong);transition:background .12s,border-color .12s}
-.btn:hover{background:var(--bg-soft)}
-.btn.primary{background:var(--text);color:var(--bg);border-color:var(--text)}
-.btn.primary:hover{background:#38352E}
-.btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}
-.btn.sm{height:32px;padding:0 14px;font-size:13px}
-.link{color:var(--muted);font-size:13px;text-decoration:underline;text-underline-offset:3px}
-.link:hover{color:var(--text)}
-.icon-btn{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;color:var(--muted);border:1px solid transparent}
+.btn{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 18px;border-radius:var(--r-sm);font-size:13px;font-weight:600;border:1px solid var(--border);transition:all .15s}
+.btn:hover{border-color:var(--faint);background:var(--bg-soft)}
+.btn.primary,.btn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover,.btn.accent:hover{background:var(--accent-h);border-color:var(--accent-h)}
+.btn.next{background:var(--bg);color:var(--accent);border-color:var(--accent)}
+.btn.next:hover{background:var(--accent-soft);border-color:var(--accent)}
+.btn.sm{height:30px;padding:0 12px;font-size:12.5px}
+.link{color:var(--accent);font-size:12.5px;text-decoration:none}
+.link:hover{text-decoration:underline}
+.icon-btn{width:30px;height:30px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--muted);border:1px solid transparent}
 .icon-btn:hover{background:var(--bg-soft);color:var(--text)}
-.icon-btn.active{border-color:var(--border);color:var(--text)}
+.icon-btn.active{background:var(--accent-soft);color:var(--accent)}
 
 /* ── Fields: quiet, rounded, same bg as page ─────────────────────── */
 .field{display:block;margin-bottom:20px}
-.field>.lbl{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;font-weight:500}
+.field>.lbl{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600}
 input[type=text],textarea,select{
-  width:100%;font:inherit;color:var(--text);background:var(--bg);
-  border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;outline:none;
+  width:100%;font:inherit;font-size:13px;font-weight:500;color:var(--text);background:var(--bg);
+  border:1px solid var(--border);border-radius:10px;padding:9px 14px;outline:none;
   transition:border-color .12s,box-shadow .12s}
 input[type=text]:hover,textarea:hover,select:hover{border-color:var(--border-strong)}
-input[type=text]:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,79,216,.12)}
+input[type=text]:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
 select{appearance:none;-webkit-appearance:none;padding-right:38px;cursor:pointer;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239A9488' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 14px center}
-select.inline{width:auto;padding:6px 32px 6px 12px;font-size:13px;border-radius:999px;background-position:right 11px center}
-textarea{resize:vertical;line-height:1.65;min-height:260px}
+select.inline{width:auto;padding:6px 30px 6px 12px;font-size:12.5px;border-radius:999px;background-position:right 11px center}
+textarea{resize:vertical;line-height:1.65;min-height:260px;font-size:13.5px;font-weight:400;padding:14px 16px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px}
 .seg button{padding:5px 14px;border-radius:999px;font-size:13px;color:var(--muted)}
-.seg button.on{background:var(--bg-soft);color:var(--text);box-shadow:inset 0 0 0 1px var(--border)}
+.seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
 .switch{position:relative;width:38px;height:22px;border-radius:999px;background:var(--border-strong);transition:background .15s;flex-shrink:0}
 .switch::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--bg);transition:transform .15s}
 .switch.on{background:var(--accent)}.switch.on::after{transform:translateX(16px)}
 
 /* ── Runs list ───────────────────────────────────────────────────── */
-.run-list{border-top:1px solid var(--border)}
-.run-item{display:flex;align-items:center;gap:14px;padding:16px 4px;border-bottom:1px solid var(--border);width:100%;text-align:left}
-.run-item:hover{background:var(--bg-soft)}
-.run-item .t{flex:1;font-weight:550}
-.run-item .m{color:var(--faint);font-size:13px}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--border-strong)}
-.dot.run{background:var(--dot-run)}.dot.ok{background:var(--ok)}
+.run-list{display:block}
+.run-item{display:flex;align-items:center;gap:16px;padding:14px 18px;margin-bottom:8px;width:100%;text-align:left;
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r);transition:border-color .12s,box-shadow .12s}
+.run-item:hover{border-color:var(--faint);box-shadow:0 2px 8px rgba(18,18,21,.05)}
+.run-item .main-col{flex:1;min-width:0}
+.run-item .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.run-item .m{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.run-item .m .step-st{display:inline-flex;align-items:center;gap:6px;color:var(--ink-sub);font-weight:500}
+.run-item .m .sep{color:var(--faint)}
+.run-item .m .dot{width:6px;height:6px;border-radius:50%;background:var(--border-strong)}
+.run-item .m .dot.run{background:var(--accent)}
+.run-item .m .dot.ok{background:var(--text)}
+.run-item .arrow{color:var(--faint);flex-shrink:0;transition:transform .12s,color .12s}
+.run-item:hover .arrow{transform:translateX(2px);color:var(--text)}
 
 /* ── Stepper ─────────────────────────────────────────────────────── */
-.steps{display:flex;align-items:center;gap:6px;margin:6px 0 36px;font-size:13.5px}
-.steps button{display:flex;align-items:center;gap:8px;padding:6px 12px 6px 6px;border-radius:999px;color:var(--faint)}
-.steps button .n{width:22px;height:22px;border-radius:50%;border:1px solid var(--border-strong);display:grid;place-items:center;font-size:11.5px;font-weight:600}
-.steps button.done{color:var(--muted)}
-.steps button.done .n{background:var(--text);border-color:var(--text);color:var(--bg)}
-.steps button.cur{color:var(--text);font-weight:600}
-.steps button.cur .n{border-color:var(--text)}
-.steps .bar{flex:1;height:1px;background:var(--border);max-width:40px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 44px}
+.steps button{text-align:left;padding-top:10px;border-top:3px solid var(--border);color:var(--faint);font-size:13px;font-weight:500;transition:color .12s}
+.steps button i{font-style:normal;font-family:var(--mono);font-size:10px;display:block;margin-bottom:1px}
+.steps button:hover{color:var(--text)}
+.steps button.done{border-color:var(--text);color:var(--ink-sub)}
+.steps button.cur{border-color:var(--accent);color:var(--text);font-weight:600}
 
 /* ── Step content ────────────────────────────────────────────────── */
-.step-foot{display:flex;align-items:center;justify-content:space-between;margin-top:28px;gap:12px}
-.meta{font-size:12.5px;color:var(--faint)}
+.step-foot{display:flex;align-items:center;justify-content:flex-start;margin-top:28px;gap:12px}
+.step-foot .meta{margin-left:auto}
+.meta{font-size:12.5px;color:var(--muted)}
 .gen-toggle{margin-bottom:14px}
 .gen-box{display:none;margin-bottom:18px;padding:16px;border:1px solid var(--border);border-radius:var(--r)}
 .gen-box.on{display:block}
 
 .scene{display:grid;grid-template-columns:96px 1fr auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border)}
 .scene:first-child{border-top:1px solid var(--border)}
-.thumb{width:96px;height:60px;border-radius:10px;background:linear-gradient(135deg,#D9D2C3,#EBE5D8)}
+.thumb{width:96px;height:60px;border-radius:var(--r-sm);background:linear-gradient(135deg,#DDDDE2,#EDEDF0)}
 .thumb.b{background:linear-gradient(135deg,#C9D1DD,#E4E8EF)}
-.thumb.c{background:linear-gradient(135deg,#D8CBBE,#EDE3DA)}
+.thumb.c{background:linear-gradient(135deg,#D4D6DE,#E9EAEF)}
 .scene .txt{font-size:14px;line-height:1.5}
 .scene .no{font-size:12px;color:var(--faint);margin-bottom:2px}
 
-.preview{aspect-ratio:9/16;width:220px;border-radius:16px;border:1px solid var(--border);background:var(--bg-soft);display:grid;place-items:center;color:var(--faint);font-size:13px;margin:0 auto 8px}
+.preview{aspect-ratio:9/16;width:220px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg-soft);display:grid;place-items:center;color:var(--faint);font-size:13px;margin:0 0 8px}
 .cap-row{display:flex;align-items:center;gap:12px;margin-bottom:24px}
 
 /* ── Side panels (fixed — never push the main area) ──────────────── */
 .panel{position:fixed;top:0;bottom:0;background:var(--bg);z-index:20;display:flex;flex-direction:column;
   transition:transform .22s cubic-bezier(.4,0,.2,1)}
-.panel.left{left:0;width:var(--left-w);border-right:1px solid var(--border);box-shadow:6px 0 24px -12px rgba(60,50,30,.18)}
-.panel.right{right:0;width:var(--right-w);border-left:1px solid var(--border);box-shadow:-6px 0 24px -12px rgba(60,50,30,.18)}
+.panel.left{left:0;width:var(--left-w);border-right:1px solid var(--border);box-shadow:6px 0 24px -12px rgba(18,18,21,.14)}
+.panel.right{right:0;width:var(--right-w);border-left:1px solid var(--border);box-shadow:-12px 0 32px rgba(18,18,21,.08)}
 .panel.left.closed{transform:translateX(-110%)}
 .panel.right.closed{transform:translateX(110%)}
 .p-head{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px 18px}
-.brand{font-weight:650;letter-spacing:-.01em}
+.brand{font-weight:700;font-size:14px;letter-spacing:-.01em}
 .p-body{flex:1;overflow:auto;padding:6px 18px 24px}
-.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:10px;color:var(--muted);text-align:left;font-weight:500}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:7px 8px;border-radius:var(--r-sm);color:var(--ink-sub);text-align:left;font-size:13px;font-weight:500}
+.nav-btn svg{color:var(--muted)}
 .nav-btn:hover{background:var(--bg-soft);color:var(--text)}
-.nav-btn.on{background:var(--bg-soft);color:var(--text)}
-.sect{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:22px 10px 6px;font-weight:600}
+.nav-btn.on{background:var(--accent-soft);color:var(--accent);font-weight:600}.nav-btn.on svg{color:var(--accent)}
+.sect{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:16px 8px 6px;font-weight:400}
 .recent{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:10px;color:var(--muted);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .recent:hover{background:var(--bg-soft);color:var(--text)}
 
@@ -133,49 +136,143 @@ textarea{resize:vertical;line-height:1.65;min-height:260px}
 
 /* Right panel internals */
 .tabs{display:flex;gap:4px;padding:0 14px 0 18px;border-bottom:1px solid var(--border)}
-.tabs button{padding:10px 10px 11px;color:var(--faint);font-weight:550;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:13.5px}
-.tabs button.on{color:var(--text);border-color:var(--text)}
+.tabs button{padding:10px 10px 11px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:13.5px}
+.tabs button.on{color:var(--accent);border-color:var(--accent)}
 .tab{display:none}.tab.on{display:block}
-.set-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0;border-bottom:1px solid var(--border)}
-.set-row:last-child{border:0}
-.set-row .k{font-weight:550}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0}
+.set-row .k{font-weight:600;font-size:13px}
 .set-row .h{font-size:12.5px;color:var(--faint);margin-top:1px}
-.kv{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13.5px}
+.kv{display:flex;justify-content:space-between;padding:8px 0;font-size:13px}
 .kv span:first-child{color:var(--muted)}
 .help li{margin:0 0 12px 18px;color:var(--muted)}
 .help h3{font-size:15px;margin:6px 0 14px}
 
-.nav-btn.sm{padding:6px 10px 6px 36px;font-size:13.5px}
-.sub{margin:2px 0 4px}
-.proj{padding:6px 10px 4px 36px;font-size:13px;font-weight:600;color:var(--text)}
-.crumb{font-size:13px;color:var(--faint);margin-bottom:10px}
+.nav-btn.sm{padding:5px 8px}
+.sub{margin:2px 0 6px 17px;padding-left:9px;border-left:1px solid var(--border)}
+.proj{padding:7px 8px;font-size:13px;font-weight:600;color:var(--text)}
+.crumb{height:20px;line-height:20px;font-size:13px;color:var(--faint);margin-bottom:8px;white-space:nowrap}
 .crumb a{color:var(--muted);cursor:pointer}.crumb a:hover{color:var(--text)}
-.stub-box{padding:48px 0;color:var(--muted)}
+.stub-box{padding:0;color:var(--muted)}
 .stub-box .tag{display:inline-block;margin-top:10px;font-size:12.5px;color:var(--faint);border:1px dashed var(--border-strong);border-radius:999px;padding:3px 12px}
 /* Storyboard scenes */
-.sc{border-bottom:1px solid var(--border)}
-.sc:first-child{border-top:1px solid var(--border)}
-.sc-row{display:grid;grid-template-columns:84px 1fr;gap:16px;padding:16px 4px;cursor:pointer;border-radius:10px}
-.sc-row:hover{background:var(--bg-soft)}
-.sc-thumb{width:84px;height:84px;border-radius:10px;background:linear-gradient(135deg,#D9D2C3,#EBE5D8)}
+.sc{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;transition:border-color .12s}
+.sc:hover,.sc.open{border-color:var(--faint)}
+.sc-row{display:grid;grid-template-columns:76px 1fr;gap:14px;padding:0 14px 0 0;cursor:pointer;border-radius:var(--r)}
+.sc-body{padding:10px 0}
+.sc-thumb{position:relative;min-height:84px;border-radius:calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);background:linear-gradient(135deg,#DDDDE2,#EDEDF0)}
+.pencil{position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;background:var(--bg);border:1px solid var(--border);color:var(--ink-sub);display:grid;place-items:center}
+.pencil:hover{color:var(--accent);border-color:var(--accent)}
 .sc-thumb.b{background:linear-gradient(135deg,#C9D1DD,#E4E8EF)}
-.sc-thumb.c{background:linear-gradient(135deg,#D8CBBE,#EDE3DA)}
-.sc-top{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);margin-bottom:4px}
-.sc-top b{color:var(--text);font-weight:600}
+.sc-thumb.c{background:linear-gradient(135deg,#D4D6DE,#E9EAEF)}
+.sc-top{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+.sc-no{font-size:12px;color:var(--muted)}
+.sc-time{font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.sc-dur{font-size:13px;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
 .sc-top .grow{flex:1}
-.sc-vo{font-size:14.5px;line-height:1.55}
-.sc-vo .w{border-radius:4px;cursor:text}
-.sc-vo .w:hover{background:var(--accent-soft)}
-.sc-foot{display:flex;align-items:center;gap:10px;margin-top:10px}
-.sc-merge{font-size:12.5px;color:var(--muted);padding:4px 10px;border-radius:999px;border:1px solid var(--border)}
-.sc-merge:hover{color:var(--text);border-color:var(--border-strong);background:var(--bg)}
-.sc-chev{transition:transform .15s;color:var(--faint)}
-.sc.open .sc-chev{transform:rotate(180deg)}
-.sc-detail{display:none;padding:4px 4px 20px 100px}
+.sc-vo{font-size:13.5px;line-height:1.45}
+.sc-vo .w{border-radius:3px}
+.sc-vo .w:hover{background:var(--accent-soft);color:var(--accent)}
+.sc-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.chip{font-size:11.5px;font-weight:500;color:var(--ink-sub);background:var(--bg-soft);border:1px solid var(--border);border-radius:999px;padding:2px 9px;line-height:1.5}
+.chip:hover{border-color:var(--faint);color:var(--text)}
+.chip i{font-style:normal;color:var(--muted);margin-right:4px}
+.sc-merge{margin-left:auto;font-size:12px;color:var(--muted);padding:2px 8px;border-radius:999px;border:1px solid transparent}
+.sc-merge:hover{color:var(--text);border-color:var(--ink-sub)}
+.sc-detail{display:none;padding:0 14px 14px 90px}
 .sc.open .sc-detail{display:block}
-.sc-detail .row3{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.sc-detail .field{margin-bottom:14px}
-.sc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
+.sc-detail .row3{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.sc-detail .field{margin-bottom:0}
+.sc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.row3c{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.vo-track{display:none;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);margin-top:4px}
+.vo-track.on{display:flex}
+.vo-play{width:34px;height:34px;border-radius:50%;border:1px solid var(--accent);color:var(--accent);display:grid;place-items:center;flex-shrink:0}
+.vo-play:hover{background:var(--accent-soft)}
+.vo-wave{flex:1;display:flex;align-items:center;gap:2px;height:36px}
+.vo-wave i{flex:1;background:var(--border-strong);border-radius:2px;min-width:2px}
+.vo-wave i.p{background:var(--accent)}
+.vo-time{font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0}
+.modal-bd{position:fixed;inset:0;background:rgba(18,18,21,.38);z-index:60;display:none;align-items:center;justify-content:center;padding:24px}
+.modal-bd.on{display:flex}
+.modal{background:var(--bg);border-radius:12px;width:100%;max-width:520px;max-height:100%;overflow:auto;box-shadow:0 16px 48px rgba(18,18,21,.16);padding:22px 24px 24px}
+.modal{position:relative}
+.m-x{position:absolute;top:12px;right:12px;width:28px;height:28px}
+.modal h2{font-size:17px;font-weight:700;letter-spacing:-.01em}
+.modal .sub-t{font-size:12.5px;color:var(--muted);margin:2px 0 18px}
+.m-sec{padding:18px 0 0}
+.m-sec+.m-sec{margin-top:26px;padding-top:0}
+.m-sec.tight{margin-top:14px!important}
+.m-sec .lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.m-line{display:flex;gap:8px}
+.m-line input{flex:1}
+.drop{border:1px dashed var(--border-strong);border-radius:var(--r);padding:18px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer}
+.drop:hover{border-color:var(--accent);color:var(--accent)}
+.m-msg{font-size:12px;color:var(--ink-sub);min-height:16px;margin-top:6px}
+.m-foot{display:flex;justify-content:flex-end;margin-top:18px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.quiet{background:var(--bg);color:var(--ink-sub);border-color:var(--border-strong)}
+.btn.quiet:hover{background:var(--bg-soft);color:var(--text)}
+.vd-note{font-size:13px;color:var(--muted);margin-bottom:16px}
+.vd-note .link{font-size:13px;cursor:pointer}
+.vd-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.vd-grid .lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.vd-item{border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;margin-bottom:8px}
+.vd-item b{display:block;font-size:13px}
+.vd-item span{display:block;font-size:12px;color:var(--muted);line-height:1.45}
+.sb-empty{border:1px dashed var(--border-strong);border-radius:var(--r);padding:28px;text-align:center;color:var(--muted);font-size:13px;margin-bottom:8px}
+.chip.ent{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.chip.flag{background:#FFF6E5;border-color:#F2D9A6;color:#7A4B00}
+.ct{border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px}
+.ct-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ct-head input{flex:1;min-width:0;padding:6px 12px;font-weight:600}
+.ct-used{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.ct textarea{min-height:52px;padding:8px 12px;font-size:12.5px;line-height:1.5}
+.ct .link{white-space:nowrap;cursor:pointer}
+.ct.add{border-style:dashed}
+.ct-msg{font-size:12px;color:var(--ink-sub);min-height:16px;margin-top:4px}
+.m-checks{display:flex;flex-wrap:wrap;gap:6px}
+.pick{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500;color:var(--ink-sub);border:1px solid var(--border);border-radius:999px;padding:4px 11px;transition:all .12s}
+.pick svg{display:none}
+.pick:hover{border-color:var(--faint);color:var(--text)}
+.pick.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.pick.on svg{display:block}
+.sc-detail .wide{grid-column:1/-1}
+.sc-detail textarea{min-height:64px;padding:9px 14px;font-size:13px}
+.as-card{border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:8px}
+.as-card .n{font-weight:600}
+.as-card .k2{font-size:12px;color:var(--muted);margin-left:8px}
+.as-card p{font-size:13px;color:var(--ink-sub);margin-top:2px}
+.ct-cards{display:flex;flex-wrap:wrap;gap:8px}
+.ct-card{text-align:left;border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 12px;min-width:120px;background:var(--bg)}
+.ct-card:hover{border-color:var(--faint);background:var(--bg-soft)}
+.ct-card b{display:block;font-size:13px;font-weight:600}
+.ct-card span{display:block;font-size:11.5px;color:var(--muted)}
+.ct-card.add{border-style:dashed;color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500}
+.ct-card.add:hover{color:var(--accent);border-color:var(--accent);background:var(--bg)}
+.e-foot{display:flex;align-items:center;gap:8px;margin-top:16px}
+.btn.e-del{color:var(--red);border-color:transparent}
+.btn.e-del:hover{background:#FEF1F0;border-color:transparent}
+.render-opts{display:grid;grid-template-columns:minmax(0,280px) minmax(0,220px);gap:16px;justify-content:start}
+.job{display:none;align-items:center;gap:12px;margin-top:14px;font-size:12.5px;color:var(--ink-sub)}
+.job.on{display:flex}
+.job-bar{flex:0 0 180px;height:4px;border-radius:2px;background:var(--border);overflow:hidden}
+.job-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s linear}
+.job.err{justify-content:space-between;border:1px solid #F3C7C3;background:#FEF1F0;color:#8A1C13;border-radius:var(--r-sm);padding:9px 12px}
+.job.err b{font-weight:600}
+.job.err .btn{background:var(--bg);flex-shrink:0}
+.new-opts{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.seg.locked,select.locked{opacity:.55;pointer-events:none}
+.lock-note{display:flex;gap:7px;align-items:flex-start;font-size:12px;color:var(--muted);padding:6px 0 0;line-height:1.45}
+.lock-note svg{margin-top:2px}
+.preview.wide{aspect-ratio:16/9;width:420px}
+.preview.done{background:#1B1B1F;border-color:#1B1B1F;color:#fff;position:relative;cursor:pointer}
+.preview.done .pl{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center}
+.preview.done .tm{position:absolute;left:10px;bottom:9px;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.8)}
+.empty{text-align:center;padding:72px 0 24px}
+.empty b{display:block;font-size:17px;font-weight:600;margin-bottom:6px}
+.empty p{font-size:13px;color:var(--muted);margin-bottom:22px}
+@media (max-width:1267px){body.l-open{padding-left:var(--left-w)}}
+@media (max-width:1435px){body.r-open{padding-right:var(--right-w)}}
 /* New-run */
 .big-input{font-size:18px;padding:16px 18px}
 </style>
@@ -202,7 +299,7 @@ textarea{resize:vertical;line-height:1.65;min-height:260px}
     </div>
     <div class="sect">Libraries</div>
     <button class="nav-btn" onclick="stub('Videos')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>Videos</button>
-    <button class="nav-btn" onclick="stub('Assets')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Assets</button>
+    <button class="nav-btn" data-nav="assets" onclick="go('assets')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Assets</button>
     <button class="nav-btn" onclick="stub('BG music')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>BG music</button>
     <div class="sect">Settings</div>
     <button class="nav-btn" onclick="stub('Integrations')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M6 7h12v4a6 6 0 0 1-12 0zM12 17v4"/></svg>Integrations</button>
@@ -215,17 +312,7 @@ textarea{resize:vertical;line-height:1.65;min-height:260px}
 
 <!-- ═════════ RIGHT PANEL ═════════ -->
 <aside class="panel right closed" id="right">
-  <div class="p-head">
-    <span class="brand">Run</span>
-    <button class="icon-btn" onclick="toggleRight(false)" aria-label="Close panel">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-    </button>
-  </div>
-  <div class="tabs">
-    <button data-tab="settings" class="on" onclick="tab('settings')">Settings</button>
-    <button data-tab="help" onclick="tab('help')">Instructions</button>
-    <button data-tab="details" onclick="tab('details')">Details</button>
-  </div>
+  <div class="p-head" style="padding:64px 18px 6px"><span class="brand" id="right-title" style="font-size:17px;letter-spacing:-.01em">Run settings</span></div>
   <div class="p-body" style="padding-top:8px">
     <div class="tab on" id="tab-settings">
       <div class="set-row">
@@ -234,24 +321,30 @@ textarea{resize:vertical;line-height:1.65;min-height:260px}
       </div>
       <div class="set-row">
         <div class="k">Format</div>
-        <div class="seg" data-seg><button class="on">9:16</button><button>16:9</button></div>
+        <div class="seg" id="format-seg"><button class="on" data-v="9:16">9:16</button><button data-v="16:9">16:9</button></div>
       </div>
       <div class="set-row">
-        <div class="k">Visuals</div>
-        <div class="seg" data-seg><button class="on">Stock</button><button>AI</button></div>
+        <div class="k">Look</div>
+        <div class="seg" id="look-seg"><button class="on" data-look="Realistic">Realistic</button><button data-look="Animated">Animated</button></div>
+      </div>
+      <div class="set-row hidden" id="master-row" style="display:block">
+        <div class="k" style="margin-bottom:8px">Master visual style</div>
+        <textarea rows="4" style="min-height:96px;font-size:13px" id="master-style">Flat 2D illustration, warm muted palette, soft shadows, clean outlines.</textarea>
+      </div>
+      <div class="set-row hidden" id="cast-row" style="display:block">
+        <div class="k" style="margin-bottom:8px">Cast</div>
+        <div class="seg" id="cast-seg"><button class="on" data-cast="free">Director decides</button><button data-cast="single">One character</button></div>
+        <div id="cast-single" class="hidden" style="margin-top:10px">
+          <select id="cast-asset" onchange="castChange()" style="margin-bottom:8px"></select>
+          <textarea rows="3" id="cast-text" style="min-height:72px;font-size:13px" placeholder="Describe the character: age, clothes, every detail that must not change." onchange="castChange()"></textarea>
+        </div>
+        <div class="h" id="cast-hint" style="margin-top:8px"></div>
       </div>
       <div class="set-row">
         <div class="k">Language</div>
-        <select class="inline"><option>English</option><option>Russian</option></select>
+        <select class="inline" id="run-lang" onchange="runLang=this.value"><option>English</option><option>Russian</option></select>
       </div>
-      <div class="set-row">
-        <div class="k">Captions</div>
-        <button class="switch on" onclick="this.classList.toggle('on')" aria-label="Captions"></button>
-      </div>
-      <div class="set-row">
-        <div class="k">Music</div>
-        <select class="inline"><option>Calm piano</option><option>Upbeat</option><option>None</option></select>
-      </div>
+      <div class="lock-note hidden" id="lock-note"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Format, look and language are fixed once the storyboard is created.</div>
     </div>
     <div class="tab help" id="tab-help"><h3 id="help-title"></h3><ul id="help-list"></ul></div>
     <div class="tab" id="tab-details">
@@ -269,11 +362,14 @@ textarea{resize:vertical;line-height:1.65;min-height:260px}
 <button class="icon-btn fab l hidden" id="left-open" onclick="toggleLeft(true)" title="Show panel" aria-label="Show panel">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path d="M13.5 10l2 2-2 2"/></svg>
 </button>
-<div class="fab r hidden" id="right-open">
-  <button class="icon-btn" onclick="openRight('settings')" title="Run settings" aria-label="Run settings">
+<div class="fab r" id="right-open">
+  <button class="icon-btn run-only" data-r="settings" onclick="openRight('settings')" title="Run settings" aria-label="Run settings">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
   </button>
-  <button class="icon-btn" onclick="openRight('help')" title="Instructions & details" aria-label="Instructions and details">
+  <button class="icon-btn run-only" data-r="details" onclick="openRight('details')" title="Run details" aria-label="Run details">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM9 11h6M9 15h4"/></svg>
+  </button>
+  <button class="icon-btn" data-r="help" onclick="openRight('help')" title="Information" aria-label="Information">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
   </button>
 </div>
@@ -283,8 +379,9 @@ textarea{resize:vertical;line-height:1.65;min-height:260px}
 
   <!-- Runs list: the landing screen -->
   <section class="screen on" id="s-runs">
+    <div class="crumb">The Housing Equation / <span style="color:var(--text);font-weight:600">Runs</span></div>
     <div class="page-head">
-      <div><div class="crumb">The Housing Equation</div><h1>Runs</h1></div>
+      <h1>Runs</h1>
       <button class="btn primary" onclick="go('new')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New run
       </button>
@@ -294,16 +391,31 @@ textarea{resize:vertical;line-height:1.65;min-height:260px}
 
   <!-- Stub for menu items outside this mockup -->
   <section class="screen" id="s-stub">
+    <div class="crumb" id="stub-crumb"></div>
     <div class="page-head"><h1 id="stub-title"></h1></div>
     <div class="stub-box">This screen keeps today's content and is only shown for navigation.<br><span class="tag">not redesigned in this mockup</span></div>
   </section>
 
+  <!-- Assets library: saved characters, props and settings of the project -->
+  <section class="screen" id="s-assets">
+    <div class="crumb">Libraries</div>
+    <div class="page-head"><h1>Assets</h1></div>
+    <div id="asset-list"></div>
+  </section>
+
   <!-- New run -->
   <section class="screen" id="s-new">
+    <div class="crumb"><a onclick="go('runs')">Runs</a> / New run</div>
     <div class="page-head"><h1>New run</h1></div>
     <label class="field"><span class="lbl">What is the video about?</span>
       <input type="text" class="big-input" id="new-title" placeholder="Why starter homes disappeared from America">
     </label>
+    <div class="new-opts">
+      <div class="field"><span class="lbl">Format</span><div class="seg" id="new-ar"><button class="on" data-v="9:16">9:16</button><button data-v="16:9">16:9</button></div></div>
+      <div class="field"><span class="lbl">Look</span><div class="seg" id="new-look"><button class="on" data-v="Realistic">Realistic</button><button data-v="Animated">Animated</button></div></div>
+      <label class="field"><span class="lbl">Language</span><select id="new-lang" style="width:160px"><option>English</option><option>Russian</option></select></label>
+    </div>
+    <p class="meta" style="margin:-4px 0 0">These three are fixed once the storyboard is created.</p>
     <div class="step-foot" style="justify-content:flex-start">
       <button class="btn primary" onclick="createRun()">Create run</button>
       <button class="btn" onclick="go('runs')" style="border-color:transparent">Cancel</button>
@@ -313,136 +425,399 @@ textarea{resize:vertical;line-height:1.65;min-height:260px}
   <!-- Run -->
   <section class="screen" id="s-run">
     <div class="crumb"><a onclick="go('runs')">The Housing Equation</a> / <a onclick="go('runs')">Runs</a></div>
-    <h1 id="run-title">Why starter homes disappeared</h1>
-    <nav class="steps" id="steps" style="margin-top:22px"></nav>
+    <div class="page-head"><h1 id="run-title">Why starter homes disappeared</h1></div>
+    <nav class="steps" id="steps"></nav>
 
     <!-- Script -->
     <div class="step" data-step="0">
       <button class="link gen-toggle" onclick="document.getElementById('gen').classList.toggle('on')">Generate a script from an idea</button>
       <div class="gen-box" id="gen">
-        <label class="field" style="margin-bottom:12px"><span class="lbl">Idea</span><input type="text" placeholder="Why starter homes disappeared from America"></label>
-        <button class="btn sm">Generate script</button>
+        <label class="field" style="margin-bottom:16px"><span class="lbl">Idea</span><input type="text" placeholder="Why starter homes disappeared from America"></label>
+        <label class="field" style="margin-bottom:18px"><span class="lbl">Length</span>
+          <select style="max-width:180px"><option>30 sec</option><option selected>1 min</option><option>2 min</option><option>3 min</option><option>4 min</option><option>5 min</option></select>
+        </label>
+        <button class="btn sm" id="gen-btn" onclick="genScript(event)">Generate script</button>
+        <div class="job" id="job-gen"></div>
       </div>
-      <textarea id="script" placeholder="Paste your script here…">In 1980, a first home cost about three times a family's yearly income. Today it costs more than five. The starter home — small, simple, affordable — has quietly vanished from American neighbourhoods.
+      <textarea id="script" oninput="paintScript()" placeholder="Paste your script here…">In 1980, a first home cost about three times a family's yearly income. Today it costs more than five. The starter home — small, simple, affordable — has quietly vanished from American neighbourhoods.
 
 Builders stopped making them because zoning, land costs and lending rules all pushed the same way: bigger houses, higher margins.</textarea>
-      <div class="step-foot"><span class="meta">64 words</span><button class="btn primary" onclick="next()">Next</button></div>
+      <div class="step-foot"><button class="btn next" id="script-next" onclick="next()">Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button><span class="meta" id="script-wc"></span></div>
     </div>
 
     <!-- Voice -->
     <div class="step" data-step="1">
-      <label class="field"><span class="lbl">Voice</span>
-        <select><option>Daniel — calm, neutral</option><option>Maya — warm, clear</option><option>Upload my own voiceover…</option></select>
-      </label>
-      <div class="row">
+      <div class="row3c">
+        <label class="field"><span class="lbl">Voice</span>
+          <select><option>Daniel</option><option>Maya</option><option>Upload my own…</option></select>
+        </label>
         <label class="field"><span class="lbl">Pace</span><select><option>Normal</option><option>Slower</option><option>Faster</option></select></label>
         <label class="field"><span class="lbl">Style</span><select><option>Documentary</option><option>Conversational</option><option>Energetic</option></select></label>
       </div>
-      <div class="step-foot"><button class="btn accent" onclick="this.textContent='Voiceover ready ✓'">Generate voiceover</button><button class="btn primary" onclick="next()">Next</button></div>
+      <div class="vo-track" id="vo-track">
+        <button class="vo-play" id="vo-play" onclick="toggleVo()" aria-label="Play voiceover">
+          <svg id="vo-ico" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>
+        </button>
+        <div class="vo-wave" id="vo-wave"></div>
+        <span class="vo-time" id="vo-time">0:00 / 0:58</span>
+      </div>
+      <div class="step-foot"><button class="btn accent" id="vo-gen" onclick="genVo(event)">Generate voiceover</button><button class="btn next" id="vo-next" onclick="next()" disabled>Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button></div>
+      <div class="job" id="job-vo"></div>
     </div>
 
     <!-- Storyboard -->
     <div class="step" data-step="2">
+      <button class="link gen-toggle hidden" id="vd-link" onclick="document.getElementById('vd').classList.toggle('on')"></button>
+      <div class="gen-box" id="vd"></div>
       <div id="scenes"></div>
-      <div class="step-foot"><span class="meta" id="sc-meta"></span><button class="btn primary" onclick="next()">Confirm &amp; create assets</button></div>
+      <div class="step-foot">
+        <button class="btn accent" id="sb-create" onclick="askCreateSb(event)">Create storyboard</button>
+        <button class="btn accent" id="sb-assets" onclick="createAssets(event)" disabled>Create assets</button>
+        <button class="btn next" id="sb-next" onclick="next()" disabled>Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <span class="meta" id="sc-meta"></span>
+      </div>
+      <div class="job" id="job-sb"></div>
     </div>
 
     <!-- Render -->
     <div class="step" data-step="3">
-      <div class="preview">Preview</div>
-      <p class="meta" style="text-align:center;margin-bottom:28px">9:16 · ≈ 58 s</p>
-      <div class="cap-row">
-        <span class="switch on" onclick="this.classList.toggle('on')" role="button"></span><span>Captions</span>
-        <select class="inline" style="margin-left:auto"><option>Bold, centred</option><option>Minimal</option><option>Karaoke</option></select>
+      <div class="render-opts">
+        <label class="field"><span class="lbl">Captions</span>
+          <select><option>No captions</option><option selected>Standard — 5 words, word highlight</option><option>Punch — one word, ALL CAPS</option></select>
+        </label>
+        <label class="field"><span class="lbl">Background music</span>
+          <select><option>No music</option><option selected>Calm piano</option><option>Upbeat</option><option>Upload a track…</option></select>
+        </label>
       </div>
-      <div class="step-foot" style="margin-top:0"><button class="btn accent">Render video</button></div>
+      <div class="preview" id="preview"></div>
+      <p class="meta" id="render-meta" style="margin-bottom:0"></p>
+      <div class="step-foot" id="render-foot"></div>
+      <div class="job" id="job-render"></div>
     </div>
   </section>
 </main>
 
+<div class="modal-bd" id="modal" onmousedown="if(event.target===this)closeModal()">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="icon-btn m-x" onclick="closeModal()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="m-title">Scene</h2>
+    <div class="m-sec" id="m-ents-sec">
+      <span class="lbl">Uses</span>
+      <div class="m-checks" id="m-ents"></div>
+    </div>
+    <div class="m-sec" id="m-stock-sec">
+      <span class="lbl">Search stock footage again</span>
+      <input type="text" id="m-q" placeholder="Search words">
+      <div class="m-line" style="margin-top:8px"><button class="btn sm" onclick="mAct('Re-acquired ✓','reacq')">Re-acquire</button></div>
+    </div>
+    <div class="m-sec" id="m-ai-sec">
+      <span class="lbl" id="m-ai-lbl">Generate with AI</span>
+      <textarea id="m-ai" rows="3" style="min-height:76px" placeholder="Describe the image"></textarea>
+      <div class="m-line" style="margin-top:8px"><button class="btn sm" onclick="mAct('Generated ✓','ai')">Generate</button></div>
+    </div>
+    <div class="m-sec">
+      <span class="lbl">Upload your own</span>
+      <div class="drop" onclick="mAct('Uploaded ✓','upload')">Drop an image or video, or click to choose</div>
+    </div>
+    <div class="m-msg" id="m-msg"></div>
+  </div>
+</div>
+<div class="modal-bd" id="cmodal" onmousedown="if(event.target===this)closeConfirm()">
+  <div class="modal" role="alertdialog" aria-modal="true" style="max-width:420px">
+    <h2 id="c-title"></h2>
+    <p id="c-text" style="font-size:13.5px;color:var(--ink-sub);margin-top:8px"></p>
+    <div class="e-foot"><button class="btn accent sm" id="c-ok"></button><button class="btn sm" onclick="closeConfirm()">Cancel</button></div>
+  </div>
+</div>
+<div class="modal-bd" id="emodal" onmousedown="if(event.target===this)closeEntry()">
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:460px">
+    <button class="icon-btn m-x" onclick="closeEntry()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="e-title">Character</h2>
+    <div class="m-sec">
+      <div class="row" style="grid-template-columns:140px 1fr;gap:12px">
+        <label class="field" style="margin-bottom:14px"><span class="lbl">Kind</span><select id="e-kind"></select></label>
+        <label class="field" style="margin-bottom:14px"><span class="lbl">Name</span><input type="text" id="e-name" placeholder="e.g. the red bicycle"></label>
+      </div>
+      <label class="field" style="margin-bottom:6px"><span class="lbl">Description</span><textarea id="e-desc" rows="4" style="min-height:96px" placeholder="Shape, colours, every detail that must not change."></textarea></label>
+      <div class="meta" id="e-used"></div>
+    </div>
+    <div class="e-foot">
+      <button class="btn accent sm" id="e-save" onclick="saveEntry()">Save</button>
+      <button class="btn sm" id="e-project" onclick="entryToProject()">Save to library</button>
+      <span style="flex:1"></span>
+      <button class="btn sm e-del" id="e-del" onclick="deleteEntry()">Delete</button>
+    </div>
+  </div>
+</div>
 <script>
-const runs=[
-  {t:'Why starter homes disappeared',s:'Storyboard',st:'run',d:'Today'},
-  {t:'The real cost of a 30-year mortgage',s:'Rendered',st:'ok',d:'Oct 11'},
-  {t:'Who is buying all the houses?',s:'Rendered',st:'ok',d:'Oct 8'},
-  {t:'Rent vs buy in 2026',s:'Script',st:'',d:'Oct 5'},
+let runs=[
+  {t:'Why starter homes disappeared',step:'Storyboard',st:'run',style:'Realistic',ar:'9:16',lang:'English',d:'Today'},
+  {t:'The real cost of a 30-year mortgage',step:'Rendered',st:'ok',style:'Animated',ar:'9:16',lang:'English',d:'Oct 11'},
+  {t:'Who is buying all the houses?',step:'Rendered',st:'ok',style:'Realistic',ar:'16:9',lang:'English',d:'Oct 8'},
+  {t:'Rent vs buy in 2026',step:'Script',st:'',style:'Realistic',ar:'9:16',lang:'Russian',d:'Oct 5'},
 ];
 const stepNames=['Script','Voice','Storyboard','Render'];
 const help=[
   ['Script','Paste or write your script. You can also generate one from an idea.'],
   ['Voice','Choose how it sounds, then generate the voiceover.'],
-  ['Storyboard','Check each scene and change its asset type if needed.'],
-  ['Render','Choose captions and render the final video.'],
+  ['Storyboard','Create the storyboard, check each scene, then create the assets. Click a scene to change it, or the pencil to change its image. Click a word to split the scene there.'],
+  ['Render','Choose captions and background music, then render the video. You can also download the project for CapCut.'],
 ];
-const scenes=[
-  {vo:"In 1980, a first home cost about three times a family's yearly income.",start:0,dur:4.6,motion:'Ken Burns',asset:'Stock video',q:'1980s suburban street, family house',ost:'',sfx:'',t:''},
-  {vo:"Today it costs more than five.",start:4.6,dur:2.4,motion:'Zoom in',asset:'Stock image',q:'expensive house for sale sign',ost:'5×',sfx:'',t:'b'},
-  {vo:"The starter home has quietly vanished from American neighbourhoods.",start:7.0,dur:4.1,motion:'Pan right',asset:'Stock video',q:'empty residential neighbourhood aerial',ost:'',sfx:'Whoosh',t:'c'},
-  {vo:"Builders stopped making them because of zoning and land costs.",start:11.1,dur:4.8,motion:'Static',asset:'AI image',q:'construction site cranes new homes',ost:'',sfx:'',t:'b'},
+let scenes=[];
+const SCENE_SEED=[
+  {vo:"In 1980, a first home cost about three times a family's yearly income.",start:0,dur:4.6,motion:'',asset:'Stock video',q:'1980s suburban street, family house',ost:'',t:''},
+  {vo:"Today it costs more than five.",start:4.6,dur:2.4,motion:'Zoom in',asset:'Stock image',q:'expensive house for sale sign',ost:'5×',t:'b'},
+  {vo:"The starter home has quietly vanished from American neighbourhoods.",start:7.0,dur:4.1,motion:'Pan right',asset:'Stock video',q:'empty residential neighbourhood aerial',ost:'',t:'c'},
+  {vo:"Builders stopped making them because of zoning and land costs.",start:11.1,dur:4.8,motion:'Static',asset:'AI image',q:'construction site cranes new homes',ost:'Zoning',t:'b'},
 ];
+const KINDS={character:'Character',prop:'Prop',setting:'Setting'};
+// What the director returns with an animated storyboard (DEV: the continuity bible).
+const CONT_SEED=[
+  {id:'maya',kind:'character',name:'Maya',desc:'Woman in her early 30s, short dark hair, denim jacket over a mustard sweater, round glasses.'},
+  {id:'builder',kind:'character',name:'The builder',desc:'Man in his 50s, grey moustache, yellow hard hat, orange safety vest.'},
+  {id:'sign',kind:'prop',name:'For-sale sign',desc:'White wooden post sign with a red "FOR SALE" panel.'},
+  {id:'street',kind:'setting',name:'Suburban street',desc:'Row of small single-storey 1980s houses, low fences, late afternoon light.'},
+];
+const SCENE_ENTS=[['maya','street'],['maya','sign'],['street'],['builder']];
+const SCENE_PROMPTS=['Maya stands on the pavement looking at a small house.','Maya reads the price on a for-sale sign, surprised.','An empty street, houses fading into outlines.','The builder studies a plan in front of a large new house.'];
+let cont=[];
+// Saved on the project (DEV: project assets). The director reuses these instead of inventing new ones.
+let projectAssets=[{id:'maya',kind:'character',name:'Maya',desc:'Woman in her early 30s, short dark hair, denim jacket over a mustard sweater, round glasses.'},
+  {id:'street',kind:'setting',name:'Suburban street',desc:'Row of small single-storey 1980s houses, low fences, late afternoon light.'}];
+let castMode='free',castAsset='',castText='';
+function renderAssets(){$('#asset-list').innerHTML=projectAssets.map(a=>`<div class="as-card"><span class="n">${a.name}</span><span class="k2">${KINDS[a.kind]}</span><p>${a.desc}</p></div>`).join('')||'<div class="sb-empty">Nothing in the library yet. Save a character, prop or setting from an animated storyboard.</div>'}
+function renderCast(){
+  $('#cast-row').classList.toggle('hidden',!anim());
+  $$('#cast-seg button').forEach(b=>b.classList.toggle('on',b.dataset.cast===castMode));
+  const single=castMode==='single';$('#cast-single').classList.toggle('hidden',!single);
+  $('#cast-asset').innerHTML='<option value="">Describe a character below</option>'+projectAssets.filter(a=>a.kind==='character').map(a=>`<option value="${a.id}"${a.id===castAsset?' selected':''}>${a.name} (from library)</option>`).join('');
+  $('#cast-text').value=castText;$('#cast-text').disabled=!!castAsset;
+  const missing=single&&!castAsset&&!castText.trim();
+  $('#cast-hint').textContent=!single?'The director invents the characters the script needs.':missing?'Pick a character from the library or describe one. Until then the director decides.':'The whole video follows this one person. Applies the next time the storyboard is created.';
+}
+function castChange(){castAsset=$('#cast-asset').value;castText=$('#cast-text').value;renderCast()}
+/** What the storyboard step returns for an animated run: project assets reused, the rest invented, the cast rule enforced. */
+function buildContinuity(){
+  let list=CONT_SEED.map(e=>({...e,saved:projectAssets.some(a=>a.id===e.id)}));let ents=SCENE_ENTS.map(x=>[...x]);
+  const a=projectAssets.find(x=>x.id===castAsset);
+  if(castMode==='single'&&(a||castText.trim())){
+    const pro=a?{...a,saved:true}:{id:'protagonist',kind:'character',name:'Protagonist',desc:castText.trim()};
+    const others=list.filter(e=>e.kind==='character'&&e.id!==pro.id).map(e=>e.id);
+    list=[pro,...list.filter(e=>e.kind!=='character')];
+    ents=ents.map(x=>[...new Set(x.map(id=>others.includes(id)||id===pro.id?pro.id:id))]);
+  }
+  return {list,ents};
+}
 const MOTIONS=['Ken Burns','Zoom in','Zoom out','Pan right','Pan left','Static'];
 const ASSETS=['Stock video','Stock image','AI image','Upload'];
-const SFX=['','Whoosh','Click','Riser'];
 const fmt=t=>{const m=Math.floor(t/60),s=(t%60).toFixed(1);return m+':'+(s<10?'0':'')+s};
-const opts=(a,sel)=>a.map(o=>`<option value="${o}"${o===sel?' selected':''}>${o||'None'}</option>`).join('');
+const opts=(a,sel,none)=>a.map(o=>`<option value="${o}"${o===sel?' selected':''}>${o||none||'None'}</option>`).join('');
+let openScene=-1,sbReady=false,assetsReady=false,look='Realistic';
+const isVideo=s=>!anim()&&s.asset==='Stock video';
+const anim=()=>look==='Animated';
+const usedIn=id=>scenes.filter(s=>(s.ents||[]).includes(id)).length;
 function renderScenes(){
+  if(!sbReady){$('#scenes').innerHTML='<div class="sb-empty">No storyboard yet. Create it from the voiceover and script.</div>';$('#sc-meta').textContent='';return}
   $('#scenes').innerHTML=scenes.map((s,i)=>{
-    const words=s.vo.split(' ').map((w,j)=>j?`<span class="w" title="Split the scene before this word">${w}</span>`:w).join(' ');
+    const words=s.vo.split(' ').map((w,j)=>j?`<span class="w" title="Split the scene before this word" onclick="event.stopPropagation();splitScene(${i},${j})">${w}</span>`:w).join(' ');
     const last=i===scenes.length-1;
-    return `<div class="sc" data-i="${i}">
+    const chips=anim()?(s.ents||[]).map(id=>{const e=cont.find(c=>c.id===id);return e?`<button class="chip ent" title="${e.desc}">${e.name}</button>`:''}):[`<button class="chip">${s.asset}</button>`];
+    if(anim()&&s.stale)chips.unshift(`<button class="chip flag" title="A character, prop or setting changed after this image was made">Image out of date</button>`);
+    if(s.ost)chips.push(`<button class="chip">On-screen text</button>`);
+    if(s.motion&&!isVideo(s))chips.push(`<button class="chip">${s.motion}</button>`);
+    return `<div class="sc${i===openScene?' open':''}" data-i="${i}">
       <div class="sc-row" onclick="toggleScene(${i})">
-        <div class="sc-thumb ${s.t}"></div>
-        <div>
-          <div class="sc-top"><b>Scene ${i+1}</b><span>${fmt(s.start)} – ${fmt(s.start+s.dur)}</span><span>${s.dur.toFixed(1)}s</span><span class="grow"></span>
-            <svg class="sc-chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+        <div class="sc-thumb ${s.t}"><button class="pencil" title="Change this scene's image" aria-label="Change asset of scene ${i+1}" onclick="event.stopPropagation();openModal(${i})"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button></div>
+        <div class="sc-body">
+          <div class="sc-top"><span class="sc-no">Scene ${i+1}</span><span class="sc-time">${fmt(s.start)} – ${fmt(s.start+s.dur)}</span><span class="sc-dur">${s.dur.toFixed(1)}s</span></div>
           <div class="sc-vo">${words}</div>
-          <div class="sc-foot" onclick="event.stopPropagation()">
-            <select class="inline" title="Motion effect">${opts(MOTIONS,s.motion)}</select>
-            <span style="flex:1"></span>
-            ${last?'':'<button class="sc-merge">Merge with next</button>'}
-          </div>
+          <div class="sc-chips">${chips.join('')}${last?'':`<button class="sc-merge" onclick="event.stopPropagation();mergeScene(${i})">Merge with next</button>`}</div>
         </div>
       </div>
       <div class="sc-detail">
         <div class="row3">
-          <label class="field"><span class="lbl">Asset type</span><select>${opts(ASSETS,s.asset)}</select></label>
-          <label class="field"><span class="lbl">Search words</span><input type="text" value="${s.q}"></label>
-          <label class="field"><span class="lbl">On-screen text</span><input type="text" value="${s.ost}" placeholder="None"></label>
-          <label class="field"><span class="lbl">Sound effect</span><select>${opts(SFX,s.sfx)}</select></label>
-        </div>
-        <div class="sc-actions">
-          <button class="btn sm">Find another</button><button class="btn sm">Upload</button><button class="btn sm">Generate with AI</button>
+          ${anim()?`<label class="field wide"><span class="lbl">Image prompt</span><textarea rows="2" onchange="setScene(${i},'prompt',this.value)">${s.prompt||''}</textarea></label>`
+            :`<label class="field"><span class="lbl">Asset type</span><select onchange="setScene(${i},'asset',this.value)">${opts(ASSETS,s.asset)}</select></label>`}
+          ${isVideo(s)?'':`<label class="field"><span class="lbl">Motion effect</span><select onchange="setScene(${i},'motion',this.value)">${opts(['',...MOTIONS],s.motion)}</select></label>`}
+          <label class="field"><span class="lbl">On-screen text</span><input type="text" value="${s.ost}" placeholder="None" onchange="setScene(${i},'ost',this.value)"></label>
         </div>
       </div>
     </div>`}).join('');
   $('#sc-meta').textContent=scenes.length+' scenes · '+fmt(scenes.reduce((a,s)=>a+s.dur,0));
 }
-function toggleScene(i){$$('.sc').forEach(e=>e.classList.toggle('open',+e.dataset.i===i&&!e.classList.contains('open')))}
-function stub(t){$('#stub-title').textContent=t;$$('.screen').forEach(e=>e.classList.toggle('on',e.id==='s-stub'));$('#right-open').classList.add('hidden');toggleRight(false)}
+let mScene=-1;
+function openModal(i){mScene=i;const s=scenes[i],a=anim();
+  $('#m-title').textContent='Scene '+(i+1)+(a?' — edit image':' — change asset');
+  $('#m-stock-sec').classList.toggle('hidden',a);$('#m-ents-sec').classList.toggle('hidden',!a);
+  $('#m-ai-lbl').textContent=a?'Image prompt':'Generate with AI';$('#m-ai-sec').classList.toggle('tight',a);
+  $('#m-q').value=s.q;$('#m-ai').value=a?(s.prompt||''):(s.ai||'');$('#m-msg').textContent='';
+  $('#m-ents').innerHTML=cont.map(e=>`<button class="pick${(s.ents||[]).includes(e.id)?' on':''}" data-id="${e.id}" title="${e.desc}" aria-pressed="${(s.ents||[]).includes(e.id)}" onclick="this.classList.toggle('on');this.setAttribute('aria-pressed',this.classList.contains('on'));mEnts()"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>${e.name}</button>`).join('')||'<span class="meta">Nothing yet. Add one above the scenes.</span>';
+  $('#modal').classList.add('on')}
+function mEnts(){scenes[mScene].ents=$$('#m-ents .pick.on').map(x=>x.dataset.id);if(assetsReady)scenes[mScene].stale=true;renderScenes();renderCont()}
+function closeModal(){$('#modal').classList.remove('on')}
+function mAct(msg,kind){const s=scenes[mScene];if(kind==='reacq'){s.q=$('#m-q').value;if(!s.asset.startsWith('Stock'))s.asset='Stock video'}if(kind==='upload'){s.asset='Upload';s.stale=false}
+  if(kind==='ai'){if(anim()){s.prompt=$('#m-ai').value;s.stale=false}else{s.ai=$('#m-ai').value;s.asset='AI image'}}$('#m-msg').textContent=msg;renderScenes()}
+document.addEventListener('keydown',e=>{if(e.key!=='Escape')return;if($('#cmodal').classList.contains('on'))closeConfirm();else if($('#emodal').classList.contains('on'))closeEntry();else if($('#modal').classList.contains('on'))closeModal();else toggleRight(false)});
+document.addEventListener('mousedown',e=>{if(rightMode&&!e.target.closest('#right')&&!e.target.closest('#right-open'))toggleRight(false)});
+function renderCont(msg){
+  const show=anim()&&sbReady;$('#vd-link').classList.toggle('hidden',!show);if(!show){$('#vd').classList.remove('on');return}
+  $('#vd-link').textContent=`Characters, props and settings (${cont.length})`;
+  $('#vd').innerHTML=`<div class="ct-cards">`+cont.map(e=>`<button class="ct-card" onclick="openEntry('${e.id}')" title="${e.desc}"><b>${e.name}</b><span>${KINDS[e.kind]}${e.saved?' · in library':''}</span></button>`).join('')+
+    `<button class="ct-card add" onclick="openEntry('')">+ Add</button></div>
+    <p class="vd-note" style="margin:12px 0 0">Master visual style is set in <a class="link" onclick="showRight('settings')">Run settings</a>.</p><div class="ct-msg">${msg||''}</div>`;
+}
+let eId=null;
+function openEntry(id){eId=id;const e=cont.find(c=>c.id===id)||{kind:'character',name:'',desc:''};const n=id?usedIn(id):0;
+  $('#e-title').textContent=id?e.name:'New character, prop or setting';
+  $('#e-kind').innerHTML=Object.entries(KINDS).map(([v,l])=>`<option value="${v}"${v===e.kind?' selected':''}>${l}</option>`).join('');
+  $('#e-name').value=e.name;$('#e-desc').value=e.desc;
+  $('#e-used').textContent=id?(n?`Used in ${n} scene${n===1?'':'s'}. Remove it from ${n===1?'that scene':'those scenes'} to delete it.`:'Not used in any scene.'):'';
+  $('#e-save').textContent=id?'Save':'Add';
+  $('#e-del').classList.toggle('hidden',!id||n>0);
+  const pb=$('#e-project');pb.classList.toggle('hidden',!id);pb.disabled=!!e.saved;pb.textContent=e.saved?'In library':'Save to library';
+  $('#emodal').classList.add('on')}
+function closeEntry(){$('#emodal').classList.remove('on')}
+function saveEntry(){const name=$('#e-name').value.trim();if(!name)return;const kind=$('#e-kind').value,desc=$('#e-desc').value;
+  if(!eId){cont.push({id:'e'+Date.now(),kind,name,desc});closeEntry();renderCont('Added. Click the pencil on a scene to use it there.');return}
+  const e=cont.find(c=>c.id===eId);const changed=e.name!==name||e.desc!==desc;Object.assign(e,{kind,name,desc});let n=0;
+  if(assetsReady&&changed)scenes.forEach(s=>{if((s.ents||[]).includes(eId)){s.stale=true;n++}});
+  closeEntry();renderScenes();renderCont(n?`Saved. ${n} scene image${n===1?' is':'s are'} now out of date.`:'Saved.')}
+function deleteEntry(){let n=0;scenes.forEach(s=>{if((s.ents||[]).includes(eId)){s.ents=s.ents.filter(x=>x!==eId);if(assetsReady)s.stale=true;n++}});
+  cont=cont.filter(c=>c.id!==eId);closeEntry();renderScenes();renderCont(n?`Deleted and removed from ${n} scene${n===1?'':'s'}.`:'Deleted.')}
+function entryToProject(){const e=cont.find(c=>c.id===eId);e.saved=true;if(!projectAssets.some(a=>a.id===e.id))projectAssets.push({id:e.id,kind:e.kind,name:e.name,desc:e.desc});
+  renderCast();renderAssets();openEntry(eId);renderCont('Saved to the library. New animated runs will reuse it.')}
+function setScene(i,k,v){scenes[i][k]=v;renderScenes()}
+function toggleScene(i){openScene=openScene===i?-1:i;renderScenes()}
+function stub(t){view='stub';$('#stub-title').textContent=t;$('#stub-crumb').textContent=['Videos','Assets','BG music'].includes(t)?'Libraries':['Integrations','Defaults'].includes(t)?'Settings':'The Housing Equation';$$('.screen').forEach(e=>e.classList.toggle('on',e.id==='s-stub'));$$('.run-only').forEach(b=>b.classList.add('hidden'));if(rightMode!=='help')rightMode=null;paintRight();$$('[data-nav]').forEach(b=>b.classList.remove('on'))}
 let cur=0,view='runs',leftOpen=true;
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const SAMPLE_SCRIPT=$('#script').value;
 
+const R_TITLES={settings:'Run settings',details:'Run details',help:'Information'};
+let rightMode=null;
+function paintRight(){
+  $('#right').classList.toggle('closed',!rightMode);document.body.classList.toggle('r-open',!!rightMode);
+  $$('#right-open [data-r]').forEach(b=>b.classList.toggle('active',b.dataset.r===rightMode));
+  if(!rightMode)return;
+  $('#right-title').textContent=R_TITLES[rightMode];
+  $$('.tab').forEach(e=>e.classList.toggle('on',e.id==='tab-'+rightMode));
+  if(rightMode==='help')renderHelp();
+}
+function showRight(m){rightMode=m;paintRight()}
+function openRight(m){rightMode=rightMode===m?null:m;paintRight()}
+function toggleRight(o){if(!o){rightMode=null;paintRight()}}
 function go(v){view=v;$$('.screen').forEach(e=>e.classList.toggle('on',e.id==='s-'+v));
-  $('#right-open').classList.toggle('hidden',v!=='run');if(v!=='run')toggleRight(false);
-  $$('[data-nav=runs]').forEach(b=>b.classList.toggle('on',v==='runs'||v==='run'||v==='new'));window.scrollTo(0,0)}
-function toggleLeft(o){leftOpen=o;$('#left').classList.toggle('closed',!o);$('#left-open').classList.toggle('hidden',o)}
-function toggleRight(o){$('#right').classList.toggle('closed',!o);if(view==='run')$('#right-open').classList.toggle('hidden',o)}
-function openRight(t){tab(t);toggleRight(true)}
-function tab(t){$$('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===t));
-  $$('.tab').forEach(e=>e.classList.toggle('on',e.id==='tab-'+t))}
+  $$('.run-only').forEach(b=>b.classList.toggle('hidden',v!=='run'));
+  if(v!=='run'&&rightMode!=='help')rightMode=null;paintRight();
+  $$('[data-nav=runs]').forEach(b=>b.classList.toggle('on',v==='runs'||v==='run'||v==='new'));$$('[data-nav=assets]').forEach(b=>b.classList.toggle('on',v==='assets'));if(v==='assets')renderAssets();window.scrollTo(0,0)}
+function toggleLeft(o){leftOpen=o;document.body.classList.toggle('l-open',o);$('#left').classList.toggle('closed',!o);$('#left-open').classList.toggle('hidden',o)}
+const PAGE_HELP={assets:['Assets','Characters, props and settings saved in the library. Animated runs reuse them so they look the same in every video.'],runs:['Runs','Every video of this project. Open one to continue it, or start a new run.'],new:['New run','Say what the video is about. You can change everything else later.'],stub:['This page','Help for this page will appear here.']};
+function renderHelp(){
+  const h=view==='run'?help[cur]:PAGE_HELP[view]||PAGE_HELP.stub;
+  $('#help-title').textContent=h[0];
+  $('#help-list').innerHTML=`<li>${h[1]}</li>`+(view==='run'?'<li>Open <b>Run settings</b> to change format, look, language and auto-advance.</li>':'');
+}
 function renderSteps(){
-  $('#steps').innerHTML=stepNames.map((n,i)=>`${i?'<span class="bar"></span>':''}<button class="${i<cur?'done':i===cur?'cur':''}" onclick="setStep(${i})"><span class="n">${i<cur?'✓':i+1}</span>${n}</button>`).join('');
+  $('#steps').innerHTML=stepNames.map((n,i)=>`<button class="${i<cur?'done':i===cur?'cur':''}" onclick="setStep(${i})"><i>${i+1}</i>${n}</button>`).join('');
   $$('.step').forEach(e=>e.style.display=+e.dataset.step===cur?'block':'none');
-  $('#help-title').textContent=help[cur][0];
-  $('#help-list').innerHTML=`<li>${help[cur][1]}</li><li>Open <b>Settings</b> to change format, visuals, language and auto-advance.</li>`;
+  if(rightMode==='help')renderHelp();
 }
 function setStep(i){cur=i;renderSteps()}
-function next(){if(cur<3)setStep(cur+1)}
-function openRun(t){$('#run-title').textContent=t;setStep(0);go('run')}
-function createRun(){openRun($('#new-title').value.trim()||'Untitled run')}
 
-$('#run-list').innerHTML=runs.map(r=>`<button class="run-item" onclick="openRun('${r.t.replace(/'/g,"\\'")}')"><span class="dot ${r.st}"></span><span class="t">${r.t}</span><span class="m">${r.s} · ${r.d}</span></button>`).join('');
-renderScenes();
+let voTimer=null,voPos=0;
+/** One long-running action: a progress line under the buttons, and a visible failure with Retry.
+    Demo: hold Shift while clicking the button to see the failure. */
+function runJob(o){
+  const fail=!!(o.ev&&o.ev.shiftKey),box=$(o.box),label=o.btn.textContent,N=24;let p=0;
+  o.btn.disabled=true;o.btn.textContent=o.busy;box.className='job on';box.innerHTML='<div class="job-bar"><i></i></div><span></span>';
+  const t=setInterval(()=>{p++;const f=p/N;box.querySelector('i').style.width=(f*100)+'%';box.querySelector('span').textContent=o.text(f);
+    if(fail&&f>=.6){clearInterval(t);o.btn.disabled=false;o.btn.textContent=label;box.className='job on err';
+      box.innerHTML=`<span><b>${o.failTitle}</b> ${o.failMsg}</span><button class="btn sm">Retry</button>`;box.querySelector('button').onclick=()=>runJob({...o,ev:null});return}
+    if(f>=1){clearInterval(t);o.btn.disabled=false;box.className='job';box.innerHTML='';o.done()}
+  },o.ms/N);
+}
+const autoAdv=()=>$('#autoadv').classList.contains('on');
+let curRun=null;
+function paintScript(){if(curRun)curRun.script=$('#script').value;const w=$('#script').value.trim().split(/\s+/).filter(Boolean).length;$('#script-wc').textContent=w+(w===1?' word':' words');$('#script-next').disabled=!w}
+function genScript(ev){runJob({ev,btn:$('#gen-btn'),busy:'Writing…',box:'#job-gen',ms:1800,text:()=>'Writing the script…',failTitle:'Script was not written.',failMsg:'The writing service did not answer.',
+  done:()=>{$('#script').value=SAMPLE_SCRIPT;paintScript();$('#gen').classList.remove('on')}})}
+let voReady=false;
+function paintVo2(){$('#vo-gen').textContent=voReady?'Re-generate':'Generate voiceover';$('#vo-next').disabled=!voReady;$('#vo-track').classList.toggle('on',voReady);
+  if(voReady)$('#vo-wave').innerHTML=Array.from({length:64},(_,i)=>`<i style="height:${18+Math.round(Math.abs(Math.sin(i*.7)*Math.cos(i*.23))*82)}%"></i>`).join('')}
+function genVo(ev){stopVo(true);$('#vo-track').classList.remove('on');
+  runJob({ev,btn:$('#vo-gen'),busy:'Generating…',box:'#job-vo',ms:2600,text:()=>'Generating the voiceover…',failTitle:'Voiceover failed.',failMsg:'The voice service did not answer. Nothing was changed.',
+    done:()=>{voReady=true;paintVo2();if(autoAdv())next()}})}
+function stopVo(reset){clearInterval(voTimer);voTimer=null;if(reset)voPos=0;paintVo()}
+function toggleVo(){
+  if(voTimer){stopVo(false);return}
+  if(voPos>=58)voPos=0;
+  voTimer=setInterval(()=>{voPos=Math.min(58,voPos+1);if(voPos>=58)stopVo(false);else paintVo()},1000/6*6);
+  paintVo();
+}
+function paintVo(){
+  const bars=[...document.querySelectorAll('#vo-wave i')];const k=Math.round(bars.length*voPos/58);
+  bars.forEach((b,i)=>b.classList.toggle('p',i<k));
+  $('#vo-time').textContent=`0:${String(voPos).padStart(2,'0')} / 0:58`;
+  $('#vo-ico').innerHTML=voTimer?'<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>':'<path d="M7 4l13 8-13 8z"/>';
+}
+function paintSb(){
+  const c=$('#sb-create'),a=$('#sb-assets'),n=$('#sb-next');
+  c.textContent=sbReady?'Re-create storyboard':'Create storyboard';c.className='btn '+(sbReady?'quiet':'accent');
+  a.disabled=!sbReady;a.textContent=assetsReady?'Re-create assets':'Create assets';a.className='btn '+(!sbReady?'accent':assetsReady?'quiet':'accent');
+  n.disabled=!assetsReady;renderScenes();renderCont();paintLock();paintRender();
+}
+function buildSb(){sbReady=true;assetsReady=false;rendered=false;openScene=-1;scenes=SCENE_SEED.map(x=>({...x}));const bc=anim()?buildContinuity():{list:[],ents:[]};cont=bc.list;
+  scenes.forEach((s,i)=>{s.ents=anim()?bc.ents[i]:[];s.prompt=SCENE_PROMPTS[i];s.stale=false})}
+function createSb(ev){runJob({ev,btn:$('#sb-create'),busy:'Creating…',box:'#job-sb',ms:2600,text:f=>f<.5?'Reading the script and voiceover…':'Planning the scenes…',
+  failTitle:'Storyboard was not created.',failMsg:'The planning step stopped. Your script and voiceover are safe.',done:()=>{buildSb();paintSb()}})}
+/** Re-creating throws away scene edits and makes created assets wrong: ask first. */
+function askCreateSb(ev){if(!sbReady){createSb(ev);return}
+  confirmBox('Re-create the storyboard?','Your scene changes will be lost'+(assetsReady?', and the assets you created will be removed.':'.')+' The script and voiceover stay as they are.','Re-create',()=>createSb(ev))}
+function createAssets(ev){const n=scenes.length;runJob({ev,btn:$('#sb-assets'),busy:'Creating…',box:'#job-sb',ms:4200,text:f=>`Creating assets… ${Math.min(n,Math.floor(f*n)+1)} of ${n} scenes`,
+  failTitle:'Assets were not created.',failMsg:'Some scenes have no asset yet. Retry creates only the missing ones.',done:()=>{assetsReady=true;rendered=false;scenes.forEach(s=>s.stale=false);paintSb();if(autoAdv())next()}})}
+let rendered=false,runAr='9:16',runLang='English';
+function paintRender(){
+  const pv=$('#preview');pv.className='preview'+(runAr==='16:9'?' wide':'')+(rendered?' done':'');
+  pv.innerHTML=rendered?'<span class="pl"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l12 7-12 7z"/></svg></span><span class="tm">0:58</span>':'Preview';
+  $('#render-meta').textContent=rendered?`Rendered · ${runAr} · 0:58`:assetsReady?`${runAr} · ≈ 58 s`:'Create the assets on the Storyboard step first.';
+  $('#render-foot').innerHTML=rendered
+    ?`<button class="btn accent">Download video</button><button class="btn quiet" id="render-btn" onclick="renderVideo(event)">Re-render video</button><button class="btn">Download for CapCut</button>`
+    :`<button class="btn accent" id="render-btn" onclick="renderVideo(event)"${assetsReady?'':' disabled'}>Render video</button><button class="btn"${assetsReady?'':' disabled'}>Download for CapCut</button>`;
+}
+function renderVideo(ev){runJob({ev,btn:$('#render-btn'),busy:'Rendering…',box:'#job-render',ms:5000,text:f=>`Rendering the video… ${Math.round(f*100)}%`,
+  failTitle:'Render failed.',failMsg:'The video was not produced. Your storyboard and assets are safe.',done:()=>{rendered=true;paintRender();const r=runs.find(x=>x.t===$('#run-title').textContent);if(r){r.step='Rendered';r.st='ok';renderRuns()}}})}
+function paintLock(){const L=sbReady;['#format-seg','#look-seg'].forEach(q=>$(q).classList.toggle('locked',L));$('#run-lang').classList.toggle('locked',L);$('#run-lang').disabled=L;$('#lock-note').classList.toggle('hidden',!L);
+  $$('#format-seg button').forEach(b=>b.classList.toggle('on',b.dataset.v===runAr));$('#run-lang').value=runLang}
+function confirmBox(title,text,ok,fn){$('#c-title').textContent=title;$('#c-text').textContent=text;const b=$('#c-ok');b.textContent=ok;b.onclick=()=>{closeConfirm();fn()};$('#cmodal').classList.add('on')}
+function closeConfirm(){$('#cmodal').classList.remove('on')}
+function splitScene(i,j){const s=scenes[i],w=s.vo.split(' '),f=j/w.length,d=+(s.dur*f).toFixed(1);
+  scenes.splice(i,1,{...s,vo:w.slice(0,j).join(' '),dur:d},{...s,vo:w.slice(j).join(' '),start:+(s.start+d).toFixed(1),dur:+(s.dur-d).toFixed(1),ost:'',stale:assetsReady});openScene=-1;renderScenes();renderCont()}
+function mergeScene(i){const a=scenes[i],b=scenes[i+1];scenes.splice(i,2,{...a,vo:a.vo+' '+b.vo,dur:+(a.dur+b.dur).toFixed(1),ents:[...new Set([...(a.ents||[]),...(b.ents||[])])],ost:a.ost||b.ost});openScene=-1;renderScenes();renderCont()}
+$$('#format-seg button').forEach(b=>b.addEventListener('click',()=>{if(sbReady)return;runAr=b.dataset.v;paintLock();paintRender()}));
+$$('#cast-seg button').forEach(b=>b.addEventListener('click',()=>{castMode=b.dataset.cast;renderCast()}));
+function applyLook(){renderCast();$('#master-row').classList.toggle('hidden',look!=='Animated');renderScenes();renderCont();
+  $$('#look-seg button').forEach(b=>b.classList.toggle('on',b.dataset.look===look))}
+$$('#look-seg button').forEach(b=>b.addEventListener('click',()=>{if(sbReady)return;look=b.dataset.look;applyLook()}));
+function next(){if(cur<3)setStep(cur+1)}
+/** Open a run where it was left: a rendered run opens finished, one at Storyboard opens with its scenes. */
+function openRun(t){$('#run-title').textContent=t;const r=runs.find(x=>x.t===t)||{};curRun=null;$('#script').value=r.script??SAMPLE_SCRIPT;curRun=r;$('#gen').classList.remove('on');$('#vd').classList.remove('on');look=r.style||'Realistic';runAr=r.ar||'9:16';runLang=r.lang||'English';
+  const at=['Script','Voice','Storyboard','Rendered'].indexOf(r.step||'Script');
+  voReady=at>=2;sbReady=false;assetsReady=false;rendered=false;scenes=[];cont=[];
+  ['#job-gen','#job-vo','#job-sb','#job-render'].forEach(q=>{$(q).className='job';$(q).innerHTML=''});
+  if(at>=2)buildSb();if(at>=3){assetsReady=true;rendered=true}
+  applyLook();paintVo2();paintScript();paintSb();setStep(Math.max(0,at));go('run')}
+function pick(id){return $(id+' button.on').dataset.v}
+function createRun(){const t=$('#new-title').value.trim()||'Untitled run';runs.unshift({t,script:'',step:'Script',st:'',style:pick('#new-look'),ar:pick('#new-ar'),lang:$('#new-lang').value,d:'Today'});renderRuns();$('#new-title').value='';openRun(t)}
+['#new-ar','#new-look'].forEach(q=>$$(q+' button').forEach(b=>b.addEventListener('click',()=>$$(q+' button').forEach(x=>x.classList.toggle('on',x===b)))));
+
+function renderRuns(){
+  $('#run-list').innerHTML=runs.length?runs.map(r=>`<button class="run-item" onclick="openRun('${r.t.replace(/'/g,"\\'")}')"><div class="main-col"><div class="t">${r.t}</div><div class="m"><span class="step-st"><span class="dot ${r.st}"></span>${r.step}</span><span class="sep">·</span><span>${r.style}</span><span class="sep">·</span><span>${r.ar}</span><span class="sep">·</span><span>${r.lang}</span><span class="sep">·</span><span>${r.d}</span></div></div><svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button>`).join('')
+    :`<div class="empty"><b>No runs yet</b><p>A run is one video, from script to finished file.</p><button class="btn primary" onclick="go('new')">New run</button></div>`;
+}
+if(location.hash==='#empty')runs=[];
+renderRuns();
+document.body.classList.add('l-open');
+renderScenes();paintRender();paintScript();
 $$('[data-seg]').forEach(g=>g.addEventListener('click',e=>{if(e.target.tagName!=='BUTTON')return;[...g.children].forEach(b=>b.classList.toggle('on',b===e.target))}));
 renderSteps();go('runs');
 </script>

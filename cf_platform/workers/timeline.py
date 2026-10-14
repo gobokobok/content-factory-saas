@@ -177,6 +177,19 @@ class TimelineSettings(BaseModel):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
+def without_sfx(storyboard: Storyboard) -> Storyboard:
+    """The storyboard with every scene's sound effect cleared (SFX_ENABLED off, D114).
+
+    The storyboard artifact is not changed: the choice is kept, so switching sound
+    effects back on brings them back without re-creating the storyboard.
+    """
+    if not any(scene.sfx for scene in storyboard.scenes):
+        return storyboard
+    return storyboard.model_copy(update={
+        "scenes": [scene.model_copy(update={"sfx": ""}) if scene.sfx else scene for scene in storyboard.scenes],
+    })
+
+
 def relative_asset_path(run_id: str, file_key: str) -> str:
     """Return file_key relative to the run folder (``runs/{run_id}/images/1.jpg`` → ``images/1.jpg``)."""
     prefix = f"runs/{run_id}/"

@@ -41,7 +41,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-HARD1 | Audit and hardening: first `/audit`, loud voice failure, word-matching regression suite, bulk-job guard, cost-log backfill | ~11 | **done** 2026-10-13 | Read `docs/SECURITY.md`; a failed voice says so and offers Retry |
 | P-HARD2 | Backups and restore drill, the audit's small fixes, deploy safety (EPIC 60) | ~8 | **in progress** (started 2026-10-13) | Read the RUNBOOK backup section; `/legacy` gone; a failed migration shows in health |
 | P-AUTH | Google sign-in, accounts, tiers with View-as, per-user isolation (EPIC 59, D114); `/audit` first | ~16 | planned | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
-| P-LITE | The Creator flow for regular users (EPIC 59, D114) | ~16 | planned | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
+| P-LITE | The Creator flow for regular users (EPIC 59, D114, D117); S1..S5 built before P-AUTH, S6 gating moves to P-AUTH | ~16 | **in progress** (started 2026-10-14) | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
 | P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114) | ~13 | planned | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
 | P-PROJ1 | Visual source model and project settings (EPIC 57) | ~18 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Channel identity and a saved project character reused by a new animated run |
 | P-INT1 | Integrations v2 (EPIC 58) | ~16 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Add a second provider with an own key, make it default, generate on it |
@@ -92,6 +92,30 @@ Legacy Script→Video stays untouched and operable (D047).
 ## Scope changes
 
 _None._
+
+---
+
+# Sprint P-LITE — The Creator flow: new pages from the approved mockup, beside `/studio` (before P-AUTH, D117)
+
+**Goal:** On DEV, open `/create`, start a new animated video and take it from a pasted script to a downloaded file in the new pages, without touching `/studio`.
+**Status:** in progress — started 2026-10-14, built in one pass on branch `sprint/p-lite` (not pushed).
+**Points:** ~16
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| LITE-S1 | New run stores format, language, master visual style and characters; `VideoSettings` keeps every run setting | 3 | in-progress |
+| LITE-S2 | The director uses only the listed characters (several; enforced in code) | 3 | in-progress |
+| LITE-S3 | Voice is a per-run choice: male / female | 2 | in-progress |
+| LITE-S4 | The Creator pages at `/create`: My videos, New video, Script, Voice, Storyboard (with images and their estimate), Render and download | 7 | in-progress |
+| LITE-S5 | `SFX_ENABLED` (default false) honoured by the render and the CapCut export | 1 | in-progress |
+
+**Execution order:** S5, S3 and S1 are independent; S2 builds on S1; S4 last (it uses all of them).
+**Human touchpoint:** the operator opens `/create` on DEV, makes a short animated video with two listed characters and a chosen voice, and downloads it.
+**Not in this sprint:** LITE-S6 (server-side gating by tier) and the D115 moderation checks — both need P-AUTH and move there; estimates for voice, storyboard and render (P-BILL-1, with the ledger that prices them); the hidden personal project (P-AUTH).
+
+## Scope changes
+
+- 2026-10-14 (operator): P-LITE S1..S5 pulled ahead of P-AUTH and reshaped by the reviewed mockup (D117). D114's separate Images step is folded into Storyboard.
 
 ---
 

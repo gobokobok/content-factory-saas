@@ -35,7 +35,7 @@ from datetime import UTC, datetime
 import anthropic
 
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact
-from cf_platform.core.cast import CastRule, enforce_single_cast
+from cf_platform.core.cast import CastRule, enforce_listed_cast, enforce_single_cast, listed_prompt_block
 from cf_platform.core.cast import prompt_block as cast_prompt
 from cf_platform.core.project_assets import apply_to_continuity, prompt_block
 from cf_platform.core.schemas import StageState, WorkerNode, WorkerOutput
@@ -371,6 +371,7 @@ def build_animation_user_message(
     master_style: str,
     project_assets: list[dict] | None = None,
     cast: CastRule | None = None,
+    cast_list: list[CastRule] | None = None,
 ) -> str:
     """The user message: format, master style (context only), assets, word budget, word list, script.
 
@@ -386,7 +387,8 @@ def build_animation_user_message(
     style = master_style.strip() or "None given. Choose concepts that work in any consistent illustration style."
     assets = prompt_block({"assets": project_assets or []})
     assets_section = f"{assets}\n\n" if assets else ""
-    cast_block = cast_prompt(cast)
+    # A listed cast (D117) is the stricter rule and replaces the single-cast one.
+    cast_block = listed_prompt_block(cast_list or []) or cast_prompt(cast)
     if cast_block:
         assets_section += f"{cast_block}\n\n"
     return (
@@ -607,6 +609,7 @@ async def generate_animation_storyboard(
     master_style: str = "",
     project_assets: list[dict] | None = None,
     cast: CastRule | None = None,
+    cast_list: list[CastRule] | None = None,
 ) -> Storyboard:
     """Generate an animation storyboard from the narration and its word timing.
 
@@ -623,7 +626,7 @@ async def generate_animation_storyboard(
         )
     words, display = _normalize_deepgram_words_with_display([w.model_dump() for w in voice_timestamps])
     user_content = build_animation_user_message(
-        script, words, display, format_track, master_style, project_assets, cast
+        script, words, display, format_track, master_style, project_assets, cast, cast_list
     )
     raw_text = await request_animation_storyboard(animation_system_prompt(), user_content, api_key)
     storyboard = parse_animation_storyboard(raw_text, words)
@@ -634,6 +637,8 @@ async def generate_animation_storyboard(
         storyboard = storyboard.model_copy(update={
             "continuity": [ContinuityEntry.model_validate(e) for e in merged],
         })
+    if cast_list:
+        return enforce_listed_cast(storyboard, cast_list)
     return enforce_single_cast(storyboard, cast)
 
 
@@ -666,6 +671,9 @@ def build_animation_storyboard_worker(
             master_style=str(state.inputs.get("master_style") or ""),
             project_assets=state.inputs.get("project_assets") or None,
             cast=CastRule.from_input(state.inputs.get("cast")),
+            cast_list=[
+                rule for rule in (CastRule.from_input(raw) for raw in state.inputs.get("cast_list") or []) if rule
+            ],
         )
         flagged = sum(1 for s in storyboard.scenes if SCENE_FLAG_TOO_LONG in s.flags)
         logger.info(

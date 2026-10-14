@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content Factory — Create</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+/* Creator pages (P-LITE, D114, D117). Layout and tokens follow docs/mockups/studio-beta-ui.html:
+   a centred working column, floating left and right panels, the DEV "Monochrome Console" tokens. */
+/* Tokens copied from DEV (studio-v2.html + ui/shell.css "Monochrome Console"). */
+:root{
+  --bg:#FAFAFA; --bg-soft:#F0F0F2;
+  --border:#E7E7E9; --border-strong:#B4B4BA;
+  --text:#121215; --ink-sub:#55555C; --muted:#8B8B92; --faint:#B4B4BA;
+  --accent:#2743C9; --accent-h:#1D35A6; --accent-soft:#ECEFFB; --accent-ring:rgba(39,67,201,.26);
+  --ok:#12805C; --dot-run:#E5A50A; --red:#D92D20;
+  --font:'Schibsted Grotesk',system-ui,sans-serif;
+  --mono:'Fragment Mono',ui-monospace,monospace;
+  --left-w:244px; --right-w:328px; --main-w:780px;
+  --r:8px; --r-sm:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+svg{flex-shrink:0}
+
+/* ── Main working area: always centred on the viewport ───────────── */
+.main{max-width:var(--main-w);margin:0 auto;padding:72px 24px 120px}
+.screen{display:none}.screen.on{display:block}
+
+h1{font-size:24px;line-height:1.25;font-weight:700;letter-spacing:-.02em}
+.page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:40px;margin:0 0 28px}
+
+/* ── Buttons ─────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;gap:6px;height:38px;padding:0 18px;border-radius:var(--r-sm);font-size:13px;font-weight:600;border:1px solid var(--border);transition:all .15s}
+.btn:hover{border-color:var(--faint);background:var(--bg-soft)}
+.btn.primary,.btn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary:hover,.btn.accent:hover{background:var(--accent-h);border-color:var(--accent-h)}
+.btn.next{background:var(--bg);color:var(--accent);border-color:var(--accent)}
+.btn.next:hover{background:var(--accent-soft);border-color:var(--accent)}
+.btn.sm{height:30px;padding:0 12px;font-size:12.5px}
+.link{color:var(--accent);font-size:12.5px;text-decoration:none}
+.link:hover{text-decoration:underline}
+.icon-btn{width:30px;height:30px;border-radius:var(--r-sm);display:grid;place-items:center;color:var(--muted);border:1px solid transparent}
+.icon-btn:hover{background:var(--bg-soft);color:var(--text)}
+.icon-btn.active{background:var(--accent-soft);color:var(--accent)}
+
+/* ── Fields: quiet, rounded, same bg as page ─────────────────────── */
+.field{display:block;margin-bottom:20px}
+.field>.lbl{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600}
+input[type=text],textarea,select{
+  width:100%;font:inherit;font-size:13px;font-weight:500;color:var(--text);background:var(--bg);
+  border:1px solid var(--border);border-radius:10px;padding:9px 14px;outline:none;
+  transition:border-color .12s,box-shadow .12s}
+input[type=text]:hover,textarea:hover,select:hover{border-color:var(--border-strong)}
+input[type=text]:focus,textarea:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+select{appearance:none;-webkit-appearance:none;padding-right:38px;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239A9488' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center}
+select.inline{width:auto;padding:6px 30px 6px 12px;font-size:12.5px;border-radius:999px;background-position:right 11px center}
+textarea{resize:vertical;line-height:1.65;min-height:260px;font-size:13.5px;font-weight:400;padding:14px 16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px}
+.seg button{padding:5px 14px;border-radius:999px;font-size:13px;color:var(--muted)}
+.seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.switch{position:relative;width:38px;height:22px;border-radius:999px;background:var(--border-strong);transition:background .15s;flex-shrink:0}
+.switch::after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--bg);transition:transform .15s}
+.switch.on{background:var(--accent)}.switch.on::after{transform:translateX(16px)}
+
+/* ── Runs list ───────────────────────────────────────────────────── */
+.run-list{display:block}
+.run-item{display:flex;align-items:center;gap:16px;padding:14px 18px;margin-bottom:8px;width:100%;text-align:left;
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--r);transition:border-color .12s,box-shadow .12s}
+.run-item:hover{border-color:var(--faint);box-shadow:0 2px 8px rgba(18,18,21,.05)}
+.run-item .main-col{flex:1;min-width:0}
+.run-item .t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.run-item .m{display:flex;align-items:center;gap:8px;margin-top:4px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.run-item .m .step-st{display:inline-flex;align-items:center;gap:6px;color:var(--ink-sub);font-weight:500}
+.run-item .m .sep{color:var(--faint)}
+.run-item .m .dot{width:6px;height:6px;border-radius:50%;background:var(--border-strong)}
+.run-item .m .dot.run{background:var(--accent)}
+.run-item .m .dot.ok{background:var(--text)}
+.run-item .arrow{color:var(--faint);flex-shrink:0;transition:transform .12s,color .12s}
+.run-item:hover .arrow{transform:translateX(2px);color:var(--text)}
+
+/* ── Stepper ─────────────────────────────────────────────────────── */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 44px}
+.steps button{text-align:left;padding-top:10px;border-top:3px solid var(--border);color:var(--faint);font-size:13px;font-weight:500;transition:color .12s}
+.steps button i{font-style:normal;font-family:var(--mono);font-size:10px;display:block;margin-bottom:1px}
+.steps button:hover{color:var(--text)}
+.steps button.done{border-color:var(--text);color:var(--ink-sub)}
+.steps button.cur{border-color:var(--accent);color:var(--text);font-weight:600}
+
+/* ── Step content ────────────────────────────────────────────────── */
+.step-foot{display:flex;align-items:center;justify-content:flex-start;margin-top:28px;gap:12px}
+.step-foot .meta{margin-left:auto}
+.meta{font-size:12.5px;color:var(--muted)}
+.gen-toggle{margin-bottom:14px}
+.gen-box{display:none;margin-bottom:18px;padding:16px;border:1px solid var(--border);border-radius:var(--r)}
+.gen-box.on{display:block}
+
+.scene{display:grid;grid-template-columns:96px 1fr auto;gap:16px;align-items:center;padding:14px 0;border-bottom:1px solid var(--border)}
+.scene:first-child{border-top:1px solid var(--border)}
+.thumb{width:96px;height:60px;border-radius:var(--r-sm);background:linear-gradient(135deg,#DDDDE2,#EDEDF0)}
+.thumb.b{background:linear-gradient(135deg,#C9D1DD,#E4E8EF)}
+.thumb.c{background:linear-gradient(135deg,#D4D6DE,#E9EAEF)}
+.scene .txt{font-size:14px;line-height:1.5}
+.scene .no{font-size:12px;color:var(--faint);margin-bottom:2px}
+
+.preview{aspect-ratio:9/16;width:220px;border-radius:var(--r);border:1px solid var(--border);background:var(--bg-soft);display:grid;place-items:center;color:var(--faint);font-size:13px;margin:0 0 8px}
+.cap-row{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+
+/* ── Side panels (fixed — never push the main area) ──────────────── */
+.panel{position:fixed;top:0;bottom:0;background:var(--bg);z-index:20;display:flex;flex-direction:column;
+  transition:transform .22s cubic-bezier(.4,0,.2,1)}
+.panel.left{left:0;width:var(--left-w);border-right:1px solid var(--border);box-shadow:6px 0 24px -12px rgba(18,18,21,.14)}
+.panel.right{right:0;width:var(--right-w);border-left:1px solid var(--border);box-shadow:-12px 0 32px rgba(18,18,21,.08)}
+.panel.left.closed{transform:translateX(-110%)}
+.panel.right.closed{transform:translateX(110%)}
+.p-head{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px 18px}
+.brand{font-weight:700;font-size:14px;letter-spacing:-.01em}
+.p-body{flex:1;overflow:auto;padding:6px 18px 24px}
+.nav-btn{display:flex;align-items:center;gap:10px;width:100%;padding:7px 8px;border-radius:var(--r-sm);color:var(--ink-sub);text-align:left;font-size:13px;font-weight:500}
+.nav-btn svg{color:var(--muted)}
+.nav-btn:hover{background:var(--bg-soft);color:var(--text)}
+.nav-btn.on{background:var(--accent-soft);color:var(--accent);font-weight:600}.nav-btn.on svg{color:var(--accent)}
+.sect{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin:16px 8px 6px;font-weight:400}
+.recent{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:10px;color:var(--muted);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent:hover{background:var(--bg-soft);color:var(--text)}
+
+/* Floating buttons */
+.fab{position:fixed;top:14px;z-index:30}
+.fab.l{left:14px}
+.fab.r{right:14px;display:flex;gap:4px}
+.hidden{display:none!important}
+
+/* Right panel internals */
+.tabs{display:flex;gap:4px;padding:0 14px 0 18px;border-bottom:1px solid var(--border)}
+.tabs button{padding:10px 10px 11px;color:var(--muted);font-weight:600;border-bottom:2px solid transparent;margin-bottom:-1px;font-size:13.5px}
+.tabs button.on{color:var(--accent);border-color:var(--accent)}
+.tab{display:none}.tab.on{display:block}
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0}
+.set-row .k{font-weight:600;font-size:13px}
+.set-row .h{font-size:12.5px;color:var(--faint);margin-top:1px}
+.kv{display:flex;justify-content:space-between;padding:8px 0;font-size:13px}
+.kv span:first-child{color:var(--muted)}
+.help li{margin:0 0 12px 18px;color:var(--muted)}
+.help h3{font-size:15px;margin:6px 0 14px}
+
+.nav-btn.sm{padding:5px 8px}
+.sub{margin:2px 0 6px 17px;padding-left:9px;border-left:1px solid var(--border)}
+.proj{padding:7px 8px;font-size:13px;font-weight:600;color:var(--text)}
+.crumb{height:20px;line-height:20px;font-size:13px;color:var(--faint);margin-bottom:8px;white-space:nowrap}
+.crumb a{color:var(--muted);cursor:pointer}.crumb a:hover{color:var(--text)}
+.stub-box{padding:0;color:var(--muted)}
+.stub-box .tag{display:inline-block;margin-top:10px;font-size:12.5px;color:var(--faint);border:1px dashed var(--border-strong);border-radius:999px;padding:3px 12px}
+/* Storyboard scenes */
+.sc{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;transition:border-color .12s}
+.sc:hover,.sc.open{border-color:var(--faint)}
+.sc-row{display:grid;grid-template-columns:76px 1fr;gap:14px;padding:0 14px 0 0;cursor:pointer;border-radius:var(--r)}
+.sc-body{padding:10px 0}
+.sc-thumb{position:relative;min-height:84px;border-radius:calc(var(--r) - 1px) 0 0 calc(var(--r) - 1px);background:linear-gradient(135deg,#DDDDE2,#EDEDF0)}
+.pencil{position:absolute;right:6px;bottom:6px;width:26px;height:26px;border-radius:50%;background:var(--bg);border:1px solid var(--border);color:var(--ink-sub);display:grid;place-items:center}
+.pencil:hover{color:var(--accent);border-color:var(--accent)}
+.sc-thumb.b{background:linear-gradient(135deg,#C9D1DD,#E4E8EF)}
+.sc-thumb.c{background:linear-gradient(135deg,#D4D6DE,#E9EAEF)}
+.sc-top{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+.sc-no{font-size:12px;color:var(--muted)}
+.sc-time{font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.sc-dur{font-size:13px;font-weight:600;color:var(--accent);font-variant-numeric:tabular-nums}
+.sc-top .grow{flex:1}
+.sc-vo{font-size:13.5px;line-height:1.45}
+.sc-vo .w{border-radius:3px}
+.sc-vo .w:hover{background:var(--accent-soft);color:var(--accent)}
+.sc-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.chip{font-size:11.5px;font-weight:500;color:var(--ink-sub);background:var(--bg-soft);border:1px solid var(--border);border-radius:999px;padding:2px 9px;line-height:1.5}
+.chip:hover{border-color:var(--faint);color:var(--text)}
+.chip i{font-style:normal;color:var(--muted);margin-right:4px}
+.sc-merge{margin-left:auto;font-size:12px;color:var(--muted);padding:2px 8px;border-radius:999px;border:1px solid transparent}
+.sc-merge:hover{color:var(--text);border-color:var(--ink-sub)}
+.sc-detail{display:none;padding:0 14px 14px 90px}
+.sc.open .sc-detail{display:block}
+.sc-detail .row3{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.sc-detail .field{margin-bottom:0}
+.sc-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.row3c{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.vo-track{display:none;align-items:center;gap:14px;padding:12px 14px;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);margin-top:4px}
+.vo-track.on{display:flex}
+.vo-play{width:34px;height:34px;border-radius:50%;border:1px solid var(--accent);color:var(--accent);display:grid;place-items:center;flex-shrink:0}
+.vo-play:hover{background:var(--accent-soft)}
+.vo-wave{flex:1;display:flex;align-items:center;gap:2px;height:36px}
+.vo-wave i{flex:1;background:var(--border-strong);border-radius:2px;min-width:2px}
+.vo-wave i.p{background:var(--accent)}
+.vo-time{font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0}
+.modal-bd{position:fixed;inset:0;background:rgba(18,18,21,.38);z-index:60;display:none;align-items:center;justify-content:center;padding:24px}
+.modal-bd.on{display:flex}
+.modal{background:var(--bg);border-radius:12px;width:100%;max-width:520px;max-height:100%;overflow:auto;box-shadow:0 16px 48px rgba(18,18,21,.16);padding:22px 24px 24px}
+.modal{position:relative}
+.m-x{position:absolute;top:12px;right:12px;width:28px;height:28px}
+.modal h2{font-size:17px;font-weight:700;letter-spacing:-.01em}
+.modal .sub-t{font-size:12.5px;color:var(--muted);margin:2px 0 18px}
+.m-sec{padding:18px 0 0}
+.m-sec+.m-sec{margin-top:26px;padding-top:0}
+.m-sec.tight{margin-top:14px!important}
+.m-sec .lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.m-line{display:flex;gap:8px}
+.m-line input{flex:1}
+.drop{border:1px dashed var(--border-strong);border-radius:var(--r);padding:18px;text-align:center;color:var(--muted);font-size:13px;cursor:pointer}
+.drop:hover{border-color:var(--accent);color:var(--accent)}
+.m-msg{font-size:12px;color:var(--ink-sub);min-height:16px;margin-top:6px}
+.m-foot{display:flex;justify-content:flex-end;margin-top:18px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.quiet{background:var(--bg);color:var(--ink-sub);border-color:var(--border-strong)}
+.btn.quiet:hover{background:var(--bg-soft);color:var(--text)}
+.vd-note{font-size:13px;color:var(--muted);margin-bottom:16px}
+.vd-note .link{font-size:13px;cursor:pointer}
+.vd-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.vd-grid .lbl{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px}
+.vd-item{border:1px solid var(--border);border-radius:var(--r-sm);padding:8px 12px;margin-bottom:8px}
+.vd-item b{display:block;font-size:13px}
+.vd-item span{display:block;font-size:12px;color:var(--muted);line-height:1.45}
+.sb-empty{border:1px dashed var(--border-strong);border-radius:var(--r);padding:28px;text-align:center;color:var(--muted);font-size:13px;margin-bottom:8px}
+.chip.ent{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.chip.flag{background:#FFF6E5;border-color:#F2D9A6;color:#7A4B00}
+.ct{border:1px solid var(--border);border-radius:var(--r-sm);padding:10px 12px;margin-bottom:8px}
+.ct-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ct-head input{flex:1;min-width:0;padding:6px 12px;font-weight:600}
+.ct-used{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.ct textarea{min-height:52px;padding:8px 12px;font-size:12.5px;line-height:1.5}
+.ct .link{white-space:nowrap;cursor:pointer}
+.ct.add{border-style:dashed}
+.ct-msg{font-size:12px;color:var(--ink-sub);min-height:16px;margin-top:4px}
+.m-checks{display:flex;flex-wrap:wrap;gap:6px}
+.pick{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:500;color:var(--ink-sub);border:1px solid var(--border);border-radius:999px;padding:4px 11px;transition:all .12s}
+.pick svg{display:none}
+.pick:hover{border-color:var(--faint);color:var(--text)}
+.pick.on{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.pick.on svg{display:block}
+.sc-detail .wide{grid-column:1/-1}
+.sc-detail textarea{min-height:64px;padding:9px 14px;font-size:13px}
+.as-card{border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;margin-bottom:8px}
+.as-card .n{font-weight:600}
+.as-card .k2{font-size:12px;color:var(--muted);margin-left:8px}
+.as-card p{font-size:13px;color:var(--ink-sub);margin-top:2px}
+.ct-cards{display:flex;flex-wrap:wrap;gap:8px}
+.ct-card{text-align:left;border:1px solid var(--border);border-radius:var(--r-sm);padding:7px 12px;min-width:120px;background:var(--bg)}
+.ct-card:hover{border-color:var(--faint);background:var(--bg-soft)}
+.ct-card b{display:block;font-size:13px;font-weight:600}
+.ct-card span{display:block;font-size:11.5px;color:var(--muted)}
+.ct-card.add{border-style:dashed;color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500}
+.ct-card.add:hover{color:var(--accent);border-color:var(--accent);background:var(--bg)}
+.e-foot{display:flex;align-items:center;gap:8px;margin-top:16px}
+.btn.e-del{color:var(--red);border-color:transparent}
+.btn.e-del:hover{background:#FEF1F0;border-color:transparent}
+.render-opts{display:grid;grid-template-columns:minmax(0,280px) minmax(0,220px);gap:16px;justify-content:start}
+.job{display:none;align-items:center;gap:12px;margin-top:14px;font-size:12.5px;color:var(--ink-sub)}
+.job.on{display:flex}
+.job-bar{flex:0 0 180px;height:4px;border-radius:2px;background:var(--border);overflow:hidden}
+.job-bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s linear}
+.job.err{justify-content:space-between;border:1px solid #F3C7C3;background:#FEF1F0;color:#8A1C13;border-radius:var(--r-sm);padding:9px 12px}
+.job.err b{font-weight:600}
+.job.err .btn{background:var(--bg);flex-shrink:0}
+.new-opts{display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start}
+.seg.locked,select.locked{opacity:.55;pointer-events:none}
+.lock-note{display:flex;gap:7px;align-items:flex-start;font-size:12px;color:var(--muted);padding:6px 0 0;line-height:1.45}
+.lock-note svg{margin-top:2px}
+.preview.wide{aspect-ratio:16/9;width:420px}
+.preview.done{background:#1B1B1F;border-color:#1B1B1F;color:#fff;position:relative;cursor:pointer}
+.preview.done .pl{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.16);display:grid;place-items:center}
+.preview.done .tm{position:absolute;left:10px;bottom:9px;font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.8)}
+.empty{text-align:center;padding:72px 0 24px}
+.empty b{display:block;font-size:17px;font-weight:600;margin-bottom:6px}
+.empty p{font-size:13px;color:var(--muted);margin-bottom:22px}
+@media (max-width:1267px){body.l-open{padding-left:var(--left-w)}}
+@media (max-width:1435px){body.r-open{padding-right:var(--right-w)}}
+/* New-run */
+.big-input{font-size:18px;padding:16px 18px}
+
+/* ── Creator additions (the mockup had no real media, long lists or errors) ── */
+.err-line{display:none;border:1px solid #F3C7C3;background:#FEF1F0;color:#8A1C13;border-radius:var(--r-sm);padding:9px 12px;font-size:12.5px;margin-bottom:16px}
+.err-line.on{display:block}
+.job .spin{width:12px;height:12px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--accent);animation:spin .8s linear infinite;flex-shrink:0}
+@keyframes spin{to{transform:rotate(360deg)}}
+.job.warn{border:1px solid var(--border);border-radius:var(--r-sm);padding:9px 12px;flex-wrap:wrap}
+.job.err{flex-wrap:wrap}
+.sc-thumb{background-size:cover;background-position:center}
+.sc.busy .sc-thumb{opacity:.45}
+.preview video{width:100%;height:100%;border-radius:inherit;background:#1B1B1F;object-fit:contain}
+.preview.has-video{border-color:#1B1B1F;background:#1B1B1F}
+.char-row{display:grid;grid-template-columns:180px 1fr 30px;gap:8px;margin-bottom:8px;align-items:start}
+.char-row textarea{min-height:40px;padding:9px 14px;font-size:13px;line-height:1.45}
+.split-pop{position:fixed;z-index:50;display:none;background:var(--bg);border:1px solid var(--border);border-radius:var(--r-sm);box-shadow:0 8px 24px rgba(18,18,21,.12);padding:4px}
+.split-pop.on{display:block}
+.split-pop button{font-size:12.5px;font-weight:600;padding:5px 10px;border-radius:4px;color:var(--accent)}
+.split-pop button:hover{background:var(--accent-soft)}
+.sc-vo .w.picked{background:var(--accent-soft);color:var(--accent)}
+.sc-vo .w{cursor:pointer}
+.plan-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:14px 0 6px}
+.plan-grid b{display:block;font-size:20px;font-weight:700;letter-spacing:-.01em}
+.plan-grid span{font-size:12px;color:var(--muted)}
+.seg button:disabled{opacity:.5;cursor:not-allowed}
+.soon{font-size:11px;color:var(--faint);margin-left:4px}
+.set-val{font-size:13px;color:var(--ink-sub)}
+.wc.over{color:var(--red);font-weight:600}
+a.btn{text-decoration:none}
+.crumb a{text-decoration:none}
+</style>
+</head>
+<body class="l-open">
+
+<!-- ═════════ LEFT PANEL ═════════ -->
+<aside class="panel left" id="left">
+  <div class="p-head">
+    <span class="brand">CF <span style="color:var(--faint);font-weight:500">Create</span></span>
+    <button class="icon-btn" onclick="Creator.toggleLeft(false)" title="Hide panel" aria-label="Hide panel">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path d="M15.5 10l-2 2 2 2"/></svg>
+    </button>
+  </div>
+  <div class="p-body">
+    <a class="nav-btn" href="#new" style="color:var(--text);font-weight:600;text-decoration:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New video</a>
+    <a class="nav-btn" id="nav-runs" href="#runs" style="text-decoration:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>My videos</a>
+  </div>
+  <div style="padding:10px 18px 14px;border-top:1px solid var(--border)">
+    <button class="nav-btn" onclick="Creator.logOut()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4M15 8l4 4-4 4M19 12H9"/></svg>Log out</button>
+  </div>
+</aside>
+
+<!-- ═════════ RIGHT PANEL ═════════ -->
+<aside class="panel right closed" id="right">
+  <div class="p-head" style="padding:64px 18px 6px"><span class="brand" id="right-title" style="font-size:17px;letter-spacing:-.01em"></span></div>
+  <div class="p-body" style="padding-top:8px">
+    <div class="tab" id="tab-settings">
+      <div class="set-row"><div class="k">Format</div><span class="set-val" id="set-format"></span></div>
+      <div class="set-row"><div class="k">Look</div><span class="set-val">Animated</span></div>
+      <div class="set-row"><div class="k">Language</div><span class="set-val" id="set-lang"></span></div>
+      <div class="lock-note"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Format, look and language were chosen when the video was created.</div>
+      <div class="set-row" style="display:block;margin-top:10px">
+        <div class="k" style="margin-bottom:8px">Master visual style</div>
+        <textarea rows="4" style="min-height:96px;font-size:13px" id="set-style" maxlength="2000" onchange="Creator.saveStyle()" placeholder="The look every image shares, e.g. flat 2D illustration, warm muted palette."></textarea>
+        <div class="h" id="set-style-hint" style="margin-top:6px"></div>
+      </div>
+      <div class="set-row" style="display:block">
+        <div class="k" style="margin-bottom:8px">Characters</div>
+        <div id="set-chars"></div>
+      </div>
+    </div>
+    <div class="tab help" id="tab-help"><h3 id="help-title"></h3><ul id="help-list"></ul></div>
+    <div class="tab" id="tab-details"></div>
+  </div>
+</aside>
+
+<!-- Floating controls -->
+<button class="icon-btn fab l hidden" id="left-open" onclick="Creator.toggleLeft(true)" title="Show panel" aria-label="Show panel">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path d="M13.5 10l2 2-2 2"/></svg>
+</button>
+<div class="fab r" id="right-open">
+  <button class="icon-btn run-only hidden" data-r="settings" onclick="Creator.openRight('settings')" title="Video settings" aria-label="Video settings">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+  </button>
+  <button class="icon-btn run-only hidden" data-r="details" onclick="Creator.openRight('details')" title="Video details" aria-label="Video details">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 3h6v3H9zM9 11h6M9 15h4"/></svg>
+  </button>
+  <button class="icon-btn" data-r="help" onclick="Creator.openRight('help')" title="Information" aria-label="Information">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+  </button>
+</div>
+
+<!-- ═════════ MAIN (centred) ═════════ -->
+<main class="main">
+
+  <!-- My videos: the landing screen -->
+  <section class="screen on" id="s-runs">
+    <div class="crumb">&nbsp;</div>
+    <div class="page-head">
+      <h1>My videos</h1>
+      <a class="btn primary" href="#new">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>New video</a>
+    </div>
+    <div class="err-line" id="runs-err"></div>
+    <div class="run-list" id="run-list"></div>
+  </section>
+
+  <!-- New video -->
+  <section class="screen" id="s-new">
+    <div class="crumb"><a href="#runs">My videos</a> / New video</div>
+    <div class="page-head"><h1>New video</h1></div>
+    <div class="err-line" id="new-err"></div>
+    <label class="field"><span class="lbl">What is the video about?</span>
+      <input type="text" class="big-input" id="new-title" maxlength="300" placeholder="The fox who was afraid of the dark">
+    </label>
+    <div class="new-opts">
+      <div class="field"><span class="lbl">Format</span><div class="seg" id="new-ar"><button class="on" data-v="9:16">9:16</button><button data-v="16:9">16:9</button></div></div>
+      <div class="field"><span class="lbl">Look</span><div class="seg" id="new-look"><button class="on" data-v="animated">Animated</button><button data-v="realistic" disabled title="Coming soon">Realistic<span class="soon">soon</span></button></div></div>
+      <label class="field"><span class="lbl">Language</span><select id="new-lang" style="width:160px"><option value="en">English</option><option value="ru">Русский</option></select></label>
+    </div>
+    <label class="field"><span class="lbl">Master visual style</span>
+      <textarea id="new-style" rows="2" maxlength="2000" style="min-height:64px" placeholder="The look every image shares, e.g. flat 2D illustration, warm muted palette, soft shadows."></textarea>
+    </label>
+    <div class="field"><span class="lbl">Characters</span>
+      <div id="new-chars"></div>
+      <button class="link" id="new-char-add" onclick="Creator.addCharRow()">+ Add a character</button>
+      <p class="meta" style="margin-top:6px">Only these people will appear in the video. With none, the characters are invented from the script.</p>
+    </div>
+    <div class="step-foot" style="justify-content:flex-start">
+      <button class="btn primary" id="new-create" onclick="Creator.createRun()">Create video</button>
+      <a class="btn" href="#runs" style="border-color:transparent">Cancel</a>
+    </div>
+    <p class="meta" style="margin-top:14px">Format, look and language cannot be changed later.</p>
+  </section>
+
+  <!-- One video -->
+  <section class="screen" id="s-run">
+    <div class="crumb"><a href="#runs">My videos</a></div>
+    <div class="page-head"><h1 id="run-title"></h1></div>
+    <nav class="steps" id="steps" aria-label="Steps"></nav>
+
+    <!-- Script -->
+    <div class="step" data-step="0">
+      <div class="err-line" id="err-script"></div>
+      <textarea id="script" oninput="Creator.onScript()" placeholder="Paste your script here…"></textarea>
+      <div class="step-foot">
+        <button class="btn next" id="script-next" onclick="Creator.next()" disabled>Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <span class="meta wc" id="script-wc"></span>
+      </div>
+    </div>
+
+    <!-- Voice -->
+    <div class="step" data-step="1">
+      <div class="err-line" id="err-voice"></div>
+      <label class="field" style="max-width:240px"><span class="lbl">Voice</span><select id="voice-pick" onchange="Creator.saveVoice()"></select></label>
+      <div class="vo-track" id="vo-track">
+        <button class="vo-play" id="vo-play" onclick="Creator.toggleVo()" aria-label="Play voiceover">
+          <svg id="vo-ico" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>
+        </button>
+        <div class="vo-wave" id="vo-wave"></div>
+        <span class="vo-time" id="vo-time"></span>
+      </div>
+      <div class="step-foot">
+        <button class="btn accent" id="vo-gen" onclick="Creator.genVoice()">Generate voiceover</button>
+        <button class="btn next" id="vo-next" onclick="Creator.next()" disabled>Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="job" id="job-voice"></div>
+    </div>
+
+    <!-- Storyboard -->
+    <div class="step" data-step="2">
+      <div class="err-line" id="err-sb"></div>
+      <button class="link gen-toggle hidden" id="ct-link" onclick="document.getElementById('ct-box').classList.toggle('on')"></button>
+      <div class="gen-box" id="ct-box"></div>
+      <div id="scenes"></div>
+      <div class="step-foot">
+        <button class="btn accent" id="sb-create" onclick="Creator.askCreateSb()">Create storyboard</button>
+        <button class="btn accent" id="sb-assets" onclick="Creator.planAssets()" disabled>Create assets</button>
+        <button class="btn next" id="sb-next" onclick="Creator.next()" disabled>Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        <span class="meta" id="sc-meta"></span>
+      </div>
+      <div class="job" id="job-sb"></div>
+    </div>
+
+    <!-- Render -->
+    <div class="step" data-step="3">
+      <div class="err-line" id="err-render"></div>
+      <div class="render-opts">
+        <label class="field"><span class="lbl">Captions</span>
+          <select id="cap-pick" onchange="Creator.saveCaptions()"><option value="none">No captions</option><option value="standard">Standard — 5 words, word highlight</option><option value="punch">Punch — one word, ALL CAPS</option></select>
+        </label>
+        <label class="field"><span class="lbl">Background music</span>
+          <select id="music-pick" onchange="Creator.onMusicPick()"><option value="none">No music</option><option value="upload">Upload a track…</option></select>
+          <input type="file" id="music-file" accept="audio/mpeg,audio/wav,audio/mp4" class="hidden" onchange="Creator.uploadMusic(this)">
+        </label>
+      </div>
+      <div class="preview" id="preview"></div>
+      <p class="meta" id="render-meta" style="margin-bottom:0"></p>
+      <div class="step-foot" id="render-foot"></div>
+      <div class="job" id="job-render"></div>
+    </div>
+  </section>
+</main>
+
+<div class="split-pop" id="split-pop"><button onclick="Creator.confirmSplit()">Split here</button></div>
+
+<!-- Scene image -->
+<div class="modal-bd" id="modal" onmousedown="if(event.target===this)Creator.closeModal()">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="icon-btn m-x" onclick="Creator.closeModal()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="m-title"></h2>
+    <div class="m-sec" id="m-ents-sec">
+      <span class="lbl">Uses</span>
+      <div class="m-checks" id="m-ents"></div>
+    </div>
+    <div class="m-sec tight">
+      <span class="lbl">Image prompt</span>
+      <textarea id="m-ai" rows="3" style="min-height:76px" placeholder="What is in this frame. The style and the characters are added for you."></textarea>
+      <div class="m-line" style="margin-top:8px"><button class="btn sm" id="m-gen" onclick="Creator.genSceneImage()">Generate</button></div>
+    </div>
+    <div class="m-sec">
+      <span class="lbl">Upload your own</span>
+      <div class="drop" onclick="document.getElementById('m-file').click()">Drop an image, or click to choose</div>
+      <input type="file" id="m-file" class="hidden" accept="image/jpeg,image/png,image/webp" onchange="Creator.uploadSceneImage(this)">
+    </div>
+    <div class="m-msg" id="m-msg"></div>
+  </div>
+</div>
+
+<!-- Confirm / estimate -->
+<div class="modal-bd" id="cmodal" onmousedown="if(event.target===this)Creator.closeConfirm()">
+  <div class="modal" role="alertdialog" aria-modal="true" style="max-width:440px">
+    <h2 id="c-title"></h2>
+    <div id="c-text" style="font-size:13.5px;color:var(--ink-sub);margin-top:8px"></div>
+    <div class="e-foot"><button class="btn accent sm" id="c-ok"></button><button class="btn sm" onclick="Creator.closeConfirm()">Cancel</button></div>
+  </div>
+</div>
+
+<!-- Character / prop / setting -->
+<div class="modal-bd" id="emodal" onmousedown="if(event.target===this)Creator.closeEntry()">
+  <div class="modal" role="dialog" aria-modal="true" style="max-width:460px">
+    <button class="icon-btn m-x" onclick="Creator.closeEntry()" aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <h2 id="e-title"></h2>
+    <div class="m-sec">
+      <div class="row" style="grid-template-columns:140px 1fr;gap:12px">
+        <label class="field" style="margin-bottom:14px"><span class="lbl">Kind</span><select id="e-kind"></select></label>
+        <label class="field" style="margin-bottom:14px"><span class="lbl">Name</span><input type="text" id="e-name" maxlength="80" placeholder="e.g. the red bicycle"></label>
+      </div>
+      <label class="field" style="margin-bottom:6px"><span class="lbl">Description</span><textarea id="e-desc" rows="4" style="min-height:96px" placeholder="Shape, colours, every detail that must not change."></textarea></label>
+      <div class="meta" id="e-used"></div>
+      <div class="m-msg" id="e-msg"></div>
+    </div>
+    <div class="e-foot">
+      <button class="btn accent sm" id="e-save" onclick="Creator.saveEntry()">Save</button>
+      <span style="flex:1"></span>
+      <button class="btn sm e-del" id="e-del" onclick="Creator.deleteEntry()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="/ui/creator.js"></script>
+</body>
+</html>

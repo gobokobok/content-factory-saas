@@ -144,6 +144,11 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `HITL_TIMEOUT_SECONDS` | No | Auto-approve timeout for HITL script gate (P6-S3). `0` = wait indefinitely; positive = auto-approve after N seconds. Default: `0`. |
 | `GEMINI_API_KEY` | P6-S7+ | Google AI Studio API key for Gemini 2.5 Flash TTS (D061). When absent, voice_production skips TTS and uses proportional timestamp fallback. |
 | `GEMINI_TTS_VOICE` | P6-S7+ | Gemini TTS voice name (D061). Options: `Kore`, `Nova`, `Aoede`, `Zephyr`, `Puck`, `Charon`, `Fenrir`, `Orbit`, `Stella`, `Juniper`. Default (when unset): no TTS. |
+| `CREATOR_VOICE_MALE` | No | Gemini TTS voice for a Creator run whose voice is "male" (D117). Default: `Charon`. A run with no choice uses `GEMINI_TTS_VOICE`. |
+| `CREATOR_VOICE_FEMALE` | No | Gemini TTS voice for a Creator run whose voice is "female" (D117). Default: `Kore`. |
+| `CREATOR_PROJECT_NAME` | No | Name given to the project the Creator pages (`/create`) keep their runs in when it is first created (D117). Default: `My videos`. Renaming the project later does not create a second one. |
+| `CREATOR_SCRIPT_MAX_WORDS` | No | Word limit the Creator's Script step shows and will not go past (D117). Default: `450` (about three minutes). Not enforced by the server yet. |
+| `SFX_ENABLED` | No | Per-scene sound effects in the render and the CapCut export (D114). Default: `false` — off for every run, in the Studio too; the storyboard keeps each scene's choice, so `true` brings them back. |
 | `DEEPGRAM_API_KEY` | P6-S7+ | Deepgram Nova-2 API key for word-level timestamp alignment (D045). When absent, voice_production falls back to proportional timestamps (confidence=0.0). |
 
 > Discovery may optionally use `praw`/`pytrends` instead of raw httpx — only if pragmatic, and only with a DECISIONS.md entry. X/Twitter is intentionally excluded (free-tier constraint); added later via Apify.

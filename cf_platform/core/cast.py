@@ -12,10 +12,12 @@ showed one show the protagonist instead.
 from dataclasses import dataclass
 from typing import Any
 
-from cf_platform.core.project_assets import list_assets
+from cf_platform.core.project_assets import list_assets, slug
 from src.models import ContinuityEntry, Storyboard
 
-CAST_MODES = ("free", "single")
+CAST_MODES = ("free", "single", "listed")
+# The most characters a run may list (mirrors src.models.MAX_RUN_CHARACTERS).
+MAX_LISTED_CHARACTERS = 6
 PROTAGONIST_ID = "protagonist"
 MAX_PROTAGONIST_CHARS = 1200
 
@@ -113,3 +115,81 @@ def enforce_single_cast(storyboard: Storyboard, rule: CastRule | None) -> Storyb
                 entities.append(mapped)
         scenes.append(scene.model_copy(update={"entities": entities}) if entities != (scene.entities or []) else scene)
     return storyboard.model_copy(update={"continuity": continuity, "scenes": scenes})
+
+
+# ── Listed characters (D117) ─────────────────────────────────────────────────
+# The Creator flow asks for the characters when the run is created. They are the
+# only characters the director may use: the same idea as the single-cast rule,
+# for several people.
+
+
+def resolve_listed_cast(settings: dict[str, Any]) -> list[CastRule]:
+    """The run's listed characters as rules, in the order given; [] unless cast_mode is "listed".
+
+    Each character's id is the slug of its name (its position when the name has no
+    slug), so a re-created storyboard gives the same person the same id. Unnamed,
+    undescribed and duplicate entries are skipped.
+    """
+    if settings.get("cast_mode") != "listed":
+        return []
+    rules: list[CastRule] = []
+    seen: set[str] = set()
+    for index, raw in enumerate(settings.get("characters") or []):
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "").strip()
+        description = str(raw.get("description") or "").strip()[:MAX_PROTAGONIST_CHARS]
+        # A name with no Latin letters or digits (e.g. Cyrillic) has no slug: number it instead.
+        entry_id = slug(name) or f"character_{index + 1}"
+        if not name or not description or entry_id in seen:
+            continue
+        seen.add(entry_id)
+        rules.append(CastRule(entry_id, name, description))
+        if len(rules) >= MAX_LISTED_CHARACTERS:
+            break
+    return rules
+
+
+def listed_prompt_block(rules: list[CastRule]) -> str:
+    """The storyboard worker's message section for a listed cast; '' without one."""
+    if not rules:
+        return ""
+    if len(rules) == 1:
+        return prompt_block(rules[0])
+    people = "\n".join(f'- id "{r.entry_id}" ({r.name}): {r.description}' for r in rules)
+    return (
+        "CAST RULE — the people of this video are fixed. These are the ONLY characters:\n"
+        f"{people}\n"
+        "Put exactly these in `continuity` (kind \"character\", these ids; their descriptions are fixed "
+        "and added in code) and use them wherever a scene shows a person. Do NOT create any other "
+        "character entry. Anyone else may appear only as unidentifiable background — far-off crowds, "
+        "silhouettes, hands — never as a depicted character. A scene does not need a person: when the "
+        "narration is about someone who is not listed, show it through objects, places or documents."
+    )
+
+
+def enforce_listed_cast(storyboard: Storyboard, rules: list[CastRule]) -> Storyboard:
+    """Make the storyboard use only the listed characters, whatever the model returned.
+
+    One listed character behaves as the single-cast rule (a scene that showed an invented
+    person shows the listed one). With several, there is no telling which listed person an
+    invented one stood for, so the invented character is removed from the bible and from
+    its scenes. Every listed character is in the bible with its given description, used or
+    not; props and settings are untouched.
+    """
+    if not rules:
+        return storyboard
+    if len(rules) == 1:
+        return enforce_single_cast(storyboard, rules[0])
+    listed = {rule.entry_id: rule for rule in rules}
+    removed = {e.id for e in storyboard.continuity if e.kind == "character" and e.id not in listed}
+    entries = [
+        ContinuityEntry(id=rule.entry_id, kind="character", name=rule.name, description=rule.description)
+        for rule in rules
+    ]
+    others = [e for e in storyboard.continuity if e.id not in listed and e.id not in removed]
+    scenes = []
+    for scene in storyboard.scenes:
+        entities = [entity_id for entity_id in scene.entities or [] if entity_id not in removed]
+        scenes.append(scene.model_copy(update={"entities": entities}) if entities != (scene.entities or []) else scene)
+    return storyboard.model_copy(update={"continuity": [*entries, *others], "scenes": scenes})

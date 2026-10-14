@@ -24,6 +24,7 @@ from cf_platform.interfaces.dependencies import (  # noqa: F401
 )
 from cf_platform.interfaces.routes import (
     blocks,
+    creator,
     echo,
     library,
     meta,
@@ -76,6 +77,7 @@ router.include_router(studio_ai.router)
 router.include_router(studio_animation.router)
 router.include_router(studio_providers.router)
 router.include_router(studio_visuals.router)
+router.include_router(creator.router)
 router.include_router(studio_voice.router)
 router.include_router(runs.router)
 router.include_router(projects.router)

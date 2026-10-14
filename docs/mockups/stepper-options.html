@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stepper and colour options</title>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&family=Fragment+Mono&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FAFAFA;--bg-soft:#F0F0F2;--border:#E7E7E9;--border-strong:#B4B4BA;
+  --text:#121215;--ink-sub:#55555C;--muted:#8B8B92;--faint:#B4B4BA;
+  --accent:#2E45EC;--accent-soft:#EEF0FE;--done:#12805C;
+  --font:'Schibsted Grotesk',system-ui,sans-serif;--mono:'Fragment Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 var(--font);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+.wrap{max-width:780px;margin:0 auto;padding:48px 24px 96px}
+h1{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:6px}
+.sub{color:var(--muted);margin-bottom:28px}
+.bar{position:sticky;top:0;background:var(--bg);padding:14px 0;margin-bottom:8px;display:flex;gap:24px;flex-wrap:wrap;z-index:2;border-bottom:1px solid var(--border)}
+.grp{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:3px;gap:2px}
+.seg button{padding:4px 12px;border-radius:999px;font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.seg button.on{background:var(--bg-soft);color:var(--text);font-weight:600}
+.sw{width:10px;height:10px;border-radius:50%}
+.opt{padding:28px 0 8px}
+.opt h2{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:400;margin-bottom:4px}
+.opt p{font-size:13px;color:var(--ink-sub);margin-bottom:18px;max-width:600px}
+.demo{padding:4px 0 8px}
+.cta{display:flex;gap:10px;margin-top:22px}
+.btn{display:inline-flex;align-items:center;height:36px;padding:0 16px;border-radius:6px;font-size:13px;font-weight:600;border:1px solid var(--border)}
+.btn.accent{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.next{color:var(--accent);border-color:var(--accent)}
+.chip{font-size:11.5px;font-weight:500;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:2px 9px}
+
+/* A — segmented progress */
+.a{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.a button{text-align:left;padding-top:10px;border-top:3px solid var(--border);color:var(--faint);font-size:13px;font-weight:500}
+.a button i{font-style:normal;font-family:var(--mono);font-size:10px;display:block;margin-bottom:1px}
+.a .done{border-color:var(--done);color:var(--ink-sub)}
+.a .cur{border-color:var(--accent);color:var(--text);font-weight:600}
+
+/* B — plain tabs */
+.b{display:flex;gap:26px;border-bottom:1px solid var(--border)}
+.b button{padding:0 0 10px;margin-bottom:-1px;border-bottom:2px solid transparent;color:var(--faint);font-size:13.5px;font-weight:500;display:flex;align-items:center;gap:6px}
+.b .done{color:var(--ink-sub)}
+.b .done svg{color:var(--done)}
+.b .cur{color:var(--text);font-weight:600;border-color:var(--accent)}
+
+/* C — circles, refined */
+.c{display:flex;align-items:center;gap:6px;font-size:13.5px}
+.c button{display:flex;align-items:center;gap:8px;padding:6px 10px 6px 0;color:var(--faint)}
+.c .n{width:22px;height:22px;border-radius:50%;border:1px solid var(--border-strong);display:grid;place-items:center;font-size:11.5px;font-weight:600}
+.c .done{color:var(--ink-sub)}
+.c .done .n{background:var(--done);border-color:var(--done);color:#fff}
+.c .cur{color:var(--text);font-weight:600}
+.c .cur .n{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.c .ln{flex:1;max-width:44px;height:1px;background:var(--border)}
+.c .ln.f{background:var(--done)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Pipeline steps and colours</h1>
+  <p class="sub">Three ways to show the steps, each shown with Storyboard as the current step. Switch the colours at the top to compare.</p>
+
+  <div class="bar">
+    <div class="grp">Completed
+      <div class="seg" id="done-seg">
+        <button data-v="#12805C"><span class="sw" style="background:#12805C"></span>Green (now)</button>
+        <button data-v="#121215" class="on"><span class="sw" style="background:#121215"></span>Ink</button>
+        <button data-v="accent"><span class="sw" style="background:var(--accent)"></span>Same blue</button>
+      </div>
+    </div>
+    <div class="grp">Blue
+      <div class="seg" id="blue-seg">
+        <button data-v="#2E45EC|#EEF0FE" class="on"><span class="sw" style="background:#2E45EC"></span>Now</button>
+        <button data-v="#2743C9|#ECEFFB"><span class="sw" style="background:#2743C9"></span>Deeper</button>
+        <button data-v="#3A4DA8|#ECEEF7"><span class="sw" style="background:#3A4DA8"></span>Muted</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="opt">
+    <h2>A · Segmented bar</h2>
+    <p>Four equal segments across the working area. Reads as progress at a glance and lines up with the content below.</p>
+    <div class="demo"><div class="a">
+      <button class="done"><i>1</i>Script</button><button class="done"><i>2</i>Voice</button><button class="cur"><i>3</i>Storyboard</button><button><i>4</i>Render</button>
+    </div></div>
+  </div>
+
+  <div class="opt">
+    <h2>B · Plain tabs</h2>
+    <p>The quietest option: words only, an underline on the current step, a small tick on finished ones.</p>
+    <div class="demo"><div class="b">
+      <button class="done"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>Script</button>
+      <button class="done"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>Voice</button>
+      <button class="cur">Storyboard</button><button>Render</button>
+    </div></div>
+  </div>
+
+  <div class="opt">
+    <h2>C · Numbered circles, refined</h2>
+    <p>What you have now, with the lines filling in as steps finish and the current step ringed in blue.</p>
+    <div class="demo"><div class="c">
+      <button class="done"><span class="n">✓</span>Script</button><span class="ln f"></span>
+      <button class="done"><span class="n">✓</span>Voice</button><span class="ln f"></span>
+      <button class="cur"><span class="n">3</span>Storyboard</button><span class="ln"></span>
+      <button><span class="n">4</span>Render</button>
+    </div></div>
+  </div>
+
+  <div class="opt">
+    <h2>The blue in use</h2>
+    <p>How the selected blue looks on the buttons and chips used across the screens.</p>
+    <div class="cta"><button class="btn accent">Create assets</button><button class="btn next">Next →</button><button class="btn">Download for CapCut</button><span class="chip" style="align-self:center">Maya</span></div>
+  </div>
+</div>
+<script>
+const root=document.documentElement.style;let doneV='#121215';
+function seg(id,fn){const g=document.getElementById(id);g.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;[...g.children].forEach(x=>x.classList.toggle('on',x===b));fn(b.dataset.v)})}
+const applyDone=()=>root.setProperty('--done',doneV==='accent'?getComputedStyle(document.documentElement).getPropertyValue('--accent'):doneV);
+seg('done-seg',v=>{doneV=v;applyDone()});
+seg('blue-seg',v=>{const [a,t]=v.split('|');root.setProperty('--accent',a);root.setProperty('--accent-soft',t);applyDone()});
+applyDone();
+</script>
+</body>
+</html>

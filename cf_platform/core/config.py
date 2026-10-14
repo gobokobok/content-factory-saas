@@ -55,6 +55,18 @@ class PlatformSettings(BaseSettings):
     HITL_TIMEOUT_SECONDS: int = 0
     GEMINI_API_KEY: str = ""
     GEMINI_TTS_VOICE: str = ""
+    # D117 — the two narrator voices a run may choose in the Creator pages (Gemini TTS
+    # voice names). A run with no choice uses GEMINI_TTS_VOICE.
+    CREATOR_VOICE_MALE: str = "Charon"
+    CREATOR_VOICE_FEMALE: str = "Kore"
+    # D117 — the fixed project the Creator pages keep their runs in until every user
+    # has a hidden personal project (P-AUTH).
+    CREATOR_PROJECT_NAME: str = "My videos"
+    # D117 — word limit the Creator's Script step shows (about three minutes of narration).
+    CREATOR_SCRIPT_MAX_WORDS: int = 450
+    # D114 (6) — per-scene sound effects in the render and the CapCut export. Off by
+    # default for every tier: they did not sound natural.
+    SFX_ENABLED: bool = False
     DEEPGRAM_API_KEY: str = ""
     # Same ENV var names as src/config.py — reused by the native AcquisitionWorker (P9-S3).
     PEXELS_API_KEY: str = ""

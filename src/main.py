@@ -199,6 +199,12 @@ def settings_ui() -> FileResponse:
     return FileResponse(_STATIC_DIR / "settings.html", headers=_NO_CACHE)
 
 
+@app.get("/create", include_in_schema=False)
+def creator_ui() -> FileResponse:
+    """Serve the Creator pages — the simplified flow beside the Studio (P-LITE, D114, D117)."""
+    return FileResponse(_STATIC_DIR / "creator.html", headers=_NO_CACHE)
+
+
 @app.get("/studio", include_in_schema=False)
 def studio_ui() -> FileResponse:
     """Serve the Studio pipeline UI for one run (`/studio#run/<run_id>/<stage>`)."""

@@ -26,6 +26,11 @@ async def latest_artifact_key(storage: ArtifactStorage, run_id: str, stage: str,
     return key
 
 
+def sfx_enabled(settings: object) -> bool:
+    """Whether per-scene sound effects are on for this deployment (SFX_ENABLED, D114); off unless set."""
+    return bool(getattr(settings, "SFX_ENABLED", False))
+
+
 async def prepare_run_timeline(
     storage: ArtifactStorage,
     run_id: str,
@@ -38,6 +43,7 @@ async def prepare_run_timeline(
     write: bool = False,
     require_alignment: bool = False,
     existing_media_only: bool = False,
+    sfx_enabled: bool = True,
 ):
     """Build a run's Timeline from its latest artifacts (P13b-S1).
 
@@ -54,6 +60,9 @@ async def prepare_run_timeline(
     needs the voiceover and its word timing). existing_media_only checks the run's
     files in storage: optional music / SFX that are absent are dropped from the
     timeline, a missing scene file or voiceover is a 409.
+
+    sfx_enabled=False (the deployment's SFX_ENABLED, D114) builds the timeline with no
+    sound effects, whatever the storyboard's scenes name.
     """
     from datetime import datetime
 
@@ -68,6 +77,7 @@ async def prepare_run_timeline(
         MissingAssetsError,
         TimelineArtifact,
         build_run_timeline,
+        without_sfx,
     )
     from cf_platform.workers.voice_production import VoiceAlignmentArtifact
     from src.models import AssetManifest, Storyboard
@@ -81,6 +91,8 @@ async def prepare_run_timeline(
     _, sb_body = await read_artifact(storage, sb_key)
     _, mf_body = await read_artifact(storage, mf_key)
     storyboard = Storyboard.model_validate(_sanitize_storyboard_data(sb_body["storyboard"]))
+    if not sfx_enabled:
+        storyboard = without_sfx(storyboard)
     raw_manifest = mf_body.get("manifest") or {}
     if not raw_manifest.get("entries"):
         raise HTTPException(status_code=404, detail="No asset manifest — acquire assets first.")
