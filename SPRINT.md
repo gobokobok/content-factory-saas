@@ -77,20 +77,20 @@ Legacy Script→Video stays untouched and operable (D047).
 ## Sprint P-CORE — the full Studio in the new design, for Super (D118, D121)
 
 **Goal:** the owner makes a whole realistic video — from an idea in a project to a rendered file and metadata — without leaving `/create`, and the old Studio can retire.
-**Status:** **built 2026-10-14 on `sprint/p-core` (not merged, not pushed; DEV smoke pending).** One pass, full scope confirmed by the operator.
+**Status:** **DONE 2026-10-14 — on DEV; smoke PARTIAL → P-CORE-S11 (Sprint P-BILL-1).** Closed together with the UX pass after the operator's first DEV use (mobile panels, AI assets and Images libraries, named voices, script lock, reordered settings).
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
-| CORE-S1 | Super shell: hash routes, left menu, Projects list, New project | 2 | built, smoke pending |
-| CORE-S2 | Project page: overview, ideas, videos, settings, project assets | 4 | built, smoke pending |
-| CORE-S3 | Libraries: videos, audio, footage, AI generations, music | 2 | built, smoke pending |
-| CORE-S4 | Integrations and Defaults | 3 | built, smoke pending |
-| CORE-S5 | New video for Super (project, realistic / animated); Script step sources: paste, generate, from a voiceover | 3 | built, smoke pending |
-| CORE-S6 | Voice: pace and style, upload, transcript editing, language check | 3 | built, smoke pending |
-| CORE-S7 | Realistic look: stock acquisition, asset type, search words, re-acquire, script view, SFX | 4 | built, smoke pending |
-| CORE-S8 | Cast, run language, look change, save to project assets | 2 | built, smoke pending |
-| CORE-S9 | Metadata step, CapCut export and upload, Auto-advance | 3 | built, smoke pending |
-| CORE-S10 | Retire the old pages: redirects, deleted files, tests, docs | 2 | built, smoke pending |
+| CORE-S1 | Super shell: hash routes, left menu, Projects list, New project | 2 | done |
+| CORE-S2 | Project page: overview, ideas, videos, settings, project assets | 4 | done |
+| CORE-S3 | Libraries: videos, audio, footage, AI generations, music | 2 | done |
+| CORE-S4 | Integrations and Defaults | 3 | done |
+| CORE-S5 | New video for Super (project, realistic / animated); Script step sources: paste, generate, from a voiceover | 3 | done |
+| CORE-S6 | Voice: pace and style, upload, transcript editing, language check | 3 | done |
+| CORE-S7 | Realistic look: stock acquisition, asset type, search words, re-acquire, script view, SFX | 4 | done |
+| CORE-S8 | Cast, run language, look change, save to project assets | 2 | done |
+| CORE-S9 | Metadata step, CapCut export and upload, Auto-advance | 3 | done |
+| CORE-S10 | Retire the old pages: redirects, deleted files, tests, docs | 2 | done |
 
 **Human touchpoint:** as the owner on DEV, open `/create`, start a video in a project from an idea, make it realistic, and take it to metadata.
 
