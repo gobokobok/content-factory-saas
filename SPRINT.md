@@ -40,7 +40,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-UX4 | Pipeline flow and polish (EPIC 56) | ~21 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Create a run from the minimal modal and walk all five steps with Next only |
 | P-HARD1 | Audit and hardening: first `/audit`, loud voice failure, word-matching regression suite, bulk-job guard, cost-log backfill | ~11 | **done** 2026-10-13 | Read `docs/SECURITY.md`; a failed voice says so and offers Retry |
 | P-HARD2 | Backups and restore drill, the audit's small fixes, deploy safety (EPIC 60) | ~8 | **done** 2026-10-14 (smoke cleared 2026-10-14 review) | Read the RUNBOOK backup section; `/legacy` gone; a failed migration shows in health |
-| P-AUTH | Google sign-in, accounts, Basic / Super with View as Basic, per-user isolation, server-side gating (EPIC 59, D114, D118); `/audit` first | ~18 | **planned** (approved 2026-10-14 review) | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
+| P-AUTH | Google sign-in, accounts, Basic / Super with View as Basic, per-user isolation, server-side gating (EPIC 59, D114, D118); `/audit` first | ~24 | **planned** (approved 2026-10-14 review; S8, S9 added by the audit) | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
 | P-LITE | The Creator flow for regular users (EPIC 59, D114, D117); S1..S5 built before P-AUTH, S6 gating moves to P-AUTH | ~16 | **done** 2026-10-14 (smoke passed) | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
 | P-CORE | The full Studio in the new design, for Super (D118) | ~20–30 | planned (after P-AUTH; order against P-BILL-1 set at the P-AUTH close) | Every Studio feature reachable in the new design; the old Studio pages retire |
 | P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114) | ~13 | planned | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
@@ -77,24 +77,25 @@ Legacy Script→Video stays untouched and operable (D047).
 ## Sprint P-AUTH — Google sign-in, accounts, Basic / Super, isolation (EPIC 59, D114, D118)
 
 **Goal:** a stranger can sign in with Google and use only their own space; the owner can see the product as a Basic user.
-**Status:** planned 2026-10-14 (review of P-HARD1 .. P-LITE). **Before AUTH-S1:** run a scoped `/audit` on the auth and tenant design (the sprint touches auth and personal data).
-**Points:** ~18 (estimates are the review's; refine at `/start-story`)
+**Status:** planned 2026-10-14 (review of P-HARD1 .. P-LITE). **Audit run 2026-10-14** (`docs/SECURITY.md`: 3 critical, 5 high); its build constraints are folded into S1, S3, S6, S8 and S9. **Rule:** Google sign-in stays allow-listed until S3 and S6 are merged — until then a second account is a full operator.
+**Points:** ~24 (estimates are the review's and the audit's; refine at `/start-story`)
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | AUTH-S0 | Set `PROD_URL`; see the post-deploy check pass on PROD (operator action, F11) | 1 | planned |
-| AUTH-S1 | Google OAuth sign-in and account creation; a session per user, legacy login kept for the owner | 3 | planned |
+| AUTH-S1 | Google OAuth sign-in and account creation; signed sessions in a table (7–30 days, revoked on logout, rotated at login); server-side `state` + PKCE, fixed `redirect_uri` from config, `next` allow-list, users keyed by `sub`, Origin check on mutating routes; legacy login kept for the owner (F6) | 4 | planned |
 | AUTH-S2 | User ↔ tenant model: one personal tenant and one hidden default project per user | 2 | planned |
-| AUTH-S3 | Thread the user through storage keys, repositories and routes (replace `PLATFORM_USER_ID`, ~80 uses) | 4 | planned |
+| AUTH-S3 | Thread the user through repositories and routes (replace `PLATFORM_USER_ID`, 87 uses): `tenant_id` on every repo method, `require_run` / `require_project` on every run-scoped route, library and `/platform/runs` filtered by tenant, legacy `DELETE /runs/{id}` and settings moved behind `require_run`, `run_id` path pattern, F5 fallback fix (F2, F5) | 6 | planned |
 | AUTH-S4 | Account type Basic / Super (D118) as a field and a server-side check; View-as-Basic toggle | 2 | planned |
 | AUTH-S5 | Isolation tests: user A cannot read or write user B's run, project, artifact, library | 2 | planned |
-| AUTH-S6 | Server-side gating of everything Basic does not have (was LITE-S6); D115 moderation checks | 2 | planned |
+| AUTH-S6 | Server-side gating of everything Basic does not have (was LITE-S6): `require_super` on every non-Creator route; `/platform/version`, `echo`, `produce` Super-only; Telegram unmounted; in-memory repo fallback fails closed outside local | 2 | planned |
 | AUTH-S7 | Super's left menu in the new design, linking to the old pages until P-CORE | 1 | planned |
-| AUDIT-F | Fixes for F2, F5, F6, F8, F13 from `docs/SECURITY.md` (inside S3 / S6 where they belong) | — | planned |
+| AUTH-S8 | Server caps and cost bounds: script words, prompt / style / character lengths, runs per day, per-tenant daily spend row checked before every paid call (LLM, TTS, image, `write-prompt`, render), per-user render concurrency, per-tenant storage quota (F8, F4) | 3 | planned |
+| AUTH-S9 | Moderation gate (D115) in front of storyboard, voice, `write-prompt` and image generate, plus a terms-acceptance row at first sign-in; prompt log per tenant (F13) | 3 | planned |
 
-**Execution order:** `/audit` → S0 → S1 → S2 → S3 → S4 → S6 → S5 → S7. Check the DEV Railway variables each story touches before coding (`/start-story` v0.8 step 6.5).
+**Execution order:** S0 → S1 → S2 → S3 → S4 → S6 → S5 → S8 → S9 → S7. S8 and S9 are required before sign-in is opened beyond the allow-list. Check the DEV Railway variables each story touches before coding (`/start-story` v0.8 step 6.5).
 **Human touchpoint:** a friend signs in with Google and lands in their own, empty space; the owner flips View-as between Basic and Super.
-**Not in this sprint:** P-CORE, P-BILL-1 (charging; the Creator shows estimates only), INT2-S1, the restore drill (F1).
+**Not in this sprint:** P-CORE, P-BILL-1 (charging; the credit ledger replaces S8's interim daily spend row), INT2-S1, the restore drill (F1), F16 key rotation, F19 `ffprobe`, a CSP header (candidate).
 
 ## Scope changes
 
