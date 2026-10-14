@@ -714,6 +714,15 @@ class RunCharacter(BaseModel):
 MAX_RUN_CHARACTERS = 6
 
 
+# Gemini TTS prebuilt voice names a run may be set to (the Creator lists a few of them).
+GEMINI_VOICE_NAMES = (
+    "Zephyr", "Puck", "Charon", "Kore", "Fenrir", "Leda", "Orus", "Aoede", "Callirrhoe", "Autonoe", "Enceladus",
+    "Iapetus", "Umbriel", "Algieba", "Despina", "Erinome", "Algenib", "Rasalgethi", "Laomedeia", "Achernar",
+    "Alnilam", "Schedar", "Gacrux", "Pulcherrima", "Achird", "Zubenelgenubi", "Vindemiatrix", "Sadachbia",
+    "Sadaltager", "Sulafat",
+)
+
+
 class VideoSettings(BaseModel):
     """Video production settings stored in settings.json and wired into the render pipeline."""
 
@@ -752,7 +761,16 @@ class VideoSettings(BaseModel):
     protagonist_text: str = Field(default="", max_length=1200)
     characters: list[RunCharacter] = Field(default_factory=list, max_length=MAX_RUN_CHARACTERS)
     # D117 — the narrator's voice for this run; None means the deployment's GEMINI_TTS_VOICE.
-    voice: Literal["male", "female"] | None = None
+    # A Gemini voice name ("Charon"), or the older "male" / "female" aliases.
+    voice: str | None = None
+
+    @field_validator("voice")
+    @classmethod
+    def _known_voice(cls, v: str | None) -> str | None:
+        """Only "male" / "female" or a Gemini TTS voice name is a voice."""
+        if v is not None and v not in ("male", "female", *GEMINI_VOICE_NAMES):
+            raise ValueError(f"Unknown voice {v!r}")
+        return v
 
     @field_validator("master_style", mode="before")
     @classmethod

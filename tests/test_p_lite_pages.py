@@ -72,8 +72,8 @@ class TestScope:
 
     @pytest.mark.parametrize("needle", [
         "CapCut", "capcut", "Auto-advance", "autoadv", "Integrations", "Defaults", "All projects",
-        "Generate a script", "idea-to-script", "narration_pace", "Pace", "voice/upload", "Upload my own",
-        "Sound effect", "sfx", "Save to library", "assets/from-run", "Cast",
+        "Generate a script", "idea-to-script", "narration_pace", "voice/upload", "Upload my own",
+        "Sound effect", "sfx", "Save to library", "Cast",
     ])
     def test_what_the_creator_leaves_out_is_not_there(self, page, js, needle):
         assert needle not in page and needle not in js

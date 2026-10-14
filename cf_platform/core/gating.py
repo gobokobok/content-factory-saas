@@ -27,12 +27,18 @@ _BASIC_ROUTES: tuple[tuple[frozenset[str] | None, re.Pattern[str]], ...] = tuple
         (frozenset({"GET"}), r"/health"),
         (frozenset({"GET"}), r"/ui/.+"),
         # The Libraries Basic has: its own videos, AI generations and the shared BG music (tenant-scoped server-side).
-        (frozenset({"GET"}), r"/platform/library/(videos|ai|music)"),
+        (frozenset({"GET"}), r"/platform/library/(videos|ai|images|music)"),
         # Session routes (view-as and the like check Super themselves).
         (None, r"/auth/.+"),
         # The Creator's own routes.
         (frozenset({"GET"}), r"/platform/creator/config"),
+        (frozenset({"GET"}), rf"/platform/creator/voice-samples/{_ID}"),
         (frozenset({"POST"}), r"/platform/creator/runs"),
+        (frozenset({"DELETE"}), rf"/platform/creator/runs/{_ID}"),
+        # The AI assets library: the account's own characters, places and objects.
+        (frozenset({"GET", "POST"}), r"/platform/creator/assets"),
+        (frozenset({"POST"}), r"/platform/creator/assets/from-run"),
+        (frozenset({"PATCH", "DELETE"}), rf"/platform/creator/assets/{_ID}"),
         (frozenset({"GET"}), rf"/platform/projects/{_ID}/runs"),
         # The Studio routes the Creator pages call (creator.js).
         (frozenset({"GET"}), rf"/platform/studio/runs/{_ID}/(context|ai-spend|manifest|script|video|voice|voice/status|render/status|storyboard/status)"),
@@ -48,8 +54,6 @@ _BASIC_ROUTES: tuple[tuple[frozenset[str] | None, re.Pattern[str]], ...] = tuple
         (frozenset({"POST"}), rf"/platform/studio/runs/{_ID}/scenes/{_ID}/(generate|upload|prompt-preview)"),
         # The run's own settings (the Creator reads and writes the look, cast and voice).
         (frozenset({"GET", "POST"}), rf"/runs/{_ID}/settings"),
-        # Writing a script from an idea (capped, moderated and spend-gated server-side; tenant-scoped by run_id).
-        (frozenset({"POST"}), r"/platform/blocks/idea-to-script"),
         # The three long jobs.
         (frozenset({"POST"}), r"/platform/workers/(voice|storyboard|render)"),
     )

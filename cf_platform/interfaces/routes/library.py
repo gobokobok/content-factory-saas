@@ -30,7 +30,7 @@ from cf_platform.interfaces.dependencies import (
 from cf_platform.interfaces.routes._helpers import latest_artifact_key
 
 # The libraries a Basic account has.
-BASIC_LIBRARY_KINDS = ("videos", "ai", "music")
+BASIC_LIBRARY_KINDS = ("videos", "ai", "images", "music")
 
 router = APIRouter()
 

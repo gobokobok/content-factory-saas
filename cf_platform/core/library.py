@@ -6,7 +6,8 @@ belongs to, and a download link. Nothing is indexed or copied — the listing re
 run folders — so a library can never disagree with the runs; the price is one storage
 listing per run, which is fine at a single operator's scale.
 
-Libraries: videos, audio, footage (acquired or uploaded images and clips), ai
+Libraries: videos, audio, footage (acquired or uploaded images and clips), images (stock and
+AI-generated stills together), ai
 (AI-generated images, including replaced ones) and music (the platform's background tracks and the ones the tenant uploaded; no sound effects).
 """
 
@@ -16,9 +17,9 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-LIBRARY_KINDS = ("videos", "audio", "footage", "ai", "music")
+LIBRARY_KINDS = ("videos", "audio", "footage", "ai", "images", "music")
 
-_ID_PREFIX = {"videos": "VID", "audio": "AUD", "footage": "FTG", "ai": "AIG", "music": "MUS"}
+_ID_PREFIX = {"videos": "VID", "audio": "AUD", "footage": "FTG", "ai": "AIG", "images": "IMG", "music": "MUS"}
 _VIDEO_EXT = (".mp4", ".mov", ".webm")
 _IMAGE_EXT = (".jpg", ".jpeg", ".png", ".webp")
 _AUDIO_EXT = (".mp3", ".wav", ".m4a")
@@ -90,6 +91,17 @@ def classify_run_keys(
             is_video = ext in _VIDEO_EXT
             out.append({"key": key, "name": _name(key), "facts": "video" if is_video else "image",
                         "facet": "video" if is_video else "image"})
+    elif kind == "images":
+        # Every still of the account: images acquired from stock or uploaded, and AI-generated ones.
+        used = in_use or set()
+        for key in sorted(keys.get("video", []) + keys.get("images", [])):
+            if _ext(key) not in _IMAGE_EXT:
+                continue
+            if _AI_MARK in _name(key):
+                state = "in use" if key in used else "replaced"
+                out.append({"key": key, "name": _name(key), "facts": f"AI image · {state}", "facet": "AI generated"})
+            else:
+                out.append({"key": key, "name": _name(key), "facts": "stock or uploaded image", "facet": "Stock"})
     elif kind == "ai":
         used = in_use or set()
         for key in sorted(keys.get("images", [])):
@@ -152,7 +164,8 @@ async def _run_listing(storage: Any, run_id: str, folders: tuple[str, ...]) -> d
     return dict(zip(folders, lists, strict=True))
 
 
-_FOLDERS = {"videos": ("output",), "audio": ("voiceover",), "footage": ("video", "images"), "ai": ("images",)}
+_FOLDERS = {"videos": ("output",), "audio": ("voiceover",), "footage": ("video", "images"), "ai": ("images",),
+            "images": ("video", "images")}
 
 
 async def list_run_assets(
@@ -165,7 +178,7 @@ async def list_run_assets(
     """
     keys = await _run_listing(storage, run.run_id, _FOLDERS[kind])
     in_use: set[str] = set()
-    if kind == "ai" and keys.get("images") and manifest_keys is not None:
+    if kind in ("ai", "images") and keys.get("images") and manifest_keys is not None:
         try:
             in_use = await manifest_keys(run.run_id)
         except Exception:

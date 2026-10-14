@@ -53,13 +53,13 @@
     }
 
     // Script: source bar, generate box, voiceover box.
-    const script = qs('script');
-    script.insertAdjacentHTML('beforebegin', `
+    // Basic has no script generation or voiceover upload: its Script step is the plain text box.
+    if (!BASIC) qs('script').insertAdjacentHTML('beforebegin', `
       <div class="core-src" id="src-bar" style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">
         <button class="link" data-s="generate" onclick="CoreRun.setSource('generate')">Generate script with AI</button>
         ${BASIC ? '' : '<button class="link" data-s="upload" onclick="CoreRun.setSource(\'upload\')">Start from a voiceover</button>'}</div>
       <div class="gen-box" id="gen-box">
-        <input type="hidden" id="gen-idea"><input type="hidden" id="gen-niche">
+        <label class="field"><span class="lbl">Idea / topic</span><input type="text" id="gen-idea" maxlength="300" placeholder="Why starter homes disappeared from America"></label>
         <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
           <label class="field" style="margin:0"><span class="lbl">Duration</span>
             <select id="gen-dur" style="width:160px"><option value="30">30 seconds</option><option value="60">1 minute</option><option value="90" selected>1.5 minutes</option><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option><option value="600">10 minutes</option></select></label>
@@ -114,20 +114,21 @@
         <button class="btn sm" id="cc-up" onclick="document.getElementById('cc-file').click()">Upload edited video</button></div>
         <input type="file" id="cc-file" class="hidden" accept="video/mp4" onchange="CoreRun.ccUpload(this)"><div class="m-msg" id="cc-msg"></div></div>`);
 
-    // Auto-advance beside the title.
-    qs('run-title').insertAdjacentHTML('afterend', `<button class="btn sm core-auto" id="auto-btn" onclick="CoreRun.toggleAuto()" title="Run each step as soon as the one before it finishes. Image generation still asks first.">Auto-advance</button>`);
+    // Auto-advance lives in the video settings; a small flag by the title shows when it is on.
+    qs('run-title').insertAdjacentHTML('afterend', '<span class="meta hidden" id="auto-flag">Auto-advance on</span>');
     qs('run-title').parentElement.style.gap = '12px';
 
     // Save to project assets, in the character dialog.
     qs('e-save').insertAdjacentHTML('afterend', '<button class="btn sm" id="e-lib" onclick="CoreRun.saveToLibrary()">Save to project assets</button>');
 
-    // Right panel: look, language and cast.
-    qs('tab-settings').insertAdjacentHTML('beforeend', '<div id="core-settings"></div>');
+    // Right panel: one Look, one Language and one Cast section replace the read-only rows of the Creator's panel.
+    ['row-look', 'row-lang', 'row-chars'].forEach(id => qs(id).classList.add('hidden'));
   }
 
   // ── Script ────────────────────────────────────────────────────────────────
 
   function paintScriptSource() {
+    if (BASIC) { qs('script-next').disabled = !A.scriptOk(); return; }
     const src = CR.src || (uploadedVoice() ? 'upload' : 'paste');
     qs('src-bar').querySelectorAll('button').forEach(b => { b.style.fontWeight = b.dataset.s === src ? '700' : ''; });
     qs('gen-box').classList.toggle('on', src === 'generate');
@@ -180,12 +181,10 @@
   }
 
   async function genScript() {
-    const idea = (S().run.name || '').trim() || qs('gen-idea').value.trim();
+    const idea = qs('gen-idea').value.trim();
     if (!idea) { A.err('#err-script', 'Say what the script is about.'); return; }
     A.err('#err-script', '');
     const body = { idea_title: idea, target_duration_seconds: parseInt(qs('gen-dur').value, 10), run_id: S().run.id };
-    const niche = qs('gen-niche').value.trim();
-    if (niche) body.niche = niche;
     const points = (S().context && S().context.supporting_points) || [];
     if (points.length) body.supporting_points = points;
     qs('gen-btn').disabled = true;
@@ -548,25 +547,31 @@
 
   // ── Run settings (right panel): look, language, cast ──────────────────────
 
+  /** The video settings, in one order: Auto-advance, Format, Look, Language, Master style, Cast. */
   function paintSettingsExtras() {
-    const box = qs('core-settings');
-    if (!box || !S().run) return;
-    const stock = isStock(), locked = !!S().sb;
-    const looks = `<div class="seg ${''}" id="set-look"><button class="${stock ? 'on' : ''}" onclick="CoreRun.setLook('realistic')">Realistic</button><button class="${stock ? '' : 'on'}" onclick="CoreRun.setLook('animated')">Animated</button></div>`;
-    const assets = (((S().context && S().context.project && S().context.project.config) || {}).assets || []).filter(a => a.kind === 'character');
-    const cast = S().settings.cast_mode || 'free';
-    box.innerHTML = `<div class="set-row" style="display:block"><div class="k" style="margin-bottom:8px">Look</div>${looks}
-        <div class="h" style="margin-top:6px">${locked ? 'The storyboard was cut for this look. Changing it asks first and discards the storyboard.' : (stock ? 'Scenes are stock footage and images.' : 'Every scene is a generated image in one master style.')}</div></div>
-      <div class="set-row" style="display:block"><div class="k" style="margin-bottom:8px">Language</div>
-        <select onchange="CoreRun.setLanguage(this.value)">${Object.entries(H.LANGS).map(([k, v]) => `<option value="${k}"${k === S().run.language ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>
-      ${stock ? '' : `<div class="set-row" style="display:block"><div class="k" style="margin-bottom:8px">Cast</div>
-        <select onchange="CoreRun.setCast(this.value)">
-          <option value="free"${cast === 'free' ? ' selected' : ''}>The director invents the characters</option>
-          <option value="single"${cast === 'single' ? ' selected' : ''}>One person through the whole video</option>
-          ${cast === 'listed' ? '<option value="listed" selected>Only the characters listed on creation</option>' : ''}</select>
-        ${cast === 'single' ? `<select style="margin-top:8px" id="cast-asset" onchange="CoreRun.saveCast()"><option value="">Describe a character below</option>${assets.map(a => `<option value="${esc(a.id)}"${a.id === S().settings.protagonist_asset_id ? ' selected' : ''}>${esc(a.name)} (project character)</option>`).join('')}</select>
-          <textarea id="cast-text" rows="3" maxlength="1200" style="min-height:70px;margin-top:8px" placeholder="Age, hair, clothes — every detail that must stay the same" onchange="CoreRun.saveCast()" ${S().settings.protagonist_asset_id ? 'disabled' : ''}>${esc(S().settings.protagonist_text || '')}</textarea>` : ''}
-        <div class="h" style="margin-top:6px">Applies the next time the storyboard is created.</div></div>`}`;
+    const auto = qs('core-auto'), top = qs('core-top'), castBox = qs('core-cast');
+    if (!auto || !top || !castBox || !S().run) return;
+    const stock = isStock(), locked = !!S().sb, voiced = !!S().voice;
+    auto.innerHTML = `<div class="set-row"><div class="k">Auto-advance</div>
+      <div class="seg" id="auto-seg"><button class="${CR.auto ? '' : 'on'}" onclick="CoreRun.setAuto(false)">Off</button><button class="${CR.auto ? 'on' : ''}" onclick="CoreRun.setAuto(true)">On</button></div></div>`;
+    top.innerHTML = `<div class="set-row"><div class="k">Look</div>
+        <div class="seg" id="set-look"><button class="${stock ? 'on' : ''}" onclick="CoreRun.setLook('realistic')">Realistic</button><button class="${stock ? '' : 'on'}" onclick="CoreRun.setLook('animated')">Animated</button></div></div>
+      <div class="set-row"><div class="k">Language</div>
+        <select ${voiced ? 'disabled title="Fixed once the voiceover exists"' : ''} onchange="CoreRun.setLanguage(this.value)">${Object.entries(H.LANGS).map(([k, v]) => `<option value="${k}"${k === S().run.language ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></div>`;
+    if (stock) { castBox.innerHTML = ''; return; }
+
+    const listed = S().settings.characters || [];
+    const custom = CR.castCustom != null ? CR.castCustom : (S().settings.cast_mode || 'free') !== 'free';
+    const fixed = locked;   // the storyboard already uses the cast; characters are added in its dialog
+    const items = listed.map((c, i) => `<div class="cast-item"><input type="text" maxlength="80" value="${esc(c.name)}" placeholder="Name" ${fixed ? 'disabled' : ''} onchange="CoreRun.castSave()">
+        <textarea maxlength="1200" placeholder="Age, hair, clothes — every detail that must stay the same" ${fixed ? 'disabled' : ''} onchange="CoreRun.castSave()">${esc(c.description)}</textarea>
+        ${fixed ? '' : `<button class="icon-btn cast-x" onclick="CoreRun.castRemove(this)" title="Remove" aria-label="Remove character"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`}</div>`).join('');
+    const max = (S().cfg && S().cfg.max_characters) || 6;
+    castBox.innerHTML = `<div class="set-row"><div class="k">Cast</div>
+        <div class="seg" id="set-cast"><button class="${custom ? '' : 'on'}" onclick="CoreRun.setCast('free')">AI Director</button><button class="${custom ? 'on' : ''}" onclick="CoreRun.setCast('custom')">Custom</button></div></div>
+      ${custom ? `<div id="cast-list">${items}</div>
+        ${fixed || listed.length >= max ? '' : `<div class="cast-links"><button class="link" onclick="CoreRun.castAdd()">+ Add a character</button><button class="link" onclick="CoreRun.castLibrary()">Select from library</button></div>
+        <div class="gen-box" id="cast-lib" style="margin-top:10px"></div>`}` : ''}`;
   }
   async function setLook(look) {
     const stock = isStock();
@@ -585,16 +590,60 @@
     await A.openRun(S().run.id);
     A.paintRun();
   }
+  /** AI Director: the model invents the characters. Custom: only the characters listed in the panel. */
   async function setCast(mode) {
-    S().settings.cast_mode = mode;
-    await A.saveSettings({ cast_mode: mode });
+    CR.castCustom = mode === 'custom';
+    if (mode === 'free') {
+      S().settings.cast_mode = 'free';
+      await A.saveSettings({ cast_mode: 'free' });
+    }
     paintSettingsExtras();
   }
-  async function saveCast() {
-    const asset = qs('cast-asset') ? qs('cast-asset').value : '';
-    const text = qs('cast-text') ? qs('cast-text').value.slice(0, 1200) : '';
-    S().settings.protagonist_asset_id = asset; S().settings.protagonist_text = text;
-    await A.saveSettings({ protagonist_asset_id: asset, protagonist_text: text });
+  /** Save the characters shown in the panel; a half-filled row is skipped, none left means AI Director. */
+  async function castSave() {
+    const rows = [...document.querySelectorAll('#cast-list .cast-item')];
+    const characters = rows.map(r => ({ name: r.querySelector('input').value.trim(), description: r.querySelector('textarea').value.trim() }))
+      .filter(c => c.name && c.description);
+    const patch = { characters, cast_mode: characters.length ? 'listed' : 'free' };
+    const res = await A.saveSettings(patch);
+    if (!res.ok) { H.toast(`Not saved: ${A.why(res)}`); return; }
+    CR.castCustom = true;
+    paintSettingsExtras();
+  }
+  function castAdd() {
+    const list = qs('cast-list');
+    if (!list) return;
+    list.insertAdjacentHTML('beforeend', `<div class="cast-item"><input type="text" maxlength="80" placeholder="Name" onchange="CoreRun.castSave()">
+      <textarea maxlength="1200" placeholder="Age, hair, clothes — every detail that must stay the same" onchange="CoreRun.castSave()"></textarea>
+      <button class="icon-btn cast-x" onclick="CoreRun.castRemove(this)" title="Remove" aria-label="Remove character"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`);
+    list.lastElementChild.querySelector('input').focus();
+  }
+  /** Remove a character row (saved or not yet) and save what is left. */
+  async function castRemove(btn) {
+    btn.closest('.cast-item').remove();
+    await castSave();
+  }
+  /** Show the AI assets library's characters; picking one adds it to this video's cast. */
+  async function castLibrary() {
+    const box = qs('cast-lib');
+    if (!box || box.classList.toggle('on') === false) return;
+    box.innerHTML = '<p class="meta">Loading…</p>';
+    const res = await H.call('/platform/creator/assets');
+    if (!res.ok) { box.innerHTML = `<p class="meta">${esc(A.why(res))}</p>`; return; }
+    CR.libChars = res.data.items.filter(a => a.kind === 'character');
+    box.innerHTML = CR.libChars.length
+      ? CR.libChars.map((a, i) => `<button class="as-card" style="display:block;width:100%;text-align:left" onclick="CoreRun.castPick(${i})"><span class="n">${esc(a.name)}</span><p>${esc(a.description)}</p></button>`).join('')
+      : '<p class="meta">No characters in the library yet.</p>';
+  }
+  async function castPick(i) {
+    const a = (CR.libChars || [])[i];
+    if (!a) return;
+    const cur = S().settings.characters || [];
+    if (cur.some(c => c.name.toLowerCase() === a.name.toLowerCase())) return;
+    const next = [...cur, { name: a.name, description: a.description }];
+    const res = await A.saveSettings({ characters: next, cast_mode: 'listed' });
+    if (!res.ok) { H.toast(`Not saved: ${A.why(res)}`); return; }
+    CR.castCustom = true;
     paintSettingsExtras();
   }
   async function saveToLibrary() {
@@ -606,16 +655,17 @@
 
   // ── Auto-advance ──────────────────────────────────────────────────────────
 
-  function toggleAuto() {
-    CR.auto = !CR.auto;
+  function toggleAuto() { setAuto(!CR.auto); }
+  function setAuto(on) {
+    CR.auto = !!on;
     paintAuto();
+    paintSettingsExtras();
     if (CR.auto) autoStep();
   }
   function paintAuto() {
-    const b = qs('auto-btn');
-    if (!b) return;
-    b.classList.toggle('on', CR.auto);
-    b.textContent = CR.auto ? 'Auto-advance: on' : 'Auto-advance';
+    const flag = qs('auto-flag');
+    if (flag) flag.classList.toggle('hidden', !CR.auto);
+    if (S().right === 'settings' && S().run) paintSettingsExtras();
   }
   /** Start the next step that is ready. Stops at anything that costs money and asks (generated images) or fails. */
   function autoStep() {
@@ -669,7 +719,7 @@
 
   async function onRunOpened() {
     if (!started || BASIC) return;
-    CR.src = null; CR.sel = null; S().upload = null;
+    CR.src = null; CR.sel = null; CR.castCustom = null; S().upload = null;
     const st = S();
     const tasks = [];
     if (uploadedVoice()) tasks.push(loadTranscript());
@@ -770,6 +820,12 @@
     A = app; H = core.helpers; BASIC = !!basic;
     if (!BASIC) {
       A.addHelp({
+        script: ['Script', ['Paste the text the narrator will read, or generate one from an idea with "Generate script with AI".',
+          '"Start from a voiceover" uses your own recording; its transcript becomes the script.',
+          'The word limit keeps the video to a few minutes.',
+          'Auto-advance (in the video settings) runs each step as soon as the one before it finishes. Image generation still asks first, and it stops at anything that fails.',
+          'Look and cast, set in the video settings, apply the next time the storyboard is created.',
+          'Once the voiceover exists the script is locked: a different script is a different video. Use "Start a new video from this one" in the video settings to change the words.']],
         render: ['Render', ['Choose captions and background music, then render the video.', 'When it is done you can play it here and download it.',
           'Edit in CapCut instead: download the timeline, the media and a CapCut guide as a zip, edit there, and upload the finished video back here.']],
         storyboard: ['Storyboard', ['Create the storyboard, check each scene, then create the images.',
@@ -788,6 +844,6 @@
     init, afterPaint, afterStoryboard, afterSettings, onRunOpened, onNew,
     setSource, genScript, uploadVo, trWord, trApply, trRebuild, setLanguage, saveNarration,
     acquire, patchSceneField, reacquireScene, uploadSceneFile, svInput, svApply,
-    ccExport, ccUpload, genMeta, copy, setLook, setCast, saveCast, saveToLibrary, toggleAuto, onProjectPick,
+    ccExport, ccUpload, genMeta, copy, setLook, setCast, castSave, castAdd, castRemove, castLibrary, castPick, saveToLibrary, toggleAuto, setAuto, onProjectPick,
   };
 })();

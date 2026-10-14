@@ -481,6 +481,7 @@ class TestBasicGating:
             ("POST", "/platform/echo"),
             ("POST", "/platform/pipeline/produce"),
             ("POST", "/platform/blocks/niche-to-ideas"),
+            ("POST", "/platform/blocks/idea-to-script"),
             ("GET", "/platform/tenant/integrations"),
             ("PUT", "/platform/tenant/integrations/pexels"),
             ("GET", "/platform/tenant/defaults"),
@@ -546,7 +547,9 @@ class TestBasicGating:
             ("GET", "/platform/library/videos"),
             ("GET", "/platform/library/ai"),
             ("GET", "/platform/library/music"),
-            ("POST", "/platform/blocks/idea-to-script"),
+            ("GET", "/platform/creator/assets"),
+            ("POST", "/platform/creator/assets/from-run"),
+            ("DELETE", "/platform/creator/assets/a1"),
         ]
         assert all(basic_may(m, p) for m, p in allowed)
         refused = [
@@ -803,3 +806,43 @@ class TestBasicLibraries:
         theirs = world.client(other).get("/platform/library/videos").json()["items"]
         assert any(rid in str(i) for i in mine)
         assert all(rid not in str(i) for i in theirs)
+
+
+class TestAiAssetsLibrary:
+    """The AI assets library: each account's own characters, places and objects."""
+
+    def test_an_account_adds_lists_edits_and_removes_its_own_assets(self, world):
+        cookie, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        c = world.client(cookie)
+        made = c.post("/platform/creator/assets", json={"kind": "character", "name": "Maya", "description": "Short curly hair, red scarf."})
+        assert made.status_code == 201, made.text
+        asset_id = made.json()["id"]
+        assert [a["name"] for a in c.get("/platform/creator/assets").json()["items"]] == ["Maya"]
+        assert c.patch(f"/platform/creator/assets/{asset_id}", json={"name": "Maya R."}).json()["name"] == "Maya R."
+        assert c.delete(f"/platform/creator/assets/{asset_id}").status_code == 204
+        assert c.get("/platform/creator/assets").json()["items"] == []
+
+    def test_one_account_never_sees_another_accounts_assets(self, world):
+        a, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        b, _ = run(world.sign_in("other@example.com", "sub-b"))
+        world.client(a).post("/platform/creator/assets", json={"kind": "prop", "name": "Red bike", "description": "A red bicycle."})
+        assert world.client(b).get("/platform/creator/assets").json()["items"] == []
+
+
+class TestDeleteOwnVideo:
+    def test_a_basic_account_deletes_its_own_video_and_not_anothers(self, world):
+        a, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        b, _ = run(world.sign_in("other@example.com", "sub-b"))
+        made = world.client(a).post("/platform/creator/runs", json={"title": "Fox", "aspect_ratio": "9:16", "language": "en"})
+        assert made.status_code == 201, made.text
+        run_id = made.json()["run_id"]
+        assert world.client(b).delete(f"/platform/creator/runs/{run_id}").status_code == 404
+        assert world.client(a).delete(f"/platform/creator/runs/{run_id}").status_code == 204
+
+
+class TestVoiceSamples:
+    def test_basic_may_ask_for_a_sample_but_only_of_a_listed_voice(self, world):
+        assert basic_may("GET", "/platform/creator/voice-samples/Charon")
+        cookie, _ = run(world.sign_in("friend@example.com", "sub-a"))
+        r = world.client(cookie).get("/platform/creator/voice-samples/NotAVoice")
+        assert r.status_code == 404

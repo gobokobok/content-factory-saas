@@ -27,9 +27,11 @@
       'The master visual style is the look every image shares. You can change it until the storyboard is created.',
       'List the characters if you want specific people. Only the people you list appear in the video; with none, the characters are invented from the script.',
       'Describe each character in detail: what you write is used for every image they appear in.']],
-    script: ['Script', ['Paste the text the narrator will read, or generate one from an idea.', 'The word limit keeps the video to a few minutes.']],
-    voice: ['Voice', ['Choose the voice, its speed and its style, then generate the voiceover. Listen before you go on.',
-      'Speed and style are sent to the voice model as an instruction in front of your script.',
+    script: ['Script', ['Paste the text the narrator will read.', 'The word limit keeps the video to a few minutes.',
+      'Once the voiceover exists the script is locked: a different script is a different video. Use "Start a new video from this one" in the video settings to change the words.']],
+    voice: ['Voice', ['Choose the voice, its pace and its style, then generate the voiceover. Listen before you go on.',
+      'Pace and style are sent to the voice model as an instruction in front of your script.',
+      'Pace: Slow is about 145 words per minute, Normal about 160, Fast about 172.',
       'Generating again replaces the voiceover. A storyboard made for the old one has to be created again.']],
     storyboard: ['Storyboard', ['Create the storyboard, check each scene, then create the images.',
       'Click a scene to change its image prompt, motion or on-screen text. Click the pencil to change its image.',
@@ -184,6 +186,30 @@
       last = y;
     }, { passive: true });
   }
+  /** Copy this video's title, look, cast and script into a fresh video, so the words can change. */
+  async function startFromThis() {
+    if (!S.run) return;
+    const st = S.settings || {};
+    const body = {
+      title: S.run.name, aspect_ratio: S.run.format || '9:16', language: S.run.language || 'en',
+      master_style: st.master_style || '', characters: st.characters || [], look: st.look === 'realistic' ? 'realistic' : 'animated',
+    };
+    const text = $('#script').value;
+    const res = await api('/platform/creator/runs', { method: 'POST', body });
+    if (!res.ok) { err('#err-script', `Not started: ${why(res)}`); return; }
+    try { localStorage.setItem(`cf_creator_script_${res.data.run_id}`, text); } catch { /* private mode */ }
+    S.right = null; paintRight();
+    go(`#run/${encodeURIComponent(res.data.run_id)}/script`);
+  }
+  /** Delete the open video, after asking. It leaves the Runs list and the libraries. */
+  async function deleteRun() {
+    if (!S.run) return;
+    if (!await confirmBox('Delete this video?', 'It disappears from your Runs and libraries. This cannot be undone.', 'Delete')) return;
+    const res = await api(`/platform/creator/runs/${encodeURIComponent(S.run.id)}`, { method: 'DELETE' });
+    if (!res.ok) { err('#err-script', `Not deleted: ${why(res)}`); return; }
+    S.right = null; paintRight();
+    go('#runs');
+  }
   async function logOut() { await fetch('/auth/logout', { method: 'POST' }); location.href = '/login'; }
 
   // ── Account: who is signed in, Super's menu, View as Basic (P-AUTH S7, D118) ──
@@ -199,13 +225,13 @@
     await mountSuperMenu(me.effective_type !== 'super');
     await loadCore(me.effective_type !== 'super');
     $('#view-as').classList.toggle('hidden', !isSuper);
-    $('#view-as-label').textContent = me.view_as_basic ? 'Switch back to Super' : 'View as Basic';
+    $('#view-as-label').textContent = me.view_as_basic ? 'View as Super' : 'View as Basic';
     document.querySelectorAll('.view-banner').forEach(b => b.remove());
     document.body.classList.toggle('has-banner', !!me.view_as_basic);
     if (me.view_as_basic) {
       const bar = document.createElement('div');
       bar.className = 'view-banner';
-      bar.innerHTML = 'Viewing as a Basic user. Nothing is charged to a Basic account. <button onclick="Creator.toggleViewAs()">Switch back</button>';
+      bar.innerHTML = 'Viewing as a Basic user. Nothing is charged to a Basic account. <button onclick="Creator.toggleViewAs()">View as Super</button>';
       document.body.appendChild(bar);
     }
     if (me.abuse_contact) { const a = $('#report-abuse'); a.href = 'mailto:' + me.abuse_contact + '?subject=Content%20Factory%20problem'; a.classList.remove('hidden'); }
@@ -265,13 +291,13 @@
   }
   function paintSettings() {
     if (!S.run) return;
-    $('#set-format').textContent = S.run.format || '9:16';
+    $$('#set-format-seg button').forEach(b => b.classList.toggle('on', b.dataset.v === (S.run.format || '9:16')));
     $('#set-lang').textContent = LANGS[S.run.language] || S.run.language || 'English';
-    const locked = !!S.sb;
+    const locked = sbScenes().some(hasAsset);
     const style = $('#set-style');
     if (document.activeElement !== style) style.value = S.settings.master_style || '';
     style.disabled = locked;
-    $('#set-style-hint').textContent = locked ? 'Fixed once the storyboard is created.' : 'Used for every image. Change it before you create the storyboard.';
+    $('#set-style-hint').textContent = locked ? 'Fixed once the first image is made.' : 'Used for every image. Change it until the first image is made.';
     const chars = S.settings.characters || [];
     $('#set-chars').innerHTML = chars.length
       ? chars.map(c => `<div class="as-card" style="padding:8px 12px"><span class="n">${esc(c.name)}</span><p>${esc(c.description)}</p></div>`).join('')
@@ -306,7 +332,7 @@
     S.runs = res.data;
     const box = $('#run-list');
     if (!S.runs.length) {
-      box.innerHTML = '<div class="empty"><b>No videos yet</b><p>A video goes from your script to a finished file in four steps.</p><a class="btn primary" href="#new">New video</a></div>';
+      box.innerHTML = '<div class="empty"><b>No videos yet</b><p>A video goes from your script to a finished file in four steps.</p></div>';
       return;
     }
     const arrow = '<svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
@@ -330,6 +356,39 @@
     $('#new-char-add').classList.remove('hidden');
     $('#new-create').disabled = false;
     $('#new-title').focus();
+  }
+  /** Open the AI assets library under the characters: pick one to add it to the video's cast. */
+  async function toggleLibrary() {
+    const box = $('#new-lib-box');
+    if (box.classList.toggle('on') === false) return;
+    box.innerHTML = '<p class="meta">Loading…</p>';
+    const res = await api('/platform/creator/assets');
+    if (!res.ok) { box.innerHTML = `<p class="meta">${esc(why(res))}</p>`; return; }
+    const chars = res.data.items.filter(a => a.kind === 'character');
+    S.libChars = chars;
+    box.innerHTML = chars.length
+      ? chars.map((a, i) => `<button class="as-card" style="display:block;width:100%;text-align:left" onclick="Creator.pickLibrary(${i})"><span class="n">${esc(a.name)}</span><p>${esc(a.description)}</p></button>`).join('')
+      : '<p class="meta">No characters in the library yet. Save one from a storyboard, or add it under Libraries → AI assets.</p>';
+  }
+  /** Add the chosen library character as a row of the cast (the user can still edit it). */
+  function pickLibrary(i) {
+    const a = (S.libChars || [])[i];
+    if (!a) return;
+    const rows = [...$('#new-chars').children];
+    if (rows.some(r => r.querySelector('input').value.trim().toLowerCase() === a.name.toLowerCase())) return;
+    if (rows.length >= S.cfg.max_characters) { err('#new-err', `A video can list up to ${S.cfg.max_characters} characters.`); return; }
+    addCharRow();
+    const row = $('#new-chars').lastElementChild;
+    row.querySelector('input').value = a.name;
+    row.querySelector('textarea').value = a.description;
+    $('#new-lib-box').classList.remove('on');
+  }
+  /** Save the entry open in the dialog to the account's AI assets library. */
+  async function saveToAssets() {
+    const msg = $('#e-msg');
+    if (!S.entryId) { msg.textContent = 'Save it first, then add it to the AI assets.'; return; }
+    const res = await api('/platform/creator/assets/from-run', { method: 'POST', body: { run_id: S.run.id, entry_id: S.entryId } });
+    msg.textContent = res.ok ? 'Saved to your AI assets. Pick it when you create a new video.' : `Not saved: ${why(res)}`;
   }
   function addCharRow() {
     const box = $('#new-chars');
@@ -460,7 +519,15 @@
     if (S.right) paintRight();
   }
 
+  /** The words are fixed once a generated voiceover exists; an uploaded recording has its own transcript editor. */
+  const scriptLocked = () => !!S.voice && !(S.context && S.context.voice_source === 'uploaded');
   function paintScript() {
+    const locked = scriptLocked();
+    $('#script').readOnly = locked;
+    $('#script').title = locked ? 'The script is locked once the voiceover exists. Use "Start a new video from this one" in the video settings to change it.' : '';
+    const bar = $('#src-bar');
+    if (bar) bar.classList.toggle('hidden', locked);
+    if (locked) { const gb = $('#gen-box'); if (gb) gb.classList.remove('on'); }
     const w = scriptWords(), max = S.cfg.script_max_words;
     const wc = $('#script-wc');
     wc.textContent = `${w} of ${max} words`;
@@ -472,10 +539,21 @@
 
   // ── Voice ─────────────────────────────────────────────────────────────────
 
+  const PH_ICONS = {
+    storyboard: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M9 5v14"/>',
+    video: '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/>',
+    voice: '<path d="M12 4v16M8 8v8M4 11v2M16 8v8M20 11v2"/>',
+  };
+  /** The empty state every step uses: a dashed frame, a small icon, what is missing and what will appear. */
+  function placeholder(kind, title, hint) {
+    return `<div class="ph"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">${PH_ICONS[kind]}</svg><b>${esc(title)}</b><span>${esc(hint)}</span></div>`;
+  }
   function paintVoice() {
     const pick = $('#voice-pick');
     if (!pick.options.length) pick.innerHTML = S.cfg.voices.map(v => `<option value="${esc(v.id)}">${esc(v.label)}</option>`).join('');
-    pick.value = S.settings.voice || S.cfg.voices[0].id;
+    const saved = S.settings.voice, aliases = S.cfg.voice_aliases || {};
+    const wanted = aliases[saved] || saved || S.cfg.default_voice;
+    pick.value = [...pick.options].some(o => o.value === wanted) ? wanted : S.cfg.voices[0].id;
     pick.disabled = !!S.busy.voice;
     const gen = $('#vo-gen');
     gen.textContent = S.busy.voice ? 'Generating…' : S.voice ? 'Re-generate' : 'Generate voiceover';
@@ -483,6 +561,9 @@
     $('#vo-next').disabled = !S.voice || !!S.busy.voice;
     const track = $('#vo-track');
     track.classList.toggle('on', !!S.voice && !S.busy.voice);
+    const ph = $('#vo-ph');
+    if (!ph.innerHTML) ph.innerHTML = placeholder('voice', 'No voiceover yet', 'Choose a voice and generate it. You can listen here before you go on.');
+    ph.classList.toggle('hidden', !!S.voice || !!S.busy.voice);
     if (S.voice && !S.busy.voice) {
       if (!$('#vo-wave').children.length) {
         $('#vo-wave').innerHTML = Array.from({ length: 64 }, (_, i) => `<i style="height:${18 + Math.round(Math.abs(Math.sin(i * 0.7) * Math.cos(i * 0.23)) * 82)}%"></i>`).join('');
@@ -491,7 +572,34 @@
     }
     if (!scriptOk() && !S.voice) err('#err-voice', 'Write the script first.'); else if (!S.busy.voiceErr) err('#err-voice', '');
   }
-  async function saveVoice() { S.settings.voice = $('#voice-pick').value; await saveSettings({ voice: S.settings.voice }); }
+  async function saveVoice() { stopSample(); S.settings.voice = $('#voice-pick').value; await saveSettings({ voice: S.settings.voice }); }
+
+  // A short recording of the chosen voice. The server makes it once per voice and keeps it.
+  const PLAY_ICO = '<path d="M7 4l13 8-13 8z"/>', STOP_ICO = '<rect x="6" y="6" width="12" height="12" rx="2"/>';
+  const sampleUrls = {};
+  function stopSample() {
+    if (S.sample) { S.sample.pause(); S.sample = null; }
+    const ico = $('#voice-sample-ico'); if (ico) ico.innerHTML = PLAY_ICO;
+  }
+  async function playSample() {
+    if (S.sample) { stopSample(); return; }
+    const voice = $('#voice-pick').value, btn = $('#voice-sample');
+    err('#err-voice', '');
+    if (!sampleUrls[voice]) {
+      btn.disabled = true;
+      const res = await api(`/platform/creator/voice-samples/${encodeURIComponent(voice)}`);
+      btn.disabled = false;
+      if (!res.ok) { err('#err-voice', `No sample: ${why(res)}`); return; }
+      sampleUrls[voice] = res.data.url;
+    }
+    stopAudio();
+    const a = new Audio(sampleUrls[voice]);
+    S.sample = a;
+    a.addEventListener('ended', stopSample);
+    a.addEventListener('error', () => { stopSample(); err('#err-voice', 'The sample could not be played.'); });
+    $('#voice-sample-ico').innerHTML = STOP_ICO;
+    a.play().catch(() => stopSample());
+  }
 
   async function genVoice() {
     if (S.sb && !await confirmBox('Re-generate the voiceover?', 'The storyboard was made for the current voiceover. After this you will have to create the storyboard again.', 'Re-generate')) return;
@@ -526,7 +634,7 @@
     return S.audio;
   }
   function toggleVo() { const a = ensureAudio(); if (!a) return; if (a.paused) a.play().catch(() => err('#err-voice', 'The voiceover could not be played.')); else a.pause(); }
-  function stopAudio() { if (S.audio) { S.audio.pause(); } }
+  function stopAudio() { if (S.audio) { S.audio.pause(); } if (S.sample) stopSample(); }
   function paintAudio() {
     const a = S.audio, total = (a && isFinite(a.duration) && a.duration) || (S.voice && S.voice.total_duration_s) || 0;
     const pos = a ? a.currentTime : 0;
@@ -557,7 +665,7 @@
     else if (!S.busy.sbErr) err('#err-sb', '');
     paintContinuity();
     const box = $('#scenes');
-    if (!scenes.length) { box.innerHTML = '<div class="sb-empty">No storyboard yet. It is created from your script and voiceover.</div>'; if (window.Core) window.Core.afterStoryboard(); return; }
+    if (!scenes.length) { box.innerHTML = placeholder('storyboard', 'No storyboard yet', 'The scenes appear here once you create the storyboard from your script and voiceover.'); if (window.Core) window.Core.afterStoryboard(); return; }
     const byId = Object.fromEntries(continuity().map(e => [e.id, e]));
     const jobScenes = (S.imageJob && S.imageJob.status === 'running' && S.imageJob.scenes) || {};
     let offset = 0;
@@ -821,6 +929,7 @@
     $('#e-name').value = e.name; $('#e-desc').value = e.description;
     $('#e-used').textContent = id ? (n ? `Used in ${plural(n, 'scene')}. Remove it from ${n === 1 ? 'that scene' : 'those scenes'} to delete it.` : 'Not used in any scene.') : '';
     $('#e-save').textContent = id ? 'Save' : 'Add';
+    $('#e-ai-lib').classList.toggle('hidden', !id);
     $('#e-del').classList.toggle('hidden', !id || n > 0);
     $('#e-msg').textContent = '';
     $('#emodal').classList.add('on');
@@ -860,7 +969,7 @@
     const pv = $('#preview');
     pv.className = 'preview' + (S.run.format === '16:9' ? ' wide' : '') + (S.video ? ' has-video' : '');
     if (S.video) { if (pv.dataset.url !== S.video.video_url) { pv.innerHTML = `<video controls preload="metadata" src="${esc(S.video.video_url)}"></video>`; pv.dataset.url = S.video.video_url; } }
-    else { pv.innerHTML = 'Preview'; pv.dataset.url = ''; }
+    else { pv.innerHTML = placeholder('video', 'No video yet', 'The rendered video plays here.'); pv.dataset.url = ''; }
     const length = S.video && S.video.duration_s ? clock(S.video.duration_s) : S.voice && S.voice.total_duration_s ? clock(S.voice.total_duration_s) : '';
     $('#render-meta').textContent = S.video ? `Rendered · ${S.run.format}${length ? ' · ' + length : ''}` : ready ? `${S.run.format}${length ? ' · ≈ ' + length : ''}` : 'Create the images on the Storyboard step first.';
     // Render first and always blue (it becomes Re-render once a video exists); Download beside it, outlined.
@@ -987,7 +1096,7 @@
     watchImages, patchScene, openRun, stopAudio, paintContinuity, writeDraft, readDraft, onScript, addHelp, setHelp,
   };
   window.Creator = {
-    toggleLeft, closePanels, logOut, toggleViewAs, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
+    playSample, startFromThis, deleteRun, toggleLibrary, pickLibrary, saveToAssets, toggleLeft, closePanels, logOut, toggleViewAs, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
     saveVoice, genVoice, toggleVo, askCreateSb, planAssets, toggleScene, patchScene, openSplit, confirmSplit, mergeScene,
     writePrompt, writePromptInModal, openModal, closeModal, toggleEntity, genSceneImage, uploadSceneImage, openEntry, closeEntry, saveEntry, deleteEntry,
     saveCaptions, onMusicPick, uploadMusic, renderVideo, downloadVideo, closeConfirm,

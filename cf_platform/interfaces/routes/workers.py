@@ -6,7 +6,7 @@ Railway's HTTP layer times out long-running LLM/FFmpeg calls.
 """
 
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -479,6 +479,35 @@ async def _run_voice_background(
             pass
 
 
+def _same_words(a: str, b: str) -> bool:
+    """True when two scripts are the same words, ignoring spacing."""
+    return " ".join(a.split()) == " ".join(b.split())
+
+
+async def _enforce_script_lock(storage: ArtifactStorage, run_id: str, script: str) -> None:
+    """A video's words are fixed once its voiceover exists: a different script is a different video (409).
+
+    Re-generating the voice with the same script is fine. The way to change the words is to start
+    a new video from this one.
+    """
+    from cf_platform.core.artifact_manager import read_artifact
+
+    try:
+        if not await _latest_artifact_key(storage, run_id, "voice", "voice_alignment"):
+            return
+        script_key = await _latest_artifact_key(storage, run_id, "script", "script")
+        if not script_key:
+            return
+        _, stored = await read_artifact(storage, script_key)
+    except Exception:
+        return
+    if not _same_words(str(stored.get("script") or ""), script):
+        raise HTTPException(
+            status_code=409,
+            detail="The script is locked once the voiceover exists. Start a new video from this one to change the words.",
+        )
+
+
 @router.post("/workers/voice", response_model=VoiceWorkerResponse, status_code=202)
 async def voice_worker_endpoint(
     body: VoiceWorkerRequest,
@@ -511,6 +540,8 @@ async def voice_worker_endpoint(
         run = await runs.get(body.run_id)
     except RunNotFoundError:
         run = None
+    if run is not None and run.inputs.get("voice_source") != "uploaded":
+        await _enforce_script_lock(storage, body.run_id, body.script)
     if run is not None and run.inputs.get("voice_source") == "uploaded":
         _, pending = await discard_for_generated_voice(storage, body.run_id, body.confirm_discard)
         if pending is not None:
@@ -584,14 +615,21 @@ async def voice_worker_endpoint(
 def resolve_tts_voice(run_voice: object, settings: PlatformSettings) -> str:
     """The Gemini TTS voice name for a run's `voice` setting (D117).
 
-    "male" / "female" pick the deployment's two Creator voices; anything else — no
+    A listed voice name picks that voice; "male" / "female" are the older aliases for the deployment's two Creator voices; anything else — no
     choice, an unknown value, or a choice whose voice is not configured — is the
     deployment's GEMINI_TTS_VOICE, as before the setting existed.
     """
+    choice = str(run_voice or "")
     chosen = {
         "male": getattr(settings, "CREATOR_VOICE_MALE", ""),
         "female": getattr(settings, "CREATOR_VOICE_FEMALE", ""),
-    }.get(str(run_voice or ""))
+    }.get(choice)
+    if chosen is None:
+        # A voice name: only the Creator's listed voices and the deployment's own are accepted.
+        from src.models import GEMINI_VOICE_NAMES
+
+        allowed = set(GEMINI_VOICE_NAMES) | {settings.GEMINI_TTS_VOICE}
+        chosen = choice if choice in allowed else ""
     return (chosen or "").strip() or settings.GEMINI_TTS_VOICE
 
 
@@ -918,6 +956,14 @@ async def render_worker_endpoint(
 
     # P-AUTH S8: one render at a time per tenant; the slot is held until the job ends.
     render_slot = limits.claim_render_slot(settings)
+    # A new render keeps the previous video as a numbered version instead of overwriting it.
+    try:
+        previous = f"runs/{body.run_id}/output/final.mp4"
+        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+        await storage.put_bytes(f"runs/{body.run_id}/output/final-{stamp}.mp4", await storage.get_bytes(previous), "video/mp4")
+    except Exception:
+        pass  # no earlier video (or storage refused): nothing to keep
+
     background_tasks.add_task(
         _run_render_background, body.run_id, job_id, state, worker, storage, settings, render_slot
     )

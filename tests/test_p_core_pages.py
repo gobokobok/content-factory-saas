@@ -116,10 +116,10 @@ class TestScreens:
         assert "#new/${encodeURIComponent(C.project.project_id)}" in core and "itemIds" in core
 
     def test_the_menu_is_the_beta_panel(self):
-        """Projects, Libraries (Videos, AI generations, BG music) and Settings, as section headers over one flowing list."""
+        """Projects, Libraries (Videos, Images, AI assets, BG music) and Settings, as section headers over one flowing list."""
         menu = (_UI / "super-menu.js").read_text()
         for needle in ("#projects", "'#library/' + k", "#settings/integrations", "#settings/defaults", "All projects",
-                       "'Videos'", "'AI generations'", "'BG music'", "Projects</div>", "Libraries</div>", "Settings</div>"):
+                       "'Videos'", "'Images'", "'BG music'", "Projects</div>", "Libraries</div>", "Settings</div>"):
             assert needle in menu, needle
         assert "Audio" not in menu and "Footage" not in menu and "New video" not in menu
         assert "if (basic) { container.innerHTML = libraries" in menu   # Basic: Libraries only
@@ -162,7 +162,7 @@ class TestRunControls:
         assert "format_track" in run and "caption_style" in run and "music_enabled" in run
 
     def test_look_language_cast_and_library_save(self, run):
-        for needle in ("/visuals", "confirm_reset", "/language", "cast_mode", "protagonist_asset_id", "/assets/from-run"):
+        for needle in ("/visuals", "confirm_reset", "/language", "cast_mode", "AI Director", "Custom", "/platform/creator/assets", "/assets/from-run"):
             assert needle in run, needle
 
     def test_changing_the_look_asks_before_discarding_the_storyboard(self, run):

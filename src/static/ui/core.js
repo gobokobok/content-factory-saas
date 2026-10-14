@@ -17,12 +17,12 @@
   const LANGS = { en: 'English', ru: 'Русский' };
   const FORMATS = { '9:16': '9:16 Portrait', '16:9': '16:9 Landscape' };
   const CAPTIONS = { standard: 'On — Standard', punch: 'On — Punch', none: 'Off' };
-  const PACES = { slow: 'Slow — ~145 wpm', normal: 'Normal — ~160 wpm', fast: 'Fast — ~172 wpm' };
+  const PACES = { slow: 'Slow', normal: 'Normal', fast: 'Fast' };
   const NARR_STYLES = { educational: 'Educational', emotional: 'Emotional' };
   const STEP_LABELS = { script: 'Script', voice: 'Voice', storyboard: 'Storyboard', render: 'Render', metadata: 'Metadata' };
   const ASSET_KINDS = { character: 'Character', setting: 'Place', prop: 'Object' };
-  const BASIC_LIBS = ['videos', 'ai', 'music'];
-  const LIBS = { videos: 'Videos', audio: 'Audio', footage: 'Footage', ai: 'AI generations', music: 'BG music' };
+  const BASIC_LIBS = ['videos', 'ai', 'images', 'assets', 'music'];
+  const LIBS = { videos: 'Videos', audio: 'Audio', footage: 'Footage', ai: 'AI generations', images: 'Images', assets: 'AI assets', music: 'BG music' };
   // What each screen says about itself lives in the right-hand Information panel, not on the page.
   const HELP = {
     projects: ['Projects', ['A project is one channel or series: its ideas, its videos and its defaults.']],
@@ -38,7 +38,11 @@
     'library-videos': ['Videos', ['Every final video: server renders and videos uploaded from CapCut.']],
     'library-audio': ['Audio', ['Every voiceover, generated or uploaded.']],
     'library-footage': ['Footage', ['Every image and clip acquired for a scene or uploaded by you.']],
+    'library-images': ['Images', ['Every still image: pictures acquired from stock or uploaded, and AI-generated ones, including the ones you replaced.',
+      'Use the type filter to show only stock or only AI-generated images.']],
     'library-ai': ['AI generations', ['Every AI-generated image, including the ones you replaced.']],
+    'library-assets': ['AI assets', ['Your characters, places and objects. Save one from a video\'s storyboard or add it here.',
+      'When you create a video you can pick a character from this library instead of describing it again.']],
     'library-music': ['BG music', ['Background music only: tracks you uploaded and tracks the platform provides.',
       'Sound effects are not listed here.', 'Choose a track for a video in its Render step.']],
     integrations: ['Integrations', ['The services the pipeline calls, in five blocks. Each provider has its own key; a block with several providers has one default.',
@@ -429,11 +433,47 @@
 
   // ── Libraries ─────────────────────────────────────────────────────────────
 
+  /** The AI assets library: characters, places and objects, saved from a storyboard or added by hand. */
+  function paintAssetsLibrary() {
+    const items = C.libAssets || [];
+    frame(crumbs([['Libraries'], [LIBS.assets]]), `<div class="page-head"><h1>${LIBS.assets}</h1>
+      <button class="btn primary" style="margin-left:auto" onclick="Core.libAssetDlg()">+ Add asset</button></div>
+      ${items.length ? items.map(a => `<div class="as-card"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="n">${esc(a.name)}</span><span class="chip">${esc(ASSET_KINDS[a.kind] || a.kind)}</span><span style="flex:1"></span>
+          <button class="btn sm" onclick="Core.libAssetDlg('${esc(a.id)}')">Edit</button><button class="btn sm e-del" onclick="Core.libAssetDelete('${esc(a.id)}')">Remove</button></div><p>${esc(a.description)}</p></div>`).join('')
+        : '<div class="empty"><b>No assets yet</b><p>Save a character from a storyboard, or add one here.</p><button class="btn primary" onclick="Core.libAssetDlg()">Add asset</button></div>'}`);
+  }
+  function libAssetDlg(id) {
+    const a = (C.libAssets || []).find(x => x.id === id) || {};
+    modal(`<h2>${id ? 'Edit asset' : 'Add asset'}</h2>
+      <div class="row" style="margin-top:14px"><label class="field"><span class="lbl">Name</span><input type="text" id="as-name" maxlength="80" value="${esc(a.name || '')}" placeholder="Maya"></label>
+      <label class="field"><span class="lbl">Kind</span><select id="as-kind">${opts(ASSET_KINDS, a.kind || 'character')}</select></label></div>
+      <label class="field"><span class="lbl">Description</span><textarea id="as-desc" maxlength="1200" rows="5" style="min-height:110px" placeholder="A cheerful woman in her thirties, short curly black hair, red scarf, round glasses">${esc(a.description || '')}</textarea></label>
+      <div class="e-foot"><button class="btn accent sm" onclick="Core.libAssetSave('${esc(id || '')}')">Save</button><button class="btn sm" onclick="Core.closeModal()">Cancel</button></div><div class="m-msg" id="as-msg"></div>`);
+  }
+  async function libAssetSave(id) {
+    const body = { name: qs('as-name').value.trim(), kind: qs('as-kind').value, description: qs('as-desc').value.trim() };
+    const r = await call(id ? `/platform/creator/assets/${encodeURIComponent(id)}` : '/platform/creator/assets', id ? 'PATCH' : 'POST', body);
+    if (!r.ok) { qs('as-msg').textContent = A.why(r); return; }
+    closeModal(); await viewLibrary('assets'); toast('Asset saved.');
+  }
+  async function libAssetDelete(id) {
+    if (!await A.confirmBox('Remove this asset?', 'Videos already made keep their copy.', 'Remove')) return;
+    const r = await call(`/platform/creator/assets/${encodeURIComponent(id)}`, 'DELETE');
+    if (!r.ok) { showErr(A.why(r)); return; }
+    await viewLibrary('assets'); toast('Asset removed.');
+  }
+
   async function viewLibrary(kind) {
     setNav('library/' + kind);
     loading();
-    if (C.lib.kind !== kind) { C.lib.filters = { q: '', project: '', facet: '' }; C.lib.search = false; }
+    if (C.lib.kind !== kind) { C.lib.filters = { q: '', project: '', facet: '' }; }
     C.lib.kind = kind;
+    if (kind === 'assets') {
+      const ar = await call('/platform/creator/assets');
+      if (!ar.ok) throw new Error(A.why(ar));
+      C.libAssets = ar.data.items;
+      return paintAssetsLibrary();
+    }
     const r = await call(`/platform/library/${kind}`);
     if (!r.ok) throw new Error(A.why(r));
     C.lib.data = r.data;
@@ -444,7 +484,7 @@
     if (!u) return '<div class="core-thumb blank">no preview</div>';
     if (kind === 'videos' || (kind === 'footage' && a.facet === 'video'))
       return `<video class="core-thumb" src="${esc(u)}#t=0.5" preload="metadata" muted playsinline></video>`;
-    if (kind === 'footage' || kind === 'ai') return `<img class="core-thumb" src="${esc(u)}" loading="lazy" alt="">`;
+    if (kind === 'footage' || kind === 'ai' || kind === 'images') return `<img class="core-thumb" src="${esc(u)}" loading="lazy" alt="">`;
     return `<div style="padding:12px 12px 0"><audio controls preload="none" src="${esc(u)}" style="width:100%;height:34px"></audio></div>`;
   }
   function libCard(a) {
@@ -462,24 +502,19 @@
   }
   function paintLibrary(keepFocus) {
     const kind = C.lib.kind, d = C.lib.data, f = C.lib.filters, list = libVisible();
-    const facets = [...new Set(d.items.map(a => a.facet).filter(Boolean))];
-    const searching = !!f.q || C.lib.search;
-    const glass = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>';
+    const facets = kind === 'images' ? ['Stock', 'AI generated'] : [...new Set(d.items.map(a => a.facet).filter(Boolean))];
     frame(crumbs([['Libraries'], [LIBS[kind]]]), `<div class="page-head"><h1>${LIBS[kind]}</h1>
-      <button class="icon-btn" style="margin-left:auto" onclick="Core.libSearch()" title="Search" aria-label="Search">${glass}</button></div>
-      ${searching ? `<div class="core-bar"><input type="text" id="lib-q" placeholder="Search by name, ID, video or project" value="${esc(f.q)}" oninput="Core.libFilter('q',this.value,true)" style="max-width:340px"></div>` : ''}
-      <div class="core-bar" style="gap:8px">
+</div>
+      <div class="lib-bar">
+        <div class="lib-search" id="lib-search">
+          <input type="text" id="lib-q" placeholder="Search by name, ID, video or project" value="${esc(f.q)}" oninput="Core.libFilter('q',this.value,true)" aria-label="Search"></div>
+        <div class="lib-filters">
       ${kind !== 'music' && !BASIC ? `<select class="inline" onchange="Core.libFilter('project',this.value)" aria-label="Project"><option value="">All projects</option>${d.projects.map(p => `<option value="${esc(p.project_id)}"${f.project === p.project_id ? ' selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
-      ${kind !== 'music' && facets.length > 1 ? `<select class="inline" onchange="Core.libFilter('facet',this.value)" aria-label="Type"><option value="">All types</option>${facets.map(x => `<option${f.facet === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}</div>
+      ${kind !== 'music' && (facets.length > 1 || kind === 'images') ? `<select class="inline" onchange="Core.libFilter('facet',this.value)" aria-label="Type"><option value="">All types</option>${facets.map(x => `<option${f.facet === x ? ' selected' : ''}>${esc(x)}</option>`).join('')}</select>` : ''}</div></div>
       <p class="meta" style="margin-bottom:10px">${list.length} of ${d.items.length}</p>
       ${list.length ? `<div class="core-assets">${list.map(libCard).join('')}</div>`
         : `<div class="empty"><b>${d.items.length ? 'Nothing matches' : 'Nothing here yet'}</b><p>${d.items.length ? 'Change the search or the filters.' : 'Assets appear here as videos produce them.'}</p></div>`}`);
     if (keepFocus) { const q = qs('lib-q'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
-  }
-  function libSearch() {
-    C.lib.search = !C.lib.search && !C.lib.filters.q;
-    if (!C.lib.search) C.lib.filters.q = '';
-    paintLibrary(true);
   }
   function libFilter(key, value, keepFocus) { C.lib.filters[key] = value; paintLibrary(keepFocus); }
   /** Download through a blob: the `download` attribute is ignored for a cross-origin presigned URL. */
@@ -656,6 +691,11 @@
   .core-tr-word.playing{background:var(--accent-soft);color:var(--accent);font-weight:600}
   .core-meta-out textarea{min-height:90px}
   .core-auto.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+  .core-bar,.m-line,.e-foot,.core-asset-foot,.core-selbar{flex-wrap:wrap}
+  .lib-bar{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .lib-search{flex:1;min-width:0;max-width:420px}
+  .lib-search input{width:100%}
+  .lib-filters{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
   @media (max-width:720px){.core-stats{grid-template-columns:repeat(2,1fr)}.core-integ-main{grid-template-columns:1fr}}`;
 
   function init(app, basic) {
@@ -691,6 +731,6 @@
     // actions called from markup
     closeModal, dlgNewProject, createProject, dlgIdea, saveIdea, removeIdea, startRun, toggleIdea, clearSel, setRunFilter,
     patchProject, patchConfig, setDefault, dlgAsset, saveAsset, deleteAsset,
-    libFilter, libSearch, download, toggleKeyEdit, saveKey, removeKey, makeDefault, saveModel, saveDefault,
+    libAssetDlg, libAssetSave, libAssetDelete, libFilter, download, toggleKeyEdit, saveKey, removeKey, makeDefault, saveModel, saveDefault,
   };
 })();
