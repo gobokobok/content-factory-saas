@@ -5,6 +5,18 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D123 — Credits: a hold before the paid call, settled or refunded after; one credit is one cent of price; billing is off until the operator turns it on
+
+**Date:** 2026-10-15 (planned at the P-AUTH / P-CORE review; built in Sprint P-BILL-1 — the operator confirms or changes the defaults).
+**Status:** ACTIVE. Builds on D114 points (4) and (5) and D120; the per-tenant daily USD bound of D120 stays as a second, independent ceiling.
+**Decision:** (1) **Unit and markup.** One credit is `CREDIT_VALUE_USD` (default $0.01) of *price*; price = raw provider cost × `CREDIT_MARKUP` (default 2.0), rounded up to whole credits, at least one credit for any non-zero cost. (2) **Hold → settle / refund.** A paid action reserves its price from the balance before the provider call (one atomic conditional statement, so concurrent actions cannot overdraw), settles to the actual cost when it is known (the excess is returned) and is refunded in full when the action fails. The platform absorbs an overrun; a user is never charged more than they were shown. (3) **Hard limit.** A hold that does not fit is refused with 402 naming the cost and the balance; nothing starts. (4) **Who is charged.** Every tenant except the owner's. The owner and View-as-Basic are never charged; View-as writes no ledger row. A user's own provider key (when it exists) is never charged. (5) **Ledger.** `usage_entries` is the priced list of paid actions (with raw cost); `credit_accounts` / `credit_transactions` hold balances and every change to them. (6) **Switch.** `BILLING_ENABLED` defaults to false: usage is still recorded (metering), nothing is held or refused. The operator turns it on at beta opening, after AUTH-S10 and P-CORE-S11. (7) **Starting balance** `SIGNUP_CREDITS` defaults to 0: the owner tops accounts up (P-BILL-2 adds online payment). (8) **LLM calls** are priced at the flat `EST_LLM_CALL_USD`; settling to token counts is a candidate follow-up. Transcription, TTS and render use their own price settings.
+**Why:** every paid call already passes through `limits.spend_gate` (D120), so charging is one place at each call; a hold-first model is the only one that cannot overdraw under concurrent background jobs.
+**Rejected:** charging after completion only (concurrent jobs overdraw; a failed job is never paid for but a successful one may find no money); a floating-point balance (rounding drift); turning charging on by default (it would lock out every existing non-owner account on deploy).
+**Risks:** an LLM call's real cost can differ from its flat estimate in either direction; the markup is the operator's margin and should be reviewed against a month of real raw costs.
+**No new dependency.** Migration 0006.
+
+---
+
 ## D122 — The AI assets library is the account's; the script is locked by the voiceover; voices are named
 
 **Status:** ACTIVE. Amends D121 and D117 point (7); D117 point (6) stands.

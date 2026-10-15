@@ -13,11 +13,11 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 
 ## Current sprint
 **P-CORE closed 2026-10-14** (on DEV; smoke PARTIAL → P-CORE-S11). The Studio's features are Super screens of `/create` (D121); account-level AI assets, named voices and the script lock are D122. Tests 3227 passing.
-Closed before it: **P-AUTH** (2026-10-14; smoke PARTIAL → AUTH-S10). Two sprints closed since the last review: **a `/sprint-review` is due before the next sprint starts.**
+Closed before it: **P-AUTH** (2026-10-14; smoke PARTIAL → AUTH-S10). Reviewed 2026-10-15 (P-AUTH + P-CORE, by hand — see METHODOLOGY.md); the next review is due when P-BILL-1 closes.
 _Roadmap (D114, D117, D118): **P-BILL-1 (starts with AUTH-S10 and P-CORE-S11; friends beta opens)** → P-BILL-2 → **P-LANG Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene", long-form animation._
 
 ## Active story
-**None open.** Next: `/sprint-review`, then P-BILL-1 (ledger, credits, charging, limits — BILL-S1..S5 in BACKLOG_ACTIVE.md; all paid calls already pass through `limits.spend_gate`), preceded by the two smokes AUTH-S10 and P-CORE-S11.
+**None open.** Sprint P-BILL-1 is planned (review done 2026-10-15): P-BILL-1 (ledger, credits, charging, limits — BILL-S1..S5 in BACKLOG_ACTIVE.md; all paid calls already pass through `limits.spend_gate`), preceded by the two smokes AUTH-S10 and P-CORE-S11.
 
 **Blockers / operator actions:** AUTH-S0: set the `PROD_URL` GitHub variable and record the first restore drill in `docs/RUNBOOK.md` (F1) before real users. Keep `SIGNUP_OPEN` unset until AUTH-S10 passes. Choose the female Creator voice and set `CREATOR_VOICE_FEMALE`. For published videos set `IMAGE_RESOLUTION=2K` and the `nano-banana-2-1` price to 0.03 in `IMAGE_MODEL_COSTS_USD`. Rotate the Pixabay key on DEV; check the DEV log for `key=REDACTED`. PROD stays on v0.24.0 on purpose — release only when DEV is complete and smoke tested (at release: new `SETTINGS_ENCRYPTION_KEY`, 12+ character `OPERATOR_PASSWORD`, the Google / `OWNER_EMAILS` / `CAP_*` variables, migration 0005). Google API audit application in progress (P16 lead time). Empty Railway variables now count as unset.
 Telegram is dormant (D093) and unmounted unless `TELEGRAM_ROUTES_ENABLED`; the legacy pipeline UI is off unless `LEGACY_ROUTES_ENABLED` (D116).
