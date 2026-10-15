@@ -84,3 +84,12 @@ fixing `cf_platform/core/word_match.py`.
 
 - **Routes are mounted at import time.** `tests/conftest.py` sets `LEGACY_ROUTES_ENABLED=true` before `src.main` is imported so the legacy routes stay testable; the "off by default" test runs `src.main` in a subprocess without it.
 - **The secret-length and cookie checks are relaxed for the suite** (`AUTH_SECRET_MIN_LENGTH=1`, `COOKIE_ALLOW_INSECURE=true` in `conftest.py`'s defaults). A test of those checks passes the values explicitly.
+
+## Billing tests (P-BILL-1, 2026-10-15)
+
+- `tests/test_p_bill1_billing.py` — price arithmetic, hold / settle / refund, hard limits, who is charged (owner, View-as, billing off), top-up, stale holds; in-memory store, request principal set with `set_principal`.
+- `tests/test_p_bill1_wiring.py` — each background job (voice, storyboard, render, transcription, bulk images) settles on success and refunds on failure, with a fake provider.
+- `tests/test_p_auth_billing_routes.py` — routes with the **real auth middleware and real session cookies** (the `test_p_auth` prefix is what keeps `tests/conftest.py` from swapping in the owner): 402 body, holds taken by each route, `GET /platform/billing/me` isolation, the owner-only admin routes, the sign-up grant. A route that must see a non-owner principal belongs in a `test_p_auth*` file; a `TestClient` call in another file always runs as the owner.
+- `tests/test_p_bill1_pages.py` — static checks of the Creator page and the owner's Credits screen.
+- `tests/integration/test_billing_postgres.py` — migration 0006 and the conditional SQL against a **real Postgres** (`CF_TEST_DATABASE_URL`, excluded from CI). Run it after any change to `PostgresBillingStore`: it found a pool-exhaustion bug that no mock could (a refused debit asked the pool for a second connection while holding the first).
+- Ordering tests read the route source (`route_source(...)` in the routes test) instead of `inspect.getsource` on the imported function: other tests patch those objects.

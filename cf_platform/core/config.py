@@ -87,6 +87,17 @@ class PlatformSettings(BaseSettings):
     EST_LLM_CALL_USD: float = 0.05
     EST_TTS_CALL_USD: float = 0.05
     EST_RENDER_USD: float = 0.0
+    EST_TRANSCRIPTION_USD: float = 0.05
+    # P-BILL-1 (D123) — credits. Off by default: the ledger then only records what each paid
+    # action would cost (metering) and no balance is held or refused. One credit is
+    # CREDIT_VALUE_USD of price; price = raw provider cost x CREDIT_MARKUP, rounded up.
+    BILLING_ENABLED: bool = False
+    CREDIT_VALUE_USD: float = 0.01
+    CREDIT_MARKUP: float = 2.0
+    # Credits a new account starts with (0: the owner tops accounts up).
+    SIGNUP_CREDITS: int = 0
+    # A credit hold still open after this many minutes is refundable by the owner (the job never finished).
+    BILLING_HOLD_TTL_MINUTES: int = 120
     # P-AUTH (S9, D115) — the moderation gate. "block" refuses a flagged text, "log" only
     # records it. MODERATION_BLOCKLIST is extra comma-separated phrases, case-insensitive.
     MODERATION_MODE: str = "block"

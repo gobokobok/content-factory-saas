@@ -57,6 +57,23 @@ def _configure_logging(log_level: str) -> None:
     install_log_redaction()
 
 
+def _register_payment_required_handler(app: FastAPI) -> None:
+    """Answer a refused credit hold (402) with the cost and the balance as fields, not only the message (P-BILL-1)."""
+    from fastapi import Request
+    from fastapi.responses import JSONResponse
+
+    from cf_platform.core.billing import PaymentRequiredError
+
+    async def _payment_required(_request: Request, exc: PaymentRequiredError) -> JSONResponse:
+        """402 body: {detail, cost_credits, balance_credits}."""
+        return JSONResponse(
+            status_code=402,
+            content={"detail": exc.detail, "cost_credits": exc.cost_credits, "balance_credits": exc.balance_credits},
+        )
+
+    app.add_exception_handler(PaymentRequiredError, _payment_required)
+
+
 def _mount_platform_router(app: FastAPI) -> None:
     """Mount the cf_platform API router under /platform.
 
@@ -67,6 +84,7 @@ def _mount_platform_router(app: FastAPI) -> None:
         from cf_platform.interfaces.api import router as platform_router
 
         app.include_router(platform_router, prefix="/platform")
+        _register_payment_required_handler(app)
     except Exception:
         logging.getLogger(__name__).exception(
             "cf_platform router failed to mount — platform routes disabled"

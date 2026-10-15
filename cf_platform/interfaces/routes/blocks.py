@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from cf_platform.blocks.idea_to_script import build_idea_to_script_graph, register_idea_to_script_workers  # noqa: F401
 from cf_platform.blocks.niche_to_ideas import build_niche_to_ideas_graph, register_niche_to_ideas_workers  # noqa: F401
-from cf_platform.core import limits
+from cf_platform.core import billing, limits
 from cf_platform.core.artifact_manager import (
     ArtifactRepository,
     ArtifactStorage,
@@ -186,9 +186,6 @@ async def idea_to_script(
     # P-AUTH S8 / S9: bound and screen what a non-owner tenant sends to the paid model.
     limits.check_prompt(body.idea_title, "The idea")
     await moderate_many([body.idea_title, body.niche or "", *(body.supporting_points or [])], "idea", run_id=body.run_id or "")
-    await limits.spend_gate(
-        getattr(settings, "EST_LLM_CALL_USD", 0.05) * (body.max_iterations or 3), "writing the script", settings
-    )
     existing_run: RunRecord | None = None
     niche = body.niche
     if body.run_id:
@@ -198,6 +195,13 @@ async def idea_to_script(
             raise HTTPException(status_code=404, detail=f"Run not found: {body.run_id}")
         if not niche:
             niche = await _project_niche(existing_run.project_id, projects)
+
+    # P-BILL-1: price and hold the generation (one LLM call per iteration, at most max_iterations of them).
+    unit_usd = billing.setting(settings, "EST_LLM_CALL_USD")
+    hold = await billing.reserve(
+        "llm", unit_usd * (body.max_iterations or 3), "writing the script",
+        run_id=body.run_id or "", units=float(body.max_iterations or 3), settings=settings,
+    )
 
     run_inputs: dict[str, Any] = {"idea_title": body.idea_title}
     if niche:
@@ -240,7 +244,13 @@ async def idea_to_script(
         inputs=run_inputs,
         **state_kwargs,
     )
-    result = await run_graph(graph, state, thread_id=thread_id)
+    try:
+        result = await run_graph(graph, state, thread_id=thread_id)
+    except Exception as exc:
+        await billing.refund(hold, f"script generation failed: {exc}")
+        raise
+    # Settled at what ran: one call per iteration the graph actually made.
+    await billing.settle(hold, unit_usd * max(int(result.iteration or 1), 1), units=float(result.iteration or 1))
     if existing_run is None:
         await transition_run(run.run_id, "complete", runs)
 

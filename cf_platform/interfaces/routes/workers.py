@@ -13,7 +13,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from cf_platform.core import limits
+from cf_platform.core import billing, limits
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.cast import resolve_cast, resolve_listed_cast
 from cf_platform.core.config import PlatformSettings
@@ -97,11 +97,13 @@ async def _run_storyboard_background(
     storage: ArtifactStorage,
     registration: WorkerRegistration = STORYBOARD_WORKER_REGISTRATION,
     worker_name: str = "storyboard_worker",
+    hold: billing.Hold | None = None,
 ) -> None:
     """Background task: generates storyboard and updates storyboard/current_job.json.
 
     `registration` and `worker_name` say which worker ran (stock or animation, D108)
-    so the artifact's lineage names the right version, prompt and model.
+    so the artifact's lineage names the right version, prompt and model. `hold` is the
+    credit hold (P-BILL-1) the job settles when it completes and refunds when it fails.
     """
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
@@ -147,8 +149,10 @@ async def _run_storyboard_background(
             "prompt_version": result_artifact.prompt_version,
         })
         _logger.info("StoryboardWorker background task complete for run %s (%d scenes)", run_id, result_artifact.scene_count)
+        await billing.settle(hold)
     except Exception as exc:
         _logger.exception("StoryboardWorker background task failed for run %s: %s", run_id, exc)
+        await billing.refund(hold, f"storyboard failed: {exc}")
         try:
             await storage.put_json(job_key, {"job_id": job_id, "status": "error", "error": str(exc)})
         except Exception:
@@ -196,7 +200,6 @@ async def storyboard_worker_endpoint(
     # P-AUTH S8 / S9: the server bounds and screens what reaches the paid model.
     limits.check_script(body.script)
     await moderate(body.script, "script", run_id=body.run_id)
-    await limits.spend_gate(getattr(settings, "EST_LLM_CALL_USD", 0.05), "writing the storyboard", settings)
 
     uploaded_script_key = await _uploaded_script_key(storage, body.run_id)
     if uploaded_script_key:
@@ -280,13 +283,18 @@ async def storyboard_worker_endpoint(
         artifacts=state_artifacts,
     )
 
+    # P-BILL-1: price and hold the call once everything that can refuse the request has passed.
+    hold = await billing.reserve(
+        "llm", billing.setting(settings, "EST_LLM_CALL_USD"), "writing the storyboard",
+        run_id=body.run_id, settings=settings,
+    )
     job_id = str(_uuid_mod.uuid4())
     await storage.put_json(
         f"runs/{body.run_id}/storyboard/current_job.json",
         {"job_id": job_id, "status": "running"},
     )
     background_tasks.add_task(
-        _run_storyboard_background, body.run_id, job_id, state, worker, storage, registration, worker_name
+        _run_storyboard_background, body.run_id, job_id, state, worker, storage, registration, worker_name, hold
     )
     _logger.info("StoryboardWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return StoryboardWorkerResponse(status="accepted", run_id=body.run_id)
@@ -377,13 +385,23 @@ async def metadata_worker_endpoint(
         inputs=inputs,
         artifacts={"script": script_key},
     )
+    # P-BILL-1: the metadata is a paid LLM call like the others — held before, refunded when it fails.
+    hold = await billing.reserve(
+        "llm", billing.setting(settings, "EST_LLM_CALL_USD"), "writing the metadata", run_id=body.run_id, settings=settings,
+    )
     try:
         output = await worker(state)
     except LLMError as exc:
+        await billing.refund(hold, str(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        await billing.refund(hold, f"metadata failed: {exc}")
+        raise
     result_artifact = output.artifact
     if not isinstance(result_artifact, YoutubeMetadataArtifact):
+        await billing.refund(hold, "the metadata worker returned an unexpected result")
         raise HTTPException(status_code=500, detail="youtube_metadata worker returned unexpected artifact type")
+    await billing.settle(hold)
 
     lineage = LineageEnvelope(
         run_id=body.run_id,
@@ -434,8 +452,12 @@ async def _run_voice_background(
     state: StageState,
     worker: Any,
     storage: ArtifactStorage,
+    hold: billing.Hold | None = None,
 ) -> None:
-    """Background task: runs TTS + alignment and updates voice/current_job.json."""
+    """Background task: runs TTS + alignment and updates voice/current_job.json.
+
+    `hold` is the credit hold (P-BILL-1), settled when the voiceover completes and refunded when it fails.
+    """
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
 
@@ -471,8 +493,10 @@ async def _run_voice_background(
             "word_count": len(result.word_timestamps),
         })
         _logger.info("VoiceWorker background task complete for run %s", run_id)
+        await billing.settle(hold)
     except Exception as exc:
         _logger.exception("VoiceWorker background task failed for run %s: %s", run_id, exc)
+        await billing.refund(hold, f"voiceover failed: {exc}")
         try:
             await storage.put_json(job_key, {"job_id": job_id, "status": "error", "error": str(exc)})
         except Exception:
@@ -531,7 +555,6 @@ async def voice_worker_endpoint(
     # P-AUTH S8 / S9: the server bounds and screens what reaches the paid model.
     limits.check_script(body.script)
     await moderate(body.script, "script", run_id=body.run_id)
-    await limits.spend_gate(getattr(settings, "EST_TTS_CALL_USD", 0.05), "the voiceover", settings)
 
     # D109: a voice can always be generated. An uploaded recording is the run's current
     # voice, not a run type: generating replaces it (after the operator confirms), and the
@@ -602,12 +625,16 @@ async def voice_worker_endpoint(
         artifacts={"script": script_record.r2_key},
     )
 
+    # P-BILL-1: price and hold the call once everything that can refuse the request has passed.
+    hold = await billing.reserve(
+        "tts", billing.setting(settings, "EST_TTS_CALL_USD"), "the voiceover", run_id=body.run_id, settings=settings,
+    )
     job_id = str(_uuid_mod.uuid4())
     await storage.put_json(
         f"runs/{body.run_id}/voice/current_job.json",
         {"job_id": job_id, "status": "running"},
     )
-    background_tasks.add_task(_run_voice_background, body.run_id, job_id, worker_state, worker, storage)
+    background_tasks.add_task(_run_voice_background, body.run_id, job_id, worker_state, worker, storage, hold)
     _logger.info("VoiceWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return VoiceWorkerResponse(status="accepted", run_id=body.run_id)
 
@@ -770,11 +797,13 @@ async def _run_render_background(
     storage: ArtifactStorage,
     settings: Any,
     render_slot: str | None = None,
+    hold: billing.Hold | None = None,
 ) -> None:
     """Background task: runs FFmpeg render and updates current_job.json in R2.
 
     `render_slot` is the tenant whose concurrent-render slot (P-AUTH S8) this job holds;
-    it is given back when the job ends, whatever the outcome.
+    it is given back when the job ends, whatever the outcome. `hold` is the credit hold
+    (P-BILL-1): settled with the video's length when the render completes, refunded when it fails.
     """
     from cf_platform.core.artifact_manager import write_artifact
     from cf_platform.core.schemas import LineageEnvelope
@@ -816,8 +845,10 @@ async def _run_render_background(
             "completed_at": record["at"],
         })
         _logger.info("RenderWorker background task complete for run %s job %s", run_id, job_id)
+        await billing.settle(hold, units=round(float(result_artifact.duration_s or 0) / 60, 3))
     except Exception as exc:
         _logger.exception("RenderWorker background task failed for run %s: %s", run_id, exc)
+        await billing.refund(hold, f"render failed: {exc}")
         try:
             await storage.put_json(job_key, {"job_id": job_id, "status": "error", "error": str(exc)})
         except Exception:
@@ -945,6 +976,10 @@ async def render_worker_endpoint(
         artifacts=artifacts,
     )
 
+    # P-BILL-1: price and hold the render before anything is marked as running.
+    hold = await billing.reserve(
+        "render", billing.setting(settings, "EST_RENDER_USD"), "rendering the video", run_id=body.run_id, settings=settings,
+    )
     # Write job marker BEFORE enqueuing so the status endpoint knows a fresh render is running.
     # This prevents the old final.mp4 (from a previous killed render) from being returned
     # as "complete" before the new FFmpeg job finishes.
@@ -955,7 +990,11 @@ async def render_worker_endpoint(
     )
 
     # P-AUTH S8: one render at a time per tenant; the slot is held until the job ends.
-    render_slot = limits.claim_render_slot(settings)
+    try:
+        render_slot = limits.claim_render_slot(settings)
+    except HTTPException as exc:
+        await billing.refund(hold, str(exc.detail))
+        raise
     # A new render keeps the previous video as a numbered version instead of overwriting it.
     try:
         previous = f"runs/{body.run_id}/output/final.mp4"
@@ -965,7 +1004,7 @@ async def render_worker_endpoint(
         pass  # no earlier video (or storage refused): nothing to keep
 
     background_tasks.add_task(
-        _run_render_background, body.run_id, job_id, state, worker, storage, settings, render_slot
+        _run_render_background, body.run_id, job_id, state, worker, storage, settings, render_slot, hold
     )
     _logger.info("RenderWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return RenderWorkerResponse(status="accepted", run_id=body.run_id)

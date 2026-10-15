@@ -34,6 +34,8 @@ _BASIC_ROUTES: tuple[tuple[frozenset[str] | None, re.Pattern[str]], ...] = tuple
         (None, r"/auth/.+"),
         # The Creator's own routes.
         (frozenset({"GET"}), r"/platform/creator/config"),
+        # Credits: the caller's own balance, prices and history (P-BILL-1).
+        (frozenset({"GET"}), r"/platform/billing/me"),
         (frozenset({"GET"}), rf"/platform/creator/voice-samples/{_ID}"),
         (frozenset({"POST"}), r"/platform/creator/runs"),
         (frozenset({"DELETE"}), rf"/platform/creator/runs/{_ID}"),

@@ -198,7 +198,7 @@ class TestVoiceEndpointReadsSettings:
         app.dependency_overrides[get_artifact_storage] = lambda: storage
         captured: dict = {}
 
-        async def _capture(run_id, job_id, state, worker, stg):
+        async def _capture(run_id, job_id, state, worker, stg, hold=None):
             captured["state"] = state
 
         try:

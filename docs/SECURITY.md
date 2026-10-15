@@ -121,3 +121,17 @@ and in-memory stores — the DEV smoke test is the first real check.**
 - A Super account that is not the owner is trusted with Studio routes of its own tenant only; it cannot read `/platform/admin/*`.
 
 **Next audit:** at the P-AUTH close as planned — run it against DEV once the smoke test has exercised the real flow, and before P-BILL-1.
+
+
+## Built in P-BILL-1 (2026-10-15, branch `claude/p-bill-1`; decision D123) — money paths, not yet audited
+
+Credits, holds and refunds are new code that moves money-equivalents, and the next audit is **still due before `BILLING_ENABLED` is turned on** (the "Next audit" line above has not been met: AUTH-S10 and P-CORE-S11 have not run).
+
+| Area | What was built | What to check in the audit |
+|------|----------------|----------------------------|
+| F8 (credit ledger) | `usage_entries`, `credit_accounts` (`CHECK balance >= 0`), `credit_transactions`; a hold is one conditional `UPDATE`, a refusal writes no row; the sign-up grant is a unique index | SQL was run against a real Postgres 16 (concurrency: 10 holds on 100 credits, 3 succeed; 20 refusals at once on a pool of 4; grant once) — **not** against Railway's database or migration 0006 on DEV |
+| Owner routes | `/platform/admin/billing/{users,topup,usage,refund-stale}` behind `require_owner` and Super-only routers; the owner's own actions are never charged | top-up is a credit-creating route: only the owner's tenant may call it; every top-up records its actor and note |
+| User route | `GET /platform/billing/me` (Basic allowed) answers for the caller's own tenant; there is no tenant parameter | isolation is tested with two real sessions |
+| Failure handling | a hold is settled or refunded by the background job that took it; a job that never finishes (restart) leaves the hold open until the owner runs "Give back stuck holds" (`BILLING_HOLD_TTL_MINUTES`) | a ledger fault in `settle` / `refund` is logged and swallowed so it cannot mask the job's own result: look for `billing: could not settle|refund` in the log |
+
+**Not covered by credits (a gap, unchanged from P-AUTH):** the acquisition worker (`/platform/workers/acquisition`: stock APIs, possibly a paid fallback) and the legacy pipeline do not call `limits.spend_gate`, so they are neither held nor metered. A Basic account cannot reach them (not on its allow-list); a **Super account that is not the owner can** — so while `SUPER_EMAILS` names only the owner nothing is exposed, and the day it names anyone else those calls are unbounded for them. Gate them (one `billing.reserve` each) before adding another Super account. (`POST /platform/workers/metadata` was in this list and is now held, settled and refunded like the others.)

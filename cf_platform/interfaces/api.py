@@ -46,6 +46,9 @@ from cf_platform.interfaces.routes import (
     tenant_settings,
     workers,
 )
+from cf_platform.interfaces.routes import (
+    billing as billing_routes,
+)
 from cf_platform.interfaces.routes.blocks import IdeaToScriptRequest, IdeaToScriptResponse  # noqa: F401
 from cf_platform.interfaces.routes.telegram_webhook import (  # noqa: F401
     TelegramClient,
@@ -99,5 +102,7 @@ router.include_router(tenant_settings.router, dependencies=_SUPER_ONLY)
 router.include_router(library.router, dependencies=_SCOPED)  # kinds are gated per account type in the route
 router.include_router(pipeline.router, dependencies=_SUPER_ONLY)
 router.include_router(admin.router, dependencies=_SUPER_ONLY)
+router.include_router(billing_routes.router, dependencies=_SCOPED)  # /billing/me: Basic may call it (gating.py)
+router.include_router(billing_routes.admin_router, dependencies=_SUPER_ONLY)
 if os.environ.get("TELEGRAM_ROUTES_ENABLED", "").strip().lower() in {"1", "true", "yes"}:
     router.include_router(telegram_webhook.router)

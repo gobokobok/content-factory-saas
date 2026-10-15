@@ -16,7 +16,7 @@ exactly those (the bulk job, which shows the cost first).
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from cf_platform.core import limits
+from cf_platform.core import billing, limits
 from cf_platform.core.artifact_manager import ArtifactStorage
 from cf_platform.core.config import PlatformSettings
 from cf_platform.core.moderation import moderate
@@ -186,14 +186,21 @@ async def studio_write_scene_prompt(
         raise HTTPException(status_code=404, detail=f"Scene {scene_id} is not in the storyboard.")
     visuals = await load_run_visuals(storage, run_id)
     format_track = "landscape" if visuals.aspect_ratio == "16:9" else "portrait"
-    await limits.spend_gate(getattr(settings, "EST_LLM_CALL_USD", 0.05), "the director", settings)
+    hold = await billing.reserve(
+        "llm", billing.setting(settings, "EST_LLM_CALL_USD"), "the director", run_id=run_id, settings=settings
+    )
     try:
         written = await write_scene_prompt(
             storyboard, scene_id, settings.ANTHROPIC_API_KEY,
             master_style=visuals.master_style or "", format_track=format_track,
         )
     except ScenePromptError as exc:
+        await billing.refund(hold, str(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        await billing.refund(hold, f"the director failed: {exc}")
+        raise
+    await billing.settle(hold)
     async with run_lock(run_id):
         artifact_body, storyboard = await _load_animation_storyboard(storage, run_id)
         updated = apply_scene_prompt(storyboard, scene_id, written, await _load_manifest(storage, run_id))
