@@ -5,6 +5,7 @@ voice, and render run as background tasks (Studio polls .../status) because
 Railway's HTTP layer times out long-running LLM/FFmpeg calls.
 """
 
+import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -150,6 +151,10 @@ async def _run_storyboard_background(
         })
         _logger.info("StoryboardWorker background task complete for run %s (%d scenes)", run_id, result_artifact.scene_count)
         await billing.settle(hold)
+    except asyncio.CancelledError:
+        # The job was cancelled (shutdown, task cancelled): give the credits back, then let the cancellation through.
+        await billing.refund(hold, "storyboard job cancelled")
+        raise
     except Exception as exc:
         _logger.exception("StoryboardWorker background task failed for run %s: %s", run_id, exc)
         await billing.refund(hold, f"storyboard failed: {exc}")
@@ -288,14 +293,15 @@ async def storyboard_worker_endpoint(
         "llm", billing.setting(settings, "EST_LLM_CALL_USD"), "writing the storyboard",
         run_id=body.run_id, settings=settings,
     )
-    job_id = str(_uuid_mod.uuid4())
-    await storage.put_json(
-        f"runs/{body.run_id}/storyboard/current_job.json",
-        {"job_id": job_id, "status": "running"},
-    )
-    background_tasks.add_task(
-        _run_storyboard_background, body.run_id, job_id, state, worker, storage, registration, worker_name, hold
-    )
+    async with billing.refund_on_error(hold, "the storyboard"):
+        job_id = str(_uuid_mod.uuid4())
+        await storage.put_json(
+            f"runs/{body.run_id}/storyboard/current_job.json",
+            {"job_id": job_id, "status": "running"},
+        )
+        background_tasks.add_task(
+            _run_storyboard_background, body.run_id, job_id, state, worker, storage, registration, worker_name, hold
+        )
     _logger.info("StoryboardWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return StoryboardWorkerResponse(status="accepted", run_id=body.run_id)
 
@@ -394,8 +400,8 @@ async def metadata_worker_endpoint(
     except LLMError as exc:
         await billing.refund(hold, str(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except Exception as exc:
-        await billing.refund(hold, f"metadata failed: {exc}")
+    except BaseException as exc:
+        await billing.refund(hold, f"metadata failed: {exc!r}")
         raise
     result_artifact = output.artifact
     if not isinstance(result_artifact, YoutubeMetadataArtifact):
@@ -494,6 +500,9 @@ async def _run_voice_background(
         })
         _logger.info("VoiceWorker background task complete for run %s", run_id)
         await billing.settle(hold)
+    except asyncio.CancelledError:
+        await billing.refund(hold, "voiceover job cancelled")
+        raise
     except Exception as exc:
         _logger.exception("VoiceWorker background task failed for run %s: %s", run_id, exc)
         await billing.refund(hold, f"voiceover failed: {exc}")
@@ -629,12 +638,13 @@ async def voice_worker_endpoint(
     hold = await billing.reserve(
         "tts", billing.setting(settings, "EST_TTS_CALL_USD"), "the voiceover", run_id=body.run_id, settings=settings,
     )
-    job_id = str(_uuid_mod.uuid4())
-    await storage.put_json(
-        f"runs/{body.run_id}/voice/current_job.json",
-        {"job_id": job_id, "status": "running"},
-    )
-    background_tasks.add_task(_run_voice_background, body.run_id, job_id, worker_state, worker, storage, hold)
+    async with billing.refund_on_error(hold, "the voiceover"):
+        job_id = str(_uuid_mod.uuid4())
+        await storage.put_json(
+            f"runs/{body.run_id}/voice/current_job.json",
+            {"job_id": job_id, "status": "running"},
+        )
+        background_tasks.add_task(_run_voice_background, body.run_id, job_id, worker_state, worker, storage, hold)
     _logger.info("VoiceWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return VoiceWorkerResponse(status="accepted", run_id=body.run_id)
 
@@ -846,6 +856,9 @@ async def _run_render_background(
         })
         _logger.info("RenderWorker background task complete for run %s job %s", run_id, job_id)
         await billing.settle(hold, units=round(float(result_artifact.duration_s or 0) / 60, 3))
+    except asyncio.CancelledError:
+        await billing.refund(hold, "render job cancelled")
+        raise
     except Exception as exc:
         _logger.exception("RenderWorker background task failed for run %s: %s", run_id, exc)
         await billing.refund(hold, f"render failed: {exc}")
@@ -980,31 +993,34 @@ async def render_worker_endpoint(
     hold = await billing.reserve(
         "render", billing.setting(settings, "EST_RENDER_USD"), "rendering the video", run_id=body.run_id, settings=settings,
     )
-    # Write job marker BEFORE enqueuing so the status endpoint knows a fresh render is running.
-    # This prevents the old final.mp4 (from a previous killed render) from being returned
-    # as "complete" before the new FFmpeg job finishes.
-    job_id = str(_uuid_mod.uuid4())
-    await storage.put_json(
-        f"runs/{body.run_id}/render/current_job.json",
-        {"job_id": job_id, "status": "running"},
-    )
-
-    # P-AUTH S8: one render at a time per tenant; the slot is held until the job ends.
+    render_slot: str | None = None
     try:
+        # Write job marker BEFORE enqueuing so the status endpoint knows a fresh render is running.
+        # This prevents the old final.mp4 (from a previous killed render) from being returned
+        # as "complete" before the new FFmpeg job finishes.
+        job_id = str(_uuid_mod.uuid4())
+        await storage.put_json(
+            f"runs/{body.run_id}/render/current_job.json",
+            {"job_id": job_id, "status": "running"},
+        )
+
+        # P-AUTH S8: one render at a time per tenant; the slot is held until the job ends.
         render_slot = limits.claim_render_slot(settings)
-    except HTTPException as exc:
-        await billing.refund(hold, str(exc.detail))
-        raise
-    # A new render keeps the previous video as a numbered version instead of overwriting it.
-    try:
-        previous = f"runs/{body.run_id}/output/final.mp4"
-        stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
-        await storage.put_bytes(f"runs/{body.run_id}/output/final-{stamp}.mp4", await storage.get_bytes(previous), "video/mp4")
-    except Exception:
-        pass  # no earlier video (or storage refused): nothing to keep
+        # A new render keeps the previous video as a numbered version instead of overwriting it.
+        try:
+            previous = f"runs/{body.run_id}/output/final.mp4"
+            stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
+            await storage.put_bytes(f"runs/{body.run_id}/output/final-{stamp}.mp4", await storage.get_bytes(previous), "video/mp4")
+        except Exception:
+            pass  # no earlier video (or storage refused): nothing to keep
 
-    background_tasks.add_task(
-        _run_render_background, body.run_id, job_id, state, worker, storage, settings, render_slot, hold
-    )
+        background_tasks.add_task(
+            _run_render_background, body.run_id, job_id, state, worker, storage, settings, render_slot, hold
+        )
+    except BaseException as exc:
+        # Nothing took the job over: give back the slot and the credits, then let the error through.
+        limits.release_render_slot(render_slot)
+        await billing.refund(hold, f"the render did not start: {exc!r}"[:500])
+        raise
     _logger.info("RenderWorker background task enqueued for run %s job %s", body.run_id, job_id)
     return RenderWorkerResponse(status="accepted", run_id=body.run_id)

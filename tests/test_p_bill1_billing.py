@@ -45,6 +45,14 @@ def store(monkeypatch) -> InMemoryBillingStore:
     return fresh
 
 
+@pytest.fixture(autouse=True)
+def no_leftover_in_flight():
+    """Holds left open by one test must not make the next one look like a running job."""
+    billing._in_flight.clear()
+    yield
+    billing._in_flight.clear()
+
+
 @pytest.fixture
 def friend():
     """A bound (non-owner) tenant for the duration of a test."""
@@ -232,7 +240,8 @@ class TestHardLimits:
             run(billing.reserve("llm", 0.05, "writing the storyboard", settings=cfg(CAP_DAILY_SPEND_USD=0.01)))
         assert caught.value.status_code == 429
         assert run(store.balance(friend)) == 100
-        assert run(store.list_entries(friend)) == []
+        # the hold was written with its entry, so giving it back closes that entry as refunded
+        assert [e.status for e in run(store.list_entries(friend))] == ["refunded"]
         assert sorted(t.kind for t in run(store.list_transactions(friend))) == ["hold", "refund", "topup"]
 
     def test_a_refused_hold_leaves_the_daily_reservation_alone(self, store, friend):
@@ -418,3 +427,179 @@ def test_the_postgres_store_debits_with_one_conditional_statement():
     source = inspect.getsource(billing.PostgresBillingStore.debit)
     assert "WHERE tenant_id = %s AND balance >= %s" in source
     assert "self.balance(" not in source.split("if row is None:")[1]
+
+
+# ── Review fixes: one close per hold, hold and entry together, stale holds ──
+
+
+class _SlowStore(InMemoryBillingStore):
+    """A store whose entry update yields to other tasks first — a check-then-act close would credit twice."""
+
+    async def update_entry(self, entry):
+        """Yield, then write."""
+        await asyncio.sleep(0)
+        await super().update_entry(entry)
+
+
+class TestOneCloseOnly:
+    @pytest.mark.parametrize("pair", [
+        ("settle", "settle"), ("refund", "refund"), ("settle", "refund"), ("refund", "settle")])
+    def test_two_concurrent_closers_credit_once(self, monkeypatch, friend, pair):
+        store = _SlowStore()
+        monkeypatch.setattr(billing, "_memory_store", store)
+        run(store.credit(friend, 100, kind="topup"))
+        hold = run(billing.reserve("image", 0.10, "x", settings=cfg()))  # 20 held, balance 80
+
+        async def closer(kind):
+            if kind == "settle":
+                await billing.settle(hold, 0.05, settings=cfg())  # price 10: 10 returned
+            else:
+                await billing.refund(hold, "failed")  # all 20 returned
+
+        async def both():
+            await asyncio.gather(closer(pair[0]), closer(pair[1]))
+
+        run(both())
+        entry = run(store.get_entry(hold.entry_id))
+        credited = [t for t in run(store.list_transactions(friend)) if t.kind in ("settle", "refund")]
+        assert len(credited) == 1, [(t.kind, t.credits) for t in credited]
+        # whichever closer won decides the result; the other changed nothing
+        assert (entry.status, run(store.balance(friend))) in (("settled", 90), ("refunded", 100))
+
+    def test_a_settle_after_a_refund_does_not_charge_again_or_reopen_it(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        hold = run(billing.reserve("tts", 0.05, "x", settings=cfg()))
+        run(billing.refund(hold, "failed"))
+        run(billing.settle(hold, settings=cfg()))
+        assert run(store.get_entry(hold.entry_id)).status == "refunded"
+        assert run(store.balance(friend)) == 100
+
+    def test_close_held_reports_what_was_held_and_charged_and_none_the_second_time(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        hold = run(billing.reserve("image", 0.10, "x", settings=cfg()))
+        assert run(store.close_held(hold.entry_id, price_credits=12)) == (20, 12)
+        assert run(store.close_held(hold.entry_id, price_credits=12)) is None
+        assert run(store.close_held("no-such-entry", price_credits=None)) is None
+
+    def test_a_failure_while_crediting_leaves_the_entry_held_and_nothing_credited(self, store, friend):
+        """The entry change and the credit are one unit: the credit step failing undoes the entry change."""
+        run(store.credit(friend, 100, kind="topup"))
+        hold = run(billing.reserve("image", 0.10, "x", settings=cfg()))
+
+        async def broken_credit(*_a, **_k):
+            raise RuntimeError("database fell over")
+
+        original = store.credit
+        store.credit = broken_credit
+        with pytest.raises(RuntimeError):
+            run(store.close_held(hold.entry_id, price_credits=5))
+        store.credit = original
+        assert run(store.get_entry(hold.entry_id)).status == "held"
+        assert run(store.balance(friend)) == 80
+        # and because nothing moved, closing it again works and credits exactly once
+        assert run(store.close_held(hold.entry_id, price_credits=5)) == (20, 5)
+        assert run(store.balance(friend)) == 95
+
+    def test_a_failure_while_updating_the_entry_credits_nothing(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        hold = run(billing.reserve("image", 0.10, "x", settings=cfg()))
+
+        async def broken_update(_entry):
+            raise RuntimeError("could not write the entry")
+
+        original = store.update_entry
+        store.update_entry = broken_update
+        with pytest.raises(RuntimeError):
+            run(store.close_held(hold.entry_id, price_credits=None))
+        store.update_entry = original
+        assert run(store.get_entry(hold.entry_id)).status == "held"
+        assert run(store.balance(friend)) == 80
+        assert [t.kind for t in run(store.list_transactions(friend))] == ["hold", "topup"]
+
+    def test_settle_and_refund_log_the_fault_instead_of_raising_and_the_hold_stays_open(self, store, friend, caplog):
+        run(store.credit(friend, 100, kind="topup"))
+        hold = run(billing.reserve("image", 0.10, "x", settings=cfg()))
+
+        async def broken_credit(*_a, **_k):
+            raise RuntimeError("database fell over")
+
+        store.credit = broken_credit
+        run(billing.refund(hold, "failed"))
+        assert "could not refund" in caplog.text
+        del store.credit
+        assert run(store.get_entry(hold.entry_id)).status == "held"
+        # the owner can still give it back later
+        assert run(billing.refund_stale_holds(0, cfg(), store)) == 1
+        assert run(store.balance(friend)) == 100
+
+
+class TestHoldAndEntryTogether:
+    def test_a_crash_between_the_debit_and_the_entry_leaves_neither(self, monkeypatch, friend):
+        class CrashBeforeEntry(InMemoryBillingStore):
+            async def add_entry(self, entry):
+                raise RuntimeError("the process died after the debit")
+
+        store = CrashBeforeEntry()
+        monkeypatch.setattr(billing, "_memory_store", store)
+        run(store.credit(friend, 100, kind="topup"))
+        with pytest.raises(RuntimeError):
+            run(billing.reserve("tts", 0.05, "x", settings=cfg()))
+        assert run(store.balance(friend)) == 100
+        assert [t.kind for t in run(store.list_transactions(friend))] == ["topup"], "no debit without its entry"
+        assert run(store.list_entries(friend)) == []
+
+    def test_a_refused_hold_writes_nothing(self, store, friend):
+        run(store.credit(friend, 3, kind="topup"))
+        entry = UsageEntry(tenant_id=friend, kind="tts", credits=10)
+        assert run(store.hold(entry)) == (False, 3)
+        assert run(store.list_entries(friend)) == []
+
+    def test_a_free_hold_records_the_entry_and_no_debit(self, store, friend):
+        entry = UsageEntry(tenant_id=friend, kind="render", credits=0)
+        assert run(store.hold(entry)) == (True, 0)
+        assert run(store.get_entry(entry.entry_id)).status == "held"
+        assert run(store.list_transactions(friend)) == []
+
+    def test_the_hold_and_its_entry_carry_the_same_id(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        hold = run(billing.reserve("tts", 0.05, "x", settings=cfg()))
+        tx = next(t for t in run(store.list_transactions(friend)) if t.kind == "hold")
+        assert tx.entry_id == hold.entry_id and run(store.get_entry(hold.entry_id)).status == "held"
+
+
+class TestStaleHolds:
+    def test_a_hold_whose_job_is_still_running_is_not_refunded(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        running = run(billing.reserve("render", 0.05, "rendering the video", settings=cfg()))
+        assert running.entry_id in billing._in_flight
+        assert run(billing.refund_stale_holds(0, cfg(), store)) == 0
+        assert run(store.get_entry(running.entry_id)).status == "held"
+        assert run(store.balance(friend)) == 90
+
+    def test_it_becomes_refundable_once_the_job_is_gone(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        lost = run(billing.reserve("render", 0.05, "rendering the video", settings=cfg()))
+        billing._in_flight.clear()  # what a server restart does: the job no longer exists
+        assert run(billing.refund_stale_holds(0, cfg(), store)) == 1
+        assert run(store.get_entry(lost.entry_id)).status == "refunded"
+        assert run(store.balance(friend)) == 100
+
+    def test_settling_or_refunding_ends_the_in_flight_state(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        done = run(billing.reserve("tts", 0.05, "x", settings=cfg()))
+        failed = run(billing.reserve("tts", 0.05, "y", settings=cfg()))
+        run(billing.settle(done, settings=cfg()))
+        run(billing.refund(failed, "boom"))
+        assert done.entry_id not in billing._in_flight and failed.entry_id not in billing._in_flight
+
+    def test_a_refused_daily_bound_does_not_leave_the_hold_in_flight(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        with pytest.raises(HTTPException):
+            run(billing.reserve("llm", 0.05, "x", settings=cfg(CAP_DAILY_SPEND_USD=0.01)))
+        assert not billing._in_flight
+
+    def test_only_old_holds_are_candidates(self, store, friend):
+        run(store.credit(friend, 100, kind="topup"))
+        run(billing.reserve("tts", 0.05, "x", settings=cfg()))
+        billing._in_flight.clear()
+        assert run(billing.refund_stale_holds(120, cfg(), store)) == 0  # held for seconds, limit two hours

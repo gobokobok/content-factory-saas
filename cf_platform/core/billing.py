@@ -23,9 +23,11 @@ The daily USD bound of ``limits.spend_gate`` (D120) stays as a second, independe
 ceiling: the hold is taken first, and a refused daily bound gives the hold back.
 """
 
+import contextlib
 import logging
 import math
 import uuid
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Protocol
 
@@ -125,6 +127,26 @@ class BillingStore(Protocol):
         """Add credits. Returns the balance after."""
         ...
 
+    async def hold(self, entry: UsageEntry) -> tuple[bool, int]:
+        """Take entry.credits from the tenant and record entry as held — both or neither, in one transaction.
+
+        Returns (ok, balance after / before). When the balance is lower nothing is written.
+        """
+        ...
+
+    async def close_held(
+        self, entry_id: str, *, price_credits: int | None, actual_usd: float | None = None,
+        units: float | None = None, note: str = "",
+    ) -> tuple[int, int] | None:
+        """Close a held entry exactly once: held -> settled or refunded, and return the credits above the price.
+
+        price_credits None refunds the whole hold; otherwise the entry is charged min(price, held).
+        The status change is conditional on the entry still being held and is made in the same
+        transaction as the credit, so concurrent closers credit once and a fault in either step
+        leaves neither. Returns (held, charged), or None when the entry was not held.
+        """
+        ...
+
     async def grant_signup(self, tenant_id: str, credits: int) -> bool:
         """Grant the sign-up credits once per tenant. True when this call made the grant."""
         ...
@@ -206,6 +228,65 @@ class InMemoryBillingStore:
         self._transactions.append(CreditTransaction(
             tenant_id=tenant_id, kind=kind, credits=credits, entry_id=entry_id, note=note, actor=actor))
         return self._balances[tenant_id]
+
+    async def hold(self, entry: UsageEntry) -> tuple[bool, int]:
+        """Take the credits and record the held entry; if recording fails the credits are put back."""
+        current = self._balances.get(entry.tenant_id, 0)
+        if entry.credits > current:
+            return False, current
+        snapshot = self._snapshot()
+        try:
+            if entry.credits > 0:
+                await self.debit(entry.tenant_id, entry.credits, kind="hold", entry_id=entry.entry_id, note=entry.what)
+            await self.add_entry(entry)
+        except BaseException:
+            self._restore(snapshot)
+            raise
+        return True, self._balances.get(entry.tenant_id, 0)
+
+    async def close_held(
+        self, entry_id: str, *, price_credits: int | None, actual_usd: float | None = None,
+        units: float | None = None, note: str = "",
+    ) -> tuple[int, int] | None:
+        """Move a held entry to settled / refunded and return the excess, once; a fault in a step undoes the other."""
+        entry = self._entries.get(entry_id)
+        if entry is None or entry.status != "held":
+            return None
+        held = entry.credits
+        refunding = price_credits is None
+        final = 0 if refunding else min(price_credits, held)
+        closed = entry.model_copy(update={
+            "credits": final,
+            "status": "refunded" if (refunding or (final == 0 and held > 0)) else "settled",
+            "actual_usd": entry.actual_usd if actual_usd is None else actual_usd,
+            "units": entry.units if units is None else units,
+            "note": note[:500] if note else entry.note,
+            "closed_at": datetime.now(UTC),
+        })
+        snapshot = self._snapshot()
+        # Claim the transition before any await: a second closer that runs while this one is
+        # suspended finds the entry already closed and gets None (the Postgres UPDATE does the same).
+        self._entries[entry_id] = closed
+        try:
+            await self.update_entry(closed)
+            if held - final > 0:
+                await self.credit(
+                    entry.tenant_id, held - final, kind="refund" if refunding else "settle", entry_id=entry_id,
+                    note=f"{entry.what}: {note or 'settled at the actual cost'}")
+        except BaseException:
+            self._restore(snapshot)
+            raise
+        return held, final
+
+    def _snapshot(self) -> tuple[dict[str, int], int, dict[str, UsageEntry], set[str]]:
+        """What a transaction can change, so a failed one can be undone."""
+        return dict(self._balances), len(self._transactions), dict(self._entries), set(self._signups)
+
+    def _restore(self, snapshot: tuple[dict[str, int], int, dict[str, UsageEntry], set[str]]) -> None:
+        """Undo everything since snapshot."""
+        self._balances, count, self._entries, self._signups = (
+            dict(snapshot[0]), snapshot[1], dict(snapshot[2]), set(snapshot[3]))
+        del self._transactions[count:]
 
     async def grant_signup(self, tenant_id: str, credits: int) -> bool:
         """Grant once per tenant."""
@@ -362,6 +443,110 @@ class PostgresBillingStore:
         ])
         return int(rows[0][0])  # type: ignore[index]
 
+    async def hold(self, entry: UsageEntry) -> tuple[bool, int]:
+        """Debit the credits, write the hold transaction and insert the held entry in ONE database transaction.
+
+        A crash (or any error) between the debit and the entry rolls both back, so a debit
+        never exists without its entry. A balance that is too low writes nothing.
+        """
+        from cf_platform.core.postgres_repos import _ensure_open
+
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                if entry.credits > 0:
+                    await cur.execute(
+                        "UPDATE credit_accounts SET balance = balance - %s, updated_at = now() "
+                        "WHERE tenant_id = %s AND balance >= %s RETURNING balance",
+                        (entry.credits, entry.tenant_id, entry.credits),
+                    )
+                    row = await cur.fetchone()
+                    if row is None:
+                        await conn.rollback()
+                        await cur.execute("SELECT balance FROM credit_accounts WHERE tenant_id = %s", (entry.tenant_id,))
+                        current = await cur.fetchone()
+                        return False, int(current[0]) if current else 0
+                    balance = int(row[0])
+                    await cur.execute(
+                        "INSERT INTO credit_transactions (tenant_id, kind, credits, entry_id, note, actor) "
+                        "VALUES (%s, 'hold', %s, %s, %s, '')",
+                        (entry.tenant_id, -entry.credits, entry.entry_id, entry.what),
+                    )
+                else:
+                    await cur.execute("SELECT balance FROM credit_accounts WHERE tenant_id = %s", (entry.tenant_id,))
+                    current = await cur.fetchone()
+                    balance = int(current[0]) if current else 0
+                await cur.execute(
+                    f"INSERT INTO usage_entries ({_ENTRY_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                    self._entry_params(entry),
+                )
+            await conn.commit()
+        return True, balance
+
+    async def close_held(
+        self, entry_id: str, *, price_credits: int | None, actual_usd: float | None = None,
+        units: float | None = None, note: str = "",
+    ) -> tuple[int, int] | None:
+        """Close a held entry once: one conditional UPDATE claims the transition, the credit follows in the same transaction.
+
+        The UPDATE only matches an entry that is still ``held`` (its row is locked first), so two
+        closers racing for one entry get one row between them and only that one credits. If the
+        credit or its transaction row fails, the whole transaction rolls back and the entry is
+        still held — nothing is credited without the entry moving, and nothing moves without the credit.
+        """
+        from cf_platform.core.postgres_repos import _ensure_open
+
+        await _ensure_open(self._pool)
+        params = {
+            "id": entry_id, "refund": price_credits is None, "price": price_credits or 0,
+            "actual": actual_usd, "units": units, "note": note[:500],
+        }
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    WITH old AS (
+                        SELECT entry_id, tenant_id, credits AS held FROM usage_entries
+                         WHERE entry_id = %(id)s AND status = 'held' FOR UPDATE
+                    ), upd AS (
+                        UPDATE usage_entries e SET
+                            credits = CASE WHEN %(refund)s THEN 0 ELSE LEAST(%(price)s::bigint, old.held) END,
+                            status = CASE WHEN %(refund)s THEN 'refunded'
+                                          WHEN LEAST(%(price)s::bigint, old.held) > 0 OR old.held = 0 THEN 'settled'
+                                          ELSE 'refunded' END,
+                            actual_usd = COALESCE(%(actual)s::double precision, e.actual_usd),
+                            units = COALESCE(%(units)s::double precision, e.units),
+                            note = CASE WHEN %(note)s::text <> '' THEN %(note)s::text ELSE e.note END,
+                            closed_at = now()
+                          FROM old WHERE e.entry_id = old.entry_id
+                        RETURNING old.tenant_id AS tenant_id, old.held AS held, e.credits AS final, e.what AS what
+                    )
+                    SELECT tenant_id, held, final, what FROM upd
+                    """,
+                    params,
+                )
+                row = await cur.fetchone()
+                if row is None:
+                    await conn.rollback()
+                    return None
+                tenant_id, held, final, what = row[0], int(row[1]), int(row[2]), row[3]
+                returned = held - final
+                if returned > 0:
+                    await cur.execute(
+                        "INSERT INTO credit_accounts (tenant_id, balance) VALUES (%s, %s) "
+                        "ON CONFLICT (tenant_id) DO UPDATE SET balance = credit_accounts.balance + EXCLUDED.balance, "
+                        "updated_at = now()",
+                        (tenant_id, returned),
+                    )
+                    await cur.execute(
+                        "INSERT INTO credit_transactions (tenant_id, kind, credits, entry_id, note, actor) "
+                        "VALUES (%s, %s, %s, %s, %s, '')",
+                        (tenant_id, "refund" if price_credits is None else "settle", returned, entry_id,
+                         f"{what}: {note or 'settled at the actual cost'}"),
+                    )
+            await conn.commit()
+        return held, final
+
     async def grant_signup(self, tenant_id: str, credits: int) -> bool:
         """Grant once: the unique index on (tenant, 'signup') turns a repeat into a no-op."""
         if credits <= 0:
@@ -485,6 +670,10 @@ class PostgresBillingStore:
 
 
 _memory_store = InMemoryBillingStore()
+# Holds whose job is running in THIS process: reserve() adds one, settle() / refund() remove it.
+# refund_stale_holds() leaves these alone — a long render is not a stuck hold. After a restart the
+# set is empty, which is exactly when an open hold has lost its job (one process per service).
+_in_flight: set[str] = set()
 
 
 def get_billing_store() -> BillingStore:
@@ -578,21 +767,18 @@ async def reserve(
         await ledger.add_entry(entry)
         return Hold(entry, charged=False)
 
-    if entry.credits > 0:
-        ok, balance = await ledger.debit(
-            principal.tenant_id, entry.credits, kind="hold", entry_id=entry.entry_id, note=what)
-        if not ok:
-            raise PaymentRequiredError(entry.credits, balance, what)
+    # The debit and the held entry are written together: a fault between them rolls both back.
+    ok, balance = await ledger.hold(entry)
+    if not ok:
+        raise PaymentRequiredError(entry.credits, balance, what)
+    hold = Hold(entry, charged=entry.credits > 0)
+    _in_flight.add(entry.entry_id)
     try:
         await limits.spend_gate(usd, what, cfg)
-    except HTTPException:
-        if entry.credits > 0:
-            await ledger.credit(
-                principal.tenant_id, entry.credits, kind="refund", entry_id=entry.entry_id,
-                note=f"{what}: daily limit reached")
+    except BaseException as exc:
+        await refund(hold, f"daily limit reached: {getattr(exc, 'detail', exc)}", store=ledger)
         raise
-    await ledger.add_entry(entry)
-    return Hold(entry, charged=entry.credits > 0)
+    return hold
 
 
 async def settle(
@@ -602,60 +788,81 @@ async def settle(
     """Close a hold at the actual cost (the reserved estimate when actual_usd is None).
 
     The credits above the actual price are returned; the platform absorbs an overrun. An
-    actual cost of zero returns the whole hold and marks the entry refunded. Never raises:
-    a ledger fault is logged and must not mask the action's own result.
+    actual cost of zero returns the whole hold and marks the entry refunded. The close is one
+    conditional transition in the store (see ``BillingStore.close_held``): settling an entry
+    that is no longer held — a second settle, or a refund that got there first — does nothing.
+    Never raises: a ledger fault is logged and must not mask the action's own result.
     """
     if hold is None or not hold.recorded:
         return
     try:
         cfg = settings or get_platform_settings()
         ledger = store or get_billing_store()
-        entry = await ledger.get_entry(hold.entry_id)
-        if entry is None or entry.status not in ("held", "exempt", "metered"):
-            return
-        actual = hold.raw_usd if actual_usd is None else max(actual_usd, 0.0)
-        entry.actual_usd = actual
-        if units is not None:
-            entry.units = units
-        entry.closed_at = datetime.now(UTC)
-        if entry.status == "held":
-            held = entry.credits
-            final = min(price_credits(actual, cfg), held)
-            returned = held - final
-            if returned > 0:
-                await ledger.credit(
-                    entry.tenant_id, returned, kind="settle", entry_id=entry.entry_id,
-                    note=f"{entry.what}: settled at the actual cost")
-            entry.credits = final
-            entry.status = "settled" if (final > 0 or held == 0) else "refunded"
-        elif entry.status == "metered":
-            entry.credits = price_credits(actual, cfg)
-        await ledger.update_entry(entry)
+        actual = hold.raw_usd if actual_usd is None else max(_as_float(actual_usd), 0.0)
+        closed = await ledger.close_held(
+            hold.entry_id, price_credits=price_credits(actual, cfg), actual_usd=actual, units=units)
+        if closed is None:
+            await _close_unheld(ledger, hold.entry_id, actual, units, cfg)
     except Exception:
         _logger.exception("billing: could not settle entry %s", getattr(hold, "entry_id", "?"))
+    finally:
+        _in_flight.discard(hold.entry_id)
 
 
 async def refund(
     hold: Hold | None, reason: str = "", *, store: BillingStore | None = None,
 ) -> None:
-    """Return a hold in full because the action failed. Never raises (a ledger fault is logged)."""
+    """Return a hold in full because the action failed. Never raises (a ledger fault is logged).
+
+    Like :func:`settle` it is one conditional transition in the store: if the entry is no longer
+    held (already settled or refunded) nothing is credited, however many callers race.
+    """
     if hold is None or not hold.recorded:
         return
     try:
         ledger = store or get_billing_store()
-        entry = await ledger.get_entry(hold.entry_id)
-        if entry is None or entry.status not in ("held", "exempt", "metered"):
-            return
-        if entry.status == "held" and entry.credits > 0:
-            await ledger.credit(
-                entry.tenant_id, entry.credits, kind="refund", entry_id=entry.entry_id,
-                note=f"{entry.what}: {reason or 'failed'}")
-        entry.status = "refunded"
-        entry.note = reason[:500]
-        entry.closed_at = datetime.now(UTC)
-        await ledger.update_entry(entry)
+        closed = await ledger.close_held(hold.entry_id, price_credits=None, note=reason or "failed")
+        if closed is None:
+            await _close_unheld(ledger, hold.entry_id, None, None, None, refunded=True, reason=reason)
     except Exception:
         _logger.exception("billing: could not refund entry %s", getattr(hold, "entry_id", "?"))
+    finally:
+        _in_flight.discard(hold.entry_id)
+
+
+async def _close_unheld(
+    ledger: BillingStore, entry_id: str, actual: float | None, units: float | None,
+    cfg: PlatformSettings | None, *, refunded: bool = False, reason: str = "",
+) -> None:
+    """Record the end of an action that moved no credits (owner exempt, billing off metered); a no-op for a closed entry."""
+    entry = await ledger.get_entry(entry_id)
+    if entry is None or entry.status not in ("exempt", "metered"):
+        return
+    entry.closed_at = datetime.now(UTC)
+    if refunded:
+        entry.status, entry.note = "refunded", reason[:500]
+    else:
+        entry.actual_usd = actual
+        if units is not None:
+            entry.units = units
+        if entry.status == "metered":
+            entry.credits = price_credits(actual or 0.0, cfg)
+    await ledger.update_entry(entry)
+
+
+@contextlib.asynccontextmanager
+async def refund_on_error(hold: Hold | None, what: str = "the action") -> AsyncIterator[Hold | None]:
+    """Give the hold back if the body raises anything — an error or a cancellation — then re-raise it.
+
+    Wrap every step between :func:`reserve` and the moment a background job takes the hold over
+    (writing the job marker, building the worker, queueing the task): a failure there would
+    otherwise leave the credits held for ever with no job to close them.
+    """
+    try:
+        yield hold
+    except BaseException as exc:
+        await refund(hold, f"{what} did not start: {exc!r}"[:500])
+        raise
 
 
 async def grant_signup_credits(tenant_id: str, settings: PlatformSettings | None = None, store: BillingStore | None = None) -> bool:
@@ -716,13 +923,15 @@ async def refund_stale_holds(
     A hold is closed by the background job that took it; if the server restarted mid-job
     nothing closes it, and the user's credits would stay held for ever. The owner runs this
     from the admin view (or a scheduled call) — the job's own result is not known, so the
-    safe side is to give the credits back.
+    safe side is to give the credits back. A hold whose job is still running in this process
+    (``_in_flight``) is never refunded, however old: a long render is not a stuck hold.
     """
     cfg = settings or get_platform_settings()
     ledger = store or get_billing_store()
     minutes = older_than_minutes if older_than_minutes is not None else int(setting(cfg, "BILLING_HOLD_TTL_MINUTES"))
     cutoff = datetime.now(UTC) - timedelta(minutes=minutes)
-    stale = await ledger.list_entries(status="held", before=cutoff, limit=1000)
+    stale = [e for e in await ledger.list_entries(status="held", before=cutoff, limit=1000)
+             if e.entry_id not in _in_flight]
     for entry in stale:
         await refund(
             Hold(entry, charged=True), f"the action never finished (held more than {minutes} minutes)", store=ledger)

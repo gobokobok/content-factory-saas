@@ -86,8 +86,11 @@ class PlatformSettings(BaseSettings):
     # Estimated dollars of one paid call that has no exact price (LLM, TTS, a prompt rewrite).
     EST_LLM_CALL_USD: float = 0.05
     EST_TTS_CALL_USD: float = 0.05
-    EST_RENDER_USD: float = 0.0
+    # One server render. Non-zero so the render action has a price (the page shows the same figure the hold takes).
+    EST_RENDER_USD: float = 0.05
     EST_TRANSCRIPTION_USD: float = 0.05
+    # One niche -> ideas run: three LLM calls (the discovery sources are free).
+    EST_IDEAS_USD: float = 0.15
     # P-BILL-1 (D123) — credits. Off by default: the ledger then only records what each paid
     # action would cost (metering) and no balance is held or refused. One credit is
     # CREDIT_VALUE_USD of price; price = raw provider cost x CREDIT_MARKUP, rounded up.

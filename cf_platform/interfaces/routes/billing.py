@@ -39,6 +39,7 @@ def action_prices(settings: PlatformSettings) -> dict[str, int]:
         "render": billing.price_credits(billing.setting(settings, "EST_RENDER_USD"), settings),
         "scene_prompt": billing.price_credits(billing.setting(settings, "EST_LLM_CALL_USD"), settings),
         "transcription": billing.price_credits(billing.setting(settings, "EST_TRANSCRIPTION_USD"), settings),
+        "ideas": billing.price_credits(billing.setting(settings, "EST_IDEAS_USD"), settings),
     }
 
 

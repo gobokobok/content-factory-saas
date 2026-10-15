@@ -13,6 +13,7 @@ Routes are thin: validation and edit rules live in workers/voice_upload.py and
 workers/transcript_edit.py.
 """
 
+import asyncio
 import logging
 import time
 import uuid
@@ -171,6 +172,9 @@ async def _run_transcription_background(
         await billing.settle(
             hold, alignment.total_duration_s / 60 * cost_per_min_usd, units=round(alignment.total_duration_s, 1)
         )
+    except asyncio.CancelledError:
+        await billing.refund(hold, "transcription job cancelled")
+        raise
     except Exception as exc:
         # VoiceUploadError carries an operator-readable message; anything else is a bug
         # the log needs the traceback for.
@@ -296,28 +300,29 @@ async def studio_upload_voice(
         "transcription", billing.setting(settings, "EST_TRANSCRIPTION_USD"), "transcribing your voiceover",
         run_id=run_id, settings=settings,
     )
-    if storyboard_key:
-        await discard_storyboard(storage, run_id, storyboard_key)
+    async with billing.refund_on_error(hold, "the transcription"):
+        if storyboard_key:
+            await discard_storyboard(storage, run_id, storyboard_key)
 
-    audio_key = f"runs/{run_id}/voiceover/uploaded{ext}"
-    await storage.put_bytes(audio_key, data, content_type_for(ext))
-    worker = build_voice_upload_worker(
-        storage,
-        settings.DEEPGRAM_API_KEY,
-        min_s=settings.VOICE_UPLOAD_MIN_S,
-        max_s=settings.VOICE_UPLOAD_MAX_S,
-    )
-    language = run_language(run)
-    state = StageState(
-        run_id=run_id, user_id=current_tenant_id(),
-        inputs={"audio_r2_key": audio_key, "language": language}, artifacts={},
-    )
-    job_id = str(uuid.uuid4())
-    await storage.put_json(_job_key(run_id), {"job_id": job_id, "status": "running"})
-    background_tasks.add_task(
-        _run_transcription_background, run_id, job_id, state, worker, storage, trace_events,
-        settings.DEEPGRAM_COST_PER_MIN_USD, settings.VOICE_LOW_CONFIDENCE, hold,
-    )
+        audio_key = f"runs/{run_id}/voiceover/uploaded{ext}"
+        await storage.put_bytes(audio_key, data, content_type_for(ext))
+        worker = build_voice_upload_worker(
+            storage,
+            settings.DEEPGRAM_API_KEY,
+            min_s=settings.VOICE_UPLOAD_MIN_S,
+            max_s=settings.VOICE_UPLOAD_MAX_S,
+        )
+        language = run_language(run)
+        state = StageState(
+            run_id=run_id, user_id=current_tenant_id(),
+            inputs={"audio_r2_key": audio_key, "language": language}, artifacts={},
+        )
+        job_id = str(uuid.uuid4())
+        await storage.put_json(_job_key(run_id), {"job_id": job_id, "status": "running"})
+        background_tasks.add_task(
+            _run_transcription_background, run_id, job_id, state, worker, storage, trace_events,
+            settings.DEEPGRAM_COST_PER_MIN_USD, settings.VOICE_LOW_CONFIDENCE, hold,
+        )
     await _record_trace(trace_events, TraceEvent(
         run_id=run_id, worker="voice_upload", source="operator", op="voice_upload",
         latency_ms=int((time.monotonic() - t0) * 1000), status="ok",

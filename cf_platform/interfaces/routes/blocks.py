@@ -83,32 +83,38 @@ async def niche_to_ideas(
     `audience` is stored in run inputs for future use; `mode` is passed into
     NicheToIdeasState to control single-vs-top_n selection routing (P4-S4).
     """
-    run_inputs: dict[str, Any] = {"niche": body.niche}
-    if body.audience:
-        run_inputs["audience"] = body.audience
-
-    run = await create_run(current_tenant_id(), "niche_to_ideas", run_inputs, runs)
-    run = await transition_run(run.run_id, "running", runs)
-
-    graph = build_niche_to_ideas_graph(
-        storage=storage,
-        registry=registry,
-        executions=executions,
-        artifact_repo=artifacts,
-        adapters=adapters,
-        trace_repo=trace_events,
-        anthropic_api_key=settings.ANTHROPIC_API_KEY,
-        checkpointer=checkpointer,
+    # P-BILL-1: finding ideas is three LLM calls (topic generator, opportunity scorer, topic selector);
+    # the discovery sources are free. Held before the run is created, so a refusal leaves nothing behind.
+    hold = await billing.reserve(
+        "llm", billing.setting(settings, "EST_IDEAS_USD"), "finding ideas", settings=settings,
     )
-    mode = body.mode if body.mode in ("single", "top_n") else "single"
-    state = NicheToIdeasState(
-        run_id=run.run_id,
-        user_id=current_tenant_id(),
-        inputs=run_inputs,
-        mode=mode,  # type: ignore[arg-type]
-    )
-    result = await run_graph(graph, state, thread_id=run.run_id)
+    async with billing.refund_on_error(hold, "finding ideas"):
+        run_inputs: dict[str, Any] = {"niche": body.niche}
+        if body.audience:
+            run_inputs["audience"] = body.audience
 
+        run = await create_run(current_tenant_id(), "niche_to_ideas", run_inputs, runs)
+        run = await transition_run(run.run_id, "running", runs)
+
+        graph = build_niche_to_ideas_graph(
+            storage=storage,
+            registry=registry,
+            executions=executions,
+            artifact_repo=artifacts,
+            adapters=adapters,
+            trace_repo=trace_events,
+            anthropic_api_key=settings.ANTHROPIC_API_KEY,
+            checkpointer=checkpointer,
+        )
+        mode = body.mode if body.mode in ("single", "top_n") else "single"
+        state = NicheToIdeasState(
+            run_id=run.run_id,
+            user_id=current_tenant_id(),
+            inputs=run_inputs,
+            mode=mode,  # type: ignore[arg-type]
+        )
+        result = await run_graph(graph, state, thread_id=run.run_id)
+    await billing.settle(hold)
     await transition_run(run.run_id, "complete", runs)
 
     ranked_key = result.artifacts["ranked_ideas"]
@@ -203,52 +209,49 @@ async def idea_to_script(
         run_id=body.run_id or "", units=float(body.max_iterations or 3), settings=settings,
     )
 
-    run_inputs: dict[str, Any] = {"idea_title": body.idea_title}
-    if niche:
-        run_inputs["niche"] = niche
-    if body.angle:
-        run_inputs["angle"] = body.angle
-    if body.supporting_points:
-        run_inputs["supporting_points"] = body.supporting_points
+    async with billing.refund_on_error(hold, "script generation"):
+        run_inputs: dict[str, Any] = {"idea_title": body.idea_title}
+        if niche:
+            run_inputs["niche"] = niche
+        if body.angle:
+            run_inputs["angle"] = body.angle
+        if body.supporting_points:
+            run_inputs["supporting_points"] = body.supporting_points
 
-    if existing_run is None:
-        run = await create_run(current_tenant_id(), "idea_to_script", run_inputs, runs)
-        run = await transition_run(run.run_id, "running", runs)
-        thread_id = run.run_id
-    else:
-        # The run outlives this block: it is only moved out of 'created', never
-        # to 'complete' — generating a script does not finish a video run.
-        run = existing_run
-        if run.status == "created":
+        if existing_run is None:
+            run = await create_run(current_tenant_id(), "idea_to_script", run_inputs, runs)
             run = await transition_run(run.run_id, "running", runs)
-        # A fresh checkpoint thread per generation. Re-invoking a finished thread
-        # would resume from its saved state and re-apply the additive reducers
-        # (iteration, integrity_loops) on top of the previous generation's counts.
-        thread_id = f"{run.run_id}:idea_to_script:{uuid.uuid4().hex[:8]}"
+            thread_id = run.run_id
+        else:
+            # The run outlives this block: it is only moved out of 'created', never
+            # to 'complete' — generating a script does not finish a video run.
+            run = existing_run
+            if run.status == "created":
+                run = await transition_run(run.run_id, "running", runs)
+            # A fresh checkpoint thread per generation. Re-invoking a finished thread
+            # would resume from its saved state and re-apply the additive reducers
+            # (iteration, integrity_loops) on top of the previous generation's counts.
+            thread_id = f"{run.run_id}:idea_to_script:{uuid.uuid4().hex[:8]}"
 
-    state_kwargs: dict[str, Any] = {"target_duration_seconds": body.target_duration_seconds}
-    if body.max_iterations is not None:
-        state_kwargs["max_iterations"] = body.max_iterations
+        state_kwargs: dict[str, Any] = {"target_duration_seconds": body.target_duration_seconds}
+        if body.max_iterations is not None:
+            state_kwargs["max_iterations"] = body.max_iterations
 
-    graph = build_idea_to_script_graph(
-        storage=storage,
-        registry=registry,
-        executions=executions,
-        artifact_repo=artifacts,
-        anthropic_api_key=settings.ANTHROPIC_API_KEY,
-        checkpointer=checkpointer,
-    )
-    state = IdeaToScriptState(
-        run_id=run.run_id,
-        user_id=current_tenant_id(),
-        inputs=run_inputs,
-        **state_kwargs,
-    )
-    try:
+        graph = build_idea_to_script_graph(
+            storage=storage,
+            registry=registry,
+            executions=executions,
+            artifact_repo=artifacts,
+            anthropic_api_key=settings.ANTHROPIC_API_KEY,
+            checkpointer=checkpointer,
+        )
+        state = IdeaToScriptState(
+            run_id=run.run_id,
+            user_id=current_tenant_id(),
+            inputs=run_inputs,
+            **state_kwargs,
+        )
         result = await run_graph(graph, state, thread_id=thread_id)
-    except Exception as exc:
-        await billing.refund(hold, f"script generation failed: {exc}")
-        raise
     # Settled at what ran: one call per iteration the graph actually made.
     await billing.settle(hold, unit_usd * max(int(result.iteration or 1), 1), units=float(result.iteration or 1))
     if existing_run is None:

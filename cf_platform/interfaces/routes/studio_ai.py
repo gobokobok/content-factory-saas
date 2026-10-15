@@ -254,8 +254,8 @@ async def studio_generate_scene_image(
     except ImageGenerationError as exc:
         await billing.refund(hold, str(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except Exception as exc:
-        await billing.refund(hold, f"image generation failed: {exc}")
+    except BaseException as exc:
+        await billing.refund(hold, f"image generation failed: {exc!r}")
         raise
     await billing.settle(hold)
 
@@ -364,8 +364,8 @@ async def _run_billed_image_job(
     """
     try:
         job = await run_image_job(ctx, scene_ids, job_id=job_id, concurrency=concurrency)
-    except Exception as exc:
-        await billing.refund(hold, f"the image job crashed: {exc}")
+    except BaseException as exc:  # includes a cancellation: refund, then let it through
+        await billing.refund(hold, f"the image job crashed: {exc!r}")
         raise
     done = sum(1 for state in (job.get("scenes") or {}).values() if state == DONE)
     await billing.settle(hold, ctx.cost_usd * done, units=float(done))
@@ -437,9 +437,9 @@ async def studio_generate_all_images(
             _run_billed_image_job, hold, ctx, plan["scene_ids"],
             job_id=job_id, concurrency=int(getattr(settings, "IMAGE_JOB_CONCURRENCY", 3)),
         )
-    except Exception as exc:
+    except BaseException as exc:
         release_job(run_id)
-        await billing.refund(hold, f"the image job could not start: {exc}")
+        await billing.refund(hold, f"the image job could not start: {exc!r}")
         raise
     _logger.info("image job %s enqueued for run %s (%d scenes)", job_id, run_id, len(plan["scene_ids"]))
     return {"status": JOB_RUNNING, "already_running": False, "job": job, "plan": plan}

@@ -238,7 +238,7 @@ class TestMe:
         assert body["enabled"] is True and body["exempt"] is False and body["balance"] == 100
         assert body["history"] == []
         assert body["prices"]["voice"] == 10 and body["prices"]["storyboard"] == 10
-        assert body["prices"]["render"] == 0
+        assert body["prices"]["render"] == 10 and body["prices"]["ideas"] == 30
         assert body["credit_value_usd"] == 0.01
         assert "markup" not in json.dumps(body).lower()
 

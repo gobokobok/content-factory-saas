@@ -197,8 +197,8 @@ async def studio_write_scene_prompt(
     except ScenePromptError as exc:
         await billing.refund(hold, str(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    except Exception as exc:
-        await billing.refund(hold, f"the director failed: {exc}")
+    except BaseException as exc:
+        await billing.refund(hold, f"the director failed: {exc!r}")
         raise
     await billing.settle(hold)
     async with run_lock(run_id):
