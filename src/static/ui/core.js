@@ -527,7 +527,7 @@
     const facets = kind === 'images' ? ['Stock', 'AI generated'] : [...new Set(d.items.map(a => a.facet).filter(Boolean))];
     frame(crumbs([['Libraries'], [LIBS[kind]]]), `<div class="page-head"><h1>${LIBS[kind]}</h1>
       ${kind === 'music' ? `<button class="btn primary" style="margin-left:auto" onclick="document.getElementById('lib-track').click()">+ Add track</button>
-      <input type="file" id="lib-track" class="hidden" accept="audio/mpeg,audio/wav,audio/mp4" onchange="Core.addTrack(this)">` : ''}
+      <input type="file" id="lib-track" class="hidden" accept="audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,.mp3,.wav,.m4a" onchange="Core.addTrack(this)">` : ''}
 </div>
       <div class="lib-bar">
         <div class="lib-search" id="lib-search">

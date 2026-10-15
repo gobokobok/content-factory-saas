@@ -70,7 +70,7 @@
       ${BASIC ? '' : `<div class="gen-box" id="up-box">
         <p class="meta" style="margin:0 0 12px" id="up-lang"></p>
         <div class="drop" id="up-drop" onclick="document.getElementById('up-file').click()">Drop your voiceover here, or click to choose (MP3, WAV, M4A)</div>
-        <input type="file" id="up-file" class="hidden" accept="audio/mpeg,audio/wav,audio/mp4,audio/x-wav,audio/webm" onchange="CoreRun.uploadVo(this)">
+        <input type="file" id="up-file" class="hidden" accept="audio/mpeg,audio/wav,audio/mp4,audio/x-wav,audio/x-m4a,audio/webm,.mp3,.wav,.m4a" onchange="CoreRun.uploadVo(this)">
         <div class="job" id="job-up"></div>
         <div id="tr-box" style="margin-top:16px"></div>
       </div>`}`);

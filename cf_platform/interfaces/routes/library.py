@@ -83,7 +83,8 @@ async def add_music_track(file: UploadFile, storage: ArtifactStorage = Depends(g
     from cf_platform.core import limits
     from cf_platform.interfaces.routes.studio import _read_upload_capped
 
-    types = {"audio/mpeg": ".mp3", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/mp4": ".m4a"}
+    types = {"audio/mpeg": ".mp3", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/mp4": ".m4a",
+             "audio/x-m4a": ".m4a", "audio/m4a": ".m4a"}
     content_type = (file.content_type or "").split(";")[0].strip()
     if content_type not in types:
         raise HTTPException(status_code=422, detail=f"Unsupported file type: {content_type!r}. Allowed: mp3, wav, m4a.")

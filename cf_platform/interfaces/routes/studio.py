@@ -1428,9 +1428,10 @@ async def studio_upload_music(
     mixed in by the render script); operators should stick to one format
     per run.
     """
-    _ALLOWED_MIME_TYPES = {"audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4"}
+    _ALLOWED_MIME_TYPES = {"audio/mpeg", "audio/wav", "audio/x-wav", "audio/mp4", "audio/x-m4a", "audio/m4a"}
     _MIME_TO_EXT = {
         "audio/mpeg": ".mp3", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/mp4": ".m4a",
+        "audio/x-m4a": ".m4a", "audio/m4a": ".m4a",
     }
     _MAX_BYTES = 50 * 1024 * 1024  # 50 MB
 
