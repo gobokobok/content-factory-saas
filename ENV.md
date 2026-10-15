@@ -167,7 +167,14 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `CAP_PROMPT_CHARS` / `CAP_STYLE_CHARS` / `CAP_CHARACTER_CHARS` | P-AUTH | Server caps on a prompt, a master style, a character or entry description (D120). Defaults `4000` / `2000` / `1500`. |
 | `CAP_RUNS_PER_DAY` | P-AUTH | New videos per tenant per UTC day (D120). Default `10`. |
 | `CAP_DAILY_SPEND_USD` | P-AUTH | Estimated provider spend a tenant may reserve per UTC day (D120). Default `5.0`. The owner is exempt. |
-| `EST_LLM_CALL_USD` / `EST_TTS_CALL_USD` / `EST_RENDER_USD` | P-AUTH | Estimated dollars reserved for a call with no exact price. Defaults `0.05` / `0.05` / `0`. |
+| `EST_LLM_CALL_USD` / `EST_TTS_CALL_USD` / `EST_RENDER_USD` | P-AUTH | Estimated dollars reserved for a call with no exact price. Defaults `0.05` / `0.05` / `0.05`. **`EST_RENDER_USD` was `0` until the P-BILL-1 review fix**: a render now has a price (10 credits at the default markup), and the figure the page shows is the one the hold takes. It is a placeholder for the server's real render cost: set it from the first month's Railway CPU cost. |
+| `EST_IDEAS_USD` | P-BILL-1 | Estimated dollars of one niche -> ideas run (three LLM calls; the discovery sources are free). Default `0.15`. |
+| `EST_TRANSCRIPTION_USD` | P-BILL-1 | Estimated dollars of one voiceover transcription (Deepgram), held before it starts and settled at the minutes actually transcribed (`DEEPGRAM_COST_PER_MIN_USD`). Default `0.05`. |
+| `BILLING_ENABLED` | P-BILL-1 | `true` charges credits (D123): a hold before every paid action, a 402 when the balance does not cover it. Default `false` — the ledger only **meters** (records what each action would cost) and nothing is held or refused. Turn it on at beta opening, after AUTH-S10 and P-CORE-S11. The owner is never charged. |
+| `CREDIT_VALUE_USD` | P-BILL-1 | The price of one credit in dollars. Default `0.01`. |
+| `CREDIT_MARKUP` | P-BILL-1 | Multiplier from raw provider cost to price: credits = ceil(raw x markup / `CREDIT_VALUE_USD`), at least 1 for any non-zero cost. Default `2.0`. Never shown to users. |
+| `SIGNUP_CREDITS` | P-BILL-1 | Credits a new account gets once at first sign-in. Default `0` (the owner tops accounts up from Settings -> Credits). |
+| `BILLING_HOLD_TTL_MINUTES` | P-BILL-1 | A credit hold still open after this long is refundable from Settings -> Credits ("Give back stuck holds"): its job never finished (a restart). Default `120`. |
 | `CAP_CONCURRENT_RENDERS` | P-AUTH | Renders one tenant may run at once (D120). Default `1`. |
 | `CAP_STORAGE_MB` | P-AUTH | Uploaded megabytes per tenant (D120). Default `2048`. |
 | `MODERATION_MODE` | P-AUTH | `block` (default) refuses a flagged text; `log` records and never blocks — for tuning (D115, D120). |

@@ -1,7 +1,56 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last sprints (P-CORE, P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last sprints (P-BILL-1, P-CORE, P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P-BILL-1] Usage ledger and credits — S1 ledger, S2 credits and charging, S3 hard limits, S4 owner top-up and admin view, S5 the Creator's balance, price and history
+**Completed:** 2026-10-15 (built in one pass on branch `claude/p-bill-1` in a cloud sandbox, commit `eaafe87`; **pull request open, not merged; nothing has run on DEV**). AUTH-S10 and P-CORE-S11 (the two live smokes) are the operator's and have not run.
+**Handover:**
+- **Ledger (S1)** `cf_platform/core/billing.py` + migration `0006_billing.sql`: `usage_entries` (one priced row per paid action: kind llm / tts / transcription / image / render, units, raw provider cost, actual cost, credits, status held → settled / refunded, or `exempt` for the owner and `metered` while billing is off), `credit_accounts` (`CHECK balance >= 0`), `credit_transactions` (every balance change, signed; a unique index makes the sign-up grant once-only). Store protocol with in-memory and Postgres implementations, as in `limits.py`.
+- **Credits (S2, D123)** price = ceil(raw × `CREDIT_MARKUP` / `CREDIT_VALUE_USD`), at least 1 for any non-zero cost (defaults ×2 and $0.01: a $0.05 call is 10 credits). `billing.reserve()` takes the hold **before** the provider call (credits first, then the existing daily USD bound; a refused daily bound gives the hold back), `settle()` closes it at the actual cost when known (excess returned; an overrun is absorbed by the platform), `refund()` returns it when the action failed. Wired into: storyboard, voice, render, voiceover transcription, single and bulk scene images (bulk settles at the images actually made), write-prompt, idea-to-script (settled at the iterations that ran) and **metadata** (which `spend_gate` never covered). Routes take the hold after every check that can refuse the request, so a 402 starts nothing and discards nothing. **`BILLING_ENABLED` defaults to false**: the ledger meters (records what each action would cost) and nothing is held or refused, so merging changes nothing for the existing accounts.
+- **Hard limits (S3)** `PaymentRequiredError` → 402 `{detail, cost_credits, balance_credits}`; "The voiceover costs 10 credits; you have 5." The balance cannot be overdrawn by concurrent holds (one conditional `UPDATE`; also a `CHECK` in the table).
+- **Owner (S4)** owner-only `GET /platform/admin/billing/users`, `POST …/topup` (by email or tenant, positive or negative, never below zero, actor and note recorded), `GET …/usage` (filters), `POST …/refund-stale` (gives back holds whose job never finished, `BILLING_HOLD_TTL_MINUTES`); an owner-only **Settings → Credits** screen in `/create` (accounts table, top-up dialog, usage list); `SIGNUP_CREDITS` granted once at first Google sign-in.
+- **Creator (S5)** `GET /platform/billing/me` (Basic-allowed, own tenant, no tenant parameter): balance, flat prices, last 30 priced actions. `/create` shows a Credits entry with the balance, the price on the Voice and Storyboard buttons, the price in credits in the images confirmation, and a Credits screen with the history; all of it hidden while billing is off. A refusal appears as the page's usual error line (the server's sentence).
+- ENV added: `BILLING_ENABLED`, `CREDIT_VALUE_USD`, `CREDIT_MARKUP`, `SIGNUP_CREDITS`, `BILLING_HOLD_TTL_MINUTES`, `EST_TRANSCRIPTION_USD` (see ENV.md). Migration `0006`. Decision **D123**. No new dependency.
+- Tests (first commit): **3353 passing** in the cloud sandbox (+125: 47 core, 13 job wiring, 48 routes with real sessions, 17 page checks) plus 6 integration tests against a real Postgres (`tests/integration/test_billing_postgres.py`, `CF_TEST_DATABASE_URL`). The 2 golden-render tests (`test_golden_each_motion_effect_portrait` / `_landscape`) fail in this sandbox only because of its ffmpeg build and were not touched. One older test's fake background function gained a `hold=None` parameter.
+- **Files that mattered:** `cf_platform/core/billing.py`, `cf_platform/interfaces/routes/billing.py`, `cf_platform/interfaces/routes/workers.py` (where each hold is taken and closed), `studio_ai.py` (`_run_billed_image_job`), `src/static/ui/creator.js` (`loadBilling`, `priceTag`, `showCredits`), `src/static/ui/core.js` (owner Credits screen), `tests/test_p_auth_billing_routes.py`.
+**Review fixes (PR #1 code review, 2026-10-15, commits after `9c1cd67`):**
+- **One close per hold.** `settle` / `refund` are one conditional `held -> settled | refunded` transition in the store (`BillingStore.close_held`; Postgres: a row-locking CTE `UPDATE … WHERE status='held'` returning the held credits) in the **same transaction** as the credit, written only if a row came back. Two concurrent closers credit once; a fault in the credit step rolls the entry change back (the hold stays open and can be closed again), a fault in the entry update credits nothing.
+- **Debit and entry together.** `BillingStore.hold(entry)` debits, writes the `hold` transaction and inserts the held entry in one transaction; a crash between them leaves neither. (A refused daily bound now closes that entry as refunded instead of leaving no row.)
+- **Hold leaks.** `billing.refund_on_error(hold)` guards every await between `reserve()` and the job taking over — storyboard, voice, render (also gives back the render slot), voiceover upload, idea-to-script, bulk images; the inline paths catch `BaseException`. Background jobs (storyboard, voice, render, transcription, bulk images) refund on `asyncio.CancelledError` and re-raise.
+- **niche-to-ideas is billed** (`EST_IDEAS_USD`, default 0.15 = 30 credits; listed in `GET /platform/billing/me` prices). `runs/{id}/resume` and `pipeline/produce` stay unbilled as **accepted legacy exceptions** (DECISIONS D123).
+- **Stale holds.** `refund_stale_holds` skips a hold whose job is still running in this process (`billing._in_flight`); after a restart the set is empty and the hold is refundable.
+- **`EST_RENDER_USD` defaults to 0.05** (was 0): the render action has a price (10 credits) and the page shows the figure the hold takes.
+- **Not fixed, now stories:** BILL-F1 (release the daily USD reservation on refund / settle-down) and BILL-F2 (refund when the provider call succeeded but its result was lost) in BACKLOG_ACTIVE.md.
+- Tests after the fixes: **3393 passing** (+40; 2 baseline golden-render failures in this sandbox only) and **17** billing integration tests on a real Postgres 16 (+11: concurrent closers, injected faults at each step, crash between debit and entry). A mutation check (guard's refund disabled) fails 8 of the new leak tests.
+**Found while building:** the first Postgres store asked the connection pool for a second connection to read the balance after a refused hold while still holding the first; with the app's pool of 4, several refusals at once would hang. Only the real-Postgres run showed it (fixed; pinned by `test_many_refused_holds_do_not_exhaust_the_pool`).
+**Not verified:**
+- **Nothing has run on DEV or Railway.** Migration 0006 and the SQL were run against a throwaway local Postgres 16 (applied twice; concurrent holds, refusals, the once-only grant, the summary query, the `CHECK`), not against DEV's database.
+- No provider was called: every voice, storyboard, image, render, transcription and metadata path was run with a fake provider. The real cost of one video in credits at the default markup has not been seen.
+- The pages were driven in a headless Chromium against a local in-memory server (friend: balance, prices, history; owner: users table, top-up to 410, menu entry; no page errors). The phone-width layout and the dialog on a real account were not looked at.
+- Settling is exact for images, transcription (minutes) and scripts (iterations that ran). **LLM calls (storyboard, director, metadata) and voice are priced at their flat estimates** (`EST_LLM_CALL_USD`, `EST_TTS_CALL_USD`), not their token or character counts, so a real call can cost more or less than it is charged.
+- D123 point (4), "a user's own provider key is never charged", is **not built**: no non-owner can save a key today (Integrations is Super-only), so there is nothing to exempt yet.
+- Holds are closed by the background job that took them; a restart mid-job leaves the hold open until the owner presses "Give back stuck holds" (nothing does it automatically; a job still running is skipped).
+- `/audit` was not run; `docs/SECURITY.md` says it is still due before `BILLING_ENABLED` is turned on.
+**Smoke test:** DEFERRED — needs the branch merged and deployed to DEV (migration 0006 applies at start-up), after AUTH-S10 and P-CORE-S11. Steps (as the owner on DEV, with a second Google account in `ALLOWED_EMAILS`):
+1. With `BILLING_ENABLED` unset: sign in as the friend and make a short video as before; nothing is refused. As the owner, Settings → Credits lists the friend with the actions as `metered` and what each would have cost.
+2. Set `BILLING_ENABLED=true`: the friend's Credits entry shows 0; "Generate voiceover · 10 credits" is refused with "The voiceover costs 10 credits; you have 0." and no job starts.
+3. Owner: Settings → Credits → Top up the friend by 500; the friend's balance updates after the next action or reload.
+4. The friend makes a video start to finish; each step is charged once; the Credits screen history matches; the owner's usage list shows raw provider cost beside the credits, and you can judge `CREDIT_MARKUP`.
+5. Make a step fail on purpose (revoke a key, or an unreachable provider): the friend is refunded and the history says Refunded.
+6. Bulk images with some scenes failing: only the images made are charged.
+7. As the owner (and under View as Basic) make a step: nothing is charged and the owner's balance does not move.
+**Promoted to backlog:**
+- **Run the scoped `/audit` on DEV before `BILLING_ENABLED` is turned on** (money paths; SECURITY.md lists what to check).
+- Gate the acquisition worker and any other paid call outside `spend_gate` before a second Super account exists (SECURITY.md).
+- LLM-token and TTS-character settling (replace the flat estimates with the provider's usage).
+- Automatic refund of stale holds (a janitor, with the session purge already listed under P-AUTH).
+- Own-key exemption (D123 point 4) when non-owners can save keys (INT2-S1).
+- Per-user daily spend (`CAP_DAILY_SPEND_USD`) is now a second ceiling next to credits; decide at the first month's data whether to keep it.
+- VERIFY (operator, DEV): the markup against one real video's raw cost; the Credits screens on a phone.
+- VERIFY (Claude, DEV logs): `billing: could not settle|refund` should never appear.
 
 ---
 

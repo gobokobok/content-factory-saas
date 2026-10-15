@@ -370,6 +370,9 @@ a.btn{text-decoration:none}
   <div class="p-body" id="nav-body" style="display:flex;flex-direction:column">
     <a class="nav-btn" id="nav-runs" href="#runs" style="text-decoration:none">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>Runs</a>
+    <!-- Credits (P-BILL-1): shown only while billing is on; the balance is the figure in the entry. -->
+    <a class="nav-btn hidden" id="nav-credits" href="#credits" style="text-decoration:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.5 0-2.5.8-2.5 2 0 3 5 1.6 5 4.2 0 1.2-1.1 2-2.5 2-1.1 0-2.1-.4-2.6-1.3M12 6.5V8m0 8v1.5"/></svg>Credits<span id="credits-balance" style="margin-left:auto;font:600 12px var(--mono);color:var(--muted)"></span></a>
     <!-- Super's sections are added here by /ui/super-menu.js (P-CORE). -->
     <div id="super-menu" class="hidden"></div>
     <!-- Account: the switch and Log out sit at the bottom of the panel (no rule, no header). -->
@@ -449,6 +452,14 @@ a.btn{text-decoration:none}
     </div>
     <div class="err-line" id="runs-err"></div>
     <div class="run-list" id="run-list"></div>
+  </section>
+
+  <!-- Credits: balance, what each step costs and what you were charged for (P-BILL-1) -->
+  <section class="screen" id="s-credits">
+    <div class="crumb"><a href="#runs">Runs</a> / Credits</div>
+    <div class="page-head"><h1>Credits</h1></div>
+    <div class="err-line" id="credits-err"></div>
+    <div id="credits-body"></div>
   </section>
 
   <!-- New video -->

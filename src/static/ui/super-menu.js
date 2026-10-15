@@ -14,9 +14,11 @@
     ['settings/integrations', '#settings/integrations', 'Integrations', '<path d="M9 7V3M15 7V3M6 7h12v4a6 6 0 0 1-12 0zM12 17v4"/>'],
     ['settings/defaults', '#settings/defaults', 'Defaults', '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'],
   ];
+  // The owner's own entry: balances, top-ups and usage of every account (P-BILL-1). Not shown to other Super accounts.
+  const CREDITS = ['settings/credits', '#settings/credits', 'Credits', '<circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.5 0-2.5.8-2.5 2 0 3 5 1.6 5 4.2 0 1.2-1.1 2-2.5 2-1.1 0-2.1-.4-2.6-1.3M12 6.5V8m0 8v1.5"/>'];
   /** Fill the (hidden) #super-menu container: section headers and entries, one list, nothing pinned.
    *  A Basic session gets only Libraries; a Super session gets Projects, Libraries and Settings. */
-  function mount(container, basic) {
+  function mount(container, basic, owner) {
     const link = (nav, href, label, svg) => `<a class="nav-btn" data-nav="${nav}" href="${href}" style="text-decoration:none">${icon(svg)}${label}</a>`;
     const libraries = '<div class="sect">Libraries</div>' + LIBRARIES.map(([k, l, svg]) => link('library/' + k, '#library/' + k, l, svg)).join('');
     if (basic) { container.innerHTML = libraries; container.classList.remove('hidden'); return; }
@@ -25,7 +27,7 @@
       + '<div id="nav-project"></div>'
       + libraries
       + '<div class="sect">Settings</div>'
-      + SETTINGS.map(([nav, href, l, svg]) => link(nav, href, l, svg)).join('');
+      + SETTINGS.concat(owner ? [CREDITS] : []).map(([nav, href, l, svg]) => link(nav, href, l, svg)).join('');
     container.classList.remove('hidden');
   }
   window.SuperMenu = { mount };

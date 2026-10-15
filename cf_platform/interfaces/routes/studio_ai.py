@@ -24,7 +24,7 @@ import psycopg
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from cf_platform.core import limits
+from cf_platform.core import billing, limits
 from cf_platform.core.ai_images import (
     SpendCapReachedError,
     effective_spend_cap,
@@ -51,6 +51,7 @@ from cf_platform.interfaces.dependencies import (
 )
 from cf_platform.interfaces.routes.studio import _load_manifest, _load_storyboard
 from cf_platform.workers.scene_images import (
+    DONE,
     JOB_RUNNING,
     EmptyPromptError,
     ImageGenContext,
@@ -236,17 +237,27 @@ async def studio_generate_scene_image(
         raise HTTPException(status_code=404, detail=f"Scene {scene_n!r} not found in storyboard.")
 
     ctx = await _generation_context(run_id, storage, settings, tenant_repo, runs, projects)
-    await limits.spend_gate(ctx.cost_usd, "image generation", settings)
+    hold = await billing.reserve(
+        "image", ctx.cost_usd, "image generation", run_id=run_id, settings=settings
+    )
     try:
         result = await generate_scene_image(ctx, scene_n, body.prompt)
     except SceneNotFoundError as exc:
+        await billing.refund(hold, str(exc))
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except EmptyPromptError as exc:
+        await billing.refund(hold, str(exc))
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except SpendCapReachedError as exc:
+        await billing.refund(hold, str(exc))
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ImageGenerationError as exc:
+        await billing.refund(hold, str(exc))
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except BaseException as exc:
+        await billing.refund(hold, f"image generation failed: {exc!r}")
+        raise
+    await billing.settle(hold)
 
     try:
         preview_url = await storage.generate_presigned_url(result["file_key"], expires_in=3600)
@@ -330,6 +341,9 @@ async def _plan(
         "model": model,
         "cost_per_image_usd": cost,
         "estimated_cost_usd": round(cost * len(with_prompt), 4),
+        # P-BILL-1: the same estimate as the user is charged it — shown before they confirm.
+        "estimated_credits": billing.price_credits(cost * len(with_prompt), settings),
+        "credits_per_image": billing.price_credits(cost, settings),
         "spent_usd": spend["spent_usd"],
         "cap_usd": cap,
         "remaining_usd": spend["remaining_usd"],
@@ -337,6 +351,25 @@ async def _plan(
         "affordable": affordable,
         "job_active": job_is_active(run_id),
     }
+
+
+async def _run_billed_image_job(
+    hold: billing.Hold | None, ctx: ImageGenContext, scene_ids: list[str], *, job_id: str, concurrency: int,
+) -> dict[str, Any]:
+    """Run the bulk image job, then settle the batch hold at the images that were actually made (P-BILL-1).
+
+    A scene that failed, was never started (cap reached) or was skipped is not charged:
+    the hold is settled at cost-per-image times the scenes that finished. If the job
+    itself crashes the whole hold is refunded.
+    """
+    try:
+        job = await run_image_job(ctx, scene_ids, job_id=job_id, concurrency=concurrency)
+    except BaseException as exc:  # includes a cancellation: refund, then let it through
+        await billing.refund(hold, f"the image job crashed: {exc!r}")
+        raise
+    done = sum(1 for state in (job.get("scenes") or {}).values() if state == DONE)
+    await billing.settle(hold, ctx.cost_usd * done, units=float(done))
+    return job
 
 
 @router.get("/studio/runs/{run_id}/images/plan")
@@ -387,21 +420,26 @@ async def studio_generate_all_images(
     if not plan["scene_ids"]:
         return {"status": "nothing_to_do", "already_running": False, "plan": plan}
     ctx = await _generation_context(run_id, storage, settings, tenant_repo, runs, projects)
-    # P-AUTH S8: reserve the whole batch against the tenant's daily bound before any image is paid for.
-    await limits.spend_gate(ctx.cost_usd * len(plan["scene_ids"]), "image generation", settings)
+    # P-AUTH S8 / P-BILL-1: hold the whole batch (credits and the tenant's daily bound) before any image is paid for.
+    hold = await billing.reserve(
+        "image", ctx.cost_usd * len(plan["scene_ids"]), "image generation",
+        run_id=run_id, units=float(len(plan["scene_ids"])), settings=settings,
+    )
 
     if not claim_job(run_id):
+        await billing.refund(hold, "a job for this run was already running")
         return {"status": JOB_RUNNING, "already_running": True, "job": await read_job(storage, run_id)}
     job_id = str(uuid.uuid4())
     try:
         job = new_job_document(job_id, plan["scene_ids"])
         await storage.put_json(images_job_key(run_id), job)
         background_tasks.add_task(
-            run_image_job, ctx, plan["scene_ids"],
+            _run_billed_image_job, hold, ctx, plan["scene_ids"],
             job_id=job_id, concurrency=int(getattr(settings, "IMAGE_JOB_CONCURRENCY", 3)),
         )
-    except Exception:
+    except BaseException as exc:
         release_job(run_id)
+        await billing.refund(hold, f"the image job could not start: {exc!r}")
         raise
     _logger.info("image job %s enqueued for run %s (%d scenes)", job_id, run_id, len(plan["scene_ids"]))
     return {"status": JOB_RUNNING, "already_running": False, "job": job, "plan": plan}

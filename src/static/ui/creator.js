@@ -47,7 +47,7 @@
     run: null, settings: {}, step: 0,
     voice: null, sb: null, manifest: {}, video: null, imageJob: null, sbStale: false,
     openScene: null, modalScene: null, entryId: null, split: null, busy: {},
-    audio: null, musicKey: null, spend: null,
+    audio: null, musicKey: null, spend: null, billing: null,
   };
 
   const $ = sel => document.querySelector(sel);
@@ -78,6 +78,46 @@
   }
   /** The readable reason of a failed call. */
   const why = res => (typeof res.data.detail === 'string' && res.data.detail) || `Error ${res.status}`;
+
+  // ── Credits (P-BILL-1): the balance, the price of a step and what was charged. Hidden while billing is off. ──
+
+  /** " · 10 credits" for a flat-priced step while billing is on, else nothing. The server decides what is charged. */
+  function priceTag(key) {
+    const n = S.billing && S.billing.enabled && S.billing.prices ? S.billing.prices[key] : 0;
+    return n > 0 ? ` · ${n} credits` : '';
+  }
+  /** Read the balance and prices; show the Credits entry only when charging is on. Never blocks the page. */
+  async function loadBilling() {
+    const r = await api('/platform/billing/me');
+    S.billing = r.ok ? r.data : null;
+    const on = !!(S.billing && S.billing.enabled);
+    $('#nav-credits').classList.toggle('hidden', !on);
+    $('#credits-balance').textContent = on ? `${S.billing.balance}` : '';
+    if (S.run) { try { paintVoice(); paintStoryboard(); paintRender(); } catch (e) { /* the page repaints itself on its next step */ } }
+  }
+  const CHARGE_STATE = { held: 'In progress', settled: 'Charged', refunded: 'Refunded' };
+  /** The Credits screen: balance, what the steps cost, and the newest priced actions. */
+  async function showCredits() {
+    err('#credits-err', '');
+    await loadBilling();
+    const b = S.billing, body = $('#credits-body');
+    if (!b || !b.enabled) {
+      body.innerHTML = '<div class="empty"><b>Credits are not switched on</b><p>Making videos is not charged yet.</p></div>';
+      return;
+    }
+    const prices = [['Voiceover', 'voice'], ['Storyboard', 'storyboard'], ['Image prompt', 'scene_prompt'], ['Render', 'render']]
+      .filter(([, k]) => b.prices[k] > 0).map(([label, k]) => `${label} ${b.prices[k]}`).join(' · ');
+    const rows = b.history.map(h => {
+      const charge = h.status === 'settled' ? `${h.credits} credits` : h.status === 'held' ? `${h.credits} credits held` : '—';
+      return `<div class="run-item"><div class="main-col"><div class="t">${esc(h.what || h.kind)}</div>
+        <div class="m"><span>${esc(new Date(h.when).toLocaleString())}</span><span class="sep">·</span><span>${esc(CHARGE_STATE[h.status] || h.status)}</span></div></div>
+        <span class="meta">${esc(charge)}</span></div>`;
+    }).join('');
+    body.innerHTML = `<div class="plan-grid"><div><b>${b.balance}</b><span>credits left</span></div></div>
+      ${prices ? `<p style="margin:14px 0 26px;color:var(--muted);font-size:13px">What a step costs, in credits: ${esc(prices)}. Images are priced when you create them, before you confirm. A step that fails is not charged.</p>` : ''}
+      <h2 style="font-size:15px;margin:0 0 10px">History</h2>
+      <div class="run-list">${rows || '<div class="empty"><b>Nothing yet</b><p>Steps you run will be listed here.</p></div>'}</div>`;
+  }
 
   const runUrl = tail => `/platform/studio/runs/${encodeURIComponent(S.run.id)}${tail}`;
 
@@ -113,7 +153,7 @@
       await sleep(intervalMs);
       const res = await api(path);
       const st = res.ok ? res.data : { status: 'running' };
-      if (st.status === 'complete' || st.status === 'error') return st;
+      if (st.status === 'complete' || st.status === 'error') { loadBilling(); return st; }
       // "none": the server has no job for this run. Right after a start that is a short
       // write delay; for long it means the job never began.
       if (st.status === 'none' && ++missing >= 5) return { status: 'error', error: 'The job did not start on the server.' };
@@ -137,6 +177,10 @@
       S.step = i >= 0 ? i : firstOpenStep();
       show('run');
       paintRun();
+    } else if (name === 'credits') {
+      stopAudio();
+      show('credits');
+      await showCredits();
     } else if (name === 'new') {
       stopAudio();
       show('new');
@@ -157,6 +201,7 @@
     $$('.run-only').forEach(b => b.classList.toggle('hidden', view !== 'run'));
     if (view !== 'run' && S.right !== 'help') S.right = null;
     $('#nav-runs').classList.toggle('on', view === 'runs' || view === 'run');
+    $('#nav-credits').classList.toggle('on', view === 'credits');
     if (view !== 'x' && window.Core) window.Core.clearNav();
     paintRight();
     window.scrollTo(0, 0);
@@ -220,9 +265,10 @@
     if (!r.ok) return;
     const me = r.data;
     S.me = me;
+    loadBilling();
     if (me.email) { $('#who').textContent = me.email; $('#who').classList.remove('hidden'); }
     const isSuper = me.account_type === 'super';
-    await mountSuperMenu(me.effective_type !== 'super');
+    await mountSuperMenu(me.effective_type !== 'super', !!me.is_owner);
     await loadCore(me.effective_type !== 'super');
     $('#view-as').classList.toggle('hidden', !isSuper);
     $('#view-as-label').textContent = me.view_as_basic ? 'View as Super' : 'View as Basic';
@@ -234,7 +280,7 @@
     if (me.abuse_contact) { const a = $('#report-abuse'); a.href = 'mailto:' + me.abuse_contact + '?subject=Content%20Factory%20problem'; a.classList.remove('hidden'); }
   }
   /** Load Super's menu script once and mount it; a Basic session never fetches it. */
-  async function mountSuperMenu(basic) {
+  async function mountSuperMenu(basic, owner) {
     if (!window.SuperMenu) {
       await new Promise(resolve => {
         const el = document.createElement('script');
@@ -243,7 +289,7 @@
         document.head.appendChild(el);
       });
     }
-    if (window.SuperMenu) window.SuperMenu.mount($('#super-menu'), !!basic);
+    if (window.SuperMenu) window.SuperMenu.mount($('#super-menu'), !!basic, !!owner);
   }
   /** Load the screens (P-CORE) once: the Libraries for Basic, everything for Super. Run controls are Super's. */
   async function loadCore(basic) {
@@ -553,7 +599,7 @@
     pick.value = [...pick.options].some(o => o.value === wanted) ? wanted : S.cfg.voices[0].id;
     pick.disabled = !!S.busy.voice;
     const gen = $('#vo-gen');
-    gen.textContent = S.busy.voice ? 'Generating…' : S.voice ? 'Re-generate' : 'Generate voiceover';
+    gen.textContent = S.busy.voice ? 'Generating…' : (S.voice ? 'Re-generate' : 'Generate voiceover') + priceTag('voice');
     gen.disabled = !!S.busy.voice || !scriptOk();
     $('#vo-next').disabled = !S.voice || !!S.busy.voice;
     const track = $('#vo-track');
@@ -649,7 +695,7 @@
   function paintStoryboard() {
     const scenes = sbScenes(), busy = !!S.busy.sb || !!S.busy.images;
     const create = $('#sb-create'), assets = $('#sb-assets');
-    create.textContent = S.busy.sb ? 'Creating…' : S.sb ? 'Re-create storyboard' : 'Create storyboard';
+    create.textContent = S.busy.sb ? 'Creating…' : (S.sb ? 'Re-create storyboard' : 'Create storyboard') + priceTag('storyboard');
     create.className = 'btn ' + (S.sb && !S.sbStale ? 'quiet' : 'accent');
     create.disabled = busy || !S.voice;
     const missing = scenes.filter(s => !hasAsset(s)).length;
@@ -809,7 +855,8 @@
     const short = p.affordable < p.count;
     const html = `<div class="plan-grid"><div><b>${p.count}</b><span>${p.count === 1 ? 'image' : 'images'}</span></div>
       <div><b>~${money(p.estimated_cost_usd)}</b><span>estimated</span></div>
-      <div><b>${money(p.remaining_usd)}</b><span>left of ${money(p.cap_usd)}</span></div></div>
+      <div><b>${money(p.remaining_usd)}</b><span>left of ${money(p.cap_usd)}</span></div>
+      ${S.billing && S.billing.enabled ? `<div><b>${p.estimated_credits}</b><span>credits of your ${S.billing.balance}</span></div>` : ''}</div>
       <p>About $${Number(p.cost_per_image_usd).toFixed(3)} per image. The cost is an estimate.</p>${skipped}
       ${short ? `<p style="margin-top:8px">The limit for this video allows ${p.affordable} of ${p.count}. Creation stops there and says how many are left.</p>` : ''}`;
     if (!p.affordable) { await confirmBox('The limit for this video is reached', html, 'OK', true); return; }
@@ -819,6 +866,7 @@
     const start = await api(runUrl('/images/generate'), { method: 'POST', body });
     if (!start.ok) { failure('#job-sb', 'Images were not started.', why(start), () => planAssets(sceneIds)); return; }
     if (start.data.job) S.imageJob = start.data.job;
+    loadBilling();
     watchImages();
   }
   async function watchImages() {
@@ -837,6 +885,7 @@
     }
     stop();
     S.busy.images = false;
+    loadBilling();
     await reloadStoryboard();
     paintRun();
     paintImageJob();
@@ -972,7 +1021,7 @@
     const length = S.video && S.video.duration_s ? clock(S.video.duration_s) : S.voice && S.voice.total_duration_s ? clock(S.voice.total_duration_s) : '';
     $('#render-meta').textContent = S.video ? `Rendered · ${S.run.format}${length ? ' · ' + length : ''}` : ready ? `${S.run.format}${length ? ' · ≈ ' + length : ''}` : '';
     // Render first and always blue (it becomes Re-render once a video exists); Download beside it, outlined.
-    const label = busy ? 'Rendering…' : S.video ? 'Re-render video' : 'Render video';
+    const label = busy ? 'Rendering…' : (S.video ? 'Re-render video' : 'Render video') + priceTag('render');
     $('#render-foot').innerHTML = `<button class="btn accent" id="render-btn" onclick="Creator.renderVideo()"${busy || !ready ? ' disabled' : ''}>${label}</button>`
       + (S.video ? '<button class="btn outline" onclick="Creator.downloadVideo(this)">Download video</button>' : '')
       + (!ready && !busy ? '<span class="foot-hint">Create the images on the Storyboard step first.</span>' : '');
@@ -1093,7 +1142,7 @@
     runUrl, go, show, route, confirmBox, saveSettings, paintRun, paintStoryboard, paintVoice, paintScript, paintRender,
     reloadStoryboard, refreshManifest, applyManifest, sbScenes, hasAsset, allAssets, scriptWords, scriptOk,
     watchVoice, watchStoryboard, createSb, renderVideo, genVoice, planAssets, paintRight, firstOpenStep, watchRender,
-    watchImages, patchScene, openRun, stopAudio, paintContinuity, writeDraft, readDraft, onScript, addHelp, setHelp,
+    watchImages, patchScene, openRun, stopAudio, paintContinuity, writeDraft, readDraft, onScript, addHelp, setHelp, loadBilling, priceTag,
   };
   window.Creator = {
     playSample, startFromThis, deleteRun, toggleLibrary, pickLibrary, saveToAssets, toggleLeft, closePanels, logOut, toggleViewAs, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,

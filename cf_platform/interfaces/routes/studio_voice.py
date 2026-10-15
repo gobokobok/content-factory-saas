@@ -13,6 +13,7 @@ Routes are thin: validation and edit rules live in workers/voice_upload.py and
 workers/transcript_edit.py.
 """
 
+import asyncio
 import logging
 import time
 import uuid
@@ -23,6 +24,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFi
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from cf_platform.core import billing
 from cf_platform.core.artifact_manager import ArtifactStorage, read_artifact, write_artifact
 from cf_platform.core.config import PlatformSettings
 from cf_platform.core.run_manager import RunNotFoundError, RunRepository
@@ -131,11 +133,13 @@ async def _run_transcription_background(
     trace_events: TraceEventRepository,
     cost_per_min_usd: float,
     low_confidence: float,
+    hold: billing.Hold | None = None,
 ) -> None:
     """Background task: transcribe, write the artifacts, update voice/current_job.json.
 
     A transcript that looks like it is in another language than the run's still
     completes; the job record carries a `language_warning` for Studio to show.
+    `hold` is the credit hold (P-BILL-1): settled at the transcribed minutes, refunded on failure.
     """
     t0 = time.monotonic()
     try:
@@ -165,6 +169,12 @@ async def _run_transcription_background(
                 "language": state.inputs.get("language"), "language_warning": warning,
             },
         ))
+        await billing.settle(
+            hold, alignment.total_duration_s / 60 * cost_per_min_usd, units=round(alignment.total_duration_s, 1)
+        )
+    except asyncio.CancelledError:
+        await billing.refund(hold, "transcription job cancelled")
+        raise
     except Exception as exc:
         # VoiceUploadError carries an operator-readable message; anything else is a bug
         # the log needs the traceback for.
@@ -173,6 +183,7 @@ async def _run_transcription_background(
         else:
             _logger.exception("Voice upload job crashed for run %s", run_id)
         message = str(exc) if isinstance(exc, VoiceUploadError) else f"Transcription failed: {exc}"
+        await billing.refund(hold, message[:300])
         try:
             await storage.put_json(_job_key(run_id), {"job_id": job_id, "status": "error", "error": message})
         except Exception:
@@ -284,28 +295,34 @@ async def studio_upload_voice(
             "needs_confirmation": True,
             "discards": discards,
         })
-    if storyboard_key:
-        await discard_storyboard(storage, run_id, storyboard_key)
+    # P-BILL-1: hold the transcription before anything is discarded, so a refusal changes nothing.
+    hold = await billing.reserve(
+        "transcription", billing.setting(settings, "EST_TRANSCRIPTION_USD"), "transcribing your voiceover",
+        run_id=run_id, settings=settings,
+    )
+    async with billing.refund_on_error(hold, "the transcription"):
+        if storyboard_key:
+            await discard_storyboard(storage, run_id, storyboard_key)
 
-    audio_key = f"runs/{run_id}/voiceover/uploaded{ext}"
-    await storage.put_bytes(audio_key, data, content_type_for(ext))
-    worker = build_voice_upload_worker(
-        storage,
-        settings.DEEPGRAM_API_KEY,
-        min_s=settings.VOICE_UPLOAD_MIN_S,
-        max_s=settings.VOICE_UPLOAD_MAX_S,
-    )
-    language = run_language(run)
-    state = StageState(
-        run_id=run_id, user_id=current_tenant_id(),
-        inputs={"audio_r2_key": audio_key, "language": language}, artifacts={},
-    )
-    job_id = str(uuid.uuid4())
-    await storage.put_json(_job_key(run_id), {"job_id": job_id, "status": "running"})
-    background_tasks.add_task(
-        _run_transcription_background, run_id, job_id, state, worker, storage, trace_events,
-        settings.DEEPGRAM_COST_PER_MIN_USD, settings.VOICE_LOW_CONFIDENCE,
-    )
+        audio_key = f"runs/{run_id}/voiceover/uploaded{ext}"
+        await storage.put_bytes(audio_key, data, content_type_for(ext))
+        worker = build_voice_upload_worker(
+            storage,
+            settings.DEEPGRAM_API_KEY,
+            min_s=settings.VOICE_UPLOAD_MIN_S,
+            max_s=settings.VOICE_UPLOAD_MAX_S,
+        )
+        language = run_language(run)
+        state = StageState(
+            run_id=run_id, user_id=current_tenant_id(),
+            inputs={"audio_r2_key": audio_key, "language": language}, artifacts={},
+        )
+        job_id = str(uuid.uuid4())
+        await storage.put_json(_job_key(run_id), {"job_id": job_id, "status": "running"})
+        background_tasks.add_task(
+            _run_transcription_background, run_id, job_id, state, worker, storage, trace_events,
+            settings.DEEPGRAM_COST_PER_MIN_USD, settings.VOICE_LOW_CONFIDENCE, hold,
+        )
     await _record_trace(trace_events, TraceEvent(
         run_id=run_id, worker="voice_upload", source="operator", op="voice_upload",
         latency_ms=int((time.monotonic() - t0) * 1000), status="ok",

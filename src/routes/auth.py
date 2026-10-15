@@ -182,6 +182,22 @@ async def google_start(
     )
 
 
+async def _grant_signup_credits(tenant_id: str) -> None:
+    """Give a new non-owner account its SIGNUP_CREDITS once (P-BILL-1). A billing fault never blocks sign-in."""
+    from cf_platform.core.accounts import OWNER_TENANT_ID
+
+    if tenant_id == OWNER_TENANT_ID:
+        return
+    try:
+        from cf_platform.core import billing
+
+        await billing.grant_signup_credits(tenant_id)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("could not grant sign-up credits to %s", tenant_id)
+
+
 def _login_error(code: str) -> RedirectResponse:
     """Send the browser back to the login page with a short error code."""
     return RedirectResponse(f"/login?error={quote(code)}", status_code=302)
@@ -243,6 +259,7 @@ async def google_callback(
     )
     if user.disabled_at is not None:
         return _login_error("disabled")
+    await _grant_signup_credits(user.tenant_id)
     await _revoke_presented_session(request)
     value, _ = await create_session(store, user.user_id, ttl_days=settings.SESSION_TTL_DAYS)
     default_home = "/" if user.account_type == "super" else "/create"

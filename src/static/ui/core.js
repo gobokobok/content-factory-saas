@@ -48,6 +48,9 @@
       'Sound effects are not listed here.', 'Choose a track for a video in its Render step.']],
     integrations: ['Integrations', ['The services the pipeline calls, in five blocks. Each provider has its own key; a block with several providers has one default.',
       'A key saved here wins over the Railway variable of the same service. Without one, the Railway variable is used.']],
+    credits: ['Credits', ['Every account\'s balance and what it was charged for. Top up an account here; a removal never takes a balance below zero.',
+      'Credits are only charged while BILLING_ENABLED is on; with it off the list shows what each action would have cost.',
+      'A hold still open after a long time means a job never finished: "Give back stuck holds" returns those credits.']],
     defaults: ['Defaults', ['What every project starts from. Order of precedence: the video, then the project, then these.',
       'Existing videos are not changed by an edit here.', 'A video stops generating AI images when it reaches the spend cap.']],
   };
@@ -157,7 +160,7 @@
     if (name === 'projects') return 'projects';
     if (name === 'project') return 'project-' + (['ideas', 'runs', 'settings'].includes(step) ? step : 'overview');
     if (name === 'library') return 'library-' + (LIBS[id] ? id : 'videos');
-    return id === 'defaults' ? 'defaults' : 'integrations';
+    return id === 'defaults' ? 'defaults' : id === 'credits' ? 'credits' : 'integrations';
   }
   const handles = name => (BASIC ? name === 'library' : ROUTES.includes(name));
 
@@ -168,7 +171,7 @@
       if (name === 'projects') return await viewProjects();
       if (name === 'project') return await viewProject(id, ['ideas', 'runs', 'settings'].includes(step) ? step : 'overview');
       if (name === 'library') return await viewLibrary(LIBS[id] && (!BASIC || BASIC_LIBS.includes(id)) ? id : 'videos');
-      if (name === 'settings') return await viewSettings(id === 'defaults' ? 'defaults' : 'integrations');
+      if (name === 'settings') return await viewSettings(id === 'defaults' ? 'defaults' : id === 'credits' && isOwner() ? 'credits' : 'integrations');
     } catch (e) {
       frame('', '');
       showErr(`This page could not load: ${e.message}`);
@@ -566,7 +569,9 @@
     setNav('settings/' + tab);
     loading();
     C.settings.keyEdit = '';
-    if (tab === 'defaults') {
+    if (tab === 'credits') {
+      await loadCredits();
+    } else if (tab === 'defaults') {
       const [d, p] = await Promise.all([call('/platform/tenant/defaults'), call('/platform/projects')]);
       if (!d.ok) throw new Error(A.why(d));
       C.settings.defaults = d.data; C.projects = p.ok ? p.data : [];
@@ -631,6 +636,7 @@
   }
   function paintSettings() {
     const tab = C.settings.tab;
+    if (tab === 'credits') return paintCredits();
     if (tab === 'defaults') {
       const d = C.settings.defaults;
       frame(crumbs([['Settings'], ['Defaults']]), `<div class="page-head"><h1>Defaults</h1></div>
@@ -646,6 +652,56 @@
         : '<div class="job on err">Keys cannot be saved yet: SETTINGS_ENCRYPTION_KEY is not set on Railway. Railway key variables still work.</div>'}
       ${b.blocks.map(blockCard).join('')}`);
   }
+  // ── Credits (owner): balances, top-up, usage (P-BILL-1 S4) ─────────────
+
+  const isOwner = () => !!(A.S && A.S.me && A.S.me.is_owner);
+  async function loadCredits() {
+    const [users, usage] = await Promise.all([call('/platform/admin/billing/users'), call('/platform/admin/billing/usage?limit=60')]);
+    if (!users.ok) throw new Error(A.why(users));
+    C.credits = { users: users.data, usage: usage.ok ? usage.data : [] };
+    C.settings.tab = 'credits';
+  }
+  const fmtWhen = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString(); };
+  function paintCredits() {
+    const { users, usage } = C.credits;
+    const who = new Map(users.map(u => [u.tenant_id, u.email || u.tenant_id]));
+    const userRows = users.map(u => `<tr><td><b>${esc(u.email || u.tenant_id)}</b>${u.disabled ? ' <span class="meta">(switched off)</span>' : ''}<div class="meta">${esc(u.account_type)}</div></td>
+      <td class="num">${u.balance}</td><td class="num">${u.credits_spent}</td><td class="num">$${Number(u.raw_cost_usd).toFixed(2)}</td><td class="num">${u.actions}</td>
+      <td>${u.last_action_at ? esc(fmtWhen(u.last_action_at)) : '—'}</td>
+      <td><button class="btn sm" onclick="Core.dlgTopup('${esc(u.tenant_id)}')">Top up</button></td></tr>`).join('');
+    const usageRows = usage.map(e => `<tr><td>${esc(fmtWhen(e.created_at))}</td><td>${esc(who.get(e.tenant_id) || e.tenant_id)}</td><td>${esc(e.what || e.kind)}</td>
+      <td>${esc(e.kind)}</td><td class="num">$${Number(e.actual_usd ?? e.raw_cost_usd).toFixed(3)}</td><td class="num">${e.credits}</td><td>${esc(e.status)}</td></tr>`).join('');
+    frame(crumbs([['Settings'], ['Credits']]), `<div class="page-head"><h1>Credits</h1><button class="btn sm" onclick="Core.refundStale()">Give back stuck holds</button></div>
+      <div class="core-card"><h3>Accounts</h3>${users.length ? `<div class="core-scroll"><table class="core-table"><thead><tr><th>Account</th><th class="num">Balance</th><th class="num">Spent</th><th class="num">Provider cost</th><th class="num">Actions</th><th>Last action</th><th></th></tr></thead><tbody>${userRows}</tbody></table></div>`
+        : '<p class="meta">No one else has signed in yet.</p>'}</div>
+      <div class="core-card"><h3>Usage</h3>${usage.length ? `<div class="core-scroll"><table class="core-table"><thead><tr><th>When</th><th>Account</th><th>What</th><th>Kind</th><th class="num">Provider cost</th><th class="num">Credits</th><th>Status</th></tr></thead><tbody>${usageRows}</tbody></table></div>`
+        : '<p class="meta">No paid action has run yet.</p>'}</div>`);
+  }
+  function dlgTopup(tenantId) {
+    const u = C.credits.users.find(x => x.tenant_id === tenantId);
+    if (!u) return;
+    modal(`<h2>Top up ${esc(u.email || u.tenant_id)}</h2><p class="sub-t">Balance now: ${u.balance} credits. A negative number takes credits off (never below zero).</p>
+      <label class="field"><span class="lbl">Credits</span><input type="number" id="tu-credits" step="1" value="500"></label>
+      <label class="field"><span class="lbl">Note (optional)</span><input type="text" id="tu-note" maxlength="300" placeholder="friends beta"></label>
+      <div class="e-foot"><button class="btn accent sm" onclick="Core.topup('${esc(tenantId)}')">Apply</button><button class="btn sm" onclick="Core.closeModal()">Cancel</button></div>
+      <div class="m-msg" id="tu-msg"></div>`);
+  }
+  async function topup(tenantId) {
+    const credits = parseInt(qs('tu-credits').value, 10);
+    if (!Number.isInteger(credits) || credits === 0) { qs('tu-msg').textContent = 'Enter a whole number of credits.'; return; }
+    const r = await call('/platform/admin/billing/topup', 'POST', { tenant_id: tenantId, credits, note: qs('tu-note').value.trim() });
+    if (!r.ok) { qs('tu-msg').textContent = A.why(r); return; }
+    closeModal();
+    await loadCredits(); paintCredits();
+    toast(`Balance is now ${r.data.balance} credits.`);
+  }
+  async function refundStale() {
+    const r = await call('/platform/admin/billing/refund-stale', 'POST');
+    if (!r.ok) { showErr(`Could not do that: ${A.why(r)}`); return; }
+    await loadCredits(); paintCredits();
+    toast(r.data.refunded ? `Gave back ${r.data.refunded} stuck hold${r.data.refunded === 1 ? '' : 's'}.` : 'No stuck holds.');
+  }
+
   const toggleKeyEdit = id => { C.settings.keyEdit = C.settings.keyEdit === id ? '' : id; paintSettings(); };
   async function putService(serviceId, body, msg) {
     const r = await call(`/platform/tenant/integrations/${encodeURIComponent(serviceId)}`, 'PUT', body);
@@ -683,6 +739,11 @@
   #core-toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);font-size:13px;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:all .2s;z-index:80}
   #core-toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
   .core-tabs{margin:0 0 22px;padding:0}
+  .core-scroll{overflow-x:auto}
+  .core-table{width:100%;border-collapse:collapse;font-size:13px}
+  .core-table th{text-align:left;font-weight:600;color:var(--muted);padding:6px 10px 8px 0;white-space:nowrap}
+  .core-table td{padding:8px 10px 8px 0;border-top:1px solid var(--border);vertical-align:top}
+  .core-table .num{text-align:right;font-variant-numeric:tabular-nums;padding-right:16px}
   .core-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:26px}
   .core-stat{display:block;border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;text-decoration:none;color:inherit}
   .core-stat:hover{border-color:var(--faint)}
@@ -756,7 +817,7 @@
     helpers: { esc, opts, toast, modal, closeModal, call, qs, LANGS, FORMATS, CAPTIONS, PACES, NARR_STYLES, STEP_LABELS, tenantDefaults, getNewRun: () => C.newRun, setNewRun: v => { C.newRun = v; } },
     // actions called from markup
     closeModal, dlgNewProject, createProject, dlgIdea, saveIdea, removeIdea, startRun, toggleIdea, clearSel, setRunFilter,
-    patchProject, patchConfig, setDefault, dlgAsset, saveAsset, deleteAsset,
+    dlgTopup, topup, refundStale, patchProject, patchConfig, setDefault, dlgAsset, saveAsset, deleteAsset,
     libAssetDlg, libAssetSave, libAssetDelete, libDelete, addTrack, libFilter, download, toggleKeyEdit, saveKey, removeKey, makeDefault, saveModel, saveDefault,
   };
 })();

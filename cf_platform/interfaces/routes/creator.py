@@ -34,10 +34,10 @@ from cf_platform.core.run_manager import RunNotFoundError, RunRepository, archiv
 from cf_platform.core.run_visuals import settings_key
 from cf_platform.core.shortlist import build_idea_context
 from cf_platform.interfaces.dependencies import (
-    get_effective_platform_settings,
     current_tenant_id,
     current_user,
     get_artifact_storage,
+    get_effective_platform_settings,
     get_project_repository,
     get_run_repository,
 )
