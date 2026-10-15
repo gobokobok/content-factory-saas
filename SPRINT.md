@@ -43,7 +43,7 @@ Legacy Script→Video stays untouched and operable (D047).
 | P-AUTH | Google sign-in, accounts, Basic / Super with View as Basic, per-user isolation, server-side gating (EPIC 59, D114, D118); `/audit` first | ~24 | **done 2026-10-14, smoke partial → AUTH-S10** (S0 is the operator's) | A friend signs in with Google and lands in their own, empty space; the owner flips View-as between tiers |
 | P-LITE | The Creator flow for regular users (EPIC 59, D114, D117); S1..S5 built before P-AUTH, S6 gating moves to P-AUTH | ~16 | **done** 2026-10-14 (smoke passed) | A signed-in friend writes a bedtime story, picks a voice and characters, sees the cost, and gets an animated video |
 | P-CORE | The full Studio in the new design, for Super (D118) | ~28 | **built 2026-10-14 (branch `sprint/p-core`, not merged; DEV smoke pending)** — was: planned (after P-AUTH; order against P-BILL-1 set at the P-AUTH close) | Every Studio feature reachable in the new design; the old Studio pages retire |
-| P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114, D123) | ~13 | **planned 2026-10-15 (review done); BILL-S1..S5 built on branch `claude/p-bill-1`** | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
+| P-BILL-1 | Usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114, D123) | ~13 | **BILL-S1..S5 built 2026-10-15 on branch `claude/p-bill-1` (PR open, not merged; smoke pending, after AUTH-S10 and P-CORE-S11)** | **Friends beta opens:** a friend is charged credits for their video and cannot overspend |
 | P-PROJ1 | Visual source model and project settings (EPIC 57) | ~18 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Channel identity and a saved project character reused by a new animated run |
 | P-INT1 | Integrations v2 (EPIC 58) | ~16 | **done** 2026-10-11 (smoke deferred to INT1-S5) | Add a second provider with an own key, make it default, generate on it |
 | P-BILL-2 | Online payments and legal pages (EPIC 59) | ~8 | planned | Buy credits online |
@@ -77,18 +77,18 @@ Legacy Script→Video stays untouched and operable (D047).
 ## Sprint P-BILL-1 — usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114, D123)
 
 **Goal:** a friend is charged credits for their video and cannot overspend; the owner tops accounts up and sees usage. **The friends beta opens when this sprint is smoked.**
-**Status:** planned 2026-10-15 at the review of P-AUTH and P-CORE. Design defaults are D123. `BILLING_ENABLED` is off by default, so merging changes nothing on DEV until the operator turns it on.
+**Status:** **BUILT 2026-10-15 on branch `claude/p-bill-1`** (commit `eaafe87`, 3353 tests passing in the cloud sandbox; PR open, not merged; handover in DONE.md). Planned 2026-10-15 at the review of P-AUTH and P-CORE; design defaults are D123. `BILLING_ENABLED` is off by default, so merging changes nothing on DEV until the operator turns it on. **Open before the beta opens:** AUTH-S10 and P-CORE-S11 (live smokes), the scoped `/audit`, then the P-BILL-1 smoke in DONE.md.
 **Points:** ~13 (+2 for the two carried smokes)
 
 | ID | Title | Points | Status |
 |----|-------|--------|--------|
 | AUTH-S10 | Finish the P-AUTH smoke as a second Google account (operator, needs live Google) | 1 | operator action — open |
 | P-CORE-S11 | DEV smoke of P-CORE (operator, needs live providers) | 1 | operator action — open |
-| BILL-S1 | Usage ledger: every paid action is a priced entry with its raw cost | 3 | planned |
-| BILL-S2 | Credits: unit and markup, per-user balance, estimate before confirm, hold → settle, refund on failure | 4 | planned |
-| BILL-S3 | Hard limits: an action over the balance is refused with its cost and what is left | 2 | planned |
-| BILL-S4 | Owner top-up and an admin view of users, balances and usage | 2 | planned |
-| BILL-S5 | The Creator sees balance, price and history | 2 | planned |
+| BILL-S1 | Usage ledger: every paid action is a priced entry with its raw cost | 3 | built 2026-10-15 (smoke pending) |
+| BILL-S2 | Credits: unit and markup, per-user balance, estimate before confirm, hold → settle, refund on failure | 4 | built 2026-10-15 (smoke pending) |
+| BILL-S3 | Hard limits: an action over the balance is refused with its cost and what is left | 2 | built 2026-10-15 (smoke pending) |
+| BILL-S4 | Owner top-up and an admin view of users, balances and usage | 2 | built 2026-10-15 (smoke pending) |
+| BILL-S5 | The Creator sees balance, price and history | 2 | built 2026-10-15 (smoke pending) |
 
 **Execution order:** S1 → S2 → S3 → S4 → S5 (S3 is the refusal path of S2's hold; kept separate for its tests). AUTH-S10 and P-CORE-S11 are the operator's, on DEV, before `BILLING_ENABLED` is turned on.
 **Human touchpoint:** the owner tops up a friend's account; the friend sees the balance and the price of a video before making it, is charged for it, and is refused with a clear message when the balance is too low.

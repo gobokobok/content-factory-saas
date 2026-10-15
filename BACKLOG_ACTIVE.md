@@ -39,71 +39,71 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 **P-CORE** — see the sprint outline above (stories written 2026-10-14).
 
-**P-BILL-1 — ledger, credits, charging, limits (~13) — the beta opens. Planned 2026-10-15 (D123); stories BILL-S1..S5 below, built together in one pass.**
+**P-BILL-1 — ledger, credits, charging, limits (~13) — the beta opens. Planned 2026-10-15 (D123); BILL-S1..S5 BUILT 2026-10-15 on branch `claude/p-bill-1` (commit `eaafe87`, PR open, smoke pending; handover in DONE.md).**
 
 ## [BILL-S1] Usage ledger
-**Epic:** EPIC 59 · **Sprint:** P-BILL-1 · **Status:** planned · **Points:** 3
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 · **Status:** built 2026-10-15 (smoke pending) · **Points:** 3
 ### Goal
 Every paid action — LLM call, TTS, transcription, image, render — is one priced entry with its raw (provider) cost, per tenant and run.
 ### Acceptance Criteria
-- [ ] Migration `0006_billing.sql`: `usage_entries` (tenant, run, kind, provider/model, units, raw cost USD, credits, status, timestamps); idempotent like 0001–0005
-- [ ] `cf_platform/core/billing.py`: `UsageEntry`, a store protocol with in-memory and Postgres implementations (the `limits.py` pattern)
-- [ ] `kind` is one of llm / tts / transcription / image / render; raw cost comes from the existing `EST_*` and image-model price settings; new price settings (`RENDER_USD_PER_MINUTE`, `EST_TRANSCRIPTION_USD_PER_MINUTE`) are ENV with defaults and in `ENV.md`
-- [ ] Every site that calls `limits.spend_gate` records an entry; the owner's actions are recorded as `exempt` with no credits; View-as-Basic records nothing
-- [ ] Tests: entry written per kind, owner exempt, view-as writes nothing, in-memory store behaves as the Postgres SQL is written to
+- [x] Migration `0006_billing.sql`: `usage_entries` (tenant, run, kind, provider/model, units, raw cost USD, credits, status, timestamps); idempotent like 0001–0005
+- [x] `cf_platform/core/billing.py`: `UsageEntry`, a store protocol with in-memory and Postgres implementations (the `limits.py` pattern)
+- [x] `kind` is one of llm / tts / transcription / image / render; raw cost comes from the existing `EST_*` and image-model price settings; new price settings (`RENDER_USD_PER_MINUTE`, `EST_TRANSCRIPTION_USD_PER_MINUTE`) are ENV with defaults and in `ENV.md`
+- [x] Every site that calls `limits.spend_gate` records an entry; the owner's actions are recorded as `exempt` with no credits; View-as-Basic records nothing
+- [x] Tests: entry written per kind, owner exempt, view-as writes nothing, in-memory store behaves as the Postgres SQL is written to
 ### Definition of Done
-- [ ] All AC checked · suite green except the two sandbox baseline failures · DONE.md updated
+- [x] All AC checked · suite green except the two sandbox baseline failures · DONE.md updated (smoke pending)
 
 ## [BILL-S2] Credits and charging
 **Points:** 4
 ### Goal
 One credit unit and a markup; each non-owner tenant has a balance; each paid action holds its price before the provider call, settles on completion and is refunded on failure.
 ### Acceptance Criteria
-- [ ] `CREDIT_VALUE_USD` (default 0.01) and `CREDIT_MARKUP` (default 2.0); price in credits = ceil(raw × markup / value), minimum 1 for any non-zero cost; `BILLING_ENABLED` (default false) switches charging on — off means metering only
-- [ ] `credit_accounts` and `credit_transactions` tables; the balance changes only through one atomic conditional statement; every change is a transaction row (topup, hold, settle, refund, adjustment)
-- [ ] `billing.reserve(...)` before the provider call (after the daily USD bound), `settle` on success (excess returned when the actual cost is known), `refund` on failure; wired to storyboard, voice, scene images (single and bulk), write-prompt, idea-to-script, render, transcription
-- [ ] `GET /platform/billing/estimate?run_id=&action=` returns the price in credits for storyboard / voice / images / render before the user confirms
-- [ ] Tests: hold-settle-refund arithmetic, failure refunds in each background path, bulk images refund failed scenes only, billing off changes nothing
+- [x] `CREDIT_VALUE_USD` (default 0.01) and `CREDIT_MARKUP` (default 2.0); price in credits = ceil(raw × markup / value), minimum 1 for any non-zero cost; `BILLING_ENABLED` (default false) switches charging on — off means metering only
+- [x] `credit_accounts` and `credit_transactions` tables; the balance changes only through one atomic conditional statement; every change is a transaction row (topup, hold, settle, refund, adjustment)
+- [x] `billing.reserve(...)` before the provider call (after the daily USD bound), `settle` on success (excess returned when the actual cost is known), `refund` on failure; wired to storyboard, voice, scene images (single and bulk), write-prompt, idea-to-script, render, transcription
+- [x] Built as `GET /platform/billing/me` → `prices` (storyboard, voice, render, scene prompt, transcription) plus `estimated_credits` / `credits_per_image` on the images plan, instead of a separate estimate route
+- [x] Tests: hold-settle-refund arithmetic, failure refunds in each background path, bulk images refund failed scenes only, billing off changes nothing
 ### Definition of Done
-- [ ] All AC checked · suite green except the baseline · DONE.md updated
+- [x] All AC checked · suite green except the baseline · DONE.md updated (smoke pending)
 
 ## [BILL-S3] Hard limits
 **Points:** 2
 ### Goal
 An action that would exceed the balance is refused, naming what it costs and what is left.
 ### Acceptance Criteria
-- [ ] 402 with `{detail, cost_credits, balance_credits}` — the message reads "This costs N credits; you have M."; nothing is started and nothing is charged
-- [ ] Concurrent holds cannot overdraw (conditional update; a two-at-once test)
-- [ ] A refused hold leaves the daily USD reservation unchanged; a refused daily bound refunds the hold
-- [ ] Tests: refusal body, no overdraw under concurrency, owner never refused
+- [x] 402 with `{detail, cost_credits, balance_credits}` — the message reads "This costs N credits; you have M."; nothing is started and nothing is charged
+- [x] Concurrent holds cannot overdraw (conditional update; a two-at-once test)
+- [x] A refused hold leaves the daily USD reservation unchanged; a refused daily bound refunds the hold
+- [x] Tests: refusal body, no overdraw under concurrency, owner never refused
 ### Definition of Done
-- [ ] All AC checked · suite green except the baseline · DONE.md updated
+- [x] All AC checked · suite green except the baseline · DONE.md updated (smoke pending)
 
 ## [BILL-S4] Owner top-up and admin view
 **Points:** 2
 ### Goal
 The owner adds credits to an account and sees every user's balance and usage.
 ### Acceptance Criteria
-- [ ] Owner-only routes: `GET /platform/admin/billing/users` (user, balance, spent, last action), `POST /platform/admin/billing/topup` (tenant, credits, note — positive or negative adjustment, never below zero), `GET /platform/admin/billing/usage` (filter by tenant, kind, date)
-- [ ] An Owner screen in the new design (`#admin/credits`): users table, top-up form, usage list
-- [ ] `SIGNUP_CREDITS` (default 0) is granted once at first sign-in
-- [ ] Not Basic- or non-owner-Super-callable (deny-by-default snapshot updated on purpose)
-- [ ] Tests: top-up, adjustment floor, owner-only, signup grant once
+- [x] Owner-only routes: `GET /platform/admin/billing/users` (user, balance, spent, last action), `POST /platform/admin/billing/topup` (tenant, credits, note — positive or negative adjustment, never below zero), `GET /platform/admin/billing/usage` (filter by tenant, kind, date)
+- [x] An Owner screen in the new design (built as `#settings/credits`, under Settings, owner-only): users table, top-up dialog, usage list, "Give back stuck holds"
+- [x] `SIGNUP_CREDITS` (default 0) is granted once at first sign-in
+- [x] Not Basic- or non-owner-Super-callable (deny-by-default snapshot updated on purpose)
+- [x] Tests: top-up, adjustment floor, owner-only, signup grant once
 ### Definition of Done
-- [ ] All AC checked · suite green except the baseline · DONE.md updated
+- [x] All AC checked · suite green except the baseline · DONE.md updated (smoke pending)
 
 ## [BILL-S5] The Creator sees balance, price and history
 **Points:** 2
 ### Goal
 A friend sees how many credits they have, what the next action costs, and what they were charged for.
 ### Acceptance Criteria
-- [ ] `GET /platform/billing/me` (Basic-allowed, own tenant only): balance, credit value, markup hidden, recent history
-- [ ] Creator page: balance in the header, price next to Voice / Storyboard / Create assets / Render, a Credits screen with history, the 402 message shown as the page's error line
-- [ ] Hidden entirely while `BILLING_ENABLED` is false
-- [ ] Every call `creator.js` makes is open to Basic (existing test extended)
-- [ ] Tests: me route isolation (A cannot see B), page strings pinned
+- [x] `GET /platform/billing/me` (Basic-allowed, own tenant only): balance, credit value, markup hidden, recent history
+- [x] Creator page: balance in the header, price next to Voice / Storyboard / Create assets / Render, a Credits screen with history, the 402 message shown as the page's error line
+- [x] Hidden entirely while `BILLING_ENABLED` is false
+- [x] Every call `creator.js` makes is open to Basic (existing test extended)
+- [x] Tests: me route isolation (A cannot see B), page strings pinned
 ### Definition of Done
-- [ ] All AC checked · suite green except the baseline · DONE.md updated
+- [x] All AC checked · suite green except the baseline · DONE.md updated (smoke pending)
 
 **Defaults chosen at the review (D123, change if you disagree):** 1 credit = $0.01 of price; markup ×2 on raw cost; new accounts start at 0 credits (owner top-up only until P-BILL-2); an LLM call is priced at its flat estimate, not its token count; user-supplied provider keys are never charged; the owner and View-as are never charged.
 
