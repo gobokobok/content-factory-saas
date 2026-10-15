@@ -77,7 +77,7 @@ Legacy Script→Video stays untouched and operable (D047).
 ## Sprint P-BILL-1 — usage ledger, credits, charging, hard limits, owner top-up (EPIC 59, D114, D123)
 
 **Goal:** a friend is charged credits for their video and cannot overspend; the owner tops accounts up and sees usage. **The friends beta opens when this sprint is smoked.**
-**Status:** **BUILT 2026-10-15 on branch `claude/p-bill-1`** (commit `eaafe87`, 3353 tests passing in the cloud sandbox; PR open, not merged; handover in DONE.md). Planned 2026-10-15 at the review of P-AUTH and P-CORE; design defaults are D123. `BILLING_ENABLED` is off by default, so merging changes nothing on DEV until the operator turns it on. **Open before the beta opens:** AUTH-S10 and P-CORE-S11 (live smokes), the scoped `/audit`, then the P-BILL-1 smoke in DONE.md.
+**Status:** **BUILT 2026-10-15 on branch `claude/p-bill-1`** (commit `eaafe87`, 3393 tests passing in the cloud sandbox, after the PR #1 review fixes; PR open, not merged; handover in DONE.md). Planned 2026-10-15 at the review of P-AUTH and P-CORE; design defaults are D123. `BILLING_ENABLED` is off by default, so merging changes nothing on DEV until the operator turns it on. **Open before the beta opens:** AUTH-S10 and P-CORE-S11 (live smokes), the scoped `/audit`, then the P-BILL-1 smoke in DONE.md.
 **Points:** ~13 (+2 for the two carried smokes)
 
 | ID | Title | Points | Status |

@@ -13,7 +13,7 @@ Content Factory is a modular, automated content production pipeline for "The Hou
 
 ## Current sprint
 **P-CORE closed 2026-10-14** (on DEV; smoke PARTIAL → P-CORE-S11). The Studio's features are Super screens of `/create` (D121); account-level AI assets, named voices and the script lock are D122. Tests 3227 passing.
-Closed before it: **P-AUTH** (2026-10-14; smoke PARTIAL → AUTH-S10). Reviewed 2026-10-15 (P-AUTH + P-CORE, by hand — see METHODOLOGY.md); the next review is due when P-BILL-1 closes. **P-BILL-1 is BUILT on branch `claude/p-bill-1` (BILL-S1..S5, D123; PR open, not merged, nothing run on DEV; 3353 tests passing in the cloud sandbox)** — credits are off until `BILLING_ENABLED=true`.
+Closed before it: **P-AUTH** (2026-10-14; smoke PARTIAL → AUTH-S10). Reviewed 2026-10-15 (P-AUTH + P-CORE, by hand — see METHODOLOGY.md); the next review is due when P-BILL-1 closes. **P-BILL-1 is BUILT on branch `claude/p-bill-1` (BILL-S1..S5, D123; PR open, not merged, nothing run on DEV; 3393 tests passing in the cloud sandbox)** — credits are off until `BILLING_ENABLED=true`.
 _Roadmap (D114, D117, D118): **P-BILL-1 (starts with AUTH-S10 and P-CORE-S11; friends beta opens)** → P-BILL-2 → **P-LANG Russian (EPIC 53)** → P15 Research → P16 Publishing via n8n → P17 Server-side Auto Advance. Unplaced: EPIC 50, E54-S1 chunked voiceover, library "use in a scene", long-form animation._
 
 ## Active story

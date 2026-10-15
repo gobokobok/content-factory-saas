@@ -105,6 +105,27 @@ A friend sees how many credits they have, what the next action costs, and what t
 ### Definition of Done
 - [x] All AC checked · suite green except the baseline · DONE.md updated (smoke pending)
 
+### P-BILL-1 follow-ups (from the review of PR #1, 2026-10-15 — not built; deliberately out of the review-fix commit)
+
+## [BILL-F1] Release the daily USD reservation when a hold is refunded or settled down
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 follow-ups · **Status:** backlog · **Points:** 2
+### Problem
+`billing.reserve()` reserves the action's raw cost against the tenant's daily USD bound (`limits.spend_gate`, D120) next to the credit hold. `refund()` gives the credits back but **not** the day's reservation, and `settle()` below the estimate does not return the difference. A tenant whose actions fail (or settle low) can reach `CAP_DAILY_SPEND_USD` while having spent nothing, and is refused with "usage limit reached".
+### Acceptance Criteria
+- [ ] `limits` gains `release_spend(tenant, usd)` on the usage store (atomic, never below zero), called by `billing.refund` and by `settle` for the amount returned
+- [ ] The release is part of the same transaction as the credit where both are in Postgres (or an idempotent second step keyed by entry id so a retry cannot release twice)
+- [ ] Tests: a refunded action restores the day's room; a settle at half the estimate returns half; a double refund releases once
+- [ ] Decide whether `CAP_DAILY_SPEND_USD` stays as a second ceiling next to credits (D123 follow-up already noted in DONE.md)
+
+## [BILL-F2] Refund when the action succeeded at the provider but its result could not be used
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 follow-ups · **Status:** backlog · **Points:** 3
+### Problem
+Several paths settle as soon as the provider call returns and then do more work that can fail: the script route (`transition_run`, `read_artifact` after `settle`), metadata (`write_artifact` after `settle`), the single-image route (the storyboard / manifest update inside `generate_scene_image` is covered, the presigned URL is not), the director's `apply_scene_prompt` 409 ("scene was merged meanwhile"). The user is charged and gets nothing.
+### Acceptance Criteria
+- [ ] List each paid path and the last step that can still lose the result; move `settle` after that step, or refund when it fails
+- [ ] Where the provider's cost is real and the result is lost (a merged scene), decide per path whether the user is charged (policy) and record it in D123
+- [ ] Tests: one per path, injecting a failure after the provider call and asserting the balance
+
 **Defaults chosen at the review (D123, change if you disagree):** 1 credit = $0.01 of price; markup ×2 on raw cost; new accounts start at 0 credits (owner top-up only until P-BILL-2); an LLM call is priced at its flat estimate, not its token count; user-supplied provider keys are never charged; the owner and View-as are never charged.
 
 **P-BILL-2 — online payments (~8).** Provider chosen then (Stripe Checkout vs a merchant of record such as Lemon Squeezy / Paddle); prepaid credit packs; receipts; the legal pages (terms, privacy, refunds) belong here at the latest.
