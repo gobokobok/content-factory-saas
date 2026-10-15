@@ -59,6 +59,20 @@ def test_timeline_resolves_scene_timing_from_the_alignment():
     assert tl.voiceover_duration_s == 6.0
 
 
+def test_uploaded_voiceover_cuts_land_on_the_word_boundaries():
+    """An uploaded VO is Deepgram-aligned too — it must not take the proportional path."""
+    # A 2 s pause after the first word and 1 / 1 / 10 word scenes: proportional timing differs.
+    words = [
+        w.model_copy(update={"start_ms": w.start_ms + 2000, "end_ms": w.end_ms + 2000}) if i else w
+        for i, w in enumerate(make_words())
+    ]
+    sb = make_storyboard(words, starts=(0, 1, 2))
+    al = _alignment(words).model_copy(update={"alignment_method": "uploaded_deepgram_nova2"})
+    tl = build_timeline(sb, make_manifest(sb), al, SETTINGS)
+    expected = [(0, words[1].start_ms), (words[1].start_ms, words[2].start_ms), (words[2].start_ms, words[-1].end_ms)]
+    assert [(s.start_ms, s.end_ms) for s in tl.scenes] == expected
+
+
 def test_timeline_without_alignment_uses_storyboard_durations_and_script_captions():
     sb = make_storyboard(make_words())
     tl = build_timeline(sb, make_manifest(sb), None, SETTINGS)

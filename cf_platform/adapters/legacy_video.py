@@ -317,7 +317,7 @@ class InProcessLegacyVideoAdapter:
 
             # Correct scene durations to match actual VO length so visuals don't
             # freeze before audio ends.  Mirrors the logic in routes/ffmpeg_script.py.
-            if src_timestamps and voice_alignment and voice_alignment.alignment_method == "deepgram_nova2":
+            if src_timestamps and voice_alignment and voice_alignment.alignment_method in ("deepgram_nova2", "uploaded_deepgram_nova2"):
                 # Derive per-scene duration from real word timestamps.
                 adjusted = compute_scene_durations_from_alignment(storyboard_obj.scenes, scene_words)
                 storyboard_obj = storyboard_obj.model_copy(update={"scenes": adjusted})

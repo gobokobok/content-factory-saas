@@ -240,6 +240,12 @@ def missing_assets_message(storyboard, manifest) -> str | None:
     return " ".join(parts) if parts else None
 
 
+# Alignments carrying real Deepgram word times — TTS voiceovers and uploaded ones. An
+# uploaded voiceover must not fall through to the proportional path: that spreads scene
+# durations by their storyboard weights and the images drift off the speech.
+DEEPGRAM_ALIGNMENT_METHODS = ("deepgram_nova2", "uploaded_deepgram_nova2")
+
+
 def _normalized_words(alignment: VoiceAlignmentArtifact) -> list:
     """The voiceover words exactly as the StoryboardWorker indexes them.
 
@@ -291,7 +297,8 @@ def resolve_scene_timing(
         alignment.alignment_method, has_scene_timestamps,
     )
 
-    if alignment.alignment_method == "deepgram_nova2" and has_scene_timestamps:
+    is_deepgram = alignment.alignment_method in DEEPGRAM_ALIGNMENT_METHODS
+    if is_deepgram and has_scene_timestamps:
         # Boundaries index the NORMALISED list; captions stay on the raw words (their
         # text and timing are what the voiceover actually says).
         boundary_words = _normalized_words(alignment)
@@ -323,7 +330,7 @@ def resolve_scene_timing(
             else:
                 dur = alignment.total_duration_s - boundaries_ms[i] / 1000.0
             adjusted.append(scene.model_copy(update={"duration_s": max(0.08, round(dur, 3))}))
-    elif alignment.alignment_method == "deepgram_nova2":
+    elif is_deepgram:
         # Legacy two-pass path for storyboards without scene_start_ms.
         words_pass1 = assign_words_to_scenes(storyboard.scenes, src_timestamps)
         adjusted_pass1 = compute_scene_durations_from_alignment(storyboard.scenes, words_pass1)
