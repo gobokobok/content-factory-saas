@@ -820,7 +820,14 @@ async def _run_render_background(
 
     job_key = f"runs/{run_id}/render/current_job.json"
     try:
-        output = await worker(state)
+        # The server renders a few videos at once; the rest wait here, and the page says so.
+        queued = limits.render_gate_full(settings)
+        if queued:
+            await storage.put_json(job_key, {"job_id": job_id, "status": "running", "queued": True})
+        async with limits.render_gate(settings):
+            if queued:
+                await storage.put_json(job_key, {"job_id": job_id, "status": "running"})
+            output = await worker(state)
         result_artifact = output.artifact
         if not isinstance(result_artifact, RenderArtifact):
             raise RuntimeError(f"RenderWorker returned unexpected artifact type: {type(result_artifact)}")

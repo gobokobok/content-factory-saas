@@ -20,6 +20,7 @@ Routes call the module functions (``await spend_gate(...)``) — they resolve th
 caller from the request principal, so no route signature changes.
 """
 
+import asyncio
 import contextlib
 from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime
@@ -313,6 +314,36 @@ def claim_render_slot(settings: PlatformSettings | None = None) -> str | None:
         raise HTTPException(status_code=429, detail="A video of yours is still rendering — wait for it to finish.")
     _active_renders[tenant] = _active_renders.get(tenant, 0) + 1
     return tenant
+
+
+_render_gate: tuple[asyncio.AbstractEventLoop, int, asyncio.Semaphore] | None = None
+
+
+def _gate(settings: PlatformSettings | None = None) -> asyncio.Semaphore:
+    """The process-wide render gate: RENDER_MAX_CONCURRENT renders run, the rest wait their turn."""
+    global _render_gate
+    size = max(1, (settings or get_platform_settings()).RENDER_MAX_CONCURRENT)
+    loop = asyncio.get_running_loop()
+    if _render_gate is None or _render_gate[0] is not loop or _render_gate[1] != size:
+        _render_gate = (loop, size, asyncio.Semaphore(size))
+    return _render_gate[2]
+
+
+def render_gate_full(settings: PlatformSettings | None = None) -> bool:
+    """True when a render started now would have to wait for a free place."""
+    return _gate(settings).locked()
+
+
+@contextlib.asynccontextmanager
+async def render_gate(settings: PlatformSettings | None = None) -> AsyncIterator[None]:
+    """Wait for one of the server's RENDER_MAX_CONCURRENT places, hold it while FFmpeg runs.
+
+    Every tenant shares the gate, so a few renders at once cannot starve the container's CPU
+    and memory (a render runs up to four FFmpeg encodes itself).
+    """
+    gate = _gate(settings)
+    async with gate:
+        yield
 
 
 def release_render_slot(tenant: str | None) -> None:

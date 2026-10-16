@@ -71,7 +71,9 @@ def test_uploaded_voiceover_cuts_land_on_the_word_boundaries():
     tl = build_timeline(sb, make_manifest(sb), al, SETTINGS)
     lead = 200
     expected = [(0, words[1].start_ms - lead), (words[1].start_ms - lead, words[2].start_ms - lead), (words[2].start_ms - lead, words[-1].end_ms)]
-    assert [(s.start_ms, s.end_ms) for s in tl.scenes] == expected
+    # Cuts sit on the 25 fps frame grid, so each is within half a frame (20 ms) of the word minus 200 ms.
+    got = [(s.start_ms, s.end_ms) for s in tl.scenes]
+    assert got == [(pytest.approx(a, abs=20), pytest.approx(b, abs=20)) for a, b in expected]
 
 
 def test_timeline_without_alignment_uses_storyboard_durations_and_script_captions():

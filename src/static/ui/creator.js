@@ -147,12 +147,13 @@
   function clearJob(boxId) { const box = $(boxId); box.className = 'job'; box.innerHTML = ''; }
 
   /** Poll a status route until it says complete or error. Resolves to the last answer. */
-  async function poll(path, intervalMs, maxPolls) {
+  async function poll(path, intervalMs, maxPolls, onStatus) {
     let missing = 0;
     for (let i = 0; i < maxPolls; i++) {
       await sleep(intervalMs);
       const res = await api(path);
       const st = res.ok ? res.data : { status: 'running' };
+      if (onStatus) onStatus(st);
       if (st.status === 'complete' || st.status === 'error') { loadBilling(); return st; }
       // "none": the server has no job for this run. Right after a start that is a short
       // write delay; for long it means the job never began.
@@ -1075,19 +1076,24 @@
     const uploaded = !!(S.video && S.video.source && S.video.source !== 'ffmpeg');
     if (uploaded && !await confirmBox('Replace the uploaded video?', 'This video was uploaded, not rendered here. Rendering replaces it.', 'Render and replace')) return;
     const cap = captionChoice();
+    // Show the render as started at once: the server prepares the timeline before it answers.
+    S.busy.render = true; paintRender();
+    const stopStarting = progress('#job-render', 'Starting the render…');
     const res = await api('/platform/workers/render', { method: 'POST', body: {
       run_id: S.run.id, format_track: S.run.format === '16:9' ? 'landscape' : 'portrait',
       captions: cap !== 'none', caption_style: cap === 'punch' ? 'punch' : 'standard', music_enabled: !!S.musicKey,
       confirm_overwrite: uploaded,
     } });
-    if (!res.ok) { failure('#job-render', 'Render was not started.', why(res), renderVideo); return; }
+    stopStarting();
+    if (!res.ok) { S.busy.render = false; paintRender(); failure('#job-render', 'Render was not started.', why(res), renderVideo); return; }
     watchRender();
   }
   async function watchRender() {
     const id = S.run.id;
     S.busy.render = true; paintRender();
-    const stop = progress('#job-render', 'Rendering the video…');
-    const st = await poll(runUrl('/render/status'), 4000, 225);
+    let queued = false;
+    const stop = progress('#job-render', () => queued ? 'Waiting for a free renderer — other videos are rendering…' : 'Rendering the video…');
+    const st = await poll(runUrl('/render/status'), 4000, 225, s => { queued = !!s.queued; });
     stop();
     if (!S.run || S.run.id !== id) return;
     S.busy.render = false;

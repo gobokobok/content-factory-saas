@@ -602,8 +602,8 @@ async def studio_get_render_status(
                 }
             if job.get("status") == "error":
                 return {"status": "error", "error": job.get("error", "Render failed")}
-            # status == "running"
-            return {"status": "running"}
+            # status == "running"; queued while the server's render places are all taken
+            return {"status": "running", "queued": True} if job.get("queued") else {"status": "running"}
     except Exception:
         pass
 

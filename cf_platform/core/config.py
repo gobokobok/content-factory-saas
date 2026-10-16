@@ -82,6 +82,7 @@ class PlatformSettings(BaseSettings):
     CAP_RUNS_PER_DAY: int = 10
     CAP_DAILY_SPEND_USD: float = 5.0
     CAP_CONCURRENT_RENDERS: int = 1
+    RENDER_MAX_CONCURRENT: int = 2
     CAP_STORAGE_MB: int = 2048
     # Estimated dollars of one paid call that has no exact price (LLM, TTS, a prompt rewrite).
     EST_LLM_CALL_USD: float = 0.05

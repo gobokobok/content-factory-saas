@@ -330,7 +330,10 @@ def resolve_scene_timing(
         n_scenes = len(storyboard.scenes)
         cuts_s = [0.0]
         for i in range(1, n_scenes):
-            cuts_s.append(max(boundaries_ms[i] / 1000.0 - SCENE_LEAD_S, cuts_s[-1] + 0.08))
+            # Snapped to whole frames: a scene is encoded as a whole number of frames, so
+            # cuts off the frame grid would round differently per scene and drift.
+            cut = round((boundaries_ms[i] / 1000.0 - SCENE_LEAD_S) * FRAME_RATE) / FRAME_RATE
+            cuts_s.append(max(cut, cuts_s[-1] + 2 / FRAME_RATE))
         adjusted: list[StoryboardScene] = []
         for i, scene in enumerate(storyboard.scenes):
             end_s = cuts_s[i + 1] if i < n_scenes - 1 else alignment.total_duration_s

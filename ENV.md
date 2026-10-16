@@ -176,6 +176,7 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `SIGNUP_CREDITS` | P-BILL-1 | Credits a new account gets once at first sign-in. Default `0` (the owner tops accounts up from Settings -> Credits). |
 | `BILLING_HOLD_TTL_MINUTES` | P-BILL-1 | A credit hold still open after this long is refundable from Settings -> Credits ("Give back stuck holds"): its job never finished (a restart). Default `120`. |
 | `CAP_CONCURRENT_RENDERS` | P-AUTH | Renders one tenant may run at once (D120). Default `1`. |
+| `RENDER_MAX_CONCURRENT` | Beta | Renders the whole server runs at once, across all users. Further renders wait and the page shows "Waiting for a free renderer". Default `2`. Size it to the container: each render runs up to 4 FFmpeg encodes. |
 | `CAP_STORAGE_MB` | P-AUTH | Uploaded megabytes per tenant (D120). Default `2048`. |
 | `MODERATION_MODE` | P-AUTH | `block` (default) refuses a flagged text; `log` records and never blocks — for tuning (D115, D120). |
 | `MODERATION_PROVIDER` | P-AUTH | `local` (default) or `openai` — adds OpenAI's free moderation endpoint using `OPENAI_API_KEY`. |
