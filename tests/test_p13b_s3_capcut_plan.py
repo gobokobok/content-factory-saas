@@ -281,7 +281,7 @@ def test_sfx_sits_at_its_scene_offset_with_the_timelines_delay():
     ]
     tl = _timeline(scenes=scenes)
     sfx = [a for a in plan_draft(tl, media).audio if a.track == "sfx"]
-    assert [a.start_us for a in sfx] == [0, 1_600_000 + 700_000]   # scene 2 starts 1.6s in; text → +0.7s
+    assert [a.start_us for a in sfx] == [0, 1_640_000 + 700_000]   # scene 2 starts 1.64s in; text → +0.7s
     assert [a.start_us for a in sfx] == [s["sfx_delay_ms"] * 1000 for s in tl["scenes"] if s["sfx_key"]]
 
 

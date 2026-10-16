@@ -50,10 +50,10 @@ echo "=== END PRE-FLIGHT ==="
 # ── Per-scene processing (parallel, ≤4 concurrent) ──────────
 _JOBS=(); _MAX=4
 
-# Scene 01 — 1 — still_with_motion (ken_burns) — 1.6s
+# Scene 01 — 1 — still_with_motion (ken_burns) — 1.64s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/1.jpg" \
-  -t 1.6 \
-  -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=40:s=1920x1080,fps=25,setsar=1:1" \
+  -t 1.64 \
+  -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=41:s=1920x1080,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_01.mp4" &
@@ -76,10 +76,10 @@ if [ ${#_JOBS[@]} -ge $_MAX ]; then
   _JOBS=()
 fi
 
-# Scene 03 — 3 — still_with_motion (ken_burns) — 1.9s
+# Scene 03 — 3 — still_with_motion (ken_burns) — 2.1s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/3.jpg" \
-  -t 1.92 \
-  -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=48:s=1920x1080,fps=25,setsar=1:1" \
+  -t 2.08 \
+  -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=52:s=1920x1080,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_03.mp4" &

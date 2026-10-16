@@ -49,7 +49,7 @@ def test_timeline_resolves_scene_timing_from_the_alignment():
     words = make_words()
     sb = make_storyboard(words)
     tl = build_timeline(sb, make_manifest(sb), _alignment(words), SETTINGS)
-    assert [(s.start_ms, s.end_ms) for s in tl.scenes] == [(0, 2000), (2000, 4000), (4000, 6000)]
+    assert [(s.start_ms, s.end_ms) for s in tl.scenes] == [(0, 1800), (1800, 3800), (3800, 6000)]  # each cut 200 ms before its first word
     assert tl.duration_ms == 6000
     assert tl.schema_version == TIMELINE_SCHEMA_VERSION
     assert (tl.width, tl.height, tl.aspect_ratio) == (1080, 1920, "9:16")
@@ -69,7 +69,8 @@ def test_uploaded_voiceover_cuts_land_on_the_word_boundaries():
     sb = make_storyboard(words, starts=(0, 1, 2))
     al = _alignment(words).model_copy(update={"alignment_method": "uploaded_deepgram_nova2"})
     tl = build_timeline(sb, make_manifest(sb), al, SETTINGS)
-    expected = [(0, words[1].start_ms), (words[1].start_ms, words[2].start_ms), (words[2].start_ms, words[-1].end_ms)]
+    lead = 200
+    expected = [(0, words[1].start_ms - lead), (words[1].start_ms - lead, words[2].start_ms - lead), (words[2].start_ms - lead, words[-1].end_ms)]
     assert [(s.start_ms, s.end_ms) for s in tl.scenes] == expected
 
 
@@ -101,9 +102,9 @@ def test_timeline_scene_carries_asset_motion_text_and_sfx():
     assert (one.asset_kind, one.asset_path, one.motion_effect) == ("image", "images/1.jpg", "pan_left")
     assert (one.sfx_key, one.sfx_path, one.sfx_delay_ms) == ("whoosh", "sfx/whoosh.mp3", 0)
     assert two.text.text == "Up 40%" and two.text.type == "stat"
-    assert (two.text.start_ms, two.text.end_ms) == (2300, 4000)
+    assert (two.text.start_ms, two.text.end_ms) == (2100, 3800)
     # SFX on a scene with text lands as the slide-in finishes: scene start + 0.7s.
-    assert two.sfx_delay_ms == 2700
+    assert two.sfx_delay_ms == 2500
     # Footage: no motion effect (D089).
     assert (three.asset_kind, three.motion_effect) == ("video", None)
 
@@ -173,8 +174,8 @@ def test_scene_cuts_land_on_the_storyboards_word_boundaries_with_contractions():
         mp3_r2_key="", word_timestamps=raw, alignment_method="deepgram_nova2",
         total_duration_s=raw[-1].end_ms / 1000 + 0.3,
     ), SETTINGS)
-    assert [s.start_ms for s in tl.scenes] == [0, 1600, 2800]  # cumulative from the first boundary
-    assert [s.duration_s for s in tl.scenes] == [1.6, 1.2, 1.5]
+    assert [s.start_ms for s in tl.scenes] == [0, 1640, 2840]  # each cut 200 ms before the word, not shifted by the opening silence
+    assert [s.duration_s for s in tl.scenes] == [1.64, 1.2, 1.7]
     # scene 2 begins on the storyboard's word 4 ("w4" at 1840ms), not on the raw list's index 4
     first_of_scene_2 = next(w for w in tl.caption_words if w.scene_index == 2)
     assert (first_of_scene_2.word, first_of_scene_2.start_ms) == ("w4", 1840)

@@ -50,10 +50,10 @@ echo "=== END PRE-FLIGHT ==="
 # ── Per-scene processing (parallel, ≤4 concurrent) ──────────
 _JOBS=(); _MAX=4
 
-# Scene 01 — 1 — still_with_motion (ken_burns) — 1.6s
+# Scene 01 — 1 — still_with_motion (ken_burns) — 1.64s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/1.jpg" \
-  -t 1.6 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=40:s=1080x1920,fps=25,setsar=1:1" \
+  -t 1.64 \
+  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=41:s=1080x1920,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_01.mp4" &
@@ -89,10 +89,10 @@ if [ ${#_JOBS[@]} -ge $_MAX ]; then
   _JOBS=()
 fi
 
-# Scene 04 — 4 — still_with_motion (ken_burns) — 1.9s
+# Scene 04 — 4 — still_with_motion (ken_burns) — 2.1s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/4.jpg" \
-  -t 1.92 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=48:s=1080x1920,fps=25,setsar=1:1" \
+  -t 2.08 \
+  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=52:s=1080x1920,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_04.mp4" &
@@ -170,7 +170,7 @@ printf "%s" 'BIG NUMBER' > "$WORK/ost_00.txt"
 ffmpeg -y \
   -i "$WORK/video_padded.mp4" \
   -vf "ass=$WORK/voiceover_captions.ass,\
-  drawtext=textfile=$WORK/ost_00.txt:expansion=none:fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf:fontsize=90:fontcolor=black:box=1:boxcolor=white@0.55:boxborderw=18:x='if(lt(t-1.900\,0.4)\,-(text_w)+((text_w)+78)*(t-1.900)/0.4\,78)':y='0.3*h+18':enable='between(t,1.900,3.200)'" \
+  drawtext=textfile=$WORK/ost_00.txt:expansion=none:fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf:fontsize=90:fontcolor=black:box=1:boxcolor=white@0.55:boxborderw=18:x='if(lt(t-1.940\,0.4)\,-(text_w)+((text_w)+78)*(t-1.940)/0.4\,78)':y='0.3*h+18':enable='between(t,1.940,3.240)'" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \
   "$WORK/video_postproc.mp4"
 
@@ -192,7 +192,7 @@ fi
 
 if [ -f "$BASE/sfx/impact.mp3" ]; then
   _sfx_inputs+=(-i "$BASE/sfx/impact.mp3")
-  _sfx_filters="${_sfx_filters};[${_sfx_n}:a]adelay=2300|2300[sfx1]"
+  _sfx_filters="${_sfx_filters};[${_sfx_n}:a]adelay=2340|2340[sfx1]"
   _sfx_labels="${_sfx_labels}[sfx1]"
   _sfx_n=$((_sfx_n + 1))
   _n_audio=$((_n_audio + 1))
@@ -200,7 +200,7 @@ fi
 
 if [ -f "$BASE/sfx/whoosh.mp3" ]; then
   _sfx_inputs+=(-i "$BASE/sfx/whoosh.mp3")
-  _sfx_filters="${_sfx_filters};[${_sfx_n}:a]adelay=4800|4800[sfx2]"
+  _sfx_filters="${_sfx_filters};[${_sfx_n}:a]adelay=4840|4840[sfx2]"
   _sfx_labels="${_sfx_labels}[sfx2]"
   _sfx_n=$((_sfx_n + 1))
   _n_audio=$((_n_audio + 1))

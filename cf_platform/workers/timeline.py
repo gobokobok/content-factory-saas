@@ -44,6 +44,9 @@ TIMELINE_SCHEMA_VERSION = 1
 OST_APPEAR_DELAY_S = 0.3
 
 FRAME_RATE = 25
+# A scene's picture cuts in this long before its first spoken word, measured from the
+# word itself, never from the start of the audio.
+SCENE_LEAD_S = 0.2
 
 _AUDIO_EXTS = (".mp3", ".wav", ".m4a")
 
@@ -320,16 +323,18 @@ def resolve_scene_timing(
             idx = bisect.bisect_right(boundaries_ms, w.start_ms) - 1
             idx = max(0, min(idx, len(storyboard.scenes) - 1))
             raw_scene_words[idx].append(w)
-        # Gap-based durations: scene N holds until scene N+1's first word; the last
-        # scene holds through the end of the audio (fixes the final-frame freeze).
-        adjusted: list[StoryboardScene] = []
+        # Each cut sits SCENE_LEAD_S before its scene's first word (never earlier than the
+        # previous cut); scene 0 starts at 0 and the last scene holds through the end of
+        # the audio (fixes the final-frame freeze). Measuring cuts from the audio start
+        # instead would shift every cut early by the length of the opening silence.
         n_scenes = len(storyboard.scenes)
+        cuts_s = [0.0]
+        for i in range(1, n_scenes):
+            cuts_s.append(max(boundaries_ms[i] / 1000.0 - SCENE_LEAD_S, cuts_s[-1] + 0.08))
+        adjusted: list[StoryboardScene] = []
         for i, scene in enumerate(storyboard.scenes):
-            if i < n_scenes - 1:
-                dur = (boundaries_ms[i + 1] - boundaries_ms[i]) / 1000.0
-            else:
-                dur = alignment.total_duration_s - boundaries_ms[i] / 1000.0
-            adjusted.append(scene.model_copy(update={"duration_s": max(0.08, round(dur, 3))}))
+            end_s = cuts_s[i + 1] if i < n_scenes - 1 else alignment.total_duration_s
+            adjusted.append(scene.model_copy(update={"duration_s": max(0.08, round(end_s - cuts_s[i], 3))}))
     elif is_deepgram:
         # Legacy two-pass path for storyboards without scene_start_ms.
         words_pass1 = assign_words_to_scenes(storyboard.scenes, src_timestamps)

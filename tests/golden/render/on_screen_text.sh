@@ -50,10 +50,10 @@ echo "=== END PRE-FLIGHT ==="
 # ── Per-scene processing (parallel, ≤4 concurrent) ──────────
 _JOBS=(); _MAX=4
 
-# Scene 01 — 1 — still_with_motion (ken_burns) — 1.6s
+# Scene 01 — 1 — still_with_motion (ken_burns) — 1.64s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/1.jpg" \
-  -t 1.6 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=40:s=1080x1920,fps=25,setsar=1:1" \
+  -t 1.64 \
+  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=41:s=1080x1920,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_01.mp4" &
@@ -89,10 +89,10 @@ if [ ${#_JOBS[@]} -ge $_MAX ]; then
   _JOBS=()
 fi
 
-# Scene 04 — 4 — still_with_motion (ken_burns) — 1.9s
+# Scene 04 — 4 — still_with_motion (ken_burns) — 2.1s
 ffmpeg -y -filter_threads 2 -loop 1 -framerate 25 -i "/tmp/gold1/images/4.jpg" \
-  -t 1.92 \
-  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=48:s=1080x1920,fps=25,setsar=1:1" \
+  -t 2.08 \
+  -vf "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,format=yuv420p,scale=iw*4:ih*4:flags=neighbor,zoompan=z='1+0.01*on/25':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=52:s=1080x1920,fps=25,setsar=1:1" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an -threads 2 \
   -video_track_timescale 25 \
   "$WORK/scene_04.mp4" &
@@ -178,9 +178,9 @@ WRAP ONTO LINES' > "$WORK/ost_02.txt"
 ffmpeg -y \
   -i "$WORK/video_padded.mp4" \
   -vf "ass=$WORK/voiceover_captions.ass,\
-  drawtext=textfile=$WORK/ost_00.txt:expansion=none:fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf:fontsize=90:fontcolor=black:box=1:boxcolor=white@0.55:boxborderw=18:x='if(lt(t-0.300\,0.4)\,-(text_w)+((text_w)+78)*(t-0.300)/0.4\,78)':y='0.3*h+18':enable='between(t,0.300,1.600)',\
-  drawtext=textfile=$WORK/ost_01.txt:expansion=none:fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf:fontsize=90:fontcolor=black:box=1:boxcolor=white@0.55:boxborderw=18:x='if(lt(t-1.900\,0.4)\,-(text_w)+((text_w)+78)*(t-1.900)/0.4\,78)':y='0.3*h+18':enable='between(t,1.900,3.200)',\
-  drawtext=textfile=$WORK/ost_02.txt:expansion=none:fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf:fontsize=90:fontcolor=black:box=1:boxcolor=white@0.55:boxborderw=18:x='if(lt(t-5.100\,0.4)\,-(text_w)+((text_w)+78)*(t-5.100)/0.4\,78)':y='0.3*h+18':enable='between(t,5.100,6.700)'" \
+  drawtext=textfile=$WORK/ost_00.txt:expansion=none:fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf:fontsize=90:fontcolor=black:box=1:boxcolor=white@0.55:boxborderw=18:x='if(lt(t-0.300\,0.4)\,-(text_w)+((text_w)+78)*(t-0.300)/0.4\,78)':y='0.3*h+18':enable='between(t,0.300,1.640)',\
+  drawtext=textfile=$WORK/ost_01.txt:expansion=none:fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf:fontsize=90:fontcolor=black:box=1:boxcolor=white@0.55:boxborderw=18:x='if(lt(t-1.940\,0.4)\,-(text_w)+((text_w)+78)*(t-1.940)/0.4\,78)':y='0.3*h+18':enable='between(t,1.940,3.240)',\
+  drawtext=textfile=$WORK/ost_02.txt:expansion=none:fontfile=/usr/local/share/fonts/Montserrat-Bold.ttf:fontsize=90:fontcolor=black:box=1:boxcolor=white@0.55:boxborderw=18:x='if(lt(t-5.140\,0.4)\,-(text_w)+((text_w)+78)*(t-5.140)/0.4\,78)':y='0.3*h+18':enable='between(t,5.140,6.940)'" \
   -c:v libx264 -preset ultrafast -crf 18 -pix_fmt yuv420p -an \
   "$WORK/video_postproc.mp4"
 

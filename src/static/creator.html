@@ -561,6 +561,7 @@ a.btn{text-decoration:none}
         <label class="field"><span class="lbl">Background music</span>
           <select id="music-pick" onchange="Creator.onMusicPick()"><option value="none">No music</option><option value="upload">Upload a track…</option></select>
           <input type="file" id="music-file" accept="audio/mpeg,audio/wav,audio/mp4,audio/x-m4a,.mp3,.wav,.m4a" class="hidden" onchange="Creator.uploadMusic(this)">
+          <span class="meta" id="music-status" aria-live="polite"></span>
         </label>
       </div>
       <div class="preview" id="preview"></div>

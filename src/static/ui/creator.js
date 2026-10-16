@@ -1059,10 +1059,14 @@
     input.value = '';
     if (!file) return;
     err('#err-render', '');
+    const status = $('#music-status'), pick = $('#music-pick');
+    status.textContent = `Uploading ${file.name}…`; pick.disabled = true;
     const form = new FormData(); form.append('file', file);
     const res = await api(runUrl('/music'), { method: 'POST', form });
-    if (!res.ok) { err('#err-render', `The track was not uploaded: ${why(res)}`); return; }
+    pick.disabled = !!S.busy.render;
+    if (!res.ok) { status.textContent = ''; err('#err-render', `The track was not uploaded: ${why(res)}`); return; }
     S.musicKey = res.data.file_key; S.musicName = file.name;
+    status.textContent = `✓ ${file.name} uploaded — it will be used when you render.`;
     paintRender();
   }
   async function renderVideo() {
