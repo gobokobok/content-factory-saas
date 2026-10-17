@@ -97,7 +97,7 @@ See DECISIONS.md D021 for why Cloudflare R2 was chosen over Google Drive.
 | `IMAGE_PROVIDER` | No | Fallback image provider when the tenant has not chosen one: `kie` or `openai`. Default: `kie`. |
 | `KIE_API_KEY` | No | kie.ai key, fallback when the tenant has not saved one in Settings (D096, D104). |
 | `OPENAI_API_KEY` | No | OpenAI key, fallback when the tenant has not saved one in Settings. |
-| `KIE_IMAGE_MODEL` / `OPENAI_IMAGE_MODEL` | No | Default model per provider. Defaults: `gpt-image-2-text-to-image` / `gpt-image-1`. A tenant model setting wins. |
+| `KIE_IMAGE_MODEL` / `OPENAI_IMAGE_MODEL` | No | Default model per provider. Defaults: `nano-banana-2-1` / `gpt-image-1`. A model saved in Settings wins. `gpt-image-2-text-to-image` is the expensive one: use it only by choice. |
 | `IMAGE_QUALITY` | No | OpenAI quality tier (`low` / `medium` / `high`). Default: `medium`. |
 | `IMAGE_RESOLUTION` | No | kie.ai resolution (`1K` / `2K` / `4K`). Default: `1K`. |
 | `IMAGE_DEFAULT_ASPECT_RATIO` | No | Aspect used when the run has no `settings.json`. Default: `9:16`. |

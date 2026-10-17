@@ -209,6 +209,11 @@ class TestTenantSettings:
         assert (config.provider, config.api_key, config.key_source) == ("kie", "env-kie", "env")
         assert config.model == "gpt-image-2-text-to-image"
 
+    def test_the_shipped_default_model_is_the_cheap_one(self):
+        from cf_platform.core.config import PlatformSettings
+
+        assert PlatformSettings.model_fields["KIE_IMAGE_MODEL"].default == "nano-banana-2-1"
+
     @pytest.mark.asyncio
     async def test_no_key_anywhere_resolves_to_an_empty_key(self):
         config = await resolve_image_config(InMemoryTenantSettingsRepository(), "operator", _settings())

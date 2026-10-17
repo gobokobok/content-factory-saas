@@ -142,7 +142,7 @@ class PlatformSettings(BaseSettings):
     IMAGE_PROVIDER: str = "kie"
     KIE_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
-    KIE_IMAGE_MODEL: str = "gpt-image-2-text-to-image"
+    KIE_IMAGE_MODEL: str = "nano-banana-2-1"
     OPENAI_IMAGE_MODEL: str = "gpt-image-1"
     # Default OpenAI model for text generation (the Thinking models block, P-INT1).
     OPENAI_LLM_MODEL: str = "gpt-4.1-mini"
