@@ -396,7 +396,7 @@ class Storyboard(BaseModel):
     # protagonist: a project asset (`protagonist_asset_id`) or a description typed for the run.
     cast_mode: Literal["free", "single"] = "free"
     protagonist_asset_id: str = ""
-    protagonist_text: str = Field(default="", max_length=1200)
+    protagonist_text: str = Field(default="", max_length=2400)
     continuity: list[ContinuityEntry] = []
 
 
@@ -701,7 +701,7 @@ class RunCharacter(BaseModel):
     """One character a run lists up front: the only people the director may show (D114, D117)."""
 
     name: str = Field(min_length=1, max_length=80)
-    description: str = Field(min_length=1, max_length=1200)
+    description: str = Field(min_length=1, max_length=2400)
 
     @field_validator("name", "description", mode="before")
     @classmethod
@@ -758,7 +758,7 @@ class VideoSettings(BaseModel):
     # (a project asset or `protagonist_text`); "listed": only the run's `characters`.
     cast_mode: Literal["free", "single", "listed"] = "free"
     protagonist_asset_id: str = ""
-    protagonist_text: str = Field(default="", max_length=1200)
+    protagonist_text: str = Field(default="", max_length=2400)
     characters: list[RunCharacter] = Field(default_factory=list, max_length=MAX_RUN_CHARACTERS)
     # D117 — the narrator's voice for this run; None means the deployment's GEMINI_TTS_VOICE.
     # A Gemini voice name ("Charon"), or the older "male" / "female" aliases.

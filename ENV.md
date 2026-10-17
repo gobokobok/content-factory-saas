@@ -165,7 +165,7 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `ABUSE_CONTACT_EMAIL` | P-AUTH | Address "Report a problem" mails (S9, D115). Empty hides the link. |
 | `TELEGRAM_ROUTES_ENABLED` | P-AUTH | `true` mounts the Telegram webhook. Default off (D093, S6). Read at import time. |
 | `CAP_SCRIPT_WORDS` | P-AUTH | Server cap on a script's words for non-owner tenants (S8, D120). Default `1200`. |
-| `CAP_PROMPT_CHARS` / `CAP_STYLE_CHARS` / `CAP_CHARACTER_CHARS` | P-AUTH | Server caps on a prompt, a master style, a character or entry description (D120). Defaults `4000` / `2000` / `1500`. |
+| `CAP_PROMPT_CHARS` / `CAP_STYLE_CHARS` / `CAP_CHARACTER_CHARS` | P-AUTH | Server caps on a prompt, a master style, a character or entry description (D120). Defaults `8000` / `4000` / `3000`. |
 | `CAP_RUNS_PER_DAY` | P-AUTH | New videos per tenant per UTC day (D120). Default `10`. |
 | `CAP_DAILY_SPEND_USD` | P-AUTH | Estimated provider spend a tenant may reserve per UTC day (D120). Default `5.0`. The owner is exempt. |
 | `EST_LLM_CALL_USD` / `EST_TTS_CALL_USD` / `EST_RENDER_USD` | P-AUTH | Estimated dollars reserved for a call with no exact price. Defaults `0.05` / `0.05` / `0.05`. **`EST_RENDER_USD` was `0` until the P-BILL-1 review fix**: a render now has a price (10 credits at the default markup), and the figure the page shows is the one the hold takes. It is a placeholder for the server's real render cost: set it from the first month's Railway CPU cost. |

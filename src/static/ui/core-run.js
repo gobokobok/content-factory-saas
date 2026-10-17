@@ -564,7 +564,7 @@
     const custom = CR.castCustom != null ? CR.castCustom : (S().settings.cast_mode || 'free') !== 'free';
     const fixed = locked;   // the storyboard already uses the cast; characters are added in its dialog
     const items = listed.map((c, i) => `<div class="cast-item"><input type="text" maxlength="80" value="${esc(c.name)}" placeholder="Name" ${fixed ? 'disabled' : ''} onchange="CoreRun.castSave()">
-        <textarea maxlength="1200" placeholder="Age, hair, clothes — every detail that must stay the same" ${fixed ? 'disabled' : ''} onchange="CoreRun.castSave()">${esc(c.description)}</textarea>
+        <textarea maxlength="2400" placeholder="Age, hair, clothes — every detail that must stay the same" ${fixed ? 'disabled' : ''} onchange="CoreRun.castSave()">${esc(c.description)}</textarea>
         ${fixed ? '' : `<button class="icon-btn cast-x" onclick="CoreRun.castRemove(this)" title="Remove" aria-label="Remove character"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`}</div>`).join('');
     const max = (S().cfg && S().cfg.max_characters) || 6;
     castBox.innerHTML = `<div class="set-row"><div class="k">Cast</div>
@@ -614,7 +614,7 @@
     const list = qs('cast-list');
     if (!list) return;
     list.insertAdjacentHTML('beforeend', `<div class="cast-item"><input type="text" maxlength="80" placeholder="Name" onchange="CoreRun.castSave()">
-      <textarea maxlength="1200" placeholder="Age, hair, clothes — every detail that must stay the same" onchange="CoreRun.castSave()"></textarea>
+      <textarea maxlength="2400" placeholder="Age, hair, clothes — every detail that must stay the same" onchange="CoreRun.castSave()"></textarea>
       <button class="icon-btn cast-x" onclick="CoreRun.castRemove(this)" title="Remove" aria-label="Remove character"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`);
     list.lastElementChild.querySelector('input').focus();
   }

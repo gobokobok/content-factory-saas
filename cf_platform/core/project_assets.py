@@ -21,7 +21,7 @@ from typing import Any
 ASSET_KINDS = ("character", "prop", "setting")
 MAX_ASSETS = 40
 MAX_NAME_CHARS = 80
-MAX_DESCRIPTION_CHARS = 1200
+MAX_DESCRIPTION_CHARS = 2400
 CONFIG_KEY = "assets"
 
 _ID_CLEAN = re.compile(r"[^a-z0-9_]+")

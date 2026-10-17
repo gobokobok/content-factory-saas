@@ -76,9 +76,9 @@ class PlatformSettings(BaseSettings):
     # P-AUTH (S8, F4, F8) — server-side caps and the interim per-tenant cost bound, applied
     # to every tenant except the owner's. Replaced by the credit ledger in P-BILL-1.
     CAP_SCRIPT_WORDS: int = 1200
-    CAP_PROMPT_CHARS: int = 4000
-    CAP_STYLE_CHARS: int = 2000
-    CAP_CHARACTER_CHARS: int = 1500
+    CAP_PROMPT_CHARS: int = 8000
+    CAP_STYLE_CHARS: int = 4000
+    CAP_CHARACTER_CHARS: int = 3000
     CAP_RUNS_PER_DAY: int = 10
     CAP_DAILY_SPEND_USD: float = 5.0
     CAP_CONCURRENT_RENDERS: int = 1

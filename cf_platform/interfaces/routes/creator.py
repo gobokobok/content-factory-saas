@@ -83,7 +83,7 @@ class CreatorRunRequest(BaseModel):
     aspect_ratio: Literal["9:16", "16:9"] = "9:16"
     language: str = Field(default="en", pattern=r"^[a-z]{2}$")
     # The look every image of the video shares; empty leaves the animated default.
-    master_style: str = Field(default="", max_length=2000)
+    master_style: str = Field(default="", max_length=4000)
     # The only people the director may show. Empty: the director invents the cast.
     characters: list[RunCharacter] = Field(default_factory=list, max_length=MAX_RUN_CHARACTERS)
     # Super only (P-CORE): a realistic video made from stock footage, and a project of the

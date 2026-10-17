@@ -26,7 +26,8 @@
     new: ['New video', ['Say what the video is about and choose its format and language.',
       'The master visual style is the look every image shares. You can change it until the storyboard is created.',
       'List the characters if you want specific people. Only the people you list appear in the video; with none, the characters are invented from the script.',
-      'Describe each character in detail: what you write is used for every image they appear in.']],
+      'Describe each character in detail: what you write is used for every image they appear in.',
+      'Limits: the master visual style takes up to 4,000 characters, each character description up to 2,400, and an image prompt for one scene up to 8,000. The style, the characters in the scene and the scene prompt are sent to the image model together, so very long ones add up.']],
     script: ['Script', ['Paste the text the narrator will read.', 'The word limit keeps the video to a few minutes.',
       'Once the voiceover exists the script is locked: a different script is a different video. Use "Start a new video from this one" in the video settings to change the words.']],
     voice: ['Voice', ['Choose the voice, its pace and its style, then generate the voiceover. Listen before you go on.',
@@ -464,7 +465,7 @@
     const row = document.createElement('div');
     row.className = 'char-row';
     row.innerHTML = `<input type="text" maxlength="80" placeholder="Name" aria-label="Character name">
-      <textarea rows="1" maxlength="1200" placeholder="Age, hair, clothes — every detail that must stay the same" aria-label="Character description"></textarea>
+      <textarea rows="1" maxlength="2400" placeholder="Age, hair, clothes — every detail that must stay the same" aria-label="Character description"></textarea>
       <button class="icon-btn" aria-label="Remove character" title="Remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
     row.querySelector('button').onclick = () => { row.remove(); $('#new-char-add').classList.remove('hidden'); };
     box.appendChild(row);

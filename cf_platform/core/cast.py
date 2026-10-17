@@ -19,7 +19,7 @@ CAST_MODES = ("free", "single", "listed")
 # The most characters a run may list (mirrors src.models.MAX_RUN_CHARACTERS).
 MAX_LISTED_CHARACTERS = 6
 PROTAGONIST_ID = "protagonist"
-MAX_PROTAGONIST_CHARS = 1200
+MAX_PROTAGONIST_CHARS = 2400
 
 
 @dataclass(frozen=True)
