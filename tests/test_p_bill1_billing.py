@@ -350,9 +350,10 @@ class TestAccounts:
         assert run(billing.grant_signup_credits("t1", cfg(SIGNUP_CREDITS=50), store)) is False
         assert run(store.balance("t1")) == 50
 
-    def test_no_sign_up_credits_by_default(self, store):
+    def test_200_sign_up_credits_by_default_once(self, store):
+        assert run(billing.grant_signup_credits("t1", cfg(), store)) is True
         assert run(billing.grant_signup_credits("t1", cfg(), store)) is False
-        assert run(store.balance("t1")) == 0
+        assert run(store.balance("t1")) == 200
 
     def test_my_account_shows_balance_and_the_newest_actions_first(self, store, friend):
         run(store.credit(friend, 100, kind="topup"))

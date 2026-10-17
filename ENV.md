@@ -154,7 +154,8 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `GOOGLE_OAUTH_REDIRECT_URI` | P-AUTH | The fixed callback URL registered with Google, e.g. `https://<dev host>/auth/google/callback`. Never derived from the request. |
 | `OWNER_EMAILS` | P-AUTH | Comma-separated. These Google accounts map onto the owner's legacy tenant (`operator`) and are Super — the owner keeps every run, project and key (D119). |
 | `SUPER_EMAILS` | P-AUTH | Comma-separated. Super accounts with their own tenant (D118, D119). |
-| `ALLOWED_EMAILS` | P-AUTH | Comma-separated Basic users who may sign in while `SIGNUP_OPEN` is false. |
+| `ALLOWED_EMAILS` | P-AUTH | Comma-separated Basic users who may sign in while `SIGNUP_OPEN` is false. The owner also manages a list in the Studio (Settings -> Credits -> Invited accounts, migration 0007); both count. |
+| `PASSWORD_LOGIN_ENABLED` | Beta | `true` shows the operator-password login beside Google and keeps `/auth/login` working. Default `false`: Google only, `/auth/login` answers 404. Set it only as a fallback if Google sign-in is broken. |
 | `SIGNUP_OPEN` | P-AUTH | `true` lets any verified Google account sign in. Default `false`. Leave false until the caps and the moderation gate are checked on DEV. |
 | `SESSION_TTL_DAYS` | P-AUTH | Lifetime of a session. Default `14`. |
 | `ACCEPT_LEGACY_COOKIE` | P-AUTH | Accept the pre-P-AUTH constant session cookie as the owner (F6 bridge). Default `true`; set `false` after the owner has signed in once. |
@@ -173,7 +174,7 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `BILLING_ENABLED` | P-BILL-1 | `true` charges credits (D123): a hold before every paid action, a 402 when the balance does not cover it. Default `false` — the ledger only **meters** (records what each action would cost) and nothing is held or refused. Turn it on at beta opening, after AUTH-S10 and P-CORE-S11. The owner is never charged. |
 | `CREDIT_VALUE_USD` | P-BILL-1 | The price of one credit in dollars. Default `0.01`. |
 | `CREDIT_MARKUP` | P-BILL-1 | Multiplier from raw provider cost to price: credits = ceil(raw x markup / `CREDIT_VALUE_USD`), at least 1 for any non-zero cost. Default `2.0`. Never shown to users. |
-| `SIGNUP_CREDITS` | P-BILL-1 | Credits a new account gets once at first sign-in. Default `0` (the owner tops accounts up from Settings -> Credits). |
+| `SIGNUP_CREDITS` | P-BILL-1 | Credits a new account gets once at first sign-in. Default `200`; `0` gives none. The owner tops accounts up from Settings -> Credits. |
 | `BILLING_HOLD_TTL_MINUTES` | P-BILL-1 | A credit hold still open after this long is refundable from Settings -> Credits ("Give back stuck holds"): its job never finished (a restart). Default `120`. |
 | `CAP_CONCURRENT_RENDERS` | P-AUTH | Renders one tenant may run at once (D120). Default `1`. |
 | `RENDER_MAX_CONCURRENT` | Beta | Renders the whole server runs at once, across all users. Further renders wait and the page shows "Waiting for a free renderer". Default `2`. Size it to the container: each render runs up to 4 FFmpeg encodes. |

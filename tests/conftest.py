@@ -26,6 +26,8 @@ _TEST_ENV_DEFAULTS = {
     "REPLICATE_API_TOKEN": "test-token",
     "FREESOUND_API_KEY": "test-key",
     "OPERATOR_PASSWORD": "test-password",
+    # The default is off (Google only); the suite signs in with the password.
+    "PASSWORD_LOGIN_ENABLED": "true",
     "SESSION_SECRET_KEY": "test-secret-key",
     # Existing tests use short secrets; the validator's own tests set this explicitly.
     "AUTH_SECRET_MIN_LENGTH": "1",

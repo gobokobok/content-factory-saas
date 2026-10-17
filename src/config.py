@@ -132,6 +132,8 @@ class Settings(BaseSettings):
     # When true any verified Google account may sign in. Leave false until the caps (S8)
     # and the moderation gate (S9) are deployed and checked.
     SIGNUP_OPEN: bool = False
+    # The operator-password login. Off: the login page offers Google only and /auth/login answers 404.
+    PASSWORD_LOGIN_ENABLED: bool = False
     SESSION_TTL_DAYS: int = 14
     # Accept the pre-P-AUTH constant cookie as the owner (F6). Set false once the owner
     # has signed in again; the cookie cannot expire or be revoked, so this is a bridge.

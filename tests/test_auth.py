@@ -18,6 +18,7 @@ VALID_ENV = {
     "FREESOUND_API_KEY": "fake-freesound-key",
     "OPERATOR_PASSWORD": "correct-horse-battery",
     "SESSION_SECRET_KEY": "test-hmac-secret",
+    "PASSWORD_LOGIN_ENABLED": "true",
 }
 
 _SETTINGS = Settings.model_validate(VALID_ENV)

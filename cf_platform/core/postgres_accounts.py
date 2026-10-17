@@ -134,3 +134,23 @@ class PostgresAccountStore:
         if row is None:
             return None
         return OAuthState(state_hash=row[0], code_verifier=row[1], next_path=row[2], created_at=row[3])
+
+    async def list_invites(self) -> list[dict]:
+        """Invited e-mails, newest first."""
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("SELECT email, added_by, created_at FROM invited_emails ORDER BY created_at DESC")
+                rows = await cur.fetchall()
+        return [{"email": r[0], "added_by": r[1], "created_at": r[2]} for r in rows]
+
+    async def add_invite(self, email: str, added_by: str = "") -> None:
+        """Invite an e-mail (idempotent)."""
+        await self._execute(
+            "INSERT INTO invited_emails (email, added_by) VALUES (%s, %s) ON CONFLICT (email) DO NOTHING",
+            (email, added_by),
+        )
+
+    async def remove_invite(self, email: str) -> bool:
+        """Remove an invite; True when it existed."""
+        return await self._execute("DELETE FROM invited_emails WHERE email = %s", (email,)) > 0

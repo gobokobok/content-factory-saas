@@ -5,7 +5,7 @@ import time
 from datetime import UTC, datetime, timedelta
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
@@ -104,6 +104,8 @@ async def login(
     """
     from cf_platform.core.accounts import create_session, ensure_owner_user
 
+    if not settings.PASSWORD_LOGIN_ENABLED:
+        raise HTTPException(status_code=404, detail="Not found")
     client_ip = _client_ip(request, settings)
     if _RATE_LIMITER.is_blocked(
         client_ip, settings.LOGIN_MAX_ATTEMPTS, settings.LOGIN_ATTEMPT_WINDOW_SECONDS
@@ -146,7 +148,7 @@ def providers(settings: Settings = Depends(get_settings)) -> dict:
         "google": bool(
             settings.GOOGLE_OAUTH_CLIENT_ID and settings.GOOGLE_OAUTH_CLIENT_SECRET and settings.GOOGLE_OAUTH_REDIRECT_URI
         ),
-        "password": True,
+        "password": settings.PASSWORD_LOGIN_ENABLED,
     }
 
 
@@ -243,6 +245,14 @@ async def google_callback(
     owners = parse_email_list(settings.OWNER_EMAILS)
     supers = parse_email_list(settings.SUPER_EMAILS)
     allowed = parse_email_list(settings.ALLOWED_EMAILS) | owners | supers
+    if not settings.SIGNUP_OPEN and identity.email.lower() not in allowed:
+        # The owner's list in the Studio (migration 0007); a store outage must not let anyone in.
+        try:
+            allowed |= {i["email"] for i in await store.list_invites()}
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception("could not read the invited accounts")
     if not settings.SIGNUP_OPEN and identity.email.lower() not in allowed:
         return _login_error("not_invited")
 

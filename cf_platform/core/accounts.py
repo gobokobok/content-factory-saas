@@ -211,6 +211,18 @@ class AccountStore(Protocol):
         """Return and delete a pending sign-in (single use), or None."""
         ...
 
+    async def list_invites(self) -> list[dict]:
+        """Invited e-mails (lower case) with who added them and when, newest first."""
+        ...
+
+    async def add_invite(self, email: str, added_by: str = "") -> None:
+        """Invite an e-mail (idempotent)."""
+        ...
+
+    async def remove_invite(self, email: str) -> bool:
+        """Remove an invite; True when it existed."""
+        ...
+
 
 class InMemoryAccountStore:
     """In-memory AccountStore — process-local; the local-development fallback (D048)."""
@@ -220,6 +232,7 @@ class InMemoryAccountStore:
         self._users: dict[str, User] = {}
         self._sessions: dict[str, SessionRecord] = {}
         self._states: dict[str, OAuthState] = {}
+        self._invites: dict[str, dict] = {}
 
     async def get_user(self, user_id: str) -> User | None:
         """Return the user, or None."""
@@ -260,6 +273,18 @@ class InMemoryAccountStore:
     async def pop_oauth_state(self, state_hash: str) -> OAuthState | None:
         """Return and delete a pending sign-in (single use), or None."""
         return self._states.pop(state_hash, None)
+
+    async def list_invites(self) -> list[dict]:
+        """Invited e-mails, newest first."""
+        return sorted(self._invites.values(), key=lambda i: i["created_at"], reverse=True)
+
+    async def add_invite(self, email: str, added_by: str = "") -> None:
+        """Invite an e-mail (idempotent)."""
+        self._invites.setdefault(email, {"email": email, "added_by": added_by, "created_at": datetime.now(UTC)})
+
+    async def remove_invite(self, email: str) -> bool:
+        """Remove an invite; True when it existed."""
+        return self._invites.pop(email, None) is not None
 
 
 def parse_email_list(raw: str) -> set[str]:

@@ -397,13 +397,20 @@ class TestSignUpGrant:
         run(_grant_signup_credits("u_new"))
         assert run(ledger.balance("u_new")) == 50
 
-    def test_none_by_default_and_never_for_the_owner(self, world, ledger, monkeypatch):
+    def test_200_by_default_once_and_never_for_the_owner(self, world, ledger, monkeypatch):
         from src.routes.auth import _grant_signup_credits
 
         run(_grant_signup_credits("u_new"))
-        monkeypatch.setenv("SIGNUP_CREDITS", "50")
+        run(_grant_signup_credits("u_new"))
         run(_grant_signup_credits("operator"))
-        assert run(ledger.balance("u_new")) == 0 and run(ledger.balance("operator")) == 0
+        assert run(ledger.balance("u_new")) == 200 and run(ledger.balance("operator")) == 0
+
+    def test_none_when_set_to_zero(self, world, ledger, monkeypatch):
+        from src.routes.auth import _grant_signup_credits
+
+        monkeypatch.setenv("SIGNUP_CREDITS", "0")
+        run(_grant_signup_credits("u_new"))
+        assert run(ledger.balance("u_new")) == 0
 
     def test_a_billing_fault_never_blocks_sign_in(self, world, ledger, monkeypatch):
         from src.routes.auth import _grant_signup_credits

@@ -216,7 +216,7 @@
   }
   const isNarrow = () => window.matchMedia('(max-width:820px)').matches;
   /** Close whichever panels are open (the scrim and the Escape key use this). */
-  function closePanels() { toggleLeft(false); if (S.right) { S.right = null; paintRight(); } }
+  function closePanels() { toggleLeft(false); if (S.right && !welcomeLocked()) { S.right = null; paintRight(); } }
   /** Narrow screens: the panel is a sheet over the page, so it starts closed and closes after a choice. */
   function initPanels() {
     if (isNarrow()) toggleLeft(false);
@@ -244,7 +244,7 @@
     const res = await api('/platform/creator/runs', { method: 'POST', body });
     if (!res.ok) { err('#err-script', `Not started: ${why(res)}`); return; }
     try { localStorage.setItem(`cf_creator_script_${res.data.run_id}`, text); } catch { /* private mode */ }
-    S.right = null; paintRight();
+    if (!welcomeLocked()) { S.right = null; paintRight(); }
     go(`#run/${encodeURIComponent(res.data.run_id)}/script`);
   }
   /** Delete the open video, after asking. It leaves the Runs list and the libraries. */
@@ -253,7 +253,7 @@
     if (!await confirmBox('Delete this video?', 'It disappears from your Runs and libraries. This cannot be undone.', 'Delete')) return;
     const res = await api(`/platform/creator/runs/${encodeURIComponent(S.run.id)}`, { method: 'DELETE' });
     if (!res.ok) { err('#err-script', `Not deleted: ${why(res)}`); return; }
-    S.right = null; paintRight();
+    if (!welcomeLocked()) { S.right = null; paintRight(); }
     go('#runs');
   }
   async function logOut() { await fetch('/auth/logout', { method: 'POST' }); location.href = '/login'; }
@@ -316,34 +316,33 @@
   /** Core's screens register their Information entries and pick one per route. */
   function addHelp(map) { Object.assign(HELP, map); }
   function setHelp(key) { S.helpKey = key; if (S.right === 'help') paintHelp(); }
-  function openRight(mode) { S.right = S.right === mode ? null : mode; paintRight(); }
+  /** The first-visit welcome holds the panel open until Got it. */
+  const welcomeLocked = () => !!S.welcome && S.right === 'help';
+  function openRight(mode) { if (welcomeLocked()) return; S.right = S.right === mode ? null : mode; paintRight(); }
 
   // ── First-visit welcome ───────────────────────────────────────────────────
-  // A new account sees the Information button pulse; opening it shows the welcome once.
-  // "Seen" is remembered per account in this browser (localStorage may be unavailable).
+  // A new account gets the Information panel open at once with the welcome, and it stays open
+  // until Got it. "Seen" is remembered per account in this browser (localStorage may be unavailable).
   const welcomeKey = me => 'cf_welcome_seen:' + (me.email || me.tenant_id || 'user');
   function initWelcome(me) {
     S.welcomeKey = welcomeKey(me);
     let seen = false;
     try { seen = !!localStorage.getItem(S.welcomeKey); } catch (e) { seen = false; }
     S.welcome = !seen;
-    $('#right-open [data-r=help]').classList.toggle('nudge', S.welcome);
-    if (S.right === 'help') paintHelp();
+    if (S.welcome) { S.right = 'help'; paintRight(); }
   }
   /** Mark the welcome as read: it is not shown again for this account. */
   function closeWelcome() {
     if (!S.welcome) return;
     S.welcome = false;
     try { localStorage.setItem(S.welcomeKey, '1'); } catch (e) { /* not remembered; shown again next visit */ }
-    $('#right-open [data-r=help]').classList.remove('nudge');
-    if (S.right === 'help') paintHelp();
+    S.right = null; paintRight();
   }
   function paintRight() {
     $('#right').classList.toggle('closed', !S.right);
     document.body.classList.toggle('r-open', !!S.right);
     $$('#right-open [data-r]').forEach(b => b.classList.toggle('active', b.dataset.r === S.right));
-    // Closing the panel after the welcome was shown counts as having read it, however it was closed.
-    if (!S.right) { if (S.welcomeShown) closeWelcome(); return; }
+    if (!S.right) return;
     $('#right-title').textContent = { settings: 'Video settings', details: 'Video details', help: 'Information' }[S.right];
     $$('.tab').forEach(el => el.classList.toggle('on', el.id === 'tab-' + S.right));
     if (S.right === 'help') paintHelp();
@@ -351,7 +350,6 @@
     if (S.right === 'settings') { paintSettings(); if (window.Core) window.Core.afterSettings(); }
   }
   function paintHelp() {
-    S.welcomeShown = !!S.welcome;
     $('#welcome').classList.toggle('hidden', !S.welcome);
     $('#help-page').classList.toggle('hidden', !!S.welcome);
     const key = S.view === 'run' ? STEPS[S.step] : S.view === 'x' ? S.helpKey : S.view;
@@ -1152,10 +1150,10 @@
     else if ($('#cmodal').classList.contains('on')) closeConfirm();
     else if ($('#emodal').classList.contains('on')) closeEntry();
     else if ($('#modal').classList.contains('on')) closeModal();
-    else if (S.right) { S.right = null; paintRight(); }
+    else if (S.right && !welcomeLocked()) { S.right = null; paintRight(); }
   });
   document.addEventListener('mousedown', e => {
-    if (S.right && !e.target.closest('#right') && !e.target.closest('#right-open')) { S.right = null; paintRight(); }
+    if (S.right && !welcomeLocked() && !e.target.closest('#right') && !e.target.closest('#right-open')) { S.right = null; paintRight(); }
     if (S.split && !e.target.closest('#split-pop') && !e.target.closest('.w')) closeSplit();
   });
   window.addEventListener('scroll', () => { if (S.split) closeSplit(); }, true);

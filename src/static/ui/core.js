@@ -656,14 +656,17 @@
 
   const isOwner = () => !!(A.S && A.S.me && A.S.me.is_owner);
   async function loadCredits() {
-    const [users, usage] = await Promise.all([call('/platform/admin/billing/users'), call('/platform/admin/billing/usage?limit=60')]);
+    const [users, usage, invites] = await Promise.all([call('/platform/admin/billing/users'), call('/platform/admin/billing/usage?limit=60'), call('/platform/admin/invites')]);
     if (!users.ok) throw new Error(A.why(users));
-    C.credits = { users: users.data, usage: usage.ok ? usage.data : [] };
+    C.credits = { users: users.data, usage: usage.ok ? usage.data : [], invites: invites.ok ? invites.data : [] };
     C.settings.tab = 'credits';
   }
   const fmtWhen = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleString(); };
   function paintCredits() {
-    const { users, usage } = C.credits;
+    const { users, usage, invites } = C.credits;
+    const inviteRows = invites.map(i => `<tr><td><b>${esc(i.email)}</b></td>
+      <td>${i.switched_off ? 'Switched off' : i.signed_in ? 'Signed in' : 'Not signed in yet'}</td>
+      <td><button class="btn sm e-del" onclick="Core.removeInvite('${esc(i.email)}')">Remove</button></td></tr>`).join('');
     const who = new Map(users.map(u => [u.tenant_id, u.email || u.tenant_id]));
     const userRows = users.map(u => `<tr><td><b>${esc(u.email || u.tenant_id)}</b>${u.disabled ? ' <span class="meta">(switched off)</span>' : ''}<div class="meta">${esc(u.account_type)}</div></td>
       <td class="num">${u.balance}</td><td class="num">${u.credits_spent}</td><td class="num">$${Number(u.raw_cost_usd).toFixed(2)}</td><td class="num">${u.actions}</td>
@@ -672,6 +675,10 @@
     const usageRows = usage.map(e => `<tr><td>${esc(fmtWhen(e.created_at))}</td><td>${esc(who.get(e.tenant_id) || e.tenant_id)}</td><td>${esc(e.what || e.kind)}</td>
       <td>${esc(e.kind)}</td><td class="num">$${Number(e.actual_usd ?? e.raw_cost_usd).toFixed(3)}</td><td class="num">${e.credits}</td><td>${esc(e.status)}</td></tr>`).join('');
     frame(crumbs([['Settings'], ['Credits']]), `<div class="page-head"><h1>Credits</h1><button class="btn sm" onclick="Core.refundStale()">Give back stuck holds</button></div>
+      <div class="core-card"><h3>Invited accounts</h3>
+        <p class="meta" style="margin:0 0 12px">Google addresses that may sign in. Removing one switches that account off; adding it again switches it back on.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><input type="email" id="inv-email" placeholder="friend@gmail.com" style="max-width:280px" onkeydown="if(event.key==='Enter')Core.addInvite()"><button class="btn accent sm" onclick="Core.addInvite()">Add</button></div>
+        ${invites.length ? `<div class="core-scroll"><table class="core-table"><thead><tr><th>Address</th><th>Status</th><th></th></tr></thead><tbody>${inviteRows}</tbody></table></div>` : '<p class="meta">No one is invited here yet. Addresses set on the server (ALLOWED_EMAILS) are not listed.</p>'}</div>
       <div class="core-card"><h3>Accounts</h3>${users.length ? `<div class="core-scroll"><table class="core-table"><thead><tr><th>Account</th><th class="num">Balance</th><th class="num">Spent</th><th class="num">Provider cost</th><th class="num">Actions</th><th>Last action</th><th></th></tr></thead><tbody>${userRows}</tbody></table></div>`
         : '<p class="meta">No one else has signed in yet.</p>'}</div>
       <div class="core-card"><h3>Usage</h3>${usage.length ? `<div class="core-scroll"><table class="core-table"><thead><tr><th>When</th><th>Account</th><th>What</th><th>Kind</th><th class="num">Provider cost</th><th class="num">Credits</th><th>Status</th></tr></thead><tbody>${usageRows}</tbody></table></div>`
@@ -694,6 +701,23 @@
     closeModal();
     await loadCredits(); paintCredits();
     toast(`Balance is now ${r.data.balance} credits.`);
+  }
+  async function addInvite() {
+    const email = qs('inv-email').value.trim();
+    if (!email) return;
+    const r = await call('/platform/admin/invites', 'POST', { email });
+    if (!r.ok) { showErr(`Could not add: ${A.why(r)}`); return; }
+    showErr('');
+    await loadCredits(); paintCredits();
+    toast(`${r.data.email} can sign in.`);
+  }
+  async function removeInvite(email) {
+    if (!await A.confirmBox('Remove this address?', `${email} will be switched off and signed out. Their videos and credits are kept.`, 'Remove')) return;
+    const r = await call(`/platform/admin/invites/${encodeURIComponent(email)}`, 'DELETE');
+    if (!r.ok) { showErr(`Could not remove: ${A.why(r)}`); return; }
+    showErr('');
+    await loadCredits(); paintCredits();
+    toast(`${email} removed.`);
   }
   async function refundStale() {
     const r = await call('/platform/admin/billing/refund-stale', 'POST');
@@ -818,7 +842,7 @@
     helpers: { esc, opts, toast, modal, closeModal, call, qs, LANGS, FORMATS, CAPTIONS, PACES, NARR_STYLES, STEP_LABELS, tenantDefaults, getNewRun: () => C.newRun, setNewRun: v => { C.newRun = v; } },
     // actions called from markup
     closeModal, dlgNewProject, createProject, dlgIdea, saveIdea, removeIdea, startRun, toggleIdea, clearSel, setRunFilter,
-    dlgTopup, topup, refundStale, patchProject, patchConfig, setDefault, dlgAsset, saveAsset, deleteAsset,
+    dlgTopup, topup, refundStale, addInvite, removeInvite, patchProject, patchConfig, setDefault, dlgAsset, saveAsset, deleteAsset,
     libAssetDlg, libAssetSave, libAssetDelete, libDelete, addTrack, libFilter, download, toggleKeyEdit, saveKey, removeKey, makeDefault, saveModel, saveDefault,
   };
 })();
