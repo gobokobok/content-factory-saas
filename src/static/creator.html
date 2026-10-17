@@ -374,15 +374,15 @@ a.btn{text-decoration:none}
   <div class="p-body" id="nav-body" style="display:flex;flex-direction:column">
     <a class="nav-btn" id="nav-runs" href="#runs" style="text-decoration:none">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/></svg>Runs</a>
-    <!-- Credits (P-BILL-1): shown only while billing is on; the balance is the figure in the entry. -->
-    <a class="nav-btn hidden" id="nav-credits" href="#credits" style="text-decoration:none">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.5 0-2.5.8-2.5 2 0 3 5 1.6 5 4.2 0 1.2-1.1 2-2.5 2-1.1 0-2.1-.4-2.6-1.3M12 6.5V8m0 8v1.5"/></svg>Credits<span id="credits-balance" style="margin-left:auto;font:600 12px var(--mono);color:var(--muted)"></span></a>
     <!-- Super's sections are added here by /ui/super-menu.js (P-CORE). -->
     <div id="super-menu" class="hidden"></div>
     <!-- Account: the switch and Log out sit at the bottom of the panel (no rule, no header). -->
     <div id="nav-account" style="margin-top:auto;padding-top:16px">
     <div class="view-chip hidden" id="view-chip"></div>
     <div class="who hidden" id="who" style="font-size:12px;color:var(--muted);padding:2px 8px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+    <!-- Credits (P-BILL-1): under the account e-mail; shown only while billing is on, the balance is the figure in the entry. -->
+    <a class="nav-btn hidden" id="nav-credits" href="#credits" style="text-decoration:none">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2c-.5-.8-1.4-1.2-2.5-1.2-1.5 0-2.5.8-2.5 2 0 3 5 1.6 5 4.2 0 1.2-1.1 2-2.5 2-1.1 0-2.1-.4-2.6-1.3M12 6.5V8m0 8v1.5"/></svg>Credits<span id="credits-balance" style="margin-left:auto;font:600 12px var(--mono);color:var(--muted)"></span></a>
     <button class="nav-btn hidden" id="view-as" onclick="Creator.toggleViewAs()" title="Switch between your own account type and what a Basic user sees">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span id="view-as-label">View as Basic</span></button>
     <a class="nav-btn hidden" id="report-abuse" href="#" style="text-decoration:none">
