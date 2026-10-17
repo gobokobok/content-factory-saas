@@ -14,6 +14,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
+from cf_platform.core.accounts import OWNER_TENANT_ID
 from cf_platform.core.image_provider import (
     IMAGE_PROVIDERS,
     KNOWN_IMAGE_MODELS,
@@ -73,7 +74,7 @@ class ImageConfig:
     provider: str
     model: str
     api_key: str
-    key_source: str | None  # "tenant" | "env" | None (no key anywhere)
+    key_source: str | None  # "tenant" | "env" | "platform" (the owner's saved key) | None (no key anywhere)
 
 
 def _env_key(provider: str, platform_settings: Any) -> str:
@@ -117,7 +118,24 @@ async def resolve_image_config(
         key = decrypt_secret(stored["encrypted"], platform_settings.SETTINGS_ENCRYPTION_KEY)
         return ImageConfig(provider, model, key, "tenant")
     env_key = _env_key(provider, platform_settings)
-    return ImageConfig(provider, model, env_key, "env" if env_key else None)
+    if env_key:
+        return ImageConfig(provider, model, env_key, "env")
+    if tenant_id != OWNER_TENANT_ID:
+        # No key of its own and none in the variables: the platform's key is the one the owner
+        # saved in Settings. The account is charged credits for it; the key itself never reaches it.
+        owner = await repo.get(OWNER_TENANT_ID)
+        owner_provider = (owner.image_provider if owner and owner.image_provider else None) or platform_settings.IMAGE_PROVIDER
+        if owner_provider not in IMAGE_PROVIDERS:
+            owner_provider = "kie"
+        owner_stored = (owner.api_keys.get(owner_provider) if owner else None) or None
+        if owner_stored:
+            owner_model = (
+                _usable_model(owner.image_model if owner else None, owner_provider)
+                or _env_model(owner_provider, platform_settings)
+            )
+            key = decrypt_secret(owner_stored["encrypted"], platform_settings.SETTINGS_ENCRYPTION_KEY)
+            return ImageConfig(owner_provider, owner_model, key, "platform")
+    return ImageConfig(provider, model, env_key, None)
 
 
 async def save_image_settings(

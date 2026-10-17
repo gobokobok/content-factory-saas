@@ -235,6 +235,29 @@ class TestTenantSettings:
         assert (config.provider, config.model, config.api_key) == ("openai", "gpt-image-1-mini", "env-openai")
 
     @pytest.mark.asyncio
+    async def test_an_account_without_a_key_uses_the_owners_saved_key(self):
+        repo = InMemoryTenantSettingsRepository()
+        settings = _settings()
+        await save_image_settings(repo, "operator", settings, provider="kie", api_key="owner-key-4242")
+        config = await resolve_image_config(repo, "u_friend", settings)
+        assert (config.provider, config.api_key, config.key_source) == ("kie", "owner-key-4242", "platform")
+
+    @pytest.mark.asyncio
+    async def test_an_accounts_own_key_and_the_env_key_come_before_the_owners(self):
+        repo = InMemoryTenantSettingsRepository()
+        settings = _settings(KIE_API_KEY="env-kie")
+        await save_image_settings(repo, "operator", settings, provider="kie", api_key="owner-key-4242")
+        assert (await resolve_image_config(repo, "u_friend", settings)).key_source == "env"
+        mine = _settings()
+        await save_image_settings(repo, "u_friend", mine, provider="kie", api_key="own-key-1111")
+        assert (await resolve_image_config(repo, "u_friend", mine)).api_key == "own-key-1111"
+
+    @pytest.mark.asyncio
+    async def test_no_key_anywhere_for_an_account_is_still_empty(self):
+        config = await resolve_image_config(InMemoryTenantSettingsRepository(), "u_friend", _settings())
+        assert config.api_key == "" and config.key_source is None
+
+    @pytest.mark.asyncio
     async def test_a_key_is_saved_for_the_chosen_provider_and_can_be_cleared(self):
         repo = InMemoryTenantSettingsRepository()
         settings = _settings()
