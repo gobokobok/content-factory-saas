@@ -4,6 +4,7 @@ Split out of cf_platform/interfaces/api.py (D069) so each route module can
 import only what it needs without pulling in the whole platform surface.
 """
 
+import functools
 import logging
 
 from fastapi import Depends, HTTPException
@@ -223,14 +224,24 @@ async def get_graph_checkpointer() -> BaseCheckpointSaver:
     return get_checkpointer(get_platform_settings().DATABASE_URL)
 
 
-def get_artifact_storage() -> ArtifactStorage:
-    """Return an R2ArtifactStorage built from cf_platform's own settings (D047)."""
-    settings = get_platform_settings()
+@functools.lru_cache(maxsize=4)
+def _r2_storage(account_id: str, access_key_id: str, secret_access_key: str, bucket_name: str) -> ArtifactStorage:
+    """One R2 client per set of credentials, kept for the life of the process.
+
+    A client keeps its connections to R2 open, so reusing it saves the TLS handshake that a
+    fresh client paid on the first call of every request. boto3 clients are thread-safe.
+    """
     return R2ArtifactStorage(
-        account_id=settings.R2_ACCOUNT_ID,
-        access_key_id=settings.R2_ACCESS_KEY_ID,
-        secret_access_key=settings.R2_SECRET_ACCESS_KEY,
-        bucket_name=settings.R2_BUCKET_NAME,
+        account_id=account_id, access_key_id=access_key_id, secret_access_key=secret_access_key,
+        bucket_name=bucket_name,
+    )
+
+
+def get_artifact_storage() -> ArtifactStorage:
+    """Return the shared R2ArtifactStorage built from cf_platform's own settings (D047)."""
+    settings = get_platform_settings()
+    return _r2_storage(
+        settings.R2_ACCOUNT_ID, settings.R2_ACCESS_KEY_ID, settings.R2_SECRET_ACCESS_KEY, settings.R2_BUCKET_NAME,
     )
 
 

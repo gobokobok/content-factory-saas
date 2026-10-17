@@ -675,10 +675,14 @@
   async function genVoice() {
     if (S.sb && !await confirmBox('Re-generate the voiceover?', 'The storyboard was made for the current voiceover. After this you will have to create the storyboard again.', 'Re-generate')) return;
     err('#err-voice', ''); clearJob('#job-voice'); stopAudio();
+    // Show it as started at once: the server answers only after it has checked and stored the script.
+    S.busy.voice = true; paintVoice();
+    const stopStarting = progress('#job-voice', 'Starting the voiceover…');
     const voice = $('#voice-pick').value;
     if (S.settings.voice !== voice) { S.settings.voice = voice; await saveSettings({ voice }); }
     const res = await api('/platform/workers/voice', { method: 'POST', body: { run_id: S.run.id, script: $('#script').value.trim(), confirm_discard: true } });
-    if (!res.ok) { failure('#job-voice', 'Voiceover was not started.', why(res), genVoice); return; }
+    stopStarting();
+    if (!res.ok) { S.busy.voice = false; paintVoice(); failure('#job-voice', 'Voiceover was not started.', why(res), genVoice); return; }
     if (S.sb) S.sbStale = true;
     watchVoice();
   }
@@ -845,10 +849,13 @@
   }
   async function createSb() {
     err('#err-sb', ''); clearJob('#job-sb');
+    S.busy.sb = true; paintStoryboard();
+    const stopStarting = progress('#job-sb', 'Starting the storyboard…');
     const res = await api('/platform/workers/storyboard', { method: 'POST', body: {
       run_id: S.run.id, script: $('#script').value.trim(), format_track: S.run.format === '16:9' ? 'landscape' : 'portrait',
     } });
-    if (!res.ok) { failure('#job-sb', 'Storyboard was not started.', why(res), createSb); return; }
+    stopStarting();
+    if (!res.ok) { S.busy.sb = false; paintStoryboard(); failure('#job-sb', 'Storyboard was not started.', why(res), createSb); return; }
     watchStoryboard();
   }
   async function watchStoryboard() {
@@ -889,8 +896,11 @@
     if (!await confirmBox(all ? 'Create every image again?' : 'Create the images?', html, `Create ${plural(Math.min(p.count, p.affordable), 'image')}`, true)) return;
     const body = {};
     if (sceneIds) body.scene_ids = sceneIds; else if (all) body.scene_ids = sbScenes().map(s => String(s.scene));
+    S.busy.images = true; paintStoryboard();
+    const stopStarting = progress('#job-sb', 'Starting the images…');
     const start = await api(runUrl('/images/generate'), { method: 'POST', body });
-    if (!start.ok) { failure('#job-sb', 'Images were not started.', why(start), () => planAssets(sceneIds)); return; }
+    stopStarting();
+    if (!start.ok) { S.busy.images = false; paintStoryboard(); failure('#job-sb', 'Images were not started.', why(start), () => planAssets(sceneIds)); return; }
     if (start.data.job) S.imageJob = start.data.job;
     loadBilling();
     watchImages();
