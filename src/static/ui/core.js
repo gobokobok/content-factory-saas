@@ -769,6 +769,7 @@
   .core-integ-row input{flex:1}
   .core-tabs button.on{color:var(--accent);border-color:var(--accent)}
   .core-src{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+  .core-src .link,#cc-box .link{background:none;border:0;padding:0;border-radius:0;box-shadow:none;color:var(--accent);font-size:12.5px;cursor:pointer}
   .core-tr-words{line-height:2;font-size:14px;border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;max-height:280px;overflow:auto}
   .core-tr-word{cursor:pointer;border-radius:3px;padding:1px 2px}
   .core-tr-word:hover{background:var(--accent-soft)}

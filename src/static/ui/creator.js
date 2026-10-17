@@ -267,6 +267,7 @@
     const me = r.data;
     S.me = me;
     loadBilling();
+    initWelcome(me);
     if (me.email) { $('#who').textContent = me.email; $('#who').classList.remove('hidden'); }
     const isSuper = me.account_type === 'super';
     await mountSuperMenu(me.effective_type !== 'super', !!me.is_owner);
@@ -316,11 +317,33 @@
   function addHelp(map) { Object.assign(HELP, map); }
   function setHelp(key) { S.helpKey = key; if (S.right === 'help') paintHelp(); }
   function openRight(mode) { S.right = S.right === mode ? null : mode; paintRight(); }
+
+  // ── First-visit welcome ───────────────────────────────────────────────────
+  // A new account sees the Information button pulse; opening it shows the welcome once.
+  // "Seen" is remembered per account in this browser (localStorage may be unavailable).
+  const welcomeKey = me => 'cf_welcome_seen:' + (me.email || me.tenant_id || 'user');
+  function initWelcome(me) {
+    S.welcomeKey = welcomeKey(me);
+    let seen = false;
+    try { seen = !!localStorage.getItem(S.welcomeKey); } catch (e) { seen = false; }
+    S.welcome = !seen;
+    $('#right-open [data-r=help]').classList.toggle('nudge', S.welcome);
+    if (S.right === 'help') paintHelp();
+  }
+  /** Mark the welcome as read: it is not shown again for this account. */
+  function closeWelcome() {
+    if (!S.welcome) return;
+    S.welcome = false;
+    try { localStorage.setItem(S.welcomeKey, '1'); } catch (e) { /* not remembered; shown again next visit */ }
+    $('#right-open [data-r=help]').classList.remove('nudge');
+    if (S.right === 'help') paintHelp();
+  }
   function paintRight() {
     $('#right').classList.toggle('closed', !S.right);
     document.body.classList.toggle('r-open', !!S.right);
     $$('#right-open [data-r]').forEach(b => b.classList.toggle('active', b.dataset.r === S.right));
-    if (!S.right) return;
+    // Closing the panel after the welcome was shown counts as having read it, however it was closed.
+    if (!S.right) { if (S.welcomeShown) closeWelcome(); return; }
     $('#right-title').textContent = { settings: 'Video settings', details: 'Video details', help: 'Information' }[S.right];
     $$('.tab').forEach(el => el.classList.toggle('on', el.id === 'tab-' + S.right));
     if (S.right === 'help') paintHelp();
@@ -328,6 +351,9 @@
     if (S.right === 'settings') { paintSettings(); if (window.Core) window.Core.afterSettings(); }
   }
   function paintHelp() {
+    S.welcomeShown = !!S.welcome;
+    $('#welcome').classList.toggle('hidden', !S.welcome);
+    $('#help-page').classList.toggle('hidden', !!S.welcome);
     const key = S.view === 'run' ? STEPS[S.step] : S.view === 'x' ? S.helpKey : S.view;
     const [title, lines] = HELP[key] || HELP.runs;
     $('#help-title').textContent = title;
@@ -1155,7 +1181,7 @@
     watchImages, patchScene, openRun, stopAudio, paintContinuity, writeDraft, readDraft, onScript, addHelp, setHelp, loadBilling, priceTag,
   };
   window.Creator = {
-    playSample, startFromThis, deleteRun, toggleLibrary, pickLibrary, saveToAssets, toggleLeft, closePanels, logOut, toggleViewAs, openRight, saveStyle, addCharRow, createRun, setStep, next, onScript,
+    playSample, startFromThis, deleteRun, toggleLibrary, pickLibrary, saveToAssets, toggleLeft, closePanels, logOut, toggleViewAs, openRight, closeWelcome, saveStyle, addCharRow, createRun, setStep, next, onScript,
     saveVoice, genVoice, toggleVo, askCreateSb, planAssets, toggleScene, patchScene, openSplit, confirmSplit, mergeScene,
     writePrompt, writePromptInModal, openModal, closeModal, toggleEntity, genSceneImage, uploadSceneImage, openEntry, closeEntry, saveEntry, deleteEntry,
     saveCaptions, onMusicPick, uploadMusic, renderVideo, downloadVideo, closeConfirm,

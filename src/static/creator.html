@@ -158,6 +158,11 @@ textarea{resize:vertical;line-height:1.65;min-height:260px;font-size:13.5px;font
 .kv span:first-child{color:var(--muted)}
 .help li{margin:0 0 12px 18px;color:var(--muted)}
 .help h3{font-size:15px;margin:6px 0 14px}
+.welcome h3{margin-top:0}
+.welcome .w-note{background:var(--accent-soft);color:var(--accent);border-radius:var(--r-sm);padding:10px 12px;font-size:13px;margin:0 0 14px}
+.welcome .w-done{margin-top:8px}
+@keyframes nudge{0%{box-shadow:0 0 0 0 var(--accent-ring)}70%{box-shadow:0 0 0 10px rgba(39,67,201,0)}100%{box-shadow:0 0 0 0 rgba(39,67,201,0)}}
+.icon-btn.nudge{background:var(--accent-soft);color:var(--accent);animation:nudge 1.6s ease-out infinite}
 
 .nav-btn.sm{padding:5px 8px}
 .menu-label{font:500 10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:2px 8px 6px}
@@ -415,7 +420,22 @@ a.btn{text-decoration:none}
         <button class="btn sm e-del" id="run-delete" onclick="Creator.deleteRun()">Delete video</button>
       </div>
     </div>
-    <div class="tab help" id="tab-help"><h3 id="help-title"></h3><ul id="help-list"></ul></div>
+    <div class="tab help" id="tab-help">
+      <div class="welcome hidden" id="welcome">
+        <h3>Welcome to Content Factory</h3>
+        <p class="w-note">On every page, this Information panel lists the instructions for that page. Open it whenever you are unsure what to do next.</p>
+        <ul>
+          <li><b>Runs</b> lists your videos. Press New video to start one.</li>
+          <li>Each video goes through four steps: <b>Script</b> (write or paste the narration), <b>Voice</b> (choose a voice and make the voiceover), <b>Storyboard</b> (scenes and their images) and <b>Render</b> (captions, background music, the final video).</li>
+          <li>Images are made one scene at a time or all at once. Each one uses credits; <b>Credits</b> in the menu shows your balance.</li>
+          <li>Rendering runs on the server. You can leave the page and come back; the video appears when it is done.</li>
+          <li><b>Libraries</b> keep your videos, images, AI assets and background music.</li>
+          <li>The buttons at the top right open <b>Video settings</b>, <b>Video details</b> and this <b>Information</b> panel.</li>
+        </ul>
+        <button class="btn accent w-done" onclick="Creator.closeWelcome()">Got it</button>
+      </div>
+      <div id="help-page"><h3 id="help-title"></h3><ul id="help-list"></ul></div>
+    </div>
     <div class="tab" id="tab-details"></div>
   </div>
 </aside>

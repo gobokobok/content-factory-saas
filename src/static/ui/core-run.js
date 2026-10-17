@@ -110,8 +110,8 @@
     // Render: CapCut.
     qs('render-foot').insertAdjacentHTML('afterend', `
       <div class="core-card" style="margin-top:22px" id="cc-box"><h3 style="font-size:13px">Edit in CapCut instead</h3>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" id="cc-export" onclick="CoreRun.ccExport(this)">Download CapCut package</button>
-        <button class="btn sm" id="cc-up" onclick="document.getElementById('cc-file').click()">Upload edited video</button></div>
+        <div style="display:flex;gap:18px;flex-wrap:wrap"><button class="link" id="cc-export" onclick="CoreRun.ccExport(this)">Download CapCut package</button>
+        <button class="link" id="cc-up" onclick="document.getElementById('cc-file').click()">Upload edited video</button></div>
         <input type="file" id="cc-file" class="hidden" accept="video/mp4" onchange="CoreRun.ccUpload(this)"><div class="m-msg" id="cc-msg"></div></div>`);
 
     // Auto-advance lives in the video settings; a small flag by the title shows when it is on.
