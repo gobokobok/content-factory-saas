@@ -90,10 +90,10 @@ class TestVoiceJob:
                 mp3_r2_key="k.wav", word_timestamps=[], alignment_method="proportional", total_duration_s=3.0))
 
         hold = hold_for("tts", 0.05)
-        assert run(store.balance(friend)) == 90
+        assert run(store.balance(friend)) == 95
         job = self._go(hold, worker)
         assert job["status"] == "complete"
-        assert entry_of(store, hold).status == "settled" and run(store.balance(friend)) == 90
+        assert entry_of(store, hold).status == "settled" and run(store.balance(friend)) == 95
 
     def test_a_voice_that_fails_is_refunded_and_the_job_says_why(self, store, friend):
         async def worker(_state):
@@ -123,7 +123,7 @@ class TestStoryboardJob:
 
         hold = hold_for("llm", 0.05)
         assert self._go(hold, worker)["status"] == "complete"
-        assert entry_of(store, hold).status == "settled" and run(store.balance(friend)) == 90
+        assert entry_of(store, hold).status == "settled" and run(store.balance(friend)) == 95
 
     def test_a_storyboard_that_fails_is_refunded(self, store, friend):
         async def worker(_state):
@@ -227,8 +227,8 @@ class TestBulkImageJob:
                 hold, ctx, ["1", "2", "3"], job_id="j", concurrency=3))
 
     def test_only_the_images_that_were_made_are_charged(self, store, friend):
-        hold = hold_for("image", 0.12, units=3)  # 3 images at 0.04: 24 credits
-        assert run(store.balance(friend)) == 76
+        hold = hold_for("image", 0.12, units=3)  # 3 images at 0.04: 12 credits
+        assert run(store.balance(friend)) == 88
         self._go(hold, {"scenes": {"1": "done", "2": "failed", "3": "not_started"}})
         entry = entry_of(store, hold)
         assert (entry.status, entry.credits, entry.units) == ("settled", 8, 1.0)

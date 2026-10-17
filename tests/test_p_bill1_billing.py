@@ -93,8 +93,16 @@ class TestPrice:
     def test_a_non_positive_unit_falls_back_to_the_default_instead_of_dividing_by_zero(self):
         assert price_credits(0.05, cfg(CREDIT_VALUE_USD=0)) == 10
 
+    def test_one_credit_is_one_cent_of_provider_cost_by_default(self):
+        from cf_platform.core.config import PlatformSettings
+
+        assert PlatformSettings.model_fields["CREDIT_MARKUP"].default == 1.0
+        assert price_credits(0.03, SimpleNamespace()) == 3    # an image at 3 cents is 3 credits
+        assert price_credits(0.05, SimpleNamespace()) == 5    # a voiceover or a storyboard estimate at 5 cents
+        assert price_credits(2.00, SimpleNamespace()) == 200  # a $2 per-video image cap is 200 credits
+
     def test_settings_without_the_billing_fields_use_the_declared_defaults(self):
-        assert price_credits(0.05, SimpleNamespace()) == 10
+        assert price_credits(0.05, SimpleNamespace()) == 5   # one credit = one cent of provider cost
         assert billing.billing_enabled(SimpleNamespace()) is False
 
 

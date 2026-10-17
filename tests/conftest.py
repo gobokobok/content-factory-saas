@@ -28,6 +28,9 @@ _TEST_ENV_DEFAULTS = {
     "OPERATOR_PASSWORD": "test-password",
     # The default is off (Google only); the suite signs in with the password.
     "PASSWORD_LOGIN_ENABLED": "true",
+    # The billing tests were written at double the provider cost; the shipped default is 1.0
+    # (one credit = one cent) and has its own tests.
+    "CREDIT_MARKUP": "2.0",
     "SESSION_SECRET_KEY": "test-secret-key",
     # Existing tests use short secrets; the validator's own tests set this explicitly.
     "AUTH_SECRET_MIN_LENGTH": "1",

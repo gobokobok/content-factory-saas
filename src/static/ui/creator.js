@@ -57,6 +57,11 @@
   const sleep = ms => new Promise(res => setTimeout(res, ms));
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many || one + 's'}`;
   const money = v => `$${Number(v || 0).toFixed(2)}`;
+  /** A cost as the account is charged it: credits while charging is on (one credit is one cent of cost), dollars for the owner. */
+  const charged = () => !!(S.billing && S.billing.enabled);
+  const credits = n => `${Number(n || 0)} ${Number(n || 0) === 1 ? 'credit' : 'credits'}`;
+  /** "spent of cap" for a spend summary, in the unit the account is charged in. */
+  const spendText = sp => charged() ? `${credits(sp.spent_credits)} of ${credits(sp.cap_credits)}` : `${money(sp.spent_usd)} of ${money(sp.cap_usd)}`;
   const ARROW = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 
   /** mm:ss.s for a number of seconds. */
@@ -380,7 +385,7 @@
       ['Created', S.run.created ? new Date(S.run.created).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '—'],
       ['Length', S.voice && S.voice.total_duration_s ? clock(S.voice.total_duration_s) : '—'],
       ['Scenes', scenes.length || '—'],
-      ['Images cost', S.spend ? `${money(S.spend.spent_usd)} of ${money(S.spend.cap_usd)}` : '—'],
+      ['Images cost', S.spend ? spendText(S.spend) : '—'],
       ['Video ID', S.run.id.slice(0, 8)],
     ];
     $('#tab-details').innerHTML = rows.map(([k, v]) => `<div class="kv"><span>${k}</span><span>${esc(v)}</span></div>`).join('');
@@ -886,12 +891,16 @@
     const skipped = (p.without_prompt || []).length ? `<p style="margin-top:8px">${plural(p.without_prompt.length, 'scene')} without an image prompt will be skipped.</p>` : '';
     if (!p.count) { await confirmBox('Nothing to create', `Every scene with a prompt already has an image.${skipped}`, 'OK', true); return; }
     const short = p.affordable < p.count;
-    const html = `<div class="plan-grid"><div><b>${p.count}</b><span>${p.count === 1 ? 'image' : 'images'}</span></div>
+    const html = (charged()
+      ? `<div class="plan-grid"><div><b>${p.count}</b><span>${p.count === 1 ? 'image' : 'images'}</span></div>
+      <div><b>~${p.estimated_credits}</b><span>credits</span></div>
+      <div><b>${S.billing.balance}</b><span>credits in your balance</span></div></div>
+      <p>${credits(p.credits_per_image)} per image. The cost is an estimate. This video's images are limited to ${credits(p.cap_credits)}; ${credits(p.remaining_credits)} left.</p>`
+      : `<div class="plan-grid"><div><b>${p.count}</b><span>${p.count === 1 ? 'image' : 'images'}</span></div>
       <div><b>~${money(p.estimated_cost_usd)}</b><span>estimated</span></div>
-      <div><b>${money(p.remaining_usd)}</b><span>left of ${money(p.cap_usd)}</span></div>
-      ${S.billing && S.billing.enabled ? `<div><b>${p.estimated_credits}</b><span>credits of your ${S.billing.balance}</span></div>` : ''}</div>
-      <p>About $${Number(p.cost_per_image_usd).toFixed(3)} per image. The cost is an estimate.</p>${skipped}
-      ${short ? `<p style="margin-top:8px">The limit for this video allows ${p.affordable} of ${p.count}. Creation stops there and says how many are left.</p>` : ''}`;
+      <div><b>${money(p.remaining_usd)}</b><span>left of ${money(p.cap_usd)}</span></div></div>
+      <p>About $${Number(p.cost_per_image_usd).toFixed(3)} per image. The cost is an estimate.</p>`) + skipped
+      + (short ? `<p style="margin-top:8px">The limit for this video allows ${p.affordable} of ${p.count}. Creation stops there and says how many are left.</p>` : '');
     if (!p.affordable) { await confirmBox('The limit for this video is reached', html, 'OK', true); return; }
     if (!await confirmBox(all ? 'Create every image again?' : 'Create the images?', html, `Create ${plural(Math.min(p.count, p.affordable), 'image')}`, true)) return;
     const body = {};
@@ -974,7 +983,7 @@
     const res = await api(runUrl(`/scenes/${encodeURIComponent(id)}/generate`), { method: 'POST', body: { prompt } });
     btn.disabled = false; btn.textContent = 'Generate';
     if (!res.ok) { msg.textContent = `Not generated: ${why(res)}`; return; }
-    msg.textContent = res.data.spend ? `Generated. ${money(res.data.spend.spent_usd)} of ${money(res.data.spend.cap_usd)} used for this video.` : 'Generated.';
+    msg.textContent = res.data.spend ? `Generated. ${spendText(res.data.spend)} used for this video.` : 'Generated.';
     await reloadStoryboard();
     paintRun();
   }

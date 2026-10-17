@@ -97,7 +97,7 @@ class PlatformSettings(BaseSettings):
     # CREDIT_VALUE_USD of price; price = raw provider cost x CREDIT_MARKUP, rounded up.
     BILLING_ENABLED: bool = False
     CREDIT_VALUE_USD: float = 0.01
-    CREDIT_MARKUP: float = 2.0
+    CREDIT_MARKUP: float = 1.0
     # Credits a new account gets once at its first sign-in (0: the owner tops accounts up).
     SIGNUP_CREDITS: int = 200
     # A credit hold still open after this many minutes is refundable by the owner (the job never finished).

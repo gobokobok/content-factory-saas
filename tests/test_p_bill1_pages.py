@@ -45,7 +45,7 @@ class TestCreatorPage:
 
     def test_the_images_dialog_shows_the_price_in_credits_before_confirming(self):
         plan = CREATOR_JS.split("async function planAssets")[1].split("async function watchImages")[0]
-        assert "p.estimated_credits" in plan and "credits of your" in plan
+        assert "p.estimated_credits" in plan and "credits in your balance" in plan
         assert plan.index("estimated_credits") < plan.index("confirmBox(all ?")
 
     def test_a_refusal_is_shown_as_the_servers_own_sentence(self):

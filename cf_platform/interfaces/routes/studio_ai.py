@@ -188,6 +188,22 @@ async def _generation_context(
     )
 
 
+def _with_credits(summary: dict, settings: PlatformSettings) -> dict:
+    """Add the credit equivalents of a spend summary, so a charged account is shown credits and never dollars.
+
+    The same rule that prices a charge (billing.price_credits) converts the spent amount, the cap,
+    what is left and the cost of one image.
+    """
+    credits = lambda usd: billing.price_credits(usd, settings)  # noqa: E731
+    return {
+        **summary,
+        "spent_credits": credits(summary.get("spent_usd", 0)),
+        "cap_credits": credits(summary.get("cap_usd", 0)),
+        "remaining_credits": credits(summary.get("remaining_usd", 0)),
+        "credits_per_image": credits(summary.get("cost_per_image_usd", 0)),
+    }
+
+
 @router.get("/studio/runs/{run_id}/ai-spend")
 async def studio_get_ai_spend(
     run_id: str,
@@ -200,7 +216,8 @@ async def studio_get_ai_spend(
     visuals = await load_run_visuals(storage, run_id)
     cap = await _run_cap(tenant_repo, settings, visuals)
     model = await _image_model(tenant_repo, settings)
-    return {**spend_summary(ledger, _image_cost(settings, model), cap), "cap_max_usd": _max_cap(settings), "model": model}
+    summary = _with_credits(spend_summary(ledger, _image_cost(settings, model), cap), settings)
+    return {**summary, "cap_max_usd": _max_cap(settings), "model": model}
 
 
 @router.post("/studio/runs/{run_id}/scenes/{scene_n}/generate")
@@ -269,7 +286,7 @@ async def studio_generate_scene_image(
         "source": AI_GENERATED_SOURCE,
         "preview_url": preview_url,
         "ai_prompt": result["ai_prompt"],
-        "spend": spend_summary(result["ledger"], ctx.cost_usd, ctx.cap_usd),
+        "spend": _with_credits(spend_summary(result["ledger"], ctx.cost_usd, ctx.cap_usd), settings),
         "generated_at": datetime.now().isoformat(),
     }
 
@@ -347,6 +364,9 @@ async def _plan(
         "spent_usd": spend["spent_usd"],
         "cap_usd": cap,
         "remaining_usd": spend["remaining_usd"],
+        "spent_credits": billing.price_credits(spend["spent_usd"], settings),
+        "cap_credits": billing.price_credits(cap, settings),
+        "remaining_credits": billing.price_credits(spend["remaining_usd"], settings),
         "cap_max_usd": _max_cap(settings),
         "affordable": affordable,
         "job_active": job_is_active(run_id),
