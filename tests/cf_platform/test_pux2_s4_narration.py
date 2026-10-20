@@ -178,21 +178,32 @@ class TestVoiceEndpointReadsSettings:
         "SESSION_SECRET_KEY": "test-secret",
     }
 
-    def _post(self, settings_json: dict | None):
-        """POST to the voice endpoint and return the StageState the worker got."""
+    def _post(self, settings_json: dict | None, run_id: str = "run1", run_inputs: dict | None = None):
+        """POST to the voice endpoint and return the StageState the worker got.
+
+        run_inputs, when given, stores a run with those inputs first (the language lives there).
+        """
         import asyncio
+        from datetime import UTC, datetime
         from unittest.mock import patch
 
         from fastapi.testclient import TestClient
 
         from cf_platform.core.artifact_manager import InMemoryArtifactStorage
-        from cf_platform.interfaces.api import get_artifact_storage
+        from cf_platform.core.run_manager import RunRecord
+        from cf_platform.interfaces.api import get_artifact_storage, get_run_repository
         from src.config import Settings, get_settings
         from src.main import app
 
         storage = InMemoryArtifactStorage()
         if settings_json is not None:
-            asyncio.run(storage.put_json("runs/run1/settings.json", settings_json))
+            asyncio.run(storage.put_json(f"runs/{run_id}/settings.json", settings_json))
+        if run_inputs is not None:
+            now = datetime.now(UTC)
+            asyncio.run(get_run_repository().save(RunRecord(
+                run_id=run_id, user_id="operator", block="echo", status="running", inputs=run_inputs,
+                error=None, created_at=now, updated_at=now,
+            )))
 
         app.dependency_overrides[get_settings] = lambda: Settings.model_validate(self._ENV)
         app.dependency_overrides[get_artifact_storage] = lambda: storage
@@ -205,13 +216,22 @@ class TestVoiceEndpointReadsSettings:
             with patch("cf_platform.interfaces.routes.workers._run_voice_background", _capture):
                 client = TestClient(app, raise_server_exceptions=True)
                 r = client.post(
-                    "/platform/workers/voice", json={"run_id": "run1", "script": "hello world"}
+                    "/platform/workers/voice", json={"run_id": run_id, "script": "hello world"}
                 )
             assert r.status_code == 202
         finally:
             app.dependency_overrides.pop(get_settings, None)
             app.dependency_overrides.pop(get_artifact_storage, None)
         return captured["state"]
+
+    def test_run_language_reaches_the_worker_state(self) -> None:
+        # Deepgram must be told the narration's language, or Russian is heard as English.
+        state = self._post({"narration_pace": "slow"}, run_id="run-lang-ru", run_inputs={"language": "ru"})
+        assert state.inputs["language"] == "ru"
+
+    def test_run_without_language_leaves_it_to_the_worker_default(self) -> None:
+        assert not self._post(None).inputs.get("language")
+        assert not self._post(None, run_id="run-lang-none", run_inputs={}).inputs.get("language")
 
     def test_settings_reach_the_worker_state(self) -> None:
         state = self._post({"narration_pace": "slow", "narration_style": "emotional"})

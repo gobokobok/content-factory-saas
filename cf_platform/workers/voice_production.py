@@ -5,7 +5,10 @@ and extracts word-level timestamps via Deepgram Nova-2.  A missing TTS key or
 voice, or a failed TTS call, raises VoiceGenerationError (P-HARD1-S2): a run must
 never read "complete" with no audio.  Only the alignment step degrades — when
 Deepgram is absent or fails, the audio exists and character-count-proportional
-timestamps are used (D048).
+timestamps are used (D048), spread over the audio's real length. A Deepgram answer
+that heard next to none of the script (narration in a language it was not told
+about) is not a degraded success: it fails the voiceover, because timing guessed
+from it puts every scene cut in the wrong place.
 
 This module is a self-contained platform worker and MUST NOT import from src/
 (D047).  The Deepgram HTTP logic is re-implemented here using httpx rather than
@@ -46,6 +49,12 @@ _GEMINI_PCM_SAMPLE_FMT = "s16le"
 
 _DEEPGRAM_URL = "https://api.deepgram.com/v1/listen"
 _DEEPGRAM_TIMEOUT_SECONDS = 60.0
+# Transcription language when the run carries none (the same default the uploaded-voice path uses).
+_DEFAULT_TRANSCRIPT_LANGUAGE = "en"
+# Deepgram answered but found fewer words than this share of the script: it did not hear the
+# narration (wrong language is the usual cause), so the timing built from it would be a guess.
+_MIN_ALIGNMENT_WORD_RATIO = 0.5
+_ALIGNMENT_ATTEMPTS = 2
 _PUNCT_RE = re.compile(r"[^\w\s.%]")
 
 # ── Narration pace + style (D083) ─────────────────────────────────────────────
@@ -266,9 +275,23 @@ async def _deepgram_transcribe(
     )
 
 
-async def _align_audio(audio_url: str, api_key: str) -> list[VoiceWordTimestamp]:
-    """Call Deepgram Nova-2 with a presigned URL; return word-level timestamps."""
-    return (await _deepgram_transcribe(audio_url, api_key)).words
+async def _align_audio(audio_url: str, api_key: str, language: str | None = None) -> list[VoiceWordTimestamp]:
+    """Call Deepgram Nova-2 with a presigned URL; return word-level timestamps.
+
+    language is the run's ISO 639-1 code; Deepgram transcribes English when it is omitted,
+    which returns next to no words for narration in any other language.
+    """
+    return (await _deepgram_transcribe(audio_url, api_key, language=language)).words
+
+
+def _wav_duration_s(wav_bytes: bytes) -> float | None:
+    """Return the playing time of a WAV file in seconds, or None when it cannot be read."""
+    try:
+        with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+            rate = wf.getframerate()
+            return wf.getnframes() / rate if rate else None
+    except (wave.Error, EOFError):
+        return None
 
 
 # ── Proportional fallback (no src/ import, D047) ─────────────────────────────
@@ -411,20 +434,49 @@ def build_voice_production_worker(
             logger.error("TTS failed for run %s: %s", state.run_id, reason)
             raise VoiceGenerationError(f"The voice provider failed: {reason}. Retry the voiceover.") from exc
         logger.info("TTS complete for run %s — %d bytes", state.run_id, len(wav_bytes))
+        # The audio's real length, not the word-count estimate: the estimate is only a
+        # guess, and every scene cut the fallback derives from it drifts by its error.
+        audio_duration_s = _wav_duration_s(wav_bytes)
+        if audio_duration_s:
+            total_duration_s = audio_duration_s
 
         # ── Step 2: Alignment ──────────────────────────────────────────────
+        language: str = state.inputs.get("language") or _DEFAULT_TRANSCRIPT_LANGUAGE
+        script_word_count = len(script_text.split())
+        min_words = max(1, int(script_word_count * _MIN_ALIGNMENT_WORD_RATIO))
+        words_heard: int | None = None  # set when Deepgram answered but did not hear the narration
         if deepgram_api_key:
             try:
                 # 15-minute presigned URL so Deepgram can fetch the file.
                 presigned_url = await storage.generate_presigned_url(mp3_r2_key, expires_in=900)
-                word_timestamps = await _align_audio(presigned_url, deepgram_api_key)
-                alignment_method = "deepgram_nova2"
-                if word_timestamps:
+                for _ in range(_ALIGNMENT_ATTEMPTS):
+                    word_timestamps = await _align_audio(presigned_url, deepgram_api_key, language)
+                    if len(word_timestamps) >= min_words:
+                        break
+                    logger.warning(
+                        "Deepgram heard %d of ~%d words for run %s (language=%s)",
+                        len(word_timestamps), script_word_count, state.run_id, language,
+                    )
+                else:
+                    words_heard = len(word_timestamps)
+                if words_heard is None:
+                    alignment_method = "deepgram_nova2"
                     total_duration_s = word_timestamps[-1].end_ms / 1000
-                logger.info("Deepgram alignment complete for run %s — %d words", state.run_id, len(word_timestamps))
+                    logger.info(
+                        "Deepgram alignment complete for run %s — %d words", state.run_id, len(word_timestamps)
+                    )
             except Exception as exc:
                 logger.warning("Deepgram alignment failed for run %s — using proportional fallback: %s", state.run_id, exc)
                 word_timestamps = []
+        if words_heard is not None:
+            # A guess spread over the audio puts every cut in the wrong place, so a
+            # transcript that missed the narration fails the voiceover instead of
+            # saving timing that looks real (the render would drift scene by scene).
+            raise VoiceGenerationError(
+                f"The voiceover was generated, but only {words_heard} of about {script_word_count} words "
+                f"could be matched to the speech (transcription language: {language}), so the scene timing "
+                "would be wrong. Check the video's language, then retry the voiceover."
+            )
 
         # ── Step 3: Fallback ───────────────────────────────────────────────
         if not word_timestamps:

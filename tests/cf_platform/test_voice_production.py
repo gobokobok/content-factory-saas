@@ -367,3 +367,114 @@ async def test_worker_missing_script_key_raises_key_error() -> None:
     worker = build_voice_production_worker(mock_storage)
     with pytest.raises(KeyError, match="script"):
         await worker(state)
+
+
+# ── Real audio length, run language, empty transcript ─────────────────────────
+
+
+def _wav_bytes(seconds: float, rate: int = 24000) -> bytes:
+    """A silent mono 16-bit WAV of the given length."""
+    from cf_platform.workers.voice_production import _pcm_to_wav
+
+    return _pcm_to_wav(b"\x00\x00" * int(rate * seconds))
+
+
+def _worker_state(**inputs: str) -> StageState:
+    return StageState(run_id=_RUN_ID, user_id=_USER_ID, inputs=inputs, artifacts={"script": _SCRIPT_KEY})
+
+
+def _mock_storage() -> MagicMock:
+    storage = MagicMock()
+    storage.put_bytes = AsyncMock()
+    storage.generate_presigned_url = AsyncMock(return_value="https://presigned.example/audio.wav")
+    return storage
+
+
+def test_wav_duration_reads_the_real_length() -> None:
+    """The WAV header gives the playing time; bytes that are not a WAV give None."""
+    from cf_platform.workers.voice_production import _wav_duration_s
+
+    assert _wav_duration_s(_wav_bytes(2.5)) == pytest.approx(2.5)
+    assert _wav_duration_s(b"not a wav") is None
+
+
+@pytest.mark.asyncio
+async def test_fallback_duration_is_the_real_audio_length_not_the_estimate() -> None:
+    """Without Deepgram words, total_duration_s is the WAV's length — the word-count estimate drifts."""
+    storage = _mock_storage()
+    with (
+        patch(
+            "cf_platform.workers.voice_production.read_artifact",
+            AsyncMock(return_value=(MagicMock(), _make_script_body())),
+        ),
+        patch("cf_platform.workers.voice_production._tts_generate", AsyncMock(return_value=_wav_bytes(41.0))),
+    ):
+        worker = build_voice_production_worker(storage, gemini_api_key="k", gemini_tts_voice="v", deepgram_api_key="")
+        result = await worker(_make_state())
+
+    assert result.artifact.alignment_method == "proportional_fallback"
+    assert result.artifact.total_duration_s == pytest.approx(41.0)
+    assert result.artifact.word_timestamps[-1].end_ms == pytest.approx(41000, abs=50)
+
+
+@pytest.mark.asyncio
+async def test_run_language_is_sent_to_deepgram() -> None:
+    """A Russian run asks Deepgram for Russian; a run with no language asks for English."""
+    words = [VoiceWordTimestamp(word=w, start_ms=i * 300, end_ms=i * 300 + 250, confidence=0.9) for i, w in enumerate(_SCRIPT.split())]
+    for inputs, expected in (({"language": "ru"}, "ru"), ({}, "en")):
+        align = AsyncMock(return_value=words)
+        with (
+            patch(
+                "cf_platform.workers.voice_production.read_artifact",
+                AsyncMock(return_value=(MagicMock(), _make_script_body())),
+            ),
+            patch("cf_platform.workers.voice_production._tts_generate", AsyncMock(return_value=_wav_bytes(4.0))),
+            patch("cf_platform.workers.voice_production._align_audio", align),
+        ):
+            worker = build_voice_production_worker(
+                _mock_storage(), gemini_api_key="k", gemini_tts_voice="v", deepgram_api_key="d"
+            )
+            result = await worker(_worker_state(**inputs))
+        assert align.await_args.args[2] == expected
+        assert result.artifact.alignment_method == "deepgram_nova2"
+
+
+@pytest.mark.asyncio
+async def test_transcript_that_missed_the_narration_fails_after_one_retry() -> None:
+    """0 of ~13 words heard (the wrong-language case) fails the voiceover, not a fake alignment."""
+    align = AsyncMock(return_value=[])
+    with (
+        patch(
+            "cf_platform.workers.voice_production.read_artifact",
+            AsyncMock(return_value=(MagicMock(), _make_script_body())),
+        ),
+        patch("cf_platform.workers.voice_production._tts_generate", AsyncMock(return_value=_wav_bytes(4.0))),
+        patch("cf_platform.workers.voice_production._align_audio", align),
+    ):
+        worker = build_voice_production_worker(
+            _mock_storage(), gemini_api_key="k", gemini_tts_voice="v", deepgram_api_key="d"
+        )
+        with pytest.raises(VoiceGenerationError, match="language: ru"):
+            await worker(_worker_state(language="ru"))
+    assert align.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_transcript_recovers_on_the_retry() -> None:
+    """A thin first answer followed by a full one is accepted."""
+    words = [VoiceWordTimestamp(word=w, start_ms=i * 300, end_ms=i * 300 + 250, confidence=0.9) for i, w in enumerate(_SCRIPT.split())]
+    align = AsyncMock(side_effect=[words[:1], words])
+    with (
+        patch(
+            "cf_platform.workers.voice_production.read_artifact",
+            AsyncMock(return_value=(MagicMock(), _make_script_body())),
+        ),
+        patch("cf_platform.workers.voice_production._tts_generate", AsyncMock(return_value=_wav_bytes(4.0))),
+        patch("cf_platform.workers.voice_production._align_audio", align),
+    ):
+        worker = build_voice_production_worker(
+            _mock_storage(), gemini_api_key="k", gemini_tts_voice="v", deepgram_api_key="d"
+        )
+        result = await worker(_make_state())
+    assert result.artifact.alignment_method == "deepgram_nova2"
+    assert len(result.artifact.word_timestamps) == len(words)

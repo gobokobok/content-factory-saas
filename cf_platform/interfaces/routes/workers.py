@@ -609,14 +609,16 @@ async def voice_worker_endpoint(
     # runs). settings.json is the only channel from the Studio Settings stage to the
     # TTS — VoiceWorkerRequest deliberately carries nothing but run_id and script.
     # A missing/unreadable blob leaves the worker on its own defaults (D048).
-    voice_inputs: dict = {}
+    # The run's language tells Deepgram what to listen for; without it narration in any
+    # language but English is transcribed as English and returns next to no words.
+    voice_inputs: dict = {"language": (run.inputs.get("language") if run else None) or None}
     run_voice: object = None
     try:
         settings_data = await storage.get_json(f"runs/{body.run_id}/settings.json")
-        voice_inputs = {
+        voice_inputs.update({
             "narration_pace": settings_data.get("narration_pace"),
             "narration_style": settings_data.get("narration_style"),
-        }
+        })
         run_voice = settings_data.get("voice")
     except Exception:
         pass
