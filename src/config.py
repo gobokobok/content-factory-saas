@@ -145,6 +145,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: str = ""
     # Where "Report a problem" mails (S9, D115). Empty hides the link.
     ABUSE_CONTACT_EMAIL: str = ""
+    # Where the login page's "Apply for the demo access" link mails. Empty hides the link.
+    DEMO_ACCESS_EMAIL: str = "aleksandrs.graholskis@gmail.com"
     # The version of the terms a first sign-in accepts (S9); bumping it asks again.
     TERMS_VERSION: str = "2026-10-14"
     # Encryption key for tenant-stored integration keys. Read here only so a prod

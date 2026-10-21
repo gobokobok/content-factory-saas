@@ -62,7 +62,7 @@
     }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-    .card h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .card h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 16px; }
     .card p  { font-size: 13px; color: var(--muted); margin-bottom: 26px; }
 
     label {
@@ -82,6 +82,8 @@
     }
 
     .error { font-size: 13px; color: var(--red); margin-top: 10px; min-height: 18px; }
+    /* An empty message takes no room: it sat as a blank band under the Google button. */
+    #urlError:empty { display: none; }
 
     button[type="submit"] {
       width: 100%; margin-top: 16px; padding: 11px;
@@ -100,8 +102,13 @@
     }
 
     .google { display:block; text-align:center; text-decoration:none; padding:11px 16px; border-radius:8px;
-      border:1px solid var(--border-strong, #B4B4BA); color:var(--text, #121215); font-weight:600; margin:4px 0 14px; }
+      border:1px solid var(--border-strong, #B4B4BA); color:var(--text, #121215); font-weight:600; margin:0; }
+    #googleBtn + #urlError:not(:empty) { margin-bottom: 4px; }
     .google:hover { background:var(--bg-soft, #F0F0F2); }
+    .apply { display:block; text-align:center; font-size:13px; font-weight:500; color:var(--accent);
+      text-decoration:none; margin-top:18px; text-wrap:balance; line-height:1.45; }
+    .apply:hover { color:var(--accent-h); text-decoration:underline; }
+    .apply:focus-visible { outline:2px solid var(--accent-ring); outline-offset:3px; border-radius:4px; }
     .hidden { display:none !important; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
@@ -125,6 +132,7 @@
       <div class="error" id="errorMsg"></div>
       <button type="submit" id="submitBtn">Sign in</button>
     </form>
+    <a class="apply hidden" id="applyLink" href="#">No access to the platform? Apply for the demo access</a>
   </div>
 
   <div class="foot">OPERATOR CONSOLE</div>
@@ -141,7 +149,26 @@
       };
       const code = new URLSearchParams(location.search).get('error');
       if (code) document.getElementById('urlError').textContent = messages[code] || 'Sign-in failed. Please try again.';
+      // The demo-access request: a mail to the owner with a template that asks for the Gmail account to sign in with.
+      function demoRequestHref(to) {
+        const subject = 'Demo access request — Content Factory Studio';
+        const body = [
+          'Hi,', '',
+          'I would like to try Content Factory Studio.', '',
+          'Gmail account I will sign in with (required — the Google account you want me to add):',
+          '', '',
+          'My name:', '',
+          'What I would like to make (optional):', '',
+          'Thank you!',
+        ].join('\n');
+        return 'mailto:' + encodeURIComponent(to).replace(/%40/g, '@') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+      }
       fetch('/auth/providers').then(r => r.json()).then(p => {
+        if (p.demo_access_email) {
+          const link = document.getElementById('applyLink');
+          link.href = demoRequestHref(p.demo_access_email);
+          link.classList.remove('hidden');
+        }
         if (p.google) document.getElementById('googleBtn').classList.remove('hidden');
         if (p.password) { document.getElementById('pwHint').classList.remove('hidden'); document.getElementById('loginForm').classList.remove('hidden'); }
         else if (!p.google) document.getElementById('urlError').textContent = messages.google_off;

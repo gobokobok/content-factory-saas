@@ -163,6 +163,7 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `ALLOWED_ORIGINS` | P-AUTH | Comma-separated extra origins that may send POST / PUT / PATCH / DELETE; the site's own origin is always allowed. |
 | `TERMS_VERSION` | P-AUTH | Version of the terms a first sign-in must accept (S9). Bumping it asks everyone again. Default `2026-10-14`. |
 | `ABUSE_CONTACT_EMAIL` | P-AUTH | Address "Report a problem" mails (S9, D115). Empty hides the link. |
+| `DEMO_ACCESS_EMAIL` | login page | Address the login page's "Apply for the demo access" link mails (default: the owner's). Empty hides the link. |
 | `TELEGRAM_ROUTES_ENABLED` | P-AUTH | `true` mounts the Telegram webhook. Default off (D093, S6). Read at import time. |
 | `CAP_SCRIPT_WORDS` | P-AUTH | Server cap on a script's words for non-owner tenants (S8, D120). Default `1200`. |
 | `CAP_PROMPT_CHARS` / `CAP_STYLE_CHARS` / `CAP_CHARACTER_CHARS` | P-AUTH | Server caps on a prompt, a master style, a character or entry description (D120). Defaults `8000` / `4000` / `3000`. |

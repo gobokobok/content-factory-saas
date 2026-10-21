@@ -149,6 +149,7 @@ def providers(settings: Settings = Depends(get_settings)) -> dict:
             settings.GOOGLE_OAUTH_CLIENT_ID and settings.GOOGLE_OAUTH_CLIENT_SECRET and settings.GOOGLE_OAUTH_REDIRECT_URI
         ),
         "password": settings.PASSWORD_LOGIN_ENABLED,
+        "demo_access_email": settings.DEMO_ACCESS_EMAIL,
     }
 
 

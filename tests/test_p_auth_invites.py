@@ -92,6 +92,30 @@ def test_password_login_is_off_by_default():
         w.close()
 
 
+def test_the_demo_access_address_reaches_the_login_page_and_can_be_switched_off():
+    w = World(DEMO_ACCESS_EMAIL="demo@example.com")
+    try:
+        assert w.client().get("/auth/providers").json()["demo_access_email"] == "demo@example.com"
+    finally:
+        w.close()
+    w = World(DEMO_ACCESS_EMAIL="")
+    try:
+        assert w.client().get("/auth/providers").json()["demo_access_email"] == ""
+    finally:
+        w.close()
+
+
+def test_the_login_page_offers_a_demo_request_that_asks_for_a_gmail_account():
+    from pathlib import Path
+
+    page = (Path(__file__).resolve().parents[1] / "src" / "static" / "login-v2.html").read_text(encoding="utf-8")
+    assert "No access to the platform? Apply for the demo access" in page
+    assert "p.demo_access_email" in page and "'mailto:'" in page
+    assert "Gmail account I will sign in with" in page
+    # An empty error line must not leave a blank band under the Google button.
+    assert "#urlError:empty { display: none; }" in page
+
+
 def test_password_login_works_when_switched_on():
     w = World(PASSWORD_LOGIN_ENABLED="true")
     try:
