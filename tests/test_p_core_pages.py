@@ -91,6 +91,22 @@ class TestTheHost:
         assert 'path.startswith("/ui/")' in src and '"Cache-Control"] = "no-cache"' in src
 
 
+class TestTheScriptLockHasOneOwner:
+    """Typing in a locked script froze the page: two painters disagreed about readOnly (2026-10-21)."""
+
+    def test_the_super_script_painter_follows_the_hosts_lock(self, host, run):
+        # creator.js decides the lock and shares it; core-run.js must not unlock the field again.
+        assert "scriptWords, scriptOk, scriptLocked," in host
+        assert "const locked = A.scriptLocked();" in run
+        assert "ta.readOnly = locked ||" in run
+        assert "src === 'generate' && !locked" in run
+
+    def test_a_locked_script_says_why_and_offers_the_way_out(self, host):
+        page = (_STATIC / "creator.html").read_text(encoding="utf-8")
+        assert 'id="script-lock"' in page and "Creator.startFromThis()" in page
+        assert "$('#script-lock')" in host and "classList.toggle('hidden', !locked)" in host
+
+
 class TestScreens:
     def test_every_route_of_the_old_shell_is_a_screen(self, core):
         for name in ("'projects'", "'project'", "'library'", "'settings'"):

@@ -521,6 +521,7 @@ a.btn{text-decoration:none}
     <div class="step" data-step="0">
       <div class="err-line" id="err-script"></div>
       <textarea id="script" oninput="Creator.onScript()" placeholder="Paste your script here…"></textarea>
+      <p class="meta hidden" id="script-lock">The script is locked because the voiceover exists — a different script is a different video. <button class="link" onclick="Creator.startFromThis()">Start a new video from this one</button> to change the words.</p>
       <div class="step-foot">
         <button class="btn next" id="script-next" onclick="Creator.next()" disabled>Next<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
         <span class="meta wc" id="script-wc"></span>

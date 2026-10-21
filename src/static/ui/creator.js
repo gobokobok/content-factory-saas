@@ -602,6 +602,8 @@
     const bar = $('#src-bar');
     if (bar) bar.classList.toggle('hidden', locked);
     if (locked) { const gb = $('#gen-box'); if (gb) gb.classList.remove('on'); }
+    const note = $('#script-lock');
+    if (note) note.classList.toggle('hidden', !locked);
     const w = scriptWords(), max = S.cfg.script_max_words;
     const wc = $('#script-wc');
     wc.textContent = `${w} of ${max} words`;
@@ -1194,7 +1196,7 @@
   window.CFApp = {
     S, STEPS, STEP_NAMES, $, $$, esc, sleep, plural, money, clock, api, why, err, progress, failure, clearJob, poll,
     runUrl, go, show, route, confirmBox, saveSettings, paintRun, paintStoryboard, paintVoice, paintScript, paintRender,
-    reloadStoryboard, refreshManifest, applyManifest, sbScenes, hasAsset, allAssets, scriptWords, scriptOk,
+    reloadStoryboard, refreshManifest, applyManifest, sbScenes, hasAsset, allAssets, scriptWords, scriptOk, scriptLocked,
     watchVoice, watchStoryboard, createSb, renderVideo, genVoice, planAssets, paintRight, firstOpenStep, watchRender,
     watchImages, patchScene, openRun, stopAudio, paintContinuity, writeDraft, readDraft, onScript, addHelp, setHelp, loadBilling, priceTag,
   };

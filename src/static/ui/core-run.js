@@ -131,10 +131,12 @@
     if (BASIC) { qs('script-next').disabled = !A.scriptOk(); return; }
     const src = CR.src || (uploadedVoice() ? 'upload' : 'paste');
     qs('src-bar').querySelectorAll('button').forEach(b => { b.style.fontWeight = b.dataset.s === src ? '700' : ''; });
-    qs('gen-box').classList.toggle('on', src === 'generate');
+    // The words are fixed once a generated voiceover exists (Creator.paintScript owns that rule).
+    const locked = A.scriptLocked();
+    qs('gen-box').classList.toggle('on', src === 'generate' && !locked);
     if (!BASIC) qs('up-box').classList.toggle('on', src === 'upload');
     const ta = qs('script');
-    ta.readOnly = !BASIC && src === 'upload' && uploadedVoice() && !!S().upload;
+    ta.readOnly = locked || (!BASIC && src === 'upload' && uploadedVoice() && !!S().upload);
     if (BASIC) return finishScriptSource();
     qs('up-lang').textContent = `Language of this video: ${H.LANGS[S().run.language] || S().run.language}. The voiceover is transcribed in it. Its transcript becomes the script.`;
     if (!qs('gen-idea').value) qs('gen-idea').value = S().run.name || '';
