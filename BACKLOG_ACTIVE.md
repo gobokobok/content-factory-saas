@@ -1,6 +1,7 @@
 # Backlog — Active Stories
 
-_Contains the sprint outlines for P-HARD1 → P-AUTH … P17 and open unassigned stories. Closed sprints (P-UX3, P-AN1 and older) are in BACKLOG.md; recent handovers are in DONE.md._
+_Contains the sprint outlines for P-BILL-1 … P17, the stories added at the 2026-10-21 grooming (legal and payments, platform settings, scale, the API, real motion, style paths) and open unassigned stories. Closed sprints and finished story blocks (P-UX3, P-AN1, P-HARD2 and older) are in BACKLOG.md; recent handovers are in DONE.md._
+_Groomed 2026-10-21; the review is `docs/PRODUCT_REVIEW_2026-10-21.md`._
 _Updated at each sprint boundary: move the completed sprint's block to BACKLOG.md._
 
 ---
@@ -23,7 +24,7 @@ Detailed at each sprint boundary. Spec section numbers refer to the Pipeline & P
 
 **EPIC 57 — Visual source model and project-level settings (Sprint P-PROJ1, DONE 2026-10-11, handover in DONE.md; v0.18 default switch pending its side-by-side test; smoke deferred to INT1-S5).** Split `visual_mode` into look (realistic / animated) and image source (stock / AI-generated), both locked once a storyboard exists (explicit "reset storyboard" to unlock); Channel identity in Project Settings feeding metadata generation; Project assets (recurring characters/places saved at project level, reused by the storyboard worker). Plus the Realistic storyboard prompt v0.18 (Visual Director method on the stock contract, Sonnet 5.5, side-by-side test before switching; C35). Review items C18, C19, C23, C24, C35. Stories PROJ1-S1..S5, ~18–21 pts. Amends D108.
 
-**EPIC 58 — Integrations v2 (Sprint P-INT1, DONE 2026-10-11, handover in DONE.md; D112).** Integrations grouped into blocks (Thinking models, Audio models, Image generation, Stock acquisition, Destination); a provider interface per block; several providers per block, each with its own key and model, one default. Project keys are the default and usage is charged to the user's balance; a user's own key becomes their default automatically, with a checkbox to keep the project default. Review items C25–C27. ~13–16 pts. See D109. **INT1-S5 — DEV smoke sweep (DONE 2026-10-13 by the operator, except step 12: OpenAI as default and metadata on it, left open until the rework below; was: smoke for P-UX4, closes the deferral, 2 pts, added at the P-UX4 close, operator decision 2026-10-11).** **INT2-S1 (candidate, operator 2026-10-13) — rework the Integrations page and approach:** the five-block page and the default/model-per-provider model were judged to need a rethink; running on the platform's models is fine for now. Bring the P-AUTH design (user keys vs platform keys, D109 point 5) into it before rebuilding, and clear the open OpenAI smoke item there. Run the P-UX4 smoke list on DEV, after P-INT1 is built: create a run from the minimal modal (Animated + master prompt) and walk five steps with Next only; upload a voiceover, switch Script to Generate, generate a voice over it (confirm prompt, storyboard discarded); toggle captions on the Video step and see Run settings follow; check video and voiceover file names in the library; (D113) set Cast to One character throughout with a typed description, generate the storyboard and confirm one character entry used by every scene with a person, then regenerate and confirm it stays; look at a narrow (phone) screen without the drawer. **Added at the P-PROJ1 / P-INT1 close:** (P-PROJ1) in Run settings change Look and Image source on a run with a storyboard — the dialog names what is discarded, and Cancel changes nothing; set a Channel identity and save a character in Project settings, then make a new Animated run whose script mentions that character and confirm its bible entry has the saved description and a "Project asset" tag; promote a bible entry with "Save to project"; generate metadata and check it follows the channel identity; optionally run the v0.17 vs v0.18 side-by-side on one real script (`STORYBOARD_STOCK_PROMPT_VERSION=v0.18`) and decide the default. (P-INT1) Settings → Integrations shows five blocks; add an OpenAI key, make OpenAI the Thinking-models default and generate metadata (Run details → Made with shows the model); set it back to Claude; confirm the OPENAI_LLM_MODEL id is valid on the account.
+**EPIC 58 — Integrations v2 (Sprint P-INT1, DONE 2026-10-11, handover in DONE.md; D112).** Integrations grouped into blocks (Thinking models, Audio models, Image generation, Stock acquisition, Destination); a provider interface per block; several providers per block, each with its own key and model, one default. Project keys are the default and usage is charged to the user's balance; a user's own key becomes their default automatically, with a checkbox to keep the project default. Review items C25–C27. ~13–16 pts. See D109. **INT1-S5 — DEV smoke sweep (DONE 2026-10-13 by the operator, except step 12: OpenAI as default and metadata on it, left open until the rework below; was: smoke for P-UX4, closes the deferral, 2 pts, added at the P-UX4 close, operator decision 2026-10-11).** **INT2-S1 (candidate, operator 2026-10-13; groomed 2026-10-21: PLAT-S1 takes the image-model part and MOTION-S2 adds a video block, so settle INT2-S1's shape before the video block is built; the own-key exemption of D123 point 4 also waits here) — rework the Integrations page and approach:** the five-block page and the default/model-per-provider model were judged to need a rethink; running on the platform's models is fine for now. Bring the P-AUTH design (user keys vs platform keys, D109 point 5) into it before rebuilding, and clear the open OpenAI smoke item there. Run the P-UX4 smoke list on DEV, after P-INT1 is built: create a run from the minimal modal (Animated + master prompt) and walk five steps with Next only; upload a voiceover, switch Script to Generate, generate a voice over it (confirm prompt, storyboard discarded); toggle captions on the Video step and see Run settings follow; check video and voiceover file names in the library; (D113) set Cast to One character throughout with a typed description, generate the storyboard and confirm one character entry used by every scene with a person, then regenerate and confirm it stays; look at a narrow (phone) screen without the drawer. **Added at the P-PROJ1 / P-INT1 close:** (P-PROJ1) in Run settings change Look and Image source on a run with a storyboard — the dialog names what is discarded, and Cancel changes nothing; set a Channel identity and save a character in Project settings, then make a new Animated run whose script mentions that character and confirm its bible entry has the saved description and a "Project asset" tag; promote a bible entry with "Save to project"; generate metadata and check it follows the channel identity; optionally run the v0.17 vs v0.18 side-by-side on one real script (`STORYBOARD_STOCK_PROMPT_VERSION=v0.18`) and decide the default. (P-INT1) Settings → Integrations shows five blocks; add an OpenAI key, make OpenAI the Thinking-models default and generate metadata (Run details → Made with shows the model); set it back to Claude; confirm the OPENAI_LLM_MODEL id is valid on the account.
 
 **EPIC 59 — The friends beta: accounts, the Creator flow, credits and payments (D114).** Order: `/audit` → P-AUTH → P-LITE → P-BILL-1 (**beta opens**) → P-BILL-2. Review items C30–C32, reshaped by the operator on 2026-10-13. Detail at each sprint boundary; outline and defaults below.
 
@@ -108,7 +109,7 @@ A friend sees how many credits they have, what the next action costs, and what t
 ### P-BILL-1 follow-ups (from the review of PR #1, 2026-10-15 — not built; deliberately out of the review-fix commit)
 
 ## [BILL-F1] Release the daily USD reservation when a hold is refunded or settled down
-**Epic:** EPIC 59 · **Sprint:** P-BILL-1 follow-ups · **Status:** backlog · **Points:** 2
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, raised 2026-10-21) · **Status:** backlog · **Priority:** high · **Points:** 2
 ### Problem
 `billing.reserve()` reserves the action's raw cost against the tenant's daily USD bound (`limits.spend_gate`, D120) next to the credit hold. `refund()` gives the credits back but **not** the day's reservation, and `settle()` below the estimate does not return the difference. A tenant whose actions fail (or settle low) can reach `CAP_DAILY_SPEND_USD` while having spent nothing, and is refused with "usage limit reached".
 ### Acceptance Criteria
@@ -118,7 +119,7 @@ A friend sees how many credits they have, what the next action costs, and what t
 - [ ] Decide whether `CAP_DAILY_SPEND_USD` stays as a second ceiling next to credits (D123 follow-up already noted in DONE.md)
 
 ## [BILL-F2] Refund when the action succeeded at the provider but its result could not be used
-**Epic:** EPIC 59 · **Sprint:** P-BILL-1 follow-ups · **Status:** backlog · **Points:** 3
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, raised 2026-10-21) · **Status:** backlog · **Priority:** high · **Points:** 3
 ### Problem
 Several paths settle as soon as the provider call returns and then do more work that can fail: the script route (`transition_run`, `read_artifact` after `settle`), metadata (`write_artifact` after `settle`), the single-image route (the storyboard / manifest update inside `generate_scene_image` is covered, the presigned URL is not), the director's `apply_scene_prompt` 409 ("scene was merged meanwhile"). The user is charged and gets nothing.
 ### Acceptance Criteria
@@ -128,65 +129,13 @@ Several paths settle as soon as the provider call returns and then do more work 
 
 **Defaults chosen at the review (D123, change if you disagree):** 1 credit = $0.01 of price; markup ×2 on raw cost; new accounts start at 0 credits (owner top-up only until P-BILL-2); an LLM call is priced at its flat estimate, not its token count; user-supplied provider keys are never charged; the owner and View-as are never charged.
 
-**P-BILL-2 — online payments (~8).** Provider chosen then (Stripe Checkout vs a merchant of record such as Lemon Squeezy / Paddle); prepaid credit packs; receipts; the legal pages (terms, privacy, refunds) belong here at the latest.
+**P-BILL-2 — online payments and the full legal set (~16, ~20 with BILL2-S3; was ~8, expanded 2026-10-21).** Stories BILL2-S1..S7 and the pre-beta LEGAL-S1 are in the section "Stories added at the 2026-10-21 grooming" below. Provider chosen then (Stripe Checkout vs a merchant of record such as Lemon Squeezy / Paddle); prepaid credit packs; payment method and receipts; consumer terms; data export and account deletion.
 
 **Open (defaults are in D114):** the credit unit and markup; the script length cap; the two voices; whether Realistic stays greyed or hidden; a content policy / moderation stance for strangers' text and generated images (decide at `/audit`).
 
 **EPIC 60 — Hardening after the 2026-10-13 review (Sprint P-HARD1, DONE 2026-10-13, handover in DONE.md; smoke PASSED 2026-10-13).** HARD1-S1 `/audit` and the first `docs/SECURITY.md` (also decides the moderation stance D114 left open). HARD1-S2 a failed TTS call must fail the voice job with a readable error and Retry — today `voice_production.py` sets `mp3_r2_key=""`, falls back to proportional timing and the job reads "complete" with no audio (PROD run `6fe35dab`, 2026-10-10). HARD1-S3 regression suite for `word_match.py` / `align_text_to_words` / `align_text` built from real pastes, including years said as two pairs. HARD1-S4 guard split / merge while a bulk image job runs. HARD1-S5 backfill `.apex/cost-log.jsonl` range entries for P-UX4, P-PROJ1, P-INT1 from commit times. INT2-S1 (Integrations rework) was considered and dropped from this sprint by the operator on 2026-10-13; it stays a candidate under EPIC 58. VERIFY items still unrun: the cap stop and "Regenerate those…" after a bible edit (P-AN1), the v0.17 vs v0.18 side-by-side (PROJ1-S6), a real render after the D107 zoom fix.
 
 **EPIC 60 (continued) — Sprint P-HARD2 (DONE 2026-10-14, handover in DONE.md; smoke DEFERRED to AUTH-S0; findings in docs/SECURITY.md).** Open at P-AUTH: F2, F5, F6, F8, F13 (D115).
-
-## [HARD2-S1] Backups and a restore drill — RUNBOOK section
-**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 3 · **Finding:** F1
-### Goal
-The operator has one written, verifiable procedure for backing up and restoring PROD's Postgres and R2 data, before any stranger's data exists.
-### Acceptance Criteria
-- [x] `docs/RUNBOOK.md` gains a "Backups and restore" section: what holds state (Postgres, R2; Drive is legacy), what is backed up and how (Railway Postgres backups, R2 object versioning), retention, and who does what
-- [x] Exact operator steps to enable Railway backups and to check R2 versioning in the Cloudflare dashboard, each with the expected result
-- [x] A restore drill onto a scratch database: steps, how to confirm the data is intact (row counts, one run opens), and a table to record each drill's date and result
-- [x] DEV and PROD are named separately; PROD stays on its working version (no release implied)
-- [x] `docs/SECURITY.md` F1 status updated to "procedure written; drill pending operator" (it closes only when a drill is recorded); no code and no script (decided 2026-10-13)
-- [x] Tests: none for code; link / anchor check if the docs have one
-### Definition of Done
-- [x] All AC checked · CI green · DONE.md updated · status `done`
-### Files to read
-- `docs/SECURITY.md` F1, `DECISIONS.md` D025, `docs/RUNBOOK.md`, `ENV.md` (R2 and DB variables)
-### Handover
-Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
-
-## [HARD2-S2] The audit's small fixes
-**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 3 · **Findings:** F7, F9, F18, F14, F3, F10, F12
-### Goal
-Close the one-sitting findings so a stranger's request cannot hit a weak default or a legacy route.
-### Acceptance Criteria
-- [x] F7: `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` rejected when empty or shorter than a minimum (ENV-configurable); start-up refuses `ENVIRONMENT=prod` without `SETTINGS_ENCRYPTION_KEY`
-- [x] F9: `run_id` in worker request models constrained to the uuid / legacy-id pattern; 422 otherwise
-- [x] F18: session cookie `Secure` for every non-local environment
-- [x] F14: login lockout keys on the real client IP behind the proxy (`--proxy-headers` / trusted forwarded IP)
-- [x] F3 / F10: `/legacy` and the `src/routes/runs.py` router unmounted (or admin-gated, see open point)
-- [x] F12: scene and music uploads abort early past the size limit, as the MP4 upload does
-- [x] Tests: one failure case per fix; `docs/SECURITY.md` statuses updated; `ENV.md` for any new variable
-### Open points to settle in the story
-- Unmount `/legacy` outright or admin-gate it? CLAUDE.md names it as the legacy pipeline UI.
-- F7 and PROD: PROD is on v0.24.0, so the prod-key check takes effect only at release (CLAUDE.md already says to set a new `SETTINGS_ENCRYPTION_KEY` then). Confirm DEV has the key set before pushing, or DEV will not start.
-### Files to read
-- `src/config.py`, `cf_platform/core/config.py`, `src/routes/auth.py`, `src/auth.py`, `src/main.py`, `src/routes/runs.py`, `cf_platform/interfaces/routes/workers.py`, `cf_platform/interfaces/routes/studio.py` (upload handlers), `entrypoint.sh`
-### Handover
-Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
-
-## [HARD2-S3] Deploy safety
-**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 2 · **Findings:** F11, F20
-### Goal
-A failed migration or a vulnerable dependency is visible instead of silent.
-### Acceptance Criteria
-- [x] F11: `/platform/health` reports migration status (applied version, any failure); a failed migration makes it non-OK; an advisory lock stops two instances migrating at once
-- [x] A CD post-deploy check calls health and fails the workflow on a failed migration
-- [x] F20: `pip-audit` runs in CI (failure policy stated in the story: block on high / known-exploited, warn otherwise); the container runs as a non-root user; the base image is pinned
-- [x] Tests: migration-failure health response; `docs/TESTING.md` and RUNBOOK updated
-### Files to read
-- `cf_platform/core/migrations.py`, `src/main.py:73-85`, `/platform/health` route, `Dockerfile`, `.github/workflows/ci.yml` and the deploy workflow, `requirements.txt`
-### Handover
-Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
 
 **EPIC 53 — Multi-language: Russian (new 2026-10-05, after P-AN1, before P15)** — see the section below.
 
@@ -232,6 +181,8 @@ Stories P13b-S1..S4 and their handovers moved to BACKLOG.md at the P14 review (2
 
 **Why:** the on-screen text and the SFX of a scene follow fixed rules today: text appears 0.3 s after the scene starts, and an SFX plays at the scene start (or 0.7 s in when the scene has text — D076). The operator wants to point at the word where each should land. The same anchors then reach the CapCut draft for free, because the Timeline (D103) already carries the text window and the SFX offset. SFX positions in CapCut were never going to be hand-placed by script; this makes them right at the source. The library half is a separate problem: the Freesound auto-seed was rejected by the operator (D078), so good sounds need to be chosen by ear.
 
+> **Groomed 2026-10-21:** priority medium → low for E50-S1..S3. Sound effects are off by default (`SFX_ENABLED`, P-LITE-S5, D114) and Basic never sees them; nobody has asked for them in the beta. Revisit when real users ask.
+
 **Suggested order:** E50-S3 (library) can start any time and is independent. E50-S1 → E50-S2 follow. Needs a sprint slot; none proposed. Natural neighbours: before or after P14 (both touch the Storyboard stage).
 
 ---
@@ -240,7 +191,7 @@ Stories P13b-S1..S4 and their handovers moved to BACKLOG.md at the P14 review (2
 **Epic:** E50 — Word-anchored overlays and a curated SFX library
 **Sprint:** unassigned
 **Status:** backlog
-**Priority:** medium
+**Priority:** low
 **Points:** 5
 **Depends on:** P13b (Timeline, D103)
 
@@ -277,7 +228,7 @@ On-screen text anchors to a word's **start** only and stays until the end of the
 **Epic:** E50 — Word-anchored overlays and a curated SFX library
 **Sprint:** unassigned
 **Status:** backlog
-**Priority:** medium
+**Priority:** low
 **Points:** 3
 **Depends on:** E50-S1
 
@@ -308,7 +259,7 @@ In the Storyboard stage, the operator clicks a word of a scene and chooses *On-s
 **Epic:** E50 — Word-anchored overlays and a curated SFX library
 **Sprint:** unassigned
 **Status:** backlog
-**Priority:** medium
+**Priority:** low
 **Points:** 5
 **Depends on:** —
 
@@ -339,6 +290,364 @@ Where to find the sounds — the operator picks. Candidates to evaluate: Pixabay
 
 ---
 
+## Stories added at the 2026-10-21 grooming (product review: `docs/PRODUCT_REVIEW_2026-10-21.md`)
+
+Points are the grooming's estimates; refine at `/start-story`. Order and gates are in the review, section 5. "Open" lines are decisions for the operator.
+
+### Candidates promoted from DONE.md that had no story (P-BILL-1 and P-AUTH handovers)
+
+- **BILL-F3 (3 pts, medium)** — settle LLM and voice calls at actual usage (tokens, characters) instead of the flat `EST_LLM_CALL_USD` / `EST_TTS_CALL_USD`. Needs one month of real ledger rows to know whether it matters; do after the beta has data.
+- **BILL-F4 (2 pts, medium)** — gate the acquisition worker and every other paid call outside `spend_gate` / `billing.reserve` (SECURITY.md) before a second Super account exists.
+- **AUTH-F1 (1 pt, low)** — purge expired sessions and unused OAuth states. SCALE-S2's janitor can carry it; keep as its own line so it is not lost.
+
+---
+
+## EPIC 59 (continued) — Legal and payments
+
+## [LEGAL-S1] Legal minimum before the beta opens
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`) · **Status:** backlog · **Priority:** high · **Points:** 4
+### Goal
+Before friends' data is held with billing on, the product says what it keeps, why, who else sees it and how to have it deleted — and the owner can actually delete it.
+### Acceptance Criteria
+- [ ] `/privacy` page, served like `/terms`: who the controller is and how to reach them (the owner supplies name, address, e-mail), the data held (Google name, e-mail and `sub`; scripts, voices, images, videos; prompts in `prompt_log`; the usage ledger; session rows), purpose and legal basis for each, retention for each, the rights (access, correction, erasure, objection, complaint to the supervisory authority) and how to use them
+- [ ] Sub-processor list on the same page: Anthropic, Google (sign-in and Gemini), OpenAI (optional moderation, images), kie.ai, Deepgram, Cloudflare (R2), Railway, the stock sites (search words only — confirm no personal data goes), the payment provider later. Each with its purpose and where the data goes; the owner confirms the transfer mechanism for each US provider
+- [ ] Terms rewritten: what the service is, minimum age (open), acceptable use (D115), who owns what the user makes, AI-generated content notice, credits are not money until P-BILL-2 says otherwise, liability, termination, governing law. `TERMS_VERSION` bumped so existing accounts re-accept at next sign-in (AUTH-S9 mechanism)
+- [ ] Links to terms and privacy on the sign-in page and in the `/create` footer
+- [ ] Retention decided and written: `prompt_log` N days (then deleted by a job), deleted videos, expired sessions (AUTH-F1), and whether the director's storyboard is kept next to the user's final one for improving the product (STYLE-S1) — if kept, say so in the notice
+- [ ] RUNBOOK "Erasing an account" procedure plus `scripts/erase_tenant.py` (dry-run by default, prints what it would remove): users, sessions, projects, runs, library files in R2, `prompt_log`; the credit ledger is anonymised, not deleted, if it must be kept for accounting
+- [ ] Tests: both pages render; a bumped terms version re-prompts a signed-in user; the erase script removes one tenant's rows and files in the in-memory store and leaves another tenant's untouched
+- [ ] **Human step:** the owner (or a lawyer) reviews the final text; this story does not claim legal sufficiency
+### Open
+Minimum age (13 / 16 / 18 — a bedtime-story feature makes minors plausible). Who is the seller and controller (company or sole trader) — also needed by BILL2-S1.
+### Files to read
+`src/static/terms.html`, `src/main.py` (terms gate), `cf_platform/core/accounts.py`, `cf_platform/core/moderation.py` (`prompt_log`), `docs/SECURITY.md`, `docs/RUNBOOK.md`
+
+---
+
+**P-BILL-2 — online payments and the full legal set (~16, ~20 with BILL2-S3; was ~8, expanded 2026-10-21).** BILL2-S1..S7 below; S3 only if the operator chooses subscriptions. Human touchpoint: a friend buys a credit pack, sees the receipt, adds or removes a payment method, exports their data and deletes their account.
+
+## [BILL2-S1] Payment provider decision and credit-pack checkout
+**Epic:** EPIC 59 · **Sprint:** P-BILL-2 · **Status:** backlog · **Priority:** high · **Points:** 4
+### Goal
+A user buys a pack of credits by card and the balance rises, exactly once.
+### Acceptance Criteria
+- [ ] `/decide`: Stripe Checkout versus a merchant of record (Paddle, Lemon Squeezy or similar). The deciding facts: who the seller is, EU VAT handling, invoices, chargebacks, fees. Recorded with the options and what was rejected
+- [ ] Credit packs (sizes and prices in config, not code); a "Buy credits" button on the Credits screen opens the provider's hosted page — card data never touches the server
+- [ ] Webhook: signature verified, idempotent on the provider's event id, writes one `topup` credit transaction carrying the payment reference; a replayed event changes nothing
+- [ ] Test mode only until the owner says otherwise: provider test keys and test cards; live keys are never entered by an agent
+- [ ] Tests: signature failure, replay, partial failure between payment and credit, refund/chargeback event reduces the balance and never below zero
+### Open
+Subscriptions as well as packs (review, decision 1)?
+
+## [BILL2-S2] Payment method, portal and receipts
+**Points:** 3 · **Priority:** high
+### Goal
+A user can add, change or remove their payment method and see every receipt, without us storing a card.
+### Acceptance Criteria
+- [ ] "Payment method" opens the provider's hosted customer portal (add / remove / default); a customer id is stored per tenant, nothing else
+- [ ] Receipts and invoices listed on the Credits screen with links to the provider's documents
+- [ ] A failed or declined payment shows a plain message and leaves the balance unchanged
+- [ ] Tests: portal link needs a signed-in user and is scoped to their own customer id (A cannot open B's)
+
+## [BILL2-S3] Subscription plans (only if chosen)
+**Points:** 4 · **Priority:** conditional on the operator's answer
+### Goal
+A monthly plan that grants credits each period.
+### Acceptance Criteria
+- [ ] Plans in config; a monthly credit grant on each successful renewal; unused credits carry over or expire (decided with the plan); upgrade, downgrade, cancel at period end; failed-payment retry and the user's message
+- [ ] Tests: grant once per period, cancel stops the grant but keeps the balance
+
+## [BILL2-S4] Consumer terms for selling credits
+**Points:** 2 · **Priority:** high
+### Goal
+The sale itself is lawful for EU consumers.
+### Acceptance Criteria
+- [ ] Checkout shows the price with VAT where the provider does not; the order is confirmed with the withdrawal notice for digital content, and the user agrees to start immediately and acknowledges the effect on the 14-day right (wording checked by a human)
+- [ ] Refund policy page; unused-credit expiry stated if any; terms mention payments, links to them at checkout
+- [ ] **Human step:** legal review of the wording
+
+## [BILL2-S5] Self-service data export
+**Points:** 3 · **Priority:** medium
+### Goal
+A user downloads what the product holds about them.
+### Acceptance Criteria
+- [ ] "Export my data" on the account screen builds a zip in the background: profile, projects, runs (scripts, storyboards, metadata), links or files for their videos and voice, ledger and history; a signed link by e-mail or on the page, expires in 24 h
+- [ ] Rate-limited to one a day; owner sees it in the admin view
+- [ ] Tests: the export holds only the caller's rows
+
+## [BILL2-S6] Self-service account deletion
+**Points:** 3 · **Priority:** high
+### Goal
+A user deletes their account and its data, and the product proves it.
+### Acceptance Criteria
+- [ ] "Delete my account" with a re-confirmation and a short grace period (7 days, cancellable); then the LEGAL-S1 erase runs; sessions revoked; the ledger anonymised
+- [ ] Remaining credit balance is stated before confirmation and the refund rule (BILL2-S4) applies
+- [ ] The owner gets a line in the admin view; the user gets a confirmation
+- [ ] Tests: after deletion no row or file with the tenant id remains except the anonymised ledger; another tenant is untouched
+
+## [BILL2-S7] Storage statement and AI-content disclosure
+**Points:** 1 · **Priority:** medium
+### Goal
+Say honestly what browser storage is used, and mark generated content where rules ask for it.
+### Acceptance Criteria
+- [ ] Privacy notice states the one session cookie and the `localStorage` keys the pages use; if only strictly necessary items remain, no consent banner is shown. Re-check this each time a page adds a key
+- [ ] The Metadata step reminds the user to use the platform's "altered or synthetic content" setting when publishing, and the video's description template offers a disclosure line. Check the exact EU AI Act transparency obligations that apply to this kind of output (faceless narration, illustrative images) and their dates; record the result in the notice
+- [ ] **Human step:** confirm the above with a lawyer
+
+---
+
+## EPIC 61 — Platform settings and beta polish
+
+## [PLAT-S1] Image model as a platform setting; one price that follows model and resolution
+**Epic:** EPIC 61 · **Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 5
+### Goal
+The owner chooses the image model for the platform (Nano Banana through kie.ai, or OpenAI) in one obvious place, and every price in the product — estimates, credits, caps, ledger — follows that choice.
+### What exists
+The owner already picks a provider and model in Integrations, and Basic accounts use it (`resolve_image_config`, source "platform"). Prices come from `IMAGE_MODEL_COSTS_USD`, keyed by model only; the resolution is one Railway variable (`IMAGE_RESOLUTION`) the price ignores. CLAUDE.md records the consequence: published videos need 2K and a 0.03 entry.
+### Acceptance Criteria
+- [ ] Settings → Platform (owner only): "Image generation" with provider, model and resolution (1K / 2K / 4K) saved as the platform default; the screen says which accounts it affects (all Basic; Super unless overridden)
+- [ ] Price table keyed by provider, model **and resolution** (extend `IMAGE_MODEL_COSTS_USD`, old model-only keys stay as fallback); an unknown combination uses `IMAGE_COST_USD` and is marked "estimated" in the owner view
+- [ ] One function gives the price; everything reads it: the images plan (`estimated_credits`, `credits_per_image`), the confirm text, `GET /platform/billing/me` prices, the ledger's raw cost, `IMAGE_RUN_SPEND_CAP_USD`, the daily USD reservation, the Super cost readout. A test greps for any other reader of `IMAGE_COST_USD` / `IMAGE_MODEL_COSTS_USD`
+- [ ] A change applies to the next estimate without a restart; ledger rows already written are never repriced
+- [ ] When a run already holds images from another model, the images screen warns that the look may differ
+- [ ] Basic sees no model names; the credit price reflects the current choice
+- [ ] `IMAGE_RESOLUTION` stays as the fallback when nothing is saved; the CLAUDE.md operator blocker is removed
+- [ ] Tests: price per combination, switching mid-session, past ledger rows unchanged, `billing/me` reflects the switch, Basic cannot read or write the setting
+### Open
+Does Super choose per project / run (then PLAT-S1b), or is it one platform choice? Which OpenAI model: `gpt-image-1` direct, or `gpt-image-2` through kie.ai? Does the image look differ enough between models to need a per-run lock?
+### Files to read
+`cf_platform/core/tenant_settings.py`, `image_provider.py`, `ai_images.py` (`model_cost_usd`), `cf_platform/interfaces/routes/studio_ai.py` (`_model_cost`, the plan), `routes/billing.py`, `limits.py`, `src/static/ui/core.js` (Integrations), `ENV.md`
+
+## [PLAT-S2] Voice samples that play at once
+**Epic:** EPIC 61 · **Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 3
+### Goal
+Pressing Listen on a voice plays within a second, every time, for everyone.
+### What exists
+`GET /platform/creator/voice-samples/{voice}` stores a recording in R2 after the first request and serves the stored one afterwards. A click that still takes 5–10 s means one of two things: the first request per voice is what is heard, or the stored-file check is failing and the sample is re-made each time (that check sits inside `except Exception: pass`).
+### Acceptance Criteria
+- [ ] Measure first on DEV: time the route for a stored versus a new sample, and log why the stored check misses if it does; fix the cause
+- [ ] `scripts/make_voice_samples.py` makes a 5-second sample for every listed voice from a fixed, written line, as mp3 (about a tenth of the wav's size), uploads it to `voice-samples/<language>/<voice>.mp3`, and skips what exists unless `--force`
+- [ ] The Voice step gets the sample address with the voice list (`sample_url` on each voice in `creator/config`); the route never calls Gemini in the request path. Decide: a public bucket prefix behind Cloudflare's cache for these non-personal files, or presigned URLs; user files stay presigned either way
+- [ ] The first sample is fetched when the Voice step opens, so the first click is instant
+- [ ] A listed voice without a stored sample is an owner-visible error at start-up or in the admin view, not a delay for the user
+- [ ] Per language when P-LANG lands (the key already carries the language)
+- [ ] Tests: config lists a sample address for every voice, the route does not generate, the script is idempotent, every listed voice has a key in a seeded storage
+### Human touchpoint
+The operator presses Listen on every voice on DEV on a phone; each starts in under a second.
+
+---
+
+## EPIC 62 — Scale and speed (new 2026-10-21)
+
+**Target (to confirm in SCALE-S1):** 100 registered users, about one in five working at the same time, then 1000. Gate: `SIGNUP_OPEN` stays unset until the load test passes at the agreed number.
+**Principle:** measure before changing anything (SCALE-S1); then move work out of the web process (S2, S3), then the data path (S4), then provider limits (S5).
+
+## [SCALE-S1] Measure: step timings, provider limits, a load model
+**Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 3
+### Goal
+Know where the minutes of one video go and what breaks first, with numbers.
+### Acceptance Criteria
+- [ ] Wall time per step (script, voice, storyboard, each image batch, acquisition, render, metadata) as p50 and p95 from the trace and lineage data already stored, plus the time spent waiting for a render slot
+- [ ] `docs/PERF.md` gains a 2026-10 section: where the time of one 60-second video goes on DEV; Railway CPU and memory during a render
+- [ ] Each provider's published rate and concurrency limits and our current tier: Anthropic, Gemini TTS, kie.ai, Deepgram, R2, Railway plan. Where it is not published, ask the provider and record the answer
+- [ ] A load model: at 100 and at 1000 users, videos per hour, renders per hour, image calls, tokens, dollars per hour
+- [ ] `scripts/loadtest.py` drives N simulated users through voice, storyboard, images and render with fake providers (the preview harness is the base) and reports the first thing that breaks and at what N
+- [ ] Output: a ranked list that confirms or reorders S2–S5. No optimisation in this story
+### Files to read
+`docs/PERF.md`, `cf_platform/core/trace_repo.py`, `cf_platform/core/limits.py`, `scripts/preview_core.py`
+
+## [SCALE-S2] A durable job queue
+**Sprint:** P-SCALE1 · **Status:** backlog · **Priority:** high · **Points:** 5 · **Depends on:** SCALE-S1
+### Goal
+A restart, a deploy or a crashed worker does not lose work or strand a hold.
+### Acceptance Criteria
+- [ ] `jobs` table in Postgres (migration): kind, tenant, run, state, attempts, lease and heartbeat, payload, result; workers claim with `FOR UPDATE SKIP LOCKED`; no new dependency (if a queue library is wanted, a D-entry first)
+- [ ] Kinds moved over one at a time: render first, then voice, storyboard, images, transcription, metadata; the web process enqueues and reads the row for status (less polling of R2)
+- [ ] A job whose lease expires is retried or failed with a readable reason, and its hold is closed by the janitor — this replaces the manual "Give back stuck holds"; the janitor also purges expired sessions (AUTH-F1)
+- [ ] In-process execution stays as the local and test mode behind a flag
+- [ ] Tests: crash mid-job, lease expiry, two workers racing, hold closed once, restart recovery
+### Files to read
+`cf_platform/interfaces/routes/workers.py`, `studio_ai.py`, `studio_voice.py`, `cf_platform/core/billing.py` (`_in_flight`, `refund_stale_holds`), `cf_platform/core/limits.py`
+
+## [SCALE-S3] Render workers off the web process
+**Sprint:** P-SCALE1 · **Status:** backlog · **Priority:** high · **Points:** 5 · **Depends on:** SCALE-S2
+### Goal
+Renders run on their own Railway service(s), so ten people rendering do not slow everyone's page.
+### Acceptance Criteria
+- [ ] The same image started with `WORKER_MODE=render` claims render jobs; `RENDER_MAX_CONCURRENT` becomes per worker; more replicas mean more renders; the per-tenant limit stays
+- [ ] The user sees their place in the queue ("3rd in line"); a long wait is stated, not silent
+- [ ] Temp-disk cleanup after each job; output upload verified before the job is marked done
+- [ ] Encode-time experiments with measured results (libx264 preset, scene threads, the zoom cost D107 recorded); keep only what leaves the golden renders unchanged or update them on purpose
+- [ ] RUNBOOK: how to add a worker and how to read its logs
+- [ ] Tests: job claimed by a worker, queue position, golden renders unchanged
+
+## [SCALE-S4] Web tier and data path
+**Sprint:** P-SCALE1 · **Status:** backlog · **Priority:** medium · **Points:** 3
+### Goal
+More than one web instance is safe, and nothing reads a whole folder listing per request.
+### Acceptance Criteria
+- [ ] No process-local state that must be shared: the render gate, `billing._in_flight`, any in-memory usage store move to the database
+- [ ] Database pool size and statement times reviewed (the billing store once hung on a pool of four under many refusals — pinned by a test, check the others)
+- [ ] The library and run progress read from an indexed table rather than listing R2 run folders on each request ("nothing is indexed" in P-UX3); PERF.md notes the 1000-prefix truncation
+- [ ] Static assets cacheable with a version in the address (today `/ui/*` is `no-cache`); polling intervals lengthened or replaced by one status stream
+- [ ] Idle sleep off on the services that need to stay awake (shared with P17)
+- [ ] Tests: two app instances against one database
+
+## [SCALE-S5] Provider capacity and backpressure
+**Sprint:** P-SCALE1 · **Status:** backlog · **Priority:** medium · **Points:** 3
+### Goal
+A busy provider makes users wait politely instead of fail, and one user cannot take everyone's slots.
+### Acceptance Criteria
+- [ ] Shared per-provider concurrency limits (Gemini, kie.ai, Anthropic, Deepgram) across all users and instances
+- [ ] A 429 or overload is retried with the provider's wait time and shown as "busy, retrying", not as a failure
+- [ ] Fair scheduling: a tenant's share of image and voice slots is capped when others wait
+- [ ] Second key or fallback provider for TTS and images where one exists; an owner alert when the day's platform spend passes a threshold
+- [ ] Speed levers measured in S1 applied here, including chunked voiceover (E54-S1) so a long script's voice is made in parallel
+- [ ] Tests: 429 handling, fairness under two tenants
+**Beyond 100:** a design for 1000 users (read replica, job partitioning, R2 lifecycle, regions) is written after the 100-user test, not before.
+
+---
+
+## EPIC 63 — Platform API for automation (Super; new 2026-10-21)
+
+**Prerequisites:** SCALE-S2 (durable jobs) and P17 (the pipeline runs on the server with the browser closed). Today Auto-advance runs in the browser tab, so the API cannot be built on it. P16 (n8n pulls finished videos to publish) is the other direction and pairs with this epic.
+
+## [API-S1] API keys for Super accounts
+**Points:** 3 · **Priority:** high
+### Goal
+A Super account creates a key, an automation calls the platform with it, and the owner can revoke it.
+### Acceptance Criteria
+- [ ] Migration: `api_keys` (id, tenant, name, hash of a 32-byte random token shown once, display prefix, scopes, created, last used, expires, revoked)
+- [ ] Settings → API (Super): create (shown once), list, revoke; `Authorization: Bearer cf_…`; a Basic account cannot create or use one; View-as never applies
+- [ ] The middleware turns a key into the owner-account's principal (same tenant, same caps, same credits); per-key rate limit; keys never appear in logs (extend the redaction)
+- [ ] Deny-by-default snapshot updated on purpose; API routes live under `/api/v1` only
+- [ ] Tests: revoked key refused, wrong tenant, Basic refused, key not in logs
+- [ ] Scoped `/audit` of this surface before it goes live
+
+## [API-S2] Create a video: `POST /api/v1/videos`
+**Points:** 5 · **Priority:** high · **Depends on:** API-S1, SCALE-S2, P17
+### Goal
+One call starts a whole video and returns at once.
+### Acceptance Criteria
+- [ ] Body: `script`, or `idea` and `length_s` (open); `aspect_ratio`; `language`; `type` — `realistic` | `animated`, an open list that grows (style packs, EPIC 65); `master_style`; `voice`; `captions` — `none` or a style id; `bg_music` — a library track id or `none`; `characters` — ids of the account's AI assets; `metadata` — true to also write title, description and tags; `max_credits`; `idempotency_key`; `callback_url` (API-S5)
+- [ ] Answers 202 with `{id, status, estimated_credits}`; 402 when the estimate exceeds the balance or `max_credits`; 422 naming the bad field and the valid values; the same `idempotency_key` returns the same video
+- [ ] The whole pipeline runs on the server: voice, storyboard, images or stock acquisition, render (and metadata); billed through `billing.reserve` for the full estimate, refunded on failure; moderation, caps and the render queue apply as for the UI
+- [ ] A failure ends as `failed` with a readable reason and a refund — never a silent hang
+- [ ] Tests: each field validated, idempotency, 402, a failing step refunds, tenant isolation
+
+## [API-S3] Status and download
+**Points:** 2 · **Priority:** high
+### Goal
+The caller sees progress and fetches the file.
+### Acceptance Criteria
+- [ ] `GET /api/v1/videos/{id}`: `queued | running (step) | succeeded | failed | canceled`, progress, credits charged, and on success `video_url` plus title / description / tags when requested
+- [ ] `GET /api/v1/videos/{id}/download` redirects to a short-lived presigned URL an n8n HTTP node can follow; `GET /api/v1/videos` lists the caller's own; a cancel call stops a queued or running video and refunds
+- [ ] Tests: another tenant's id is 404, expired link, cancel refund
+
+## [API-S4] Reference lists and the OpenAPI document
+**Points:** 1 · **Priority:** medium
+### Goal
+A workflow can discover valid values.
+### Acceptance Criteria
+- [ ] `GET /api/v1/voices | characters | music | caption-styles | styles`; an OpenAPI document for `/api/v1` only, with examples, served at `/api/v1/openapi.json`
+
+## [API-S5] Webhooks (if chosen)
+**Points:** 3 · **Priority:** low until decided
+### Goal
+The platform tells the caller when a video is done.
+### Acceptance Criteria
+- [ ] `callback_url` must be https and not a private address (SSRF guard); signed with HMAC-SHA256 and a timestamp; retried with back-off; a delivery log the owner can read; polling stays the baseline
+
+## [API-S6] Documentation and an n8n example
+**Points:** 2 · **Priority:** medium
+### Goal
+Someone new can build the n8n flow in an hour.
+### Acceptance Criteria
+- [ ] `docs/API.md`: keys, errors, limits, credit behaviour, examples in curl; an exported n8n workflow (create, wait, download) committed beside the P16 publish workflow when that exists
+
+---
+
+## EPIC 64 — Real-motion animation (image-to-video; Super first, Basic later; new 2026-10-21)
+
+**What it is:** for each scene, the Visual Director defines the first frame (and optionally the last frame) and a motion prompt; an image-to-video model, reached through kie.ai, turns them into a clip; the render uses the clips. Off by default; a run-level toggle plus a per-scene switch, because a clip costs many times a still. **What exists:** the director's `motion_note` per scene, the `asset_strategy` / `asset_tier` fields, the `ImageProvider` pattern, and a renderer that already places video clips. The scene `clip_type: "animated"` value is a legacy name; check what still reads it before reusing it.
+
+## [MOTION-S1] Spike: choose the image-to-video model(s)
+**Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 2
+### Goal
+Know which models to build on, what a clip costs, and how a 2–4 second scene maps to a clip.
+### Acceptance Criteria
+- [ ] List the image-to-video models kie.ai offers today (verify at the time; do not rely on this document) with: price per second, clip lengths, resolution, 9:16 and 16:9 support, first-frame only or first and last frame, typical wait time
+- [ ] Make at least six clips from existing DEV scene images, two with first and last frame; judge consistency with the animated style and with the character
+- [ ] Decide how a clip fits a scene shorter or longer than itself (trim, slow down within a limit, hold the last frame, loop) and what happens to the clip's own sound (dropped)
+- [ ] Output `docs/MOTION_SPIKE.md` and a `/decide`: the models, the default, the credit price per second at the current markup, and the cost of a 60-second video fully animated versus a third animated. No product code
+
+## [MOTION-S2] `VideoProvider` interface and the kie.ai client
+**Points:** 3 · **Priority:** medium · **Depends on:** MOTION-S1
+### Acceptance Criteria
+- [ ] A `VideoProvider` beside `ImageProvider`: start a clip from first frame, optional last frame, prompt, duration and aspect; poll; timeout; readable errors; a fake for tests
+- [ ] A price table per model per second, like the image table; a sixth Integrations block "Video generation" with the platform default set the way PLAT-S1 sets images
+- [ ] Tests: start, poll, timeout, error mapping
+
+## [MOTION-S3] The director writes the motion prompt and picks the frames
+**Points:** 4 · **Priority:** medium
+### Acceptance Criteria
+- [ ] The animation storyboard worker (prompt `an-v0.2`) and the scene prompt writer produce, per scene, a `motion_prompt` (camera and subject action, short) from the existing `motion_note`; scenes unfit for motion (charts, text-heavy) are flagged
+- [ ] Scene fields `motion_mode` (`still` | `ai_video`), `motion_prompt`, `last_frame_mode` (none | next scene's first frame | a generated end image); first frame is the scene's own generated image
+- [ ] The prompt sent to the model is assembled in code (master style, bible lines, motion prompt) and can be previewed, as the image prompt is; the user can edit it; the moderation gate covers it
+- [ ] Tests: assembly, flags, migration of old storyboards (field absent means `still`)
+
+## [MOTION-S4] Generate the clips: job, billing, caps
+**Points:** 5 · **Priority:** medium · **Depends on:** MOTION-S2, MOTION-S3, SCALE-S2 (or the same restart-safe pattern the image job uses)
+### Acceptance Criteria
+- [ ] "Animate N scenes" shows the estimate in credits first; per-run cap `VIDEO_RUN_SPEND_CAP_USD`; concurrency limit; one retry; stop after repeated identical failures; regenerate one scene
+- [ ] Billing: hold per clip, settle at the clip actually made, refund on failure; the ledger gets kind `video`
+- [ ] Clips stored under the run (`clips/scene-N.mp4`) and recorded in the manifest and the library
+- [ ] Tests: hold, settle, refund; cap stop; restart does not pay twice
+
+## [MOTION-S5] Render and CapCut with clips
+**Points:** 4 · **Priority:** medium
+### Acceptance Criteria
+- [ ] The timeline accepts `ai_video` assets and fits each to its scene by the S1 policy; no camera-move effect on top; captions, on-screen text and transitions unchanged
+- [ ] A golden render with a fixture clip in both aspect ratios; the CapCut export carries the clips
+- [ ] CPU and disk per render measured and recorded (D107 notes the zoom cost)
+
+## [MOTION-S6] Interface: toggle, per-scene control, estimate
+**Points:** 3 · **Priority:** medium
+### Acceptance Criteria
+- [ ] Run settings: "Motion — Camera moves on stills (default) | Real motion"; storyboard card: per-scene switch, motion prompt, clip preview; the cost before any generation; Super only to start
+
+## [MOTION-S7] Open real motion to Basic
+**Points:** 2 · **Priority:** low until S1–S6 are smoked
+### Acceptance Criteria
+- [ ] Allow-list change; the price in credits visible; default off; a cheaper model tier for Basic if S1 found one; owner switch `MOTION_BASIC_ENABLED`; terms and privacy mention AI video
+
+---
+
+## EPIC 65 — Style paths (unplaced; analysis and logging only, new 2026-10-21)
+
+Different styles need different directors: Animation (general), Manga, Documentary, Movie, more later. Not needed now. The question of a custom-trained model is answered in `docs/PRODUCT_REVIEW_2026-10-21.md` section 6 (do not train yet; build the evaluation first; training data is a legal question).
+
+## [STYLE-S1] Evaluation harness and the model analysis
+**Points:** 5 · **Priority:** medium
+### Acceptance Criteria
+- [ ] 8–10 fixed scripts across genres; a rubric (shot variety, continuity, pacing against the narration, adherence to the style, valid output) scored by a model judge with a human spot check; `scripts/compare_storyboards.py` runs two prompt versions side by side; results kept in `docs/evals/`
+- [ ] First job: the v0.17 vs v0.18 Realistic comparison that was never run (PROJ1-S6), then the default is decided
+- [ ] Written analysis with data: do prompt, exemplars and retrieval plateau, and would fine-tuning or a trained model help? What data could be used lawfully?
+- [ ] Log, per run, the director's storyboard beside the version finally rendered (LEGAL-S1 covers the consent line), so training and evaluation data accumulate
+
+## [STYLE-S2] Style pack registry
+**Points:** 5 · **Priority:** medium · **Depends on:** STYLE-S1
+### Acceptance Criteria
+- [ ] A style pack = id, label, director prompt id, default master style, shot and motion vocabulary, caption and music defaults, allowed image models, price modifier; run field `style_pack` (default `animation`)
+- [ ] The storyboard worker picks its prompt by pack; today's `an-v0.1` becomes pack `animation-general` with the prompt text byte-identical (golden test)
+- [ ] New video and project settings list the packs; the API's `type` and `styles` list read the same registry
+
+## [STYLE-S3] Documentary pack · [STYLE-S4] Movie pack · [STYLE-S5] Manga pack
+**Points:** 3 · 3 · 8 (tbd) · **Priority:** low until S1 and S2
+Manga likely needs more than a prompt: panel-style moves and reveals in the renderer, an image model or reference images that hold screentone and line work, and possibly real motion (EPIC 64). Decide after STYLE-S1's evidence.
+
+---
+
 ## Unassigned backlog
 
 Open stories that belong to no sprint in the current roadmap (D099).
@@ -349,10 +658,12 @@ Open stories that belong to no sprint in the current roadmap (D099).
 **Epic:** E54 — Voice reliability (new 2026-10-10)
 **Sprint:** unassigned — operator-requested 2026-10-10, not in the D099 roadmap
 **Status:** backlog
-**Priority:** high
+**Priority:** medium
 **Points:** 5
 **Depends on:** —
 **Blocks:** nothing in flight. Long scripts (~1,400 words, ~9 min of audio) are a coin flip on PROD until this lands.
+
+> **Groomed 2026-10-21:** priority high → medium. A TTS failure is no longer silent (P-HARD1-S2 raises it with a Retry button) and Basic scripts are capped at 450 words (~3 min), so only the owner's long scripts are exposed. It returns as a **speed lever in SCALE-S5** (chunks made in parallel); do it there.
 
 ### Goal
 Generate the voiceover for a long script as several shorter Gemini TTS calls and merge them, so one dropped connection costs one chunk and not the whole job — and so a TTS failure is visible to the operator instead of silent.
@@ -408,6 +719,7 @@ _(blank)_
 **Points:** 3
 **Depends on:** P8-S4
 
+> **Groomed 2026-10-21:** unchanged at low; if nobody asks for better stock relevance by the next grooming, delete it (the animated path is where the beta is).
 > **Groomed 2026-10-03:** priority med → low. Since this was written, P10-S3 (semantic enrichment + Entity Resolver) and P11-S1 (Visual Director) took over asset relevance, P13 puts the asset choice in the operator's hands, and P14 generates images outright. Revisit only if stock relevance is still a complaint after P14.
 
 ### Goal

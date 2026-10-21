@@ -8350,3 +8350,61 @@ Animation runs generate on the model the operator validated the look with, and t
 - **Files that mattered:** `cf_platform/core/image_provider.py`, `cf_platform/core/tenant_settings.py`, `cf_platform/core/config.py`, `src/static/settings.html`.
 
 ---
+
+---
+
+## EPIC 60 (continued) — Sprint P-HARD2 stories (moved from BACKLOG_ACTIVE.md at the 2026-10-21 grooming)
+
+## [HARD2-S1] Backups and a restore drill — RUNBOOK section
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 3 · **Finding:** F1
+### Goal
+The operator has one written, verifiable procedure for backing up and restoring PROD's Postgres and R2 data, before any stranger's data exists.
+### Acceptance Criteria
+- [x] `docs/RUNBOOK.md` gains a "Backups and restore" section: what holds state (Postgres, R2; Drive is legacy), what is backed up and how (Railway Postgres backups, R2 object versioning), retention, and who does what
+- [x] Exact operator steps to enable Railway backups and to check R2 versioning in the Cloudflare dashboard, each with the expected result
+- [x] A restore drill onto a scratch database: steps, how to confirm the data is intact (row counts, one run opens), and a table to record each drill's date and result
+- [x] DEV and PROD are named separately; PROD stays on its working version (no release implied)
+- [x] `docs/SECURITY.md` F1 status updated to "procedure written; drill pending operator" (it closes only when a drill is recorded); no code and no script (decided 2026-10-13)
+- [x] Tests: none for code; link / anchor check if the docs have one
+### Definition of Done
+- [x] All AC checked · CI green · DONE.md updated · status `done`
+### Files to read
+- `docs/SECURITY.md` F1, `DECISIONS.md` D025, `docs/RUNBOOK.md`, `ENV.md` (R2 and DB variables)
+### Handover
+Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
+
+## [HARD2-S2] The audit's small fixes
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 3 · **Findings:** F7, F9, F18, F14, F3, F10, F12
+### Goal
+Close the one-sitting findings so a stranger's request cannot hit a weak default or a legacy route.
+### Acceptance Criteria
+- [x] F7: `OPERATOR_PASSWORD` and `SESSION_SECRET_KEY` rejected when empty or shorter than a minimum (ENV-configurable); start-up refuses `ENVIRONMENT=prod` without `SETTINGS_ENCRYPTION_KEY`
+- [x] F9: `run_id` in worker request models constrained to the uuid / legacy-id pattern; 422 otherwise
+- [x] F18: session cookie `Secure` for every non-local environment
+- [x] F14: login lockout keys on the real client IP behind the proxy (`--proxy-headers` / trusted forwarded IP)
+- [x] F3 / F10: `/legacy` and the `src/routes/runs.py` router unmounted (or admin-gated, see open point)
+- [x] F12: scene and music uploads abort early past the size limit, as the MP4 upload does
+- [x] Tests: one failure case per fix; `docs/SECURITY.md` statuses updated; `ENV.md` for any new variable
+### Open points to settle in the story
+- Unmount `/legacy` outright or admin-gate it? CLAUDE.md names it as the legacy pipeline UI.
+- F7 and PROD: PROD is on v0.24.0, so the prod-key check takes effect only at release (CLAUDE.md already says to set a new `SETTINGS_ENCRYPTION_KEY` then). Confirm DEV has the key set before pushing, or DEV will not start.
+### Files to read
+- `src/config.py`, `cf_platform/core/config.py`, `src/routes/auth.py`, `src/auth.py`, `src/main.py`, `src/routes/runs.py`, `cf_platform/interfaces/routes/workers.py`, `cf_platform/interfaces/routes/studio.py` (upload handlers), `entrypoint.sh`
+### Handover
+Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
+
+## [HARD2-S3] Deploy safety
+**Epic:** EPIC 60 · **Sprint:** P-HARD2 · **Status:** done · **Completed:** 2026-10-14 · **Points:** 2 · **Findings:** F11, F20
+### Goal
+A failed migration or a vulnerable dependency is visible instead of silent.
+### Acceptance Criteria
+- [x] F11: `/platform/health` reports migration status (applied version, any failure); a failed migration makes it non-OK; an advisory lock stops two instances migrating at once
+- [x] A CD post-deploy check calls health and fails the workflow on a failed migration
+- [x] F20: `pip-audit` runs in CI (failure policy stated in the story: block on high / known-exploited, warn otherwise); the container runs as a non-root user; the base image is pinned
+- [x] Tests: migration-failure health response; `docs/TESTING.md` and RUNBOOK updated
+### Files to read
+- `cf_platform/core/migrations.py`, `src/main.py:73-85`, `/platform/health` route, `Dockerfile`, `.github/workflows/ci.yml` and the deploy workflow, `requirements.txt`
+### Handover
+Built in `b6a8b6a` (+ `0caa757` base-image pin); see DONE.md [P-HARD2]. Smoke deferred to AUTH-S0.
+
+---

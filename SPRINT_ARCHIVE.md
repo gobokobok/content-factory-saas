@@ -1233,3 +1233,52 @@ _None._
 ## Scope changes
 
 _None._
+
+---
+
+# Sprint P-AUTH — Google sign-in, accounts, Basic / Super, isolation (EPIC 59, D114, D118)
+
+**Goal:** a stranger can sign in with Google and use only their own space; the owner can see the product as a Basic user.
+**Status:** **DONE 2026-10-14 — merged to `main`, deployed to DEV (`c5a7dbe`); owner sign-in verified, friend-account smoke → AUTH-S10.** Planned 2026-10-14 (review of P-HARD1 .. P-LITE). **Audit run 2026-10-14** (`docs/SECURITY.md`: 3 critical, 5 high); its build constraints are folded into S1, S3, S6, S8 and S9. **Rule:** Google sign-in stays allow-listed until S3 and S6 are merged — until then a second account is a full operator.
+**Points:** ~24 (estimates are the review's and the audit's; refine at `/start-story`)
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| AUTH-S0 | Set `PROD_URL`; see the post-deploy check pass on PROD (operator action, F11) | 1 | operator action — open (needs the `PROD_URL` variable) |
+| AUTH-S1 | Google OAuth sign-in and account creation; signed sessions in a table (7–30 days, revoked on logout, rotated at login); server-side `state` + PKCE, fixed `redirect_uri` from config, `next` allow-list, users keyed by `sub`, Origin check on mutating routes; legacy login kept for the owner (F6) | 4 | done 2026-10-14 (smoke partial → AUTH-S10) |
+| AUTH-S2 | User ↔ tenant model: one personal tenant and one hidden default project per user | 2 | done 2026-10-14 (smoke partial → AUTH-S10) |
+| AUTH-S3 | Thread the user through repositories and routes (replace `PLATFORM_USER_ID`, 87 uses): `tenant_id` on every repo method, `require_run` / `require_project` on every run-scoped route, library and `/platform/runs` filtered by tenant, legacy `DELETE /runs/{id}` and settings moved behind `require_run`, `run_id` path pattern, F5 fallback fix (F2, F5) | 6 | done 2026-10-14 (smoke partial → AUTH-S10) |
+| AUTH-S4 | Account type Basic / Super (D118) as a field and a server-side check; View-as-Basic toggle | 2 | done 2026-10-14 (smoke partial → AUTH-S10) |
+| AUTH-S5 | Isolation tests: user A cannot read or write user B's run, project, artifact, library | 2 | done 2026-10-14 (smoke partial → AUTH-S10) |
+| AUTH-S6 | Server-side gating of everything Basic does not have (was LITE-S6): `require_super` on every non-Creator route; `/platform/version`, `echo`, `produce` Super-only; Telegram unmounted; in-memory repo fallback fails closed outside local | 2 | done 2026-10-14 (smoke partial → AUTH-S10) |
+| AUTH-S7 | Super's left menu in the new design, linking to the old pages until P-CORE | 1 | done 2026-10-14 (smoke partial → AUTH-S10) |
+| AUTH-S8 | Server caps and cost bounds: script words, prompt / style / character lengths, runs per day, per-tenant daily spend row checked before every paid call (LLM, TTS, image, `write-prompt`, render), per-user render concurrency, per-tenant storage quota (F8, F4) | 3 | done 2026-10-14 (smoke partial → AUTH-S10) |
+| AUTH-S9 | Moderation gate (D115) in front of storyboard, voice, `write-prompt` and image generate, plus a terms-acceptance row at first sign-in; prompt log per tenant (F13) | 3 | done 2026-10-14 (smoke partial → AUTH-S10) |
+
+**Execution order:** S0 → S1 → S2 → S3 → S4 → S6 → S5 → S8 → S9 → S7. S8 and S9 are required before sign-in is opened beyond the allow-list. Check the DEV Railway variables each story touches before coding (`/start-story` v0.8 step 6.5).
+**Human touchpoint:** a friend signs in with Google and lands in their own, empty space; the owner flips View-as between Basic and Super.
+**Not in this sprint:** P-CORE, P-BILL-1 (charging; the credit ledger replaces S8's interim daily spend row), INT2-S1, the restore drill (F1), F16 key rotation, F19 `ffprobe`, a CSP header (candidate).
+
+
+---
+
+# Sprint P-CORE — the full Studio in the new design, for Super (D118, D121)
+
+**Goal:** the owner makes a whole realistic video — from an idea in a project to a rendered file and metadata — without leaving `/create`, and the old Studio can retire.
+**Status:** **DONE 2026-10-14 — on DEV; smoke PARTIAL → P-CORE-S11 (Sprint P-BILL-1).** Closed together with the UX pass after the operator's first DEV use (mobile panels, AI assets and Images libraries, named voices, script lock, reordered settings).
+
+| ID | Title | Points | Status |
+|----|-------|--------|--------|
+| CORE-S1 | Super shell: hash routes, left menu, Projects list, New project | 2 | done |
+| CORE-S2 | Project page: overview, ideas, videos, settings, project assets | 4 | done |
+| CORE-S3 | Libraries: videos, audio, footage, AI generations, music | 2 | done |
+| CORE-S4 | Integrations and Defaults | 3 | done |
+| CORE-S5 | New video for Super (project, realistic / animated); Script step sources: paste, generate, from a voiceover | 3 | done |
+| CORE-S6 | Voice: pace and style, upload, transcript editing, language check | 3 | done |
+| CORE-S7 | Realistic look: stock acquisition, asset type, search words, re-acquire, script view, SFX | 4 | done |
+| CORE-S8 | Cast, run language, look change, save to project assets | 2 | done |
+| CORE-S9 | Metadata step, CapCut export and upload, Auto-advance | 3 | done |
+| CORE-S10 | Retire the old pages: redirects, deleted files, tests, docs | 2 | done |
+
+**Human touchpoint:** as the owner on DEV, open `/create`, start a video in a project from an idea, make it realistic, and take it to metadata.
+
