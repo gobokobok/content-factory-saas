@@ -236,6 +236,34 @@ class TestRestart:
             assert _spent(env) == (3, 1.5)  # scene 1 was not paid for twice
 
 
+class TestFinishedJobIsNeverReadAsInterrupted:
+    def test_the_final_status_is_stored_before_the_claim_is_released(self, monkeypatch):
+        # A stored "running" document with no live job is how a restart looks. The job must
+        # therefore write its final status first and only then drop the claim — otherwise a
+        # status poll landing in between reports "The server restarted…" for a finished job.
+        with animation_env(monkeypatch) as env:
+            stored: dict[str, str] = {}
+            seen: list[str] = []
+            real_put, real_release = env.storage.put_json, scene_images.release_job
+
+            async def _put_json(key, data, *args, **kwargs):
+                """Remember the status last written to the job document."""
+                if key == scene_images.images_job_key(RUN_ID):
+                    stored["status"] = data["status"]
+                return await real_put(key, data, *args, **kwargs)
+
+            def _release(run_id: str) -> None:
+                """Record what a poll would read at the moment the claim is dropped."""
+                seen.append(stored["status"])
+                real_release(run_id)
+
+            monkeypatch.setattr(env.storage, "put_json", _put_json)
+            monkeypatch.setattr(scene_images, "release_job", _release)
+            assert claim_job(RUN_ID)
+            asyncio.run(run_image_job(_ctx(env), ["1", "2"], job_id="j", concurrency=2))
+            assert seen == ["complete"]
+
+
 class TestSharedFunction:
     def test_parallel_generations_cannot_overshoot_the_cap(self, monkeypatch):
         with animation_env(monkeypatch) as env:

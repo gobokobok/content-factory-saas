@@ -408,8 +408,13 @@ async def run_image_job(
         job["message"] = str(exc)
     finally:
         job["finished_at"] = datetime.now(UTC).isoformat()
-        release_job(ctx.run_id)
-        await _save()
+        # Final status first, claim second: a stored "running" document with no live job
+        # is how a restart looks (read_job), so releasing first lets a status poll that
+        # lands in between report a finished job as interrupted. _save never raises.
+        try:
+            await _save()
+        finally:
+            release_job(ctx.run_id)
     if job["status"] == JOB_STOPPED_AT_CAP:
         job["message"] = (
             f"Stopped at the spend cap of ${ctx.cap_usd:.2f}: {job['left']} "
