@@ -41,20 +41,22 @@ Not a risk, by choice: PROD stays on v0.24.0 until DEV is complete and smoke tes
 | Animated video with real motion (first/last frame + motion prompt) | New. The director's `motion_note` and the video-clip render path exist; the generation, provider, timing and pricing do not | **EPIC 64** (MOTION-S1..S7) |
 | Speed, 100 users, later 1000 | New as a story set. Only the old May page-load fix exists (`docs/PERF.md`) | **EPIC 62** (SCALE-S1..S5) |
 | Multiple paths by style | New | **EPIC 65** (STYLE-S1..S5), unplaced, for later analysis |
+| A photo of yourself as a character's reference, kept in the master style (added later the same day) | New. Characters are text only today and the image providers take no input image; reference images were deferred in D108 | **EPIC 66** (REF-S1..S4); spike in P-PLAT, build in P-REF |
 | Custom-trained LLM for Manga | A question, not a story | Section 6 below; recorded in STYLE-S1 |
 
 ## 5. Suggested order and gates
 
 1. **P-BILL-1 close-out**: merge, AUTH-S10, P-CORE-S11, the scoped `/audit`, the P-BILL-1 smoke, **plus BILL-F1, BILL-F2 and LEGAL-S1**, then `BILLING_ENABLED=true` — the beta opens.
-2. **P-PLAT** (~13, new): PLAT-S1, PLAT-S2, SCALE-S1 (measure), MOTION-S1 (the spike). All small, and the last two settle numbers the later sprints need.
+2. **P-PLAT** (~15, new): PLAT-S1, PLAT-S2, SCALE-S1 (measure), MOTION-S1 and REF-S1 (the two model spikes). All small, and the last three settle numbers the later sprints need.
 3. **P-BILL-2** (~16, was ~8; ~20 if subscription plans are chosen): payments, full legal.
-4. **P-SCALE1** (~16): durable jobs, render workers, the load test. **Gate: `SIGNUP_OPEN` stays unset until the load test passes at the agreed number of users.**
-5. **P-LANG** (unchanged, tbd).
-6. **P17 + P-API** (~10 + ~16, ~13 without webhooks): server-side Auto Advance, then the API on top of it. P16 (publishing) pairs naturally with these.
-7. **P-MOTION** (~21, plus the 2-point spike in P-PLAT).
-8. **P15** Research.
+4. **P-REF** (~12): character reference photos (EPIC 66). A face photo is personal data, so it follows LEGAL-S1 and, for self-service deletion and export, BILL2-S5/S6. It is the most visible user feature on the list; if you want it sooner, run it with `CHARACTER_PHOTOS_ENABLED` open to Super only.
+5. **P-SCALE1** (~16): durable jobs, render workers, the load test. **Gate: `SIGNUP_OPEN` stays unset until the load test passes at the agreed number of users.**
+6. **P-LANG** (unchanged, tbd).
+7. **P17 + P-API** (~10 + ~16, ~13 without webhooks): server-side Auto Advance, then the API on top of it. P16 (publishing) pairs naturally with these.
+8. **P-MOTION** (~21, plus the 2-point spike in P-PLAT).
+9. **P15** Research.
 
-Steps 5, 6 and 7 are the judgement calls: P-LANG was set ahead of everything on 2026-10-11; if the API and real motion are worth more to you now, they can move ahead of it. The order above keeps the earlier decision.
+Steps 4, 6, 7 and 8 are the judgement calls: P-LANG was set ahead of everything on 2026-10-11; if the API and real motion are worth more to you now, they can move ahead of it. The order above keeps the earlier decision.
 
 ## 6. Custom-trained model for Manga — recommendation (log only, not for now)
 
@@ -74,5 +76,6 @@ Short answer: **do not train a model yet; build the thing that tells you whether
 4. **Order of P-LANG vs P-MOTION vs the API** (section 5).
 5. **API shape**: is `script` required, or may a caller send an idea and a length and let the platform write the script? And should the platform call back (webhook) when a video is done, or is polling enough for n8n?
 6. **Real motion and cost**: cost per scene is much higher than a still. Default off, with a run toggle and per scene opt-in — agreed?
+7. **Face photos (EPIC 66)**: portrait-first (one stylised portrait you approve, then used for the scenes) is my recommendation over sending the photo with every scene — agreed? Open to Basic or Super first? Are photos of children allowed at launch (bedtime stories make it likely)? The safe default is no, until you have legal advice.
 
 I am not a lawyer. Every legal story ends with a human review of the final text.

@@ -298,6 +298,7 @@ Points are the grooming's estimates; refine at `/start-story`. Order and gates a
 
 - **BILL-F3 (3 pts, medium)** — settle LLM and voice calls at actual usage (tokens, characters) instead of the flat `EST_LLM_CALL_USD` / `EST_TTS_CALL_USD`. Needs one month of real ledger rows to know whether it matters; do after the beta has data.
 - **BILL-F4 (2 pts, medium)** — gate the acquisition worker and every other paid call outside `spend_gate` / `billing.reserve` (SECURITY.md) before a second Super account exists.
+- **SEC-S1 (3 pts, high before public sign-up)** — the audit leftovers named in SECURITY.md: F16 key rotation, F19 `ffprobe` validation of uploaded media, a Content-Security-Policy header. Run a fresh `/audit` first (payments, the API and photo uploads will exist by then). Sprint P-SCALE2.
 - **AUTH-F1 (1 pt, low)** — purge expired sessions and unused OAuth states. SCALE-S2's janitor can carry it; keep as its own line so it is not lost.
 
 ---
@@ -412,6 +413,7 @@ The owner already picks a provider and model in Integrations, and Basic accounts
 - [ ] When a run already holds images from another model, the images screen warns that the look may differ
 - [ ] Basic sees no model names; the credit price reflects the current choice
 - [ ] `IMAGE_RESOLUTION` stays as the fallback when nothing is saved; the CLAUDE.md operator blocker is removed
+- [ ] The saved model id is checked against the known list for its provider (the open medium finding from the P-AUTH audit: allow-list the image `model` string)
 - [ ] Tests: price per combination, switching mid-session, past ledger rows unchanged, `billing/me` reflects the switch, Basic cannot read or write the setting
 ### Open
 Does Super choose per project / run (then PLAT-S1b), or is it one platform choice? Which OpenAI model: `gpt-image-1` direct, or `gpt-image-2` through kie.ai? Does the image look differ enough between models to need a per-run lock?
@@ -490,6 +492,7 @@ More than one web instance is safe, and nothing reads a whole folder listing per
 - [ ] Database pool size and statement times reviewed (the billing store once hung on a pool of four under many refusals — pinned by a test, check the others)
 - [ ] The library and run progress read from an indexed table rather than listing R2 run folders on each request ("nothing is indexed" in P-UX3); PERF.md notes the 1000-prefix truncation
 - [ ] Static assets cacheable with a version in the address (today `/ui/*` is `no-cache`); polling intervals lengthened or replaced by one status stream
+- [ ] Generated assets are stored under a tenant prefix (promoted from the P-AUTH handover), which also makes erasing an account (LEGAL-S1, BILL2-S6) a prefix delete
 - [ ] Idle sleep off on the services that need to stay awake (shared with P17)
 - [ ] Tests: two app instances against one database
 
@@ -645,6 +648,62 @@ Different styles need different directors: Animation (general), Manga, Documenta
 ## [STYLE-S3] Documentary pack · [STYLE-S4] Movie pack · [STYLE-S5] Manga pack
 **Points:** 3 · 3 · 8 (tbd) · **Priority:** low until S1 and S2
 Manga likely needs more than a prompt: panel-style moves and reveals in the renderer, an image model or reference images that hold screentone and line work, and possibly real motion (EPIC 64). Decide after STYLE-S1's evidence.
+
+---
+
+## EPIC 66 — Character reference photos (new 2026-10-21; reference images were deferred in D108)
+
+**What it is:** a user attaches a photo to a character — their own face, say — and every image in which that character appears keeps the person's features, drawn in the run's master style (animation, watercolour, and so on). **What exists:** characters are text only (name and description in the run, the AI assets library and project assets); the image providers take a text prompt and no input image (`cf_platform/core/image_provider.py`). Which models accept reference images, and how well they hold a likeness inside a strong style, is not known from the repository — REF-S1 finds out.
+**Design chosen in grooming (recommendation, change if you disagree):** do not send the raw photo with every scene. Make **one stylised portrait of the character in the master style from the photo**, show it to the user, and use the approved portrait as the reference for the scenes. The user sees what they will get before 14 images are paid for, the photo goes to the provider once, and consistency comes from a reference that is already in the style.
+**Sensitive by nature:** a face photo is personal data, and a likeness can be misused (someone else's face, a public figure, a child). The privacy and consent work in REF-S2 is part of the feature, not an extra. Build order: after LEGAL-S1 and, for full self-service deletion, BILL2-S6. Behind a switch `CHARACTER_PHOTOS_ENABLED` (default false) so the owner can open it to Super first.
+
+## [REF-S1] Spike: which models keep a likeness in a style
+**Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 2
+### Goal
+Know which image model, through kie.ai or OpenAI, holds the person's features while following the master style, and what it costs.
+### Acceptance Criteria
+- [ ] List the models that accept one or more reference images today (verify at the time; do not rely on this document): how many references, input size, aspect ratios, price against a text-only image
+- [ ] With the operator's own photo, three styles (the animation default, a painterly one, a near-realistic one) and several scenes (close, medium, wide shot): judge likeness and style adherence side by side; try both routes — the photo as the reference in every scene, and one stylised portrait used as the reference
+- [ ] Record where it fails (wide shots, strong styles, two characters, glasses, hair) and the best prompt wording for "keep the features, use this style"
+- [ ] Output `docs/REF_SPIKE.md` and a `/decide`: the route (portrait first or direct), the default model for scenes with a reference, the limit on references per image. No product code
+
+## [REF-S2] Upload, storage and consent
+**Sprint:** P-REF · **Status:** backlog · **Priority:** high · **Points:** 4 · **Depends on:** LEGAL-S1
+### Goal
+A photo can be attached to a character safely: kept private, used only for that character, removed with it.
+### Acceptance Criteria
+- [ ] Upload on the character dialog (run), in the AI assets library and in project assets; JPEG, PNG or WebP up to a size limit from config; re-encoded on upload with metadata (location, camera) removed; one photo per character to start
+- [ ] Stored under a private, tenant-prefixed key (never a public prefix, never in another account's library); read only through short-lived presigned links for the owner
+- [ ] A consent line the user must tick on each upload: the photo is of them, or of someone who agreed; if the person is a child, the user is the parent or guardian. Stored with the upload (who, when, terms version)
+- [ ] The photo is deleted with the character, with the run, with the account (LEGAL-S1 erase script, BILL2-S6), and is part of the data export (BILL2-S5)
+- [ ] Moderation: the image moderation step used elsewhere (D115) applies to uploads; the prompt log records that an upload was made (not the image); rules against public figures and impersonation in the terms. The product cannot reliably recognise a face, so the terms, the consent line and a "report a problem" path carry that load — say so plainly in the notice
+- [ ] Privacy notice and sub-processor list updated: the photo goes to the image provider; retention stated. **Human step:** decide with legal advice whether children's photos are allowed at all at launch (the bedtime-story use makes this likely); the safe default is not to allow them until decided
+- [ ] Tests: another tenant cannot read or list the photo; metadata is gone after upload; deleting the character deletes the file; oversize and wrong-type files refused; flag off hides the control and refuses the route
+
+## [REF-S3] Reference-aware image generation
+**Sprint:** P-REF · **Status:** backlog · **Priority:** high · **Points:** 5 · **Depends on:** REF-S1, REF-S2, PLAT-S1
+### Goal
+Images of a character with a photo keep the person's features in the run's master style.
+### Acceptance Criteria
+- [ ] `ImageProvider.generate` takes optional reference images; the kie.ai and OpenAI clients use their editing or reference routes; a model without reference support refuses with a plain message instead of quietly ignoring the photo
+- [ ] "Character portrait": one call makes a stylised portrait from the photo in the master style; the user approves it or regenerates (priced, shown first); the approved portrait is stored with the character and becomes the reference for scenes (route chosen in REF-S1)
+- [ ] The prompt assembled in code (`build_animation_prompt`) adds the "keep the features of the reference, draw in this style" line for scenes whose entities include a character with a reference, and attaches only that character's reference; scenes without that character are unchanged
+- [ ] Several characters in one scene use their references up to the model's limit, then fall back to the descriptions
+- [ ] The price follows the model and resolution (PLAT-S1) including any extra cost of reference input; billing holds and settles as for any image
+- [ ] Changing the photo or the portrait flags the scenes whose images are now out of date, the way a bible edit does
+- [ ] Tests: reference attached only to matching scenes, refusal on an unsupported model, portrait approval flow, out-of-date flags, price with reference
+
+## [REF-S4] Interface
+**Sprint:** P-REF · **Status:** backlog · **Priority:** medium · **Points:** 3 · **Depends on:** REF-S2, REF-S3
+### Goal
+Adding a face to a character is obvious and shows the result before the user pays for the whole video.
+### Acceptance Criteria
+- [ ] Character dialog: "Add a photo", the consent tick, the photo, a "Make my portrait" button with its price, the stylised result with Approve / Try again; the cast chips show the portrait
+- [ ] The same control in the AI assets library and project assets, so one saved character with a face is reused across videos
+- [ ] The images step says when a scene uses a face reference; phone width checked
+- [ ] Hidden while `CHARACTER_PHOTOS_ENABLED` is off; Basic and Super both get it when on
+
+**Notes for neighbours.** Real motion (EPIC 64): the clip's first frame carries the face, so MOTION-S1 should test whether the face holds through a clip. The style paths (EPIC 65) decide how strongly a style may bend a face. The evaluation harness (STYLE-S1) can score likeness once REF-S1 has a way to judge it.
 
 ---
 
