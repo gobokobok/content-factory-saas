@@ -108,6 +108,23 @@ A friend sees how many credits they have, what the next action costs, and what t
 
 ### P-BILL-1 follow-ups (from the review of PR #1, 2026-10-15 — not built; deliberately out of the review-fix commit)
 
+## [SWEEP-1] DEV smoke of P-BILL-1 and its close-out; open the beta
+**Epic:** EPIC 59 · **Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 2
+### Goal
+Everything built in P-BILL-1 and its close-out has run once on DEV with real providers, and `BILLING_ENABLED=true` is set only after it did.
+### Acceptance Criteria
+- [ ] The seven smoke steps in DONE.md (P-BILL-1) pass as owner and as a second Google account, billing off, then on
+- [ ] Close-out smoke (DONE.md, P-BILL-1 close-out): a refused or failed action restores the day's cap; `/privacy` and `/terms` signed out; an existing account re-accepts; `scripts/erase_tenant.py` dry run on a test account
+- [ ] DEV log read: no `billing: could not settle|refund`, no `key=` other than `REDACTED`, migrations 0006 and 0007 `ok`
+- [ ] BILL-F3 operator inputs: `scripts/cost_report.py` with the invoices, `EST_*` set, `IMAGE_RESOLUTION=2K` and `nano-banana-2-1` at 0.03, `ACCEPT_LEGACY_COOKIE=false`
+- [ ] The markup against one real video's raw cost, and the Credits screens on a phone
+### Files to read
+`DONE.md` (P-BILL-1, close-out, BETA-0), `docs/RUNBOOK.md` (Calibrating prices, Erasing an account), `docs/SECURITY.md` (audit 2026-10-22)
+
+## [AUDIT-2] Re-check the 2026-10-23 and 2026-10-26 fixes before billing opens
+**Epic:** EPIC 59 · **Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 1
+Run `/audit` scoped to the HIGH-1 and HIGH-2 fixes, BILL-F3's zero-price refusal, the invite list (D124) and the render gate; update `docs/SECURITY.md`.
+
 ## [BILL-F1] Release the daily USD reservation when a hold is refunded or settled down
 **Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, raised 2026-10-21) · **Status:** built 2026-10-22 (smoke pending) · **Priority:** high · **Points:** 2
 ### Problem

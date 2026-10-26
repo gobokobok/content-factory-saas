@@ -5,6 +5,14 @@ All significant architecture decisions and new dependency introductions are logg
 
 ---
 
+## D124 — Beta access: Google-only sign-in, an owner-managed invite list, 200 sign-up credits, one global render gate
+
+**Date:** 2026-10-26 (recorded at the P-BILL-1 review; the work shipped 2026-10-16 to 2026-10-21 in commits `172e13d` and `e87f051` with no story ID).
+**Status:** ACTIVE. Builds on D114, D119, D120 and D123.
+**Decision:** (1) **Google is the only way in:** `PASSWORD_LOGIN_ENABLED` defaults to false, the login page offers Google only and `/auth/login` answers 404. (2) **The invite list is the owner's:** Settings -> Credits -> Invited accounts adds and removes sign-in addresses (migration 0007); removing one switches the account off. (3) **`SIGNUP_CREDITS` defaults to 200,** granted once per account at first sign-in. (4) **One render gate for the whole server:** `RENDER_MAX_CONCURRENT` (default 2) renders run at once across all users; the rest wait and the page says "Waiting for a free renderer". The gate is process-local, so it moves to the database with SCALE-S3. (5) The login page links "Apply for the demo access" to a mail to `DEMO_ACCESS_EMAIL`.
+**Why:** not recorded when the work shipped (the commits state what changed, not why); the operator confirms or amends this entry.
+**Consequence:** re-inviting an erased account grants `SIGNUP_CREDITS` again (audit 2026-10-22, LOW). The render gate is per process, so it does not hold across several web instances.
+
 ## D123 — Credits: a hold before the paid call, settled or refunded after; one credit is one cent of price; billing is off until the operator turns it on
 
 **Date:** 2026-10-15 (planned at the P-AUTH / P-CORE review; built in Sprint P-BILL-1 — the operator confirms or changes the defaults).

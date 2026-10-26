@@ -154,6 +154,16 @@ Purpose: prove a backup restores and the app can read it, **without touching DEV
 ---
 
 
+## Prod check — 2026-10-26 (Sprint review: P-BILL-1)
+**Range:** none. **Could not look:** `railway logs` answered "Unauthorized. Please login with `railway login`" on the operator's machine, so no log was read. This is a finding, not "no issues".
+**What a read would cover:** PROD is still v0.24.0, so it holds none of the code of this review's range (credits, beta access, the audit fixes, migrations 0006 and 0007). DEV carries all of it and no check has ever read the DEV log.
+**Known from the commits, not from logs:** PROD's database has no saved image model, so before `4a3f533` (DEV only) image generation there falls back to the expensive `gpt-image-2` model; this stays true on PROD until the release.
+**To read after `railway login`:** DEV log for `billing: could not settle|refund` (should never appear), `key=` other than `REDACTED`, migrations 0006 / 0007 `ok`; PROD log since 2026-10-14 for the usual groups.
+**Stories opened:** SWEEP-1 includes the DEV log read. No observability story: the 2026-10-14 check read PROD fine; the gap is a login.
+**Next check due:** before `/release`, or at SWEEP-1 for DEV.
+
+---
+
 ## Prod check — 2026-10-14 (Sprint review: P-HARD1, P-HARD2, P-LITE)
 **Range:** the live deployment's log, 2026-10-13 10:37 UTC → 2026-10-14 11:06 UTC (947 lines, 10 container starts; every start logged `cf_platform migrations: ok`; PROD still v0.24.0). Three runs (`cc4d2c5c`, `7d79732d`, `c75923bc`): 3 voice, 3 storyboard, 4 render, 1 metadata. All four renders uploaded a final.mp4; all three voice jobs completed.
 

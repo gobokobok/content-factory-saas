@@ -1,7 +1,33 @@
 # Done — Completed Stories
 
 _Entries added here when a story reaches Definition of Done._
-_This file holds the last sprints (P-BILL-1, P-CORE, P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently none) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+_This file holds the last sprints (P-BILL-1 close-out, BETA-0, P-BILL-1, P-CORE, P-AUTH, P-LITE, P-HARD2, P-HARD1, P-INT1, P-PROJ1, P-UX4, P-AN1, P-UX3) plus every older entry whose smoke test is still DEFERRED (currently P-BILL-1) — an open deferral stays here until the operator clears it by name. Everything else is in DONE_ARCHIVE.md._
+
+---
+
+## [P-BILL-1 close-out] BILL-F1, BILL-F2, LEGAL-S1, BILL-F3 and the 2026-10-22 audit fixes
+**Completed:** 2026-10-22 to 2026-10-26 (code: `a2badd5`, `63343f9`; written up at the 2026-10-26 sprint review, `/finish-story` was not run). **Smoke test: DEFERRED** with P-BILL-1 (SWEEP-1, Sprint P-PLAT).
+**Handover:**
+- **BILL-F1:** `limits.release_spend` gives back the day's USD reservation when a hold is refunded or settled below its estimate; once per entry. **BILL-F2:** `settle` moves after the last step that can still lose the result; where the provider cost is real and the result is lost, the policy is in D123.
+- **LEGAL-S1:** `/privacy`, terms rewritten (`TERMS_VERSION` bumped, accounts re-accept), sub-processor list, retention job (`retention.py`), `erasure.py` + `scripts/erase_tenant.py` (dry run by default), RUNBOOK "Erasing an account". **Open, human:** the owner decides minimum age and who the seller / controller is, and has the text reviewed; the story does not claim legal sufficiency.
+- **Audit 2026-10-22 (`docs/SECURITY.md`):** 2 HIGH, both fixed 2026-10-23 (a non-owner Super under View as Basic is now charged and capped; R2 `list_keys` follows the continuation token and erasure re-lists until empty).
+- **BILL-F3 (2026-10-26):** a zero price for a non-owner action is refused; non-owner image-model strings must be a key of `IMAGE_MODEL_COSTS_USD`; `scripts/cost_report.py` compares configured prices with invoices. `CREDIT_MARKUP` stays 1.0 for the beta (D123).
+- Tests: 3393 at the last count in the cloud sandbox, plus new files `tests/test_legal_s1.py`, `test_p_bill1_f1_spend_release.py`, `test_p_bill1_f2_lost_results.py`, `test_p_bill1_audit_fixes.py`, `test_p_bill1_f3_pricing.py` and Postgres integration tests for billing and erasure.
+**Not verified:** nothing of this has run against real provider bills or on DEV with `BILLING_ENABLED=true`; the erase tool has not been run against DEV's database or bucket.
+**Operator inputs still open:** run `scripts/cost_report.py` on DEV traffic with the invoices and set `EST_*`; set `IMAGE_RESOLUTION=2K` with `nano-banana-2-1` at 0.03; set `ACCEPT_LEGACY_COOKIE=false`.
+**Smoke test:** DEFERRED — folded into the P-BILL-1 smoke (SWEEP-1, Sprint P-PLAT): refund a failed action and watch the day's cap recover; read `/privacy` and `/terms` signed out and re-accept as an existing account; run `erase_tenant.py` dry-run on a test account.
+
+---
+
+## [BETA-0] Friends-beta polish done on DEV outside the story process (compact note, written at the 2026-10-26 review)
+**Completed:** 2026-10-16 to 2026-10-21, 15 commits with no story ID. Handling chosen by the operator at the review: a compact note, no retroactive stories. Decision: **D124**.
+**What shipped:**
+- **Render:** `172e13d` global render gate (`RENDER_MAX_CONCURRENT`), the click answers at once, scene cuts snapped to the 25 fps grid; `52a6240` cuts 200 ms before the first word and shows music upload status.
+- **Access and credits:** `e87f051` Google-only sign-in, invite list (migration 0007), 200 sign-up credits; `cf4b28a` one credit = one cent of price (`CREDIT_MARKUP` 1.0); `ba21297` Credits entry under the account e-mail; `56ca89f` login card and the demo-access mail link.
+- **Creator:** `2e8277c` first-visit welcome panel; `176a21e` style / character / prompt limits doubled; `a094f25` one owner for the script lock, with a note explaining it; `51cbe7e` progress shows at once and the R2 client is reused.
+- **Fixes:** `6bd4c6a` accounts without their own image key use the platform's; `4a3f533` the default kie.ai model is `nano-banana-2-1`, not `gpt-image-2` (**PROD's database has no saved model, so PROD would use the expensive default until the next release**); `1ccd16c` final job status written before the claim is released; `740cb57` a Russian voiceover was transcribed as English (the run's language now reaches Deepgram, the fallback alignment uses the WAV's real length, a transcript under half the script is retried then fails loudly); `da8332d` lint.
+**Rework signal:** image generation has three fixes in nine days (`6bd4c6a`, `4a3f533`, `1ccd16c`) and scene-cut timing three (`52a6240`, `172e13d`, `740cb57`). PLAT-S1 takes the image cluster with named regression tests; the timing cases go into the word-matching suite.
+**Smoke test:** PARTIAL — the operator used these on DEV while building the beta (two commits cite a real run id), but no step list was run and nothing is recorded per step; REMAINS: SWEEP-1 (Sprint P-PLAT) exercises the credits, sign-in, invite list and render gate.
 
 ---
 
@@ -76,7 +102,7 @@ _This file holds the last sprints (P-BILL-1, P-CORE, P-AUTH, P-LITE, P-HARD2, P-
 **Not verified:**
 - Everything above was looked at in a local preview with fake storage: screens render, routes switch, the realistic storyboard shows its controls and the settings panel works. **No provider call was made**: script generation, voice upload and transcription, stock acquisition, re-acquire, metadata, CapCut export and upload, render of a realistic run, and Auto-advance end to end have not run.
 - Pixel-level parity with the old pages was not checked, and the mobile layout of the new screens was not looked at.
-**Smoke test:** PARTIAL — PASSED on DEV 2026-10-14 (operator, desktop and a phone): the new shell, panels, Libraries (Videos, Images, AI assets, BG music), New video, Script / Voice / Storyboard / Render screens and the settings panel were used and reviewed through an iteration of UX fixes. REMAINS: the provider-backed steps below (script generation, voice upload and transcription, realistic stock acquisition and re-acquire, CapCut, metadata, Auto-advance end to end), and the voice samples (listen to the eight voices) → cleared by P-CORE-S11 in Sprint P-BILL-1.
+**Smoke test:** PASSED — on DEV 2026-10-14 (operator, desktop and a phone): the new shell, panels, Libraries (Videos, Images, AI assets, BG music), New video, Script / Voice / Storyboard / Render screens and the settings panel were used and reviewed through an iteration of UX fixes. The remainder (marked done by the operator 2026-10-26): the provider-backed steps below (script generation, voice upload and transcription, realistic stock acquisition and re-acquire, CapCut, metadata, Auto-advance end to end), and the voice samples (listen to the eight voices) → P-CORE-S11 was **marked done by the operator at the 2026-10-26 sprint review** (named by them, no per-step detail recorded).
 **Steps (after the DEV deploy lands, as the owner):**
 1. `/create` lands on Projects. The old addresses `/studio`, `/project?id=…`, `/library?kind=ai`, `/settings?tab=defaults` land on their screens.
 2. Project → Settings: change the niche and a default; Ideas: add an idea; Videos: filter.
@@ -115,7 +141,7 @@ _This file holds the last sprints (P-BILL-1, P-CORE, P-AUTH, P-LITE, P-HARD2, P-
 - Migration 0005 and the conditional-upsert SQL on a real Postgres — mock-checked only.
 - The Basic pages in a browser (the Super menu, the banner, the terms page, the Google button).
 - A start-up surface: DEV needs no variable to start; sign-in is off until the Google variables are set, and the owner's password and old cookie keep working.
-**Smoke test:** PARTIAL — PASSED on DEV 2026-10-14 (operator): deploy, `/health` `migrations: ok`, Google sign-in as the owner (existing data present, `account_type: super`), `ACCEPT_LEGACY_COOKIE=false` and still signed in. REMAINS: a second (Basic) Google account through the terms and the Creator, the isolation 404, the View-as toggle, a cap and a moderation refusal, logout invalidation → cleared by AUTH-S10 in Sprint P-BILL-1.
+**Smoke test:** PASSED — on DEV 2026-10-14 (operator): deploy, `/health` `migrations: ok`, Google sign-in as the owner (existing data present, `account_type: super`), `ACCEPT_LEGACY_COOKIE=false` and still signed in. The remainder (marked done by the operator 2026-10-26): a second (Basic) Google account through the terms and the Creator, the isolation 404, the View-as toggle, a cap and a moderation refusal, logout invalidation → AUTH-S10 was **marked done by the operator at the 2026-10-26 sprint review** (named by them, no per-step detail recorded).
 **Promoted to backlog:**
 - AUTH-S10 (1 pt, Sprint P-BILL-1, first): run the friend-account smoke steps 4–9 listed in BACKLOG_ACTIVE.md; clears this entry's PARTIAL.
 - Run the scoped `/audit` on DEV before P-BILL-1 (the live OAuth flow, the admin routes, the Origin rule).
