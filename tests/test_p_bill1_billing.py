@@ -183,11 +183,12 @@ class TestHoldSettleRefund:
         assert sorted(t.kind for t in txs) == ["hold", "settle", "topup"]
         assert sum(t.credits for t in txs) == run(store.balance(friend)) == 90
 
-    def test_a_free_action_is_recorded_but_never_held_or_refused(self, store, friend):
-        hold = run(billing.reserve("render", 0.0, "rendering the video", settings=cfg()))
-        run(billing.settle(hold, settings=cfg()))
-        entry = run(store.get_entry(hold.entry_id))
-        assert (entry.status, entry.credits) == ("settled", 0)
+    def test_a_free_action_is_refused_not_recorded_as_free(self, store, friend):
+        """BILL-F3: a zero price would skip the daily bound too, so a non-owner's action must have a price."""
+        with pytest.raises(HTTPException) as refused:
+            run(billing.reserve("render", 0.0, "rendering the video", settings=cfg()))
+        assert refused.value.status_code == 503
+        assert run(store.list_entries(friend)) == []
 
     def test_a_ledger_fault_while_settling_or_refunding_does_not_raise(self, store, friend, caplog):
         run(store.credit(friend, 100, kind="topup"))
@@ -323,9 +324,10 @@ class TestWhoIsCharged:
         run(billing.settle(None))
         run(billing.refund(None, "x"))
 
-    def test_a_non_numeric_cost_is_priced_as_free_instead_of_raising(self, store, friend):
-        hold = run(billing.reserve("llm", object(), "x", settings=cfg()))
-        assert run(store.get_entry(hold.entry_id)).raw_cost_usd == 0.0
+    def test_a_non_numeric_cost_is_refused_instead_of_raising_a_type_error(self, store, friend):
+        with pytest.raises(HTTPException) as refused:
+            run(billing.reserve("llm", object(), "x", settings=cfg()))
+        assert refused.value.status_code == 503
 
 
 # ── Top-up, sign-up grant, account view, stale holds (S4 / S5 core) ──────

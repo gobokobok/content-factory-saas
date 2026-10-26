@@ -306,14 +306,14 @@ Points are the grooming's estimates; refine at `/start-story`. Order and gates a
 ## EPIC 59 (continued) — Legal and payments
 
 ## [BILL-F3] Check the prices against measured cost before the beta opens
-**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, drafted from the 2026-10-22 audit, MEDIUM-1) · **Status:** draft — awaiting approval · **Priority:** high · **Points:** 2
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, drafted from the 2026-10-22 audit, MEDIUM-1) · **Status:** built 2026-10-26 (code; the operator inputs below are open) · **Priority:** high · **Points:** 2
 ### Problem
 The daily USD bound and the credit price rest on flat estimates: `EST_LLM_CALL_USD`, `EST_TTS_CALL_USD`, `EST_RENDER_USD`, `EST_IDEAS_USD` settle at the estimate, not at the provider's usage. `CREDIT_MARKUP` is 1.0 and the image price table says `nano-banana-2-1: 0.02` while published videos run at 2K and cost 0.03 (CLAUDE.md operator actions). A long script or a 1200-word storyboard can cost more than the estimate, so real spend per tenant per day can pass `CAP_DAILY_SPEND_USD` and credits under-charge. A price of 0 makes an action free and skips `spend_gate` (`limits.py`, `usd <= 0`).
 ### Acceptance Criteria
-- [ ] A query (or small script) sums `trace_events` / `worker_executions` cost per action kind over the last N runs and prints it beside the current `EST_*` and `IMAGE_MODEL_COSTS_USD` values
-- [ ] `EST_*` set from that data (with headroom), `nano-banana-2-1` set to 0.03 for 2K, `CREDIT_MARKUP` decided above 1.0 and recorded in D123
-- [ ] A non-owner action priced at 0 is refused at start-up validation or at `reserve` (a zero price must be a decision, not a typo); test
-- [ ] Image-model strings for non-owner tenants must be a key of `IMAGE_MODEL_COSTS_USD` (audit MEDIUM-2); test
+- [x] `scripts/cost_report.py`: counts per kind from `usage_entries` beside the configured prices, and the implied cost per action from invoices passed with `--bill`. **Changed from the draft:** `worker_executions` / `trace_events` hold no LLM, TTS or render cost (never filled), so invoices are the source; capturing real usage is the existing token-settling candidate
+- [ ] **Operator:** run the report against DEV traffic with the invoices, set `EST_*`, set `nano-banana-2-1` to 0.03 with `IMAGE_RESOLUTION=2K`, (`CREDIT_MARKUP` decided 2026-10-26: stays 1.0 for the beta, recorded in D123)
+- [x] A non-owner action priced at 0 is refused at start-up validation or at `reserve` (a zero price must be a decision, not a typo); test
+- [x] Image-model strings for non-owner tenants must be a key of `IMAGE_MODEL_COSTS_USD` (audit MEDIUM-2); test
 ### Not in scope
 Settling LLM calls at real token counts (existing candidate story).
 ### Files to read

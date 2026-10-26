@@ -112,6 +112,10 @@ async def resolve_image_config(
     if provider not in IMAGE_PROVIDERS:
         provider = "kie"
     model = _usable_model(row.image_model if row else None, provider) or _env_model(provider, platform_settings)
+    priced = getattr(platform_settings, "IMAGE_MODEL_COSTS_USD", None)
+    if tenant_id != OWNER_TENANT_ID and priced is not None and model not in priced:
+        # A model saved before the price check existed (or removed from the price table): the default is used.
+        model = _env_model(provider, platform_settings)
 
     stored = (row.api_keys.get(provider) if row else None) or None
     if stored:
@@ -177,6 +181,12 @@ async def save_image_settings(
                 f"{clean} is a {PROVIDER_LABELS[owner]} model and cannot be used with "
                 f"{PROVIDER_LABELS.get(target_provider, target_provider)}. "
                 "Leave the model empty to use the provider's default."
+            )
+        priced = getattr(platform_settings, "IMAGE_MODEL_COSTS_USD", None)
+        if clean and tenant_id != OWNER_TENANT_ID and priced is not None and clean not in priced:
+            raise ValueError(
+                f"{clean} has no price here, so it cannot be used. Models that can be used: "
+                f"{', '.join(sorted(priced)) or 'none'}. Leave the model empty to use the default."
             )
         row.image_model = clean or None
     if api_key is not None and api_key.strip():

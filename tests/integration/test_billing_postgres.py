@@ -320,3 +320,22 @@ async def test_refund_and_settle_release_the_daily_reservation(pool, monkeypatch
         assert await usage.release_spend("u_f1", today, 99.0) == 0.0  # never below zero
     finally:
         reset_principal(token)
+
+
+@pytest.mark.asyncio
+async def test_the_cost_report_reads_the_ledger_and_leaves_the_owners_actions_out(pool):
+    """BILL-F3: fetch_entries on real SQL — the window, the exempt filter and the run count."""
+    from cf_platform.core.cost_report import fetch_entries
+
+    store = PostgresBillingStore(pool)
+    now = datetime.now(UTC)
+    rows = [
+        ("r1", "llm", "settled", now), ("r1", "tts", "refunded", now), ("r2", "llm", "exempt", now),
+        ("r2", "render", "settled", now - timedelta(days=40)),
+    ]
+    for i, (run_id, kind, status, created) in enumerate(rows):
+        await store.add_entry(UsageEntry(
+            entry_id=f"e{i}", tenant_id="t1", run_id=run_id, kind=kind, status=status, raw_cost_usd=0.05, created_at=created))
+    entries, runs = await fetch_entries(pool, 30)
+    assert sorted((e["kind"], e["status"]) for e in entries) == [("llm", "settled"), ("tts", "refunded")]
+    assert runs == 1

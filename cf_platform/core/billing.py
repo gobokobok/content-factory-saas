@@ -763,6 +763,11 @@ async def reserve(
     cfg = settings or get_platform_settings()
     ledger = store or get_billing_store()
     usd = _as_float(usd)
+    if usd <= 0 and not principal.is_owner:
+        # BILL-F3: a zero price must be a decision, not a typo. It would make the action free and
+        # skip the daily bound (limits.spend_gate ignores usd <= 0), so it is refused before any provider is called.
+        _logger.error("billing: %s has no price (usd=%s) — set its EST_* / image price; refusing it", kind, usd)
+        raise HTTPException(status_code=503, detail=f"{what.capitalize()} has no price configured yet, so it can't run now.")
     entry = UsageEntry(
         tenant_id=principal.tenant_id, run_id=run_id, kind=kind, what=what, units=units, raw_cost_usd=usd,
     )

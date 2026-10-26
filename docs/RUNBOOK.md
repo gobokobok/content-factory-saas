@@ -53,6 +53,19 @@ A friend asks, from the address they signed in with, to have their data deleted 
 
 **Not covered:** backups. A Railway database backup or an R2 object version taken before the erasure still holds the data until it ages out; the notice should say so if backups are kept longer than the response time. The provider copies (Anthropic, Deepgram and the others) are governed by their own retention; ask them separately if a request needs it.
 
+### Calibrating prices (BILL-F3)
+
+The estimates in `EST_*` and the image price table are what a friend is charged and what the daily bound counts. Check them against the providers' invoices before `BILLING_ENABLED` is turned on, and again after the first month.
+1. Read the invoices of the same N days from Anthropic, Google (Gemini TTS), Deepgram and kie.ai / OpenAI, and the render's server cost if you count it.
+2. Run it where `DATABASE_URL` points at the environment that took the traffic:
+   ```bash
+   python scripts/cost_report.py --days 30 --bill llm=12.40 --bill tts=3.10 --bill transcription=1.20
+   ```
+   It lists, per action kind, how many ran, how many were refunded, what was reserved, the implied cost per action (invoice ÷ actions) and a suggested estimate with 25% headroom. The owner's own actions are left out.
+3. Set `EST_*` near the suggestion, set the image price in `IMAGE_MODEL_COSTS_USD` for the resolution in use (`nano-banana-2-1` is 0.02 at 1K, 0.03 at 2K, 0.045 at 4K), and decide `CREDIT_MARKUP` (the shipped 1.0 charges cost without margin).
+4. An action whose price is 0 is refused for non-owners on purpose; do not set a price to 0 to make something free.
+Images are the exception: an entry settles at the cost the image ledger recorded, shown in the "actual $" column.
+
 **Retention (runs by itself).** A job at start-up and then every `RETENTION_JOB_INTERVAL_HOURS` (default 24) deletes `prompt_log` rows older than `PROMPT_LOG_RETENTION_DAYS` (default 90) and expired or revoked sessions and abandoned sign-in states (AUTH-F1). Look for `retention: removed {...}` in the log. Videos a user deletes are only hidden (archived) until the account is erased.
 
 ---
