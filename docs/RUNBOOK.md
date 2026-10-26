@@ -166,7 +166,7 @@ Purpose: prove a backup restores and the app can read it, **without touching DEV
 - **So the beta gate in SPRINT.md is already past on the variable side**, with the gate's own stories unbuilt on PROD. Whether any friend has signed in on PROD, or been charged, is not in these logs; the 2026-10-26 request mix is one operator session.
 **Not checked:** who is on the PROD invite list, the credit ledger, how the GitHub-to-Railway deploy trigger on the PROD service is configured (the Railway dashboard shows it; the CLI does not).
 
-**Stories opened:** PROD-ALIGN (proposed to the operator 2026-10-26, see BACKLOG_ACTIVE.md once approved).
+**Stories opened:** PROD-ALIGN, added to SWEEP-1 (BACKLOG_ACTIVE.md) at the operator's request, 2026-10-26.
 **Next check due:** at SWEEP-1 (read DEV during the smoke), and before the next `/release`.
 
 ---

@@ -108,11 +108,19 @@ A friend sees how many credits they have, what the next action costs, and what t
 
 ### P-BILL-1 follow-ups (from the review of PR #1, 2026-10-15 — not built; deliberately out of the review-fix commit)
 
-## [SWEEP-1] DEV smoke of P-BILL-1 and its close-out; open the beta
-**Epic:** EPIC 59 · **Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 2
+## [SWEEP-1] Align PROD with the records, then DEV smoke of P-BILL-1 and its close-out
+**Epic:** EPIC 59 · **Sprint:** P-PLAT · **Status:** backlog · **Priority:** high · **Points:** 3 (2 for the smoke, 1 for PROD-ALIGN, added 2026-10-26 from the prod check)
 ### Goal
-Everything built in P-BILL-1 and its close-out has run once on DEV with real providers, and `BILLING_ENABLED=true` is set only after it did.
+PROD runs the code the records say it runs, and does not charge credits without the refund and cap fixes. Everything built in P-BILL-1 and its close-out has then run once on DEV with real providers. (`BILLING_ENABLED=true` is already set on DEV and PROD, read 2026-10-26, so the original "set it only after the smoke" is no longer possible; the order of the criteria below is the replacement.)
+### Sprint impact
+PROD runs `987e697` with billing on and lacks BILL-F1 (a failed action can leave the day's cap used), BILL-F2 (a lost result can still be charged), LEGAL-S1 and the two audit HIGH fixes. Not doing PROD-ALIGN first leaves real accounts exposed to exactly the money paths the gate stories were written for.
 ### Acceptance Criteria
+**PROD-ALIGN (first, operator decides):**
+- [ ] Find out why PROD builds `main` from GitHub (the Railway dashboard, service `content-factory-saas` in project `content-factory-saas-prod`; `cd.yml` deploys tags only) and write the answer in `docs/RUNBOOK.md`: keep it or switch it off
+- [ ] Either redeploy PROD to the current `main` (migrations and `SETTINGS_ENCRYPTION_KEY` already set; read the PROD log after) or set `BILLING_ENABLED=false` on PROD until it matches; record which in `RELEASES.md`
+- [ ] Read the PROD invite list and the credit ledger (Settings -> Credits): has any account other than the owner signed in or been charged? If yes, list what BILL-F1 and BILL-F2 would have changed for them
+- [ ] `CLAUDE.md`, `SPRINT.md` and the release-policy memory say what PROD really does
+**Smoke on DEV:**
 - [ ] The seven smoke steps in DONE.md (P-BILL-1) pass as owner and as a second Google account, billing off, then on
 - [ ] Close-out smoke (DONE.md, P-BILL-1 close-out): a refused or failed action restores the day's cap; `/privacy` and `/terms` signed out; an existing account re-accepts; `scripts/erase_tenant.py` dry run on a test account
 - [ ] DEV log read: no `billing: could not settle|refund`, no `key=` other than `REDACTED`, migrations 0006 and 0007 `ok`
