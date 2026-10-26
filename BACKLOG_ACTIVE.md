@@ -109,23 +109,23 @@ A friend sees how many credits they have, what the next action costs, and what t
 ### P-BILL-1 follow-ups (from the review of PR #1, 2026-10-15 — not built; deliberately out of the review-fix commit)
 
 ## [BILL-F1] Release the daily USD reservation when a hold is refunded or settled down
-**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, raised 2026-10-21) · **Status:** backlog · **Priority:** high · **Points:** 2
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, raised 2026-10-21) · **Status:** built 2026-10-22 (smoke pending) · **Priority:** high · **Points:** 2
 ### Problem
 `billing.reserve()` reserves the action's raw cost against the tenant's daily USD bound (`limits.spend_gate`, D120) next to the credit hold. `refund()` gives the credits back but **not** the day's reservation, and `settle()` below the estimate does not return the difference. A tenant whose actions fail (or settle low) can reach `CAP_DAILY_SPEND_USD` while having spent nothing, and is refused with "usage limit reached".
 ### Acceptance Criteria
-- [ ] `limits` gains `release_spend(tenant, usd)` on the usage store (atomic, never below zero), called by `billing.refund` and by `settle` for the amount returned
-- [ ] The release is part of the same transaction as the credit where both are in Postgres (or an idempotent second step keyed by entry id so a retry cannot release twice)
-- [ ] Tests: a refunded action restores the day's room; a settle at half the estimate returns half; a double refund releases once
-- [ ] Decide whether `CAP_DAILY_SPEND_USD` stays as a second ceiling next to credits (D123 follow-up already noted in DONE.md)
+- [x] `limits` gains `release_spend(tenant, usd)` on the usage store (atomic, never below zero), called by `billing.refund` and by `settle` for the amount returned
+- [x] The release is part of the same transaction as the credit where both are in Postgres (or an idempotent second step keyed by entry id so a retry cannot release twice)
+- [x] Tests: a refunded action restores the day's room; a settle at half the estimate returns half; a double refund releases once
+- [x] Decide whether `CAP_DAILY_SPEND_USD` stays as a second ceiling next to credits (D123 follow-up already noted in DONE.md)
 
 ## [BILL-F2] Refund when the action succeeded at the provider but its result could not be used
-**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, raised 2026-10-21) · **Status:** backlog · **Priority:** high · **Points:** 3
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, raised 2026-10-21) · **Status:** built 2026-10-22 (smoke pending) · **Priority:** high · **Points:** 3
 ### Problem
 Several paths settle as soon as the provider call returns and then do more work that can fail: the script route (`transition_run`, `read_artifact` after `settle`), metadata (`write_artifact` after `settle`), the single-image route (the storyboard / manifest update inside `generate_scene_image` is covered, the presigned URL is not), the director's `apply_scene_prompt` 409 ("scene was merged meanwhile"). The user is charged and gets nothing.
 ### Acceptance Criteria
-- [ ] List each paid path and the last step that can still lose the result; move `settle` after that step, or refund when it fails
-- [ ] Where the provider's cost is real and the result is lost (a merged scene), decide per path whether the user is charged (policy) and record it in D123
-- [ ] Tests: one per path, injecting a failure after the provider call and asserting the balance
+- [x] List each paid path and the last step that can still lose the result; move `settle` after that step, or refund when it fails
+- [x] Where the provider's cost is real and the result is lost (a merged scene), decide per path whether the user is charged (policy) and record it in D123
+- [x] Tests: one per path, injecting a failure after the provider call and asserting the balance
 
 **Defaults chosen at the review (D123, change if you disagree):** 1 credit = $0.01 of price; markup ×2 on raw cost; new accounts start at 0 credits (owner top-up only until P-BILL-2); an LLM call is priced at its flat estimate, not its token count; user-supplied provider keys are never charged; the owner and View-as are never charged.
 
@@ -305,18 +305,32 @@ Points are the grooming's estimates; refine at `/start-story`. Order and gates a
 
 ## EPIC 59 (continued) — Legal and payments
 
+## [BILL-F3] Check the prices against measured cost before the beta opens
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`, drafted from the 2026-10-22 audit, MEDIUM-1) · **Status:** draft — awaiting approval · **Priority:** high · **Points:** 2
+### Problem
+The daily USD bound and the credit price rest on flat estimates: `EST_LLM_CALL_USD`, `EST_TTS_CALL_USD`, `EST_RENDER_USD`, `EST_IDEAS_USD` settle at the estimate, not at the provider's usage. `CREDIT_MARKUP` is 1.0 and the image price table says `nano-banana-2-1: 0.02` while published videos run at 2K and cost 0.03 (CLAUDE.md operator actions). A long script or a 1200-word storyboard can cost more than the estimate, so real spend per tenant per day can pass `CAP_DAILY_SPEND_USD` and credits under-charge. A price of 0 makes an action free and skips `spend_gate` (`limits.py`, `usd <= 0`).
+### Acceptance Criteria
+- [ ] A query (or small script) sums `trace_events` / `worker_executions` cost per action kind over the last N runs and prints it beside the current `EST_*` and `IMAGE_MODEL_COSTS_USD` values
+- [ ] `EST_*` set from that data (with headroom), `nano-banana-2-1` set to 0.03 for 2K, `CREDIT_MARKUP` decided above 1.0 and recorded in D123
+- [ ] A non-owner action priced at 0 is refused at start-up validation or at `reserve` (a zero price must be a decision, not a typo); test
+- [ ] Image-model strings for non-owner tenants must be a key of `IMAGE_MODEL_COSTS_USD` (audit MEDIUM-2); test
+### Not in scope
+Settling LLM calls at real token counts (existing candidate story).
+### Files to read
+`cf_platform/core/billing.py` (`price_credits`, `reserve`), `cf_platform/core/limits.py`, `cf_platform/core/tenant_settings.py`, `ENV.md`, `docs/SECURITY.md` (audit 2026-10-22)
+
 ## [LEGAL-S1] Legal minimum before the beta opens
-**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`) · **Status:** backlog · **Priority:** high · **Points:** 4
+**Epic:** EPIC 59 · **Sprint:** P-BILL-1 close-out (gate for `BILLING_ENABLED`) · **Status:** built 2026-10-22 (smoke pending) · **Priority:** high · **Points:** 4
 ### Goal
 Before friends' data is held with billing on, the product says what it keeps, why, who else sees it and how to have it deleted — and the owner can actually delete it.
 ### Acceptance Criteria
-- [ ] `/privacy` page, served like `/terms`: who the controller is and how to reach them (the owner supplies name, address, e-mail), the data held (Google name, e-mail and `sub`; scripts, voices, images, videos; prompts in `prompt_log`; the usage ledger; session rows), purpose and legal basis for each, retention for each, the rights (access, correction, erasure, objection, complaint to the supervisory authority) and how to use them
-- [ ] Sub-processor list on the same page: Anthropic, Google (sign-in and Gemini), OpenAI (optional moderation, images), kie.ai, Deepgram, Cloudflare (R2), Railway, the stock sites (search words only — confirm no personal data goes), the payment provider later. Each with its purpose and where the data goes; the owner confirms the transfer mechanism for each US provider
-- [ ] Terms rewritten: what the service is, minimum age (open), acceptable use (D115), who owns what the user makes, AI-generated content notice, credits are not money until P-BILL-2 says otherwise, liability, termination, governing law. `TERMS_VERSION` bumped so existing accounts re-accept at next sign-in (AUTH-S9 mechanism)
-- [ ] Links to terms and privacy on the sign-in page and in the `/create` footer
-- [ ] Retention decided and written: `prompt_log` N days (then deleted by a job), deleted videos, expired sessions (AUTH-F1), and whether the director's storyboard is kept next to the user's final one for improving the product (STYLE-S1) — if kept, say so in the notice
-- [ ] RUNBOOK "Erasing an account" procedure plus `scripts/erase_tenant.py` (dry-run by default, prints what it would remove): users, sessions, projects, runs, library files in R2, `prompt_log`; the credit ledger is anonymised, not deleted, if it must be kept for accounting
-- [ ] Tests: both pages render; a bumped terms version re-prompts a signed-in user; the erase script removes one tenant's rows and files in the in-memory store and leaves another tenant's untouched
+- [x] `/privacy` page, served like `/terms`: who the controller is and how to reach them (the owner supplies name, address, e-mail), the data held (Google name, e-mail and `sub`; scripts, voices, images, videos; prompts in `prompt_log`; the usage ledger; session rows), purpose and legal basis for each, retention for each, the rights (access, correction, erasure, objection, complaint to the supervisory authority) and how to use them
+- [x] Sub-processor list on the same page: Anthropic, Google (sign-in and Gemini), OpenAI (optional moderation, images), kie.ai, Deepgram, Cloudflare (R2), Railway, the stock sites (search words only — confirm no personal data goes), the payment provider later. Each with its purpose and where the data goes; the owner confirms the transfer mechanism for each US provider
+- [x] Terms rewritten: what the service is, minimum age (open), acceptable use (D115), who owns what the user makes, AI-generated content notice, credits are not money until P-BILL-2 says otherwise, liability, termination, governing law. `TERMS_VERSION` bumped so existing accounts re-accept at next sign-in (AUTH-S9 mechanism)
+- [x] Links to terms and privacy on the sign-in page and in the `/create` footer
+- [x] Retention decided and written: `prompt_log` N days (then deleted by a job), deleted videos, expired sessions (AUTH-F1), and whether the director's storyboard is kept next to the user's final one for improving the product (STYLE-S1) — if kept, say so in the notice
+- [x] RUNBOOK "Erasing an account" procedure plus `scripts/erase_tenant.py` (dry-run by default, prints what it would remove): users, sessions, projects, runs, library files in R2, `prompt_log`; the credit ledger is anonymised, not deleted, if it must be kept for accounting
+- [x] Tests: both pages render; a bumped terms version re-prompts a signed-in user; the erase script removes one tenant's rows and files in the in-memory store and leaves another tenant's untouched
 - [ ] **Human step:** the owner (or a lawyer) reviews the final text; this story does not claim legal sufficiency
 ### Open
 Minimum age (13 / 16 / 18 — a bedtime-story feature makes minors plausible). Who is the seller and controller (company or sole trader) — also needed by BILL2-S1.

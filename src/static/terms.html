@@ -4,41 +4,60 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Terms of use</title>
-<style>
-  :root { --bg:#f6f5f2; --card:#fff; --ink:#1c1b19; --muted:#6b6a66; --line:#e2e0da; --accent:#2b5cff; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#161513; --card:#201f1c; --ink:#f1efe9; --muted:#a09e97; --line:#35332e; --accent:#7c9bff; } }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif; }
-  main { max-width:620px; margin:6vh auto; padding:0 16px; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:28px; }
-  h1 { font-size:22px; margin:0 0 12px; }
-  ul { padding-left:20px; color:var(--ink); }
-  li { margin:8px 0; }
-  p.muted { color:var(--muted); font-size:14px; }
-  button { margin-top:12px; background:var(--accent); color:#fff; border:0; border-radius:10px; padding:11px 20px; font-size:15px; cursor:pointer; }
-  button[disabled] { opacity:.6; cursor:default; }
-  #err { color:#c0392b; min-height:1.2em; font-size:14px; }
-</style>
+<style>{{STYLE}}</style>
 </head>
 <body>
 <main>
   <div class="card">
-    <h1>Before you start</h1>
-    <p>This is an early beta. By continuing you agree to the following.</p>
+    <p class="nav"><a href="/privacy">Privacy notice</a></p>
+    <h1>Terms of use</h1>
+    <p class="muted">Version {{TERMS_VERSION}}. Please read these before you continue.</p>
+    {{DRAFT_BANNER}}
+
+    <h2>1. What the service is</h2>
+    <p>Content Factory is an early-access tool that helps you make short videos: it turns your idea or script into a voiceover, a storyboard, images and a rendered video, using AI models and other providers. The service is run by {{CONTROLLER_NAME}}, {{CONTROLLER_ADDRESS}} ("we"). You can reach us at {{CONTACT_EMAIL}}. It is a beta: features change, and videos and projects can be lost or changed while it is built. Keep a copy of anything you need.</p>
+
+    <h2>2. Who may use it</h2>
+    <p>You must be at least {{MIN_AGE}} years old, and able to enter into this agreement where you live. Access is by invitation, through a Google account. You are responsible for what happens under your account.</p>
+
+    <h2>3. What is not allowed</h2>
     <ul>
-      <li><strong>Your content.</strong> You are responsible for the scripts, characters and images you create, and you confirm you have the right to use them.</li>
-      <li><strong>What is not allowed.</strong> No sexual content involving minors, no content that targets or harasses a real person, no hateful or violent extremist material, no impersonation, and nothing illegal.</li>
-      <li><strong>Moderation.</strong> What you type is checked before it is sent to an AI model, and refused when it breaks these rules. A record of your prompts and the result is kept to run the service and handle abuse.</li>
-      <li><strong>Limits.</strong> There are daily limits on videos and on cost. They can change, and accounts that abuse the service can be switched off.</li>
-      <li><strong>Beta.</strong> Videos and projects can be lost or changed while this is built. Keep a copy of anything you need.</li>
+      <li>No sexual content involving minors, in any form.</li>
+      <li>No content that targets, harasses or threatens a real person, and no impersonation.</li>
+      <li>No hateful or violent extremist material, and nothing illegal.</li>
+      <li>No attempts to get around the limits, the moderation checks or the billing, and no automated or bulk use that is not offered by the service.</li>
     </ul>
-    <p class="muted">Terms version <span id="ver"></span>. These terms are a short beta notice, not a full legal agreement.</p>
-    <div id="err"></div>
-    <button id="accept">I agree — continue</button>
+    <p>What you type is checked before it is sent to an AI model, and refused when it breaks these rules. We can switch off accounts that abuse the service.</p>
+
+    <h2>4. Your content and who owns it</h2>
+    <p>You keep the rights you have in the scripts, characters, ideas and other material you put in, and you confirm you have the right to use them. As between you and us, you own the videos and files you make with the service, to the extent the law and the providers' own terms allow. You give us a limited licence to store, process and display your material to run the service for you, to prevent abuse, and to improve the service as the <a href="/privacy">privacy notice</a> describes (including keeping the storyboard the AI director drafted next to the one you finally render).</p>
+
+    <h2>5. AI-generated content</h2>
+    <p>Voices, images, scripts and videos are produced by AI models. They can be wrong, repetitive, offensive or similar to existing works, and they may not be protectable by copyright. Check them before you publish. Platforms such as YouTube require you to label realistic synthetic content; that duty is yours.</p>
+
+    <h2>6. Credits and limits</h2>
+    <p>Some actions use credits, and there are daily limits on videos and on cost. Credits are a usage allowance, not money: they cannot be exchanged for money, transferred or paid out, and have no cash value until we say otherwise when payments are introduced. Limits and prices can change.</p>
+
+    <h2>7. Liability</h2>
+    <p>The service is provided "as is", without promises about availability, accuracy or fitness for a purpose. To the extent the law allows, we are not liable for lost data, lost profit or indirect damage, and our total liability to you is limited to the amount you paid us in the twelve months before the claim (nothing, while the service is free). Nothing here limits liability that cannot be limited by law.</p>
+
+    <h2>8. Ending it</h2>
+    <p>You can stop at any time and ask us to erase your account (see the privacy notice). We can suspend or end your access if you break these terms or to protect the service. Sections that by their nature continue (ownership, liability, governing law) continue after that.</p>
+
+    <h2>9. Changes and governing law</h2>
+    <p>When these terms change we publish a new version and ask you to accept it at your next sign-in. These terms are governed by {{GOVERNING_LAW}}.</p>
+
+    <p class="muted">These terms are a plain-language agreement for an early beta. They have not been reviewed as a full legal document.</p>
+    <div id="accept-box" class="hidden">
+      <div id="err"></div>
+      <button id="accept">I agree — continue</button>
+    </div>
   </div>
 </main>
 <script>
-  const btn = document.getElementById('accept'), err = document.getElementById('err');
-  fetch('/auth/me').then(r => r.json()).then(d => { document.getElementById('ver').textContent = d.terms_version || ''; }).catch(() => {});
+  const btn = document.getElementById('accept'), err = document.getElementById('err'), box = document.getElementById('accept-box');
+  // The page is public (the sign-in page links to it); the button shows only to a signed-in user who still has to accept.
+  fetch('/auth/me').then(r => r.ok ? r.json() : null).then(d => { if (d && d.terms_accepted === false) box.classList.remove('hidden'); }).catch(() => {});
   btn.addEventListener('click', async () => {
     btn.disabled = true; err.textContent = '';
     try {

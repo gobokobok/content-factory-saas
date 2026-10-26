@@ -94,6 +94,10 @@ class PromptLog(Protocol):
         """The newest entries (one tenant's, or everyone's when tenant_id is None)."""
         ...
 
+    async def purge_older_than(self, cutoff: datetime) -> int:
+        """Delete entries created before cutoff. Returns how many (LEGAL-S1 retention)."""
+        ...
+
 
 class InMemoryPromptLog:
     """In-memory PromptLog — process-local; the local-development fallback."""
@@ -110,6 +114,13 @@ class InMemoryPromptLog:
         """The newest entries, newest first."""
         rows = [r for r in self._rows if tenant_id is None or r.tenant_id == tenant_id]
         return list(reversed(rows))[:limit]
+
+    async def purge_older_than(self, cutoff: datetime) -> int:
+        """Delete entries created before cutoff."""
+        kept = [r for r in self._rows if r.created_at >= cutoff]
+        removed = len(self._rows) - len(kept)
+        self._rows = kept
+        return removed
 
 
 class PostgresPromptLog:
@@ -150,6 +161,18 @@ class PostgresPromptLog:
                 rows = await cur.fetchall()
         keys = ("tenant_id", "user_id", "run_id", "kind", "excerpt", "verdict", "reason", "created_at")
         return [PromptLogEntry(**dict(zip(keys, row, strict=True))) for row in rows]
+
+    async def purge_older_than(self, cutoff: datetime) -> int:
+        """Delete entries created before cutoff."""
+        from cf_platform.core.postgres_repos import _ensure_open
+
+        await _ensure_open(self._pool)
+        async with self._pool.connection() as conn:
+            async with conn.cursor() as cur:
+                await cur.execute("DELETE FROM prompt_log WHERE created_at < %s", (cutoff,))
+                removed = cur.rowcount
+            await conn.commit()
+        return removed
 
 
 _memory_log = InMemoryPromptLog()

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy notice</title>
+<style>{{STYLE}}</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <p class="nav"><a href="/terms">Terms of use</a></p>
+    <h1>Privacy notice</h1>
+    <p class="muted">Version {{TERMS_VERSION}}. What Content Factory keeps about you, why, who else sees it, and how to have it deleted.</p>
+    {{DRAFT_BANNER}}
+
+    <h2>Who is responsible</h2>
+    <p>The controller is {{CONTROLLER_NAME}}, {{CONTROLLER_ADDRESS}}. Contact for anything in this notice: {{CONTACT_EMAIL}}.</p>
+
+    <h2>What we hold, why, on what basis, and for how long</h2>
+    <table>
+      <tr><th>Data</th><th>Why</th><th>Basis</th><th>Kept</th></tr>
+      <tr><td>Your Google name, e-mail address and Google account id (<code>sub</code>), from signing in</td><td>To sign you in and tell accounts apart</td><td>Contract (providing the service)</td><td>While your account exists</td></tr>
+      <tr><td>Session records (a hashed token, when it was made and when it expires)</td><td>To keep you signed in safely</td><td>Contract; legitimate interest (security)</td><td>{{SESSION_DAYS}} days; deleted by a daily clean-up once expired or signed out</td></tr>
+      <tr><td>What you create: scripts, characters and styles, voiceovers, images, videos, project settings</td><td>To make and show your videos</td><td>Contract</td><td>Until you ask for erasure. A video you delete is hidden, not erased, until your account is erased</td></tr>
+      <tr><td>The storyboard the AI director drafted, kept beside the one you finally render</td><td>To improve the director's prompts and quality</td><td>Legitimate interest (improving the service)</td><td>With your project; erased with your account</td></tr>
+      <tr><td>Prompt log: a short excerpt (up to 500 characters) of what you send to an AI model, and the moderation result</td><td>To stop abuse and handle complaints</td><td>Legitimate interest (safety and abuse prevention)</td><td>{{PROMPT_LOG_DAYS}}, then deleted automatically</td></tr>
+      <tr><td>Usage ledger and credit history: which paid actions ran, their cost and your balance</td><td>To charge credits correctly and show your history</td><td>Contract; legal obligation (accounting)</td><td>While your account exists. On erasure it is kept without your identity, as accounting requires</td></tr>
+      <tr><td>Daily usage counters, your integration keys if you saved any (stored encrypted)</td><td>To enforce limits and use your own provider keys</td><td>Contract; legitimate interest</td><td>While your account exists</td></tr>
+      <tr><td>Your invitation (your e-mail address on the access list)</td><td>To let you in</td><td>Contract</td><td>Until access is withdrawn or your account is erased</td></tr>
+    </table>
+    <p>We use one cookie, to keep you signed in. We run no advertising or analytics trackers. We do not sell your data.</p>
+
+    <h2>Who else receives it</h2>
+    <p>We use these providers to run the service. Each receives only what its job needs. They act for us, and some are in the United States; data sent to them outside your country relies on: {{TRANSFER_BASIS}}.</p>
+    <table>
+      <tr><th>Provider</th><th>What it does</th><th>What it receives</th></tr>
+      <tr><td>Anthropic</td><td>Writes scripts, storyboards, scene prompts and video metadata</td><td>Your scripts, ideas and prompts</td></tr>
+      <tr><td>Google</td><td>Sign-in; Gemini voices and image models where used</td><td>Your name, e-mail and account id at sign-in; the text to be voiced</td></tr>
+      <tr><td>OpenAI</td><td>Optional moderation check; optional image generation</td><td>The text of prompts, when it is switched on</td></tr>
+      <tr><td>kie.ai</td><td>Generates images</td><td>Image prompts</td></tr>
+      <tr><td>Deepgram</td><td>Transcribes voiceovers and times the words</td><td>Voice recordings</td></tr>
+      <tr><td>Cloudflare (R2)</td><td>Stores your files</td><td>Your voiceovers, images and videos</td></tr>
+      <tr><td>Railway</td><td>Hosts the service and its database</td><td>Everything above, as stored</td></tr>
+      <tr><td>Stock sites (Pexels, Pixabay, Freesound)</td><td>Footage, images, sounds</td><td>Search words taken from a scene, never your name, e-mail or account details</td></tr>
+      <tr><td>A payment provider</td><td>Online payments</td><td>None yet. It will be named here before payments open</td></tr>
+    </table>
+    <p>We may also disclose data where the law requires it.</p>
+
+    <h2>Your rights</h2>
+    <p>You can ask us for a copy of your data (access), to correct it, to erase it, and to restrict or object to how we use it, and you can complain to the data-protection supervisory authority where you live. Write to {{CONTACT_EMAIL}} from the address you signed in with. To erase your account, we remove your profile and sessions, projects, videos and files, prompt log and settings; the credit ledger is kept without your identity. We aim to do it within 30 days. Until self-service export and deletion exist in the app, requests are handled by hand.</p>
+
+    <h2>Age</h2>
+    <p>The service is for people aged {{MIN_AGE}} and over. If you think a younger person has an account, tell us and we will erase it.</p>
+
+    <h2>Changes</h2>
+    <p>When this notice changes materially we publish a new version and ask you to accept the terms again at your next sign-in.</p>
+    <p class="muted">This notice has not been reviewed by a lawyer.</p>
+  </div>
+</main>
+</body>
+</html>

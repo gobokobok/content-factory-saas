@@ -114,12 +114,12 @@ async def niche_to_ideas(
             mode=mode,  # type: ignore[arg-type]
         )
         result = await run_graph(graph, state, thread_id=run.run_id)
+        # BILL-F2: settle only after the last step that can still lose the result.
+        await transition_run(run.run_id, "complete", runs)
+        ranked_key = result.artifacts["ranked_ideas"]
+        _, body_dict = await read_artifact(storage, ranked_key)
+        ranked_artifact = RankedIdeasArtifact.model_validate(body_dict)
     await billing.settle(hold)
-    await transition_run(run.run_id, "complete", runs)
-
-    ranked_key = result.artifacts["ranked_ideas"]
-    _, body_dict = await read_artifact(storage, ranked_key)
-    ranked_artifact = RankedIdeasArtifact.model_validate(body_dict)
 
     return NicheToIdeasResponse(
         run_id=run.run_id,
@@ -252,14 +252,14 @@ async def idea_to_script(
             **state_kwargs,
         )
         result = await run_graph(graph, state, thread_id=thread_id)
+        # BILL-F2: settle only after the last step that can still lose the result.
+        if existing_run is None:
+            await transition_run(run.run_id, "complete", runs)
+        script_key = result.artifacts["script"]
+        _, body_dict = await read_artifact(storage, script_key)
+        script_artifact = ScriptArtifact.model_validate(body_dict)
     # Settled at what ran: one call per iteration the graph actually made.
     await billing.settle(hold, unit_usd * max(int(result.iteration or 1), 1), units=float(result.iteration or 1))
-    if existing_run is None:
-        await transition_run(run.run_id, "complete", runs)
-
-    script_key = result.artifacts["script"]
-    _, body_dict = await read_artifact(storage, script_key)
-    script_artifact = ScriptArtifact.model_validate(body_dict)
 
     return IdeaToScriptResponse(
         run_id=run.run_id,

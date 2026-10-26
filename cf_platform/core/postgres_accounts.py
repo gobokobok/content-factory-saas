@@ -1,5 +1,7 @@
 """Postgres-backed account store (Sprint P-AUTH) — rows of migration 0005_accounts.sql."""
 
+from datetime import datetime, timedelta
+
 from psycopg_pool import AsyncConnectionPool
 
 from cf_platform.core.accounts import OAuthState, SessionRecord, User
@@ -134,6 +136,14 @@ class PostgresAccountStore:
         if row is None:
             return None
         return OAuthState(state_hash=row[0], code_verifier=row[1], next_path=row[2], created_at=row[3])
+
+    async def purge_expired(self, now: datetime, state_max_age: timedelta) -> tuple[int, int]:
+        """Delete sessions that expired or were revoked, and sign-in states older than state_max_age."""
+        sessions = await self._execute(
+            "DELETE FROM sessions WHERE expires_at <= %s OR revoked_at IS NOT NULL", (now,)
+        )
+        states = await self._execute("DELETE FROM oauth_states WHERE created_at <= %s", (now - state_max_age,))
+        return sessions, states
 
     async def list_invites(self) -> list[dict]:
         """Invited e-mails, newest first."""

@@ -200,10 +200,20 @@ async def studio_write_scene_prompt(
     except BaseException as exc:
         await billing.refund(hold, f"the director failed: {exc!r}")
         raise
+    # BILL-F2: the director's call was real. A 409 (the user merged or split the scene meanwhile) keeps the
+    # charge (D123 policy: the cost is real and the cause is the user's own edit); any other failure
+    # after the call — the storyboard cannot be read or saved — gives the hold back.
+    try:
+        async with run_lock(run_id):
+            artifact_body, storyboard = await _load_animation_storyboard(storage, run_id)
+            updated = apply_scene_prompt(storyboard, scene_id, written, await _load_manifest(storage, run_id))
+            if updated is None:
+                await billing.settle(hold)
+                raise HTTPException(status_code=409, detail="The scene changed while the prompt was written. Try again.")
+            response = await _respond(storage, run_id, artifact_body, updated, ai_prompt=written.ai_prompt)
+    except BaseException as exc:
+        # A refund after the settle above is a no-op: the first close wins.
+        await billing.refund(hold, f"the prompt could not be saved: {exc!r}"[:500])
+        raise
     await billing.settle(hold)
-    async with run_lock(run_id):
-        artifact_body, storyboard = await _load_animation_storyboard(storage, run_id)
-        updated = apply_scene_prompt(storyboard, scene_id, written, await _load_manifest(storage, run_id))
-        if updated is None:
-            raise HTTPException(status_code=409, detail="The scene changed while the prompt was written. Try again.")
-        return await _respond(storage, run_id, artifact_body, updated, ai_prompt=written.ai_prompt)
+    return response

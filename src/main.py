@@ -1,5 +1,6 @@
 """FastAPI application entry point — registers routes and validates ENV at startup."""
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -8,13 +9,14 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
 import src.clip_reranker as clip_reranker
 from src.auth import AUTH_COOKIE_NAME, origin_allowed, verify_cookie
 from src.config import Settings, get_settings
+from src.legal_pages import render_legal_page
 from src.log_redaction import install_log_redaction
 from src.routes import alignment as alignment_router
 from src.routes import assets as assets_router
@@ -36,6 +38,9 @@ _AUTH_EXEMPT_PATHS = {
     "/auth/google/start",
     "/auth/google/callback",
     "/platform/telegram/webhook",
+    # LEGAL-S1: the legal pages are public — the sign-in page links to them.
+    "/terms",
+    "/privacy",
 }
 
 # A signed-in user who has not accepted the terms may reach only these (S9, D115).
@@ -130,6 +135,21 @@ async def _setup_platform_checkpointer() -> None:
         )
 
 
+def _start_retention_job(settings: Settings) -> "asyncio.Task | None":
+    """Start the LEGAL-S1 retention loop (prompt-log and session clean-up); None when it is off or cannot start."""
+    if settings.RETENTION_JOB_INTERVAL_HOURS <= 0:
+        return None
+    try:
+        from cf_platform.core.moderation import get_prompt_log
+        from cf_platform.core.retention import retention_loop
+        from cf_platform.interfaces.dependencies import get_account_store
+
+        return asyncio.create_task(retention_loop(settings, get_prompt_log(), get_account_store()))
+    except Exception:
+        logging.getLogger(__name__).exception("retention job could not start — continuing without it")
+        return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Validate all ENV vars at startup. Crash fast if anything is missing or invalid."""
@@ -148,8 +168,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await _run_platform_migrations()
     await _setup_platform_checkpointer()
+    retention_task = _start_retention_job(settings)
 
-    yield
+    try:
+        yield
+    finally:
+        if retention_task is not None:
+            retention_task.cancel()
 
 
 # F3 / F10: the legacy pipeline UI and its run routes are off unless this is "true".
@@ -344,9 +369,15 @@ def creator_ui() -> FileResponse:
 
 
 @app.get("/terms", include_in_schema=False)
-def terms_ui() -> FileResponse:
-    """Serve the terms page — a first sign-in must accept it before anything else (S9, D115)."""
-    return FileResponse(_STATIC_DIR / "terms.html", headers=_NO_CACHE)
+def terms_ui(settings: Settings = Depends(get_settings)) -> HTMLResponse:
+    """Serve the terms — public; a signed-in user who has not accepted them sees the accept button (S9, D115, LEGAL-S1)."""
+    return render_legal_page("terms", settings)
+
+
+@app.get("/privacy", include_in_schema=False)
+def privacy_ui(settings: Settings = Depends(get_settings)) -> HTMLResponse:
+    """Serve the privacy notice — public (LEGAL-S1)."""
+    return render_legal_page("privacy", settings)
 
 
 if _LEGACY_ROUTES_ENABLED:

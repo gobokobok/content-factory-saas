@@ -39,6 +39,9 @@ pytestmark = [
 ]
 
 _BILLING = (MIGRATIONS_DIR / "0006_billing.sql").read_text()
+_ACCOUNTS_SQL = (MIGRATIONS_DIR / "0005_accounts.sql").read_text()
+# Only the daily USD bound's table: the rest of 0005 alters tables other migrations create.
+_USAGE = _ACCOUNTS_SQL[_ACCOUNTS_SQL.index("CREATE TABLE IF NOT EXISTS tenant_usage"):].split(";")[0] + ";"
 
 
 @pytest_asyncio.fixture
@@ -53,6 +56,7 @@ async def pool() -> AsyncIterator[AsyncConnectionPool]:
     await test_pool.open()
     try:
         async with test_pool.connection() as conn:
+            await conn.execute(_USAGE)
             await conn.execute(_BILLING)
             await conn.commit()
         yield test_pool
@@ -285,3 +289,34 @@ async def test_concurrent_holds_still_cannot_overdraw_with_the_entry_written_too
     assert sum(1 for ok, _ in results if ok) == 3
     assert await store.balance("burst") == 10
     assert len(await store.list_entries("burst")) == 3
+
+
+@pytest.mark.asyncio
+async def test_refund_and_settle_release_the_daily_reservation(pool, monkeypatch):
+    """BILL-F1 on real SQL: a refund restores the day's room, a settle at half returns half, a double refund releases once."""
+    from cf_platform.core import billing, limits
+    from cf_platform.core.accounts import Principal, reset_principal, set_principal
+    from cf_platform.core.config import PlatformSettings
+
+    ledger, usage = PostgresBillingStore(pool), limits.PostgresUsageStore(pool)
+    monkeypatch.setattr(limits, "get_usage_store", lambda: usage)
+    settings = PlatformSettings.model_validate({
+        "R2_ACCOUNT_ID": "a", "R2_ACCESS_KEY_ID": "a", "R2_SECRET_ACCESS_KEY": "a", "R2_BUCKET_NAME": "a",
+        "BILLING_ENABLED": True, "CAP_DAILY_SPEND_USD": 1.0,
+    })
+    token = set_principal(Principal(user_id="u_f1", tenant_id="u_f1", account_type="basic"))
+    try:
+        await ledger.credit("u_f1", 1000, kind="topup")
+        today = datetime.now(UTC).date()
+        kept = await billing.reserve("tts", 0.30, "kept", settings=settings, store=ledger)
+        hold = await billing.reserve("image", 0.10, "x", settings=settings, store=ledger)
+        assert await usage.spend_today("u_f1", today) == pytest.approx(0.40)
+        await billing.settle(hold, 0.05, settings=settings, store=ledger)
+        assert await usage.spend_today("u_f1", today) == pytest.approx(0.35)
+        failed = await billing.reserve("tts", 0.20, "y", settings=settings, store=ledger)
+        await asyncio.gather(*[billing.refund(failed, "boom", store=ledger) for _ in range(5)])
+        assert await usage.spend_today("u_f1", today) == pytest.approx(0.35)  # released once, not five times
+        assert kept is not None
+        assert await usage.release_spend("u_f1", today, 99.0) == 0.0  # never below zero
+    finally:
+        reset_principal(token)

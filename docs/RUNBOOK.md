@@ -29,6 +29,32 @@ Entries are newest first.
 
 **What a user sees when a bound is hit:** 422 for text over a cap or refused by moderation, 429 for the daily run or spend limit and for a second render, 413 for the upload quota — each with a readable message.
 
+
+### Erasing an account (LEGAL-S1)
+
+A friend asks, from the address they signed in with, to have their data deleted (privacy notice: within 30 days). Until the app has self-service deletion (BILL2-S6) this is done by hand with `scripts/erase_tenant.py`. Run it where `DATABASE_URL` and the R2 variables point at the environment that holds the account (a Railway shell on DEV or PROD, or locally with the right `.env`).
+
+1. **Check who is asking.** The request must come from the account's own e-mail. Never erase the owner's tenant (`operator`): the script refuses it.
+2. **Dry run (the default).** It prints the tenant, the e-mail, the run count, the R2 files it would delete (with a sample), and the rows per table. The row counts come from the real statements, rolled back, so they are exact. Nothing is changed.
+   ```bash
+   python scripts/erase_tenant.py --email friend@example.com
+   ```
+3. **Read the report.** Check the e-mail is the person's, the run count looks right, and the files are under `users/<tenant>/`, `tenant-music/<tenant>/` and `runs/<run id>/` only.
+4. **Erase.** The script shows the same report and asks you to type the tenant id. Files are deleted first, then all rows in one transaction; if the rows fail nothing is half-done and the command is safe to run again.
+   ```bash
+   python scripts/erase_tenant.py --email friend@example.com --execute
+   ```
+5. **Check it.** Run step 2 again: it should answer "No account has the e-mail". Sign-in as that account is now treated as a first sign-in (they would need to be invited again).
+6. **Tell them** it is done, and that the credit ledger is kept without their identity.
+
+| Removed | Kept, anonymised |
+|---|---|
+| Files in R2 (all their runs, archived ones too, uploaded music); `users`, `sessions`, the invitation for their e-mail; projects, runs, artifacts, worker executions, trace events, published videos and metrics, shortlist, LangGraph checkpoints; `tenant_settings` (their saved keys), `tenant_usage`, `prompt_log` | `usage_entries`, `credit_transactions`, `credit_accounts`: the tenant id becomes `erased_<hash>`, run ids and free-text notes are cleared. Kept because accounting may need it |
+
+**Not covered:** backups. A Railway database backup or an R2 object version taken before the erasure still holds the data until it ages out; the notice should say so if backups are kept longer than the response time. The provider copies (Anthropic, Deepgram and the others) are governed by their own retention; ask them separately if a request needs it.
+
+**Retention (runs by itself).** A job at start-up and then every `RETENTION_JOB_INTERVAL_HOURS` (default 24) deletes `prompt_log` rows older than `PROMPT_LOG_RETENTION_DAYS` (default 90) and expired or revoked sessions and abandoned sign-in states (AUTH-F1). Look for `retention: removed {...}` in the log. Videos a user deletes are only hidden (archived) until the account is erased.
+
 ---
 
 ## Backups and restore (HARD2-S1, SECURITY.md F1)

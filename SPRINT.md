@@ -94,9 +94,9 @@ Legacy Script→Video stays untouched and operable (D047).
 | BILL-S3 | Hard limits: an action over the balance is refused with its cost and what is left | 2 | built 2026-10-15 (smoke pending) |
 | BILL-S4 | Owner top-up and an admin view of users, balances and usage | 2 | built 2026-10-15 (smoke pending) |
 | BILL-S5 | The Creator sees balance, price and history | 2 | built 2026-10-15 (smoke pending) |
-| BILL-F1 | Release the daily USD reservation when a hold is refunded or settled down (raised to high 2026-10-21) | 2 | backlog — gate for `BILLING_ENABLED` |
-| BILL-F2 | Refund when the provider call succeeded but its result was lost (raised to high 2026-10-21) | 3 | backlog — gate for `BILLING_ENABLED` |
-| LEGAL-S1 | Legal minimum before the beta: privacy notice, terms rewrite, sub-processors, erasure procedure (added 2026-10-21) | 4 | backlog — gate for `BILLING_ENABLED` |
+| BILL-F1 | Release the daily USD reservation when a hold is refunded or settled down (raised to high 2026-10-21) | 2 | built 2026-10-22 (smoke pending) |
+| BILL-F2 | Refund when the provider call succeeded but its result was lost (raised to high 2026-10-21) | 3 | built 2026-10-22 (smoke pending) |
+| LEGAL-S1 | Legal minimum before the beta: privacy notice, terms rewrite, sub-processors, erasure procedure (added 2026-10-21) | 4 | built 2026-10-22 (smoke pending) |
 
 **Execution order:** S1 → S2 → S3 → S4 → S5 (S3 is the refusal path of S2's hold; kept separate for its tests). AUTH-S10 and P-CORE-S11 are the operator's, on DEV, before `BILLING_ENABLED` is turned on.
 **Human touchpoint:** the owner tops up a friend's account; the friend sees the balance and the price of a video before making it, is charged for it, and is refused with a clear message when the balance is too low.

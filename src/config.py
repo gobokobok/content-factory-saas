@@ -148,7 +148,22 @@ class Settings(BaseSettings):
     # Where the login page's "Apply for the demo access" link mails. Empty hides the link.
     DEMO_ACCESS_EMAIL: str = "aleksandrs.graholskis@gmail.com"
     # The version of the terms a first sign-in accepts (S9); bumping it asks again.
-    TERMS_VERSION: str = "2026-10-14"
+    TERMS_VERSION: str = "2026-10-22"
+    # LEGAL-S1: who the privacy notice and terms name. Empty values show a "to be completed" marker
+    # on the pages (and a banner), so an unfinished notice cannot pass for a finished one.
+    LEGAL_CONTROLLER_NAME: str = ""
+    LEGAL_CONTROLLER_ADDRESS: str = ""
+    # Where data-protection requests go. Falls back to ABUSE_CONTACT_EMAIL when empty.
+    LEGAL_CONTACT_EMAIL: str = ""
+    LEGAL_GOVERNING_LAW: str = ""
+    # The transfer mechanism for the US providers, in a phrase (the operator confirms it for each one).
+    LEGAL_TRANSFER_BASIS: str = ""
+    # The lowest age the terms allow (a bedtime-story feature makes minors plausible).
+    MINIMUM_AGE: int = 16
+    # prompt_log rows older than this are deleted by the retention job; 0 keeps them for ever.
+    PROMPT_LOG_RETENTION_DAYS: int = 90
+    # How often the retention job runs (also once at start-up); 0 turns it off.
+    RETENTION_JOB_INTERVAL_HOURS: int = 24
     # Encryption key for tenant-stored integration keys. Read here only so a prod
     # start-up without one is refused (F7); the platform reads it in its own settings.
     SETTINGS_ENCRYPTION_KEY: str = ""

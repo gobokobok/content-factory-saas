@@ -95,10 +95,16 @@ class PaymentRequiredError(HTTPException):
 class Hold:
     """The handle :func:`reserve` returns: what was held, for settle / refund to close."""
 
-    __slots__ = ("entry_id", "tenant_id", "credits", "raw_usd", "kind", "charged", "recorded")
+    __slots__ = ("entry_id", "tenant_id", "credits", "raw_usd", "kind", "charged", "recorded", "spend_reserved", "day")
 
-    def __init__(self, entry: UsageEntry, charged: bool, recorded: bool = True) -> None:
-        """Remember the entry's id and what is held (credits are held only when ``charged``)."""
+    def __init__(self, entry: UsageEntry, charged: bool, recorded: bool = True, spend_reserved: bool = False) -> None:
+        """Remember the entry's id and what is held (credits are held only when ``charged``).
+
+        ``spend_reserved`` says the daily USD bound (``limits.spend_gate``) took ``raw_usd`` for this
+        action, so closing it may give that reservation back; ``day`` is the UTC day it was taken on.
+        """
+        self.spend_reserved = spend_reserved
+        self.day = entry.created_at.astimezone(UTC).date()
         self.entry_id = entry.entry_id
         self.tenant_id = entry.tenant_id
         self.credits = entry.credits
@@ -722,12 +728,17 @@ def _as_float(value: Any) -> float:
 
 
 def _charging_principal():
-    """The signed-in principal, or None when there is none or a View-as-Basic preview is on (nothing is recorded)."""
+    """The signed-in principal, or None when there is none or the owner is previewing as Basic (nothing is recorded).
+
+    Only the owner's preview is free: a non-owner Super account that switches on View as Basic is a
+    paying tenant like any other, or the switch would be a way around the credits and the daily bound
+    (audit 2026-10-22, HIGH-1).
+    """
     try:
         principal = current_principal()
     except NotAuthenticatedError:
         return None
-    return None if principal.view_as_basic else principal
+    return None if principal.view_as_basic and principal.is_owner else principal
 
 
 async def reserve(
@@ -765,7 +776,7 @@ async def reserve(
         entry.status = "metered"
         await limits.spend_gate(usd, what, cfg)
         await ledger.add_entry(entry)
-        return Hold(entry, charged=False)
+        return Hold(entry, charged=False, spend_reserved=True)
 
     # The debit and the held entry are written together: a fault between them rolls both back.
     ok, balance = await ledger.hold(entry)
@@ -778,6 +789,7 @@ async def reserve(
     except BaseException as exc:
         await refund(hold, f"daily limit reached: {getattr(exc, 'detail', exc)}", store=ledger)
         raise
+    hold.spend_reserved = True
     return hold
 
 
@@ -802,7 +814,9 @@ async def settle(
         closed = await ledger.close_held(
             hold.entry_id, price_credits=price_credits(actual, cfg), actual_usd=actual, units=units)
         if closed is None:
-            await _close_unheld(ledger, hold.entry_id, actual, units, cfg)
+            closed = await _close_unheld(ledger, hold.entry_id, actual, units, cfg)
+        if closed:
+            await _release_spend(hold, max(hold.raw_usd - actual, 0.0))
     except Exception:
         _logger.exception("billing: could not settle entry %s", getattr(hold, "entry_id", "?"))
     finally:
@@ -823,7 +837,9 @@ async def refund(
         ledger = store or get_billing_store()
         closed = await ledger.close_held(hold.entry_id, price_credits=None, note=reason or "failed")
         if closed is None:
-            await _close_unheld(ledger, hold.entry_id, None, None, None, refunded=True, reason=reason)
+            closed = await _close_unheld(ledger, hold.entry_id, None, None, None, refunded=True, reason=reason)
+        if closed:
+            await _release_spend(hold, hold.raw_usd)
     except Exception:
         _logger.exception("billing: could not refund entry %s", getattr(hold, "entry_id", "?"))
     finally:
@@ -833,11 +849,14 @@ async def refund(
 async def _close_unheld(
     ledger: BillingStore, entry_id: str, actual: float | None, units: float | None,
     cfg: PlatformSettings | None, *, refunded: bool = False, reason: str = "",
-) -> None:
-    """Record the end of an action that moved no credits (owner exempt, billing off metered); a no-op for a closed entry."""
+) -> bool:
+    """Record the end of an action that moved no credits (owner exempt, billing off metered).
+
+    Returns True when this call closed the entry; a no-op (False) for an entry that is already closed.
+    """
     entry = await ledger.get_entry(entry_id)
-    if entry is None or entry.status not in ("exempt", "metered"):
-        return
+    if entry is None or entry.status not in ("exempt", "metered") or entry.closed_at is not None:
+        return False
     entry.closed_at = datetime.now(UTC)
     if refunded:
         entry.status, entry.note = "refunded", reason[:500]
@@ -848,6 +867,22 @@ async def _close_unheld(
         if entry.status == "metered":
             entry.credits = price_credits(actual or 0.0, cfg)
     await ledger.update_entry(entry)
+    return True
+
+
+async def _release_spend(hold: Hold, usd: float) -> None:
+    """Give usd of the day's USD reservation back after this call closed the hold (BILL-F1).
+
+    Only the caller that actually closed the entry gets here, so a double refund releases once.
+    A fault is logged and swallowed: the reservation is a bound that resets at midnight UTC,
+    and must not mask the action's own result.
+    """
+    if not hold.spend_reserved or usd <= 0:
+        return
+    try:
+        await limits.release_spend(hold.tenant_id, usd, hold.day)
+    except Exception:
+        _logger.exception("billing: could not release the daily reservation of entry %s", hold.entry_id)
 
 
 @contextlib.asynccontextmanager
@@ -934,5 +969,5 @@ async def refund_stale_holds(
              if e.entry_id not in _in_flight]
     for entry in stale:
         await refund(
-            Hold(entry, charged=True), f"the action never finished (held more than {minutes} minutes)", store=ledger)
+            Hold(entry, charged=True, spend_reserved=True), f"the action never finished (held more than {minutes} minutes)", store=ledger)
     return len(stale)

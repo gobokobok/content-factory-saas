@@ -244,8 +244,18 @@ class R2ArtifactStorage:
 
     def _list_keys_sync(self, prefix: str) -> list[str]:
         try:
-            response = self._client.list_objects_v2(Bucket=self._bucket, Prefix=prefix)
-            return [obj["Key"] for obj in response.get("Contents", [])]
+            # list_objects_v2 returns at most 1000 keys a call: follow the continuation token to the end.
+            keys: list[str] = []
+            token: str | None = None
+            while True:
+                kwargs: dict[str, Any] = {"Bucket": self._bucket, "Prefix": prefix}
+                if token:
+                    kwargs["ContinuationToken"] = token
+                response = self._client.list_objects_v2(**kwargs)
+                keys += [obj["Key"] for obj in response.get("Contents", [])]
+                token = response.get("NextContinuationToken")
+                if not response.get("IsTruncated") or not token:
+                    return keys
         except (BotoCoreError, ClientError, Exception) as exc:
             raise ArtifactStorageError(f"R2 list failed for prefix '{prefix}': {exc}") from exc
 

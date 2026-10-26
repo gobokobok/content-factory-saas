@@ -274,6 +274,16 @@ class InMemoryAccountStore:
         """Return and delete a pending sign-in (single use), or None."""
         return self._states.pop(state_hash, None)
 
+    async def purge_expired(self, now: datetime, state_max_age: timedelta) -> tuple[int, int]:
+        """Delete sessions that expired or were revoked, and sign-in states older than state_max_age."""
+        dead = [h for h, s in self._sessions.items() if s.expires_at <= now or s.revoked_at is not None]
+        for token_hash in dead:
+            del self._sessions[token_hash]
+        old = [h for h, st in self._states.items() if st.created_at <= now - state_max_age]
+        for state_hash in old:
+            del self._states[state_hash]
+        return len(dead), len(old)
+
     async def list_invites(self) -> list[dict]:
         """Invited e-mails, newest first."""
         return sorted(self._invites.values(), key=lambda i: i["created_at"], reverse=True)

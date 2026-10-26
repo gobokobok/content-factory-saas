@@ -407,7 +407,6 @@ async def metadata_worker_endpoint(
     if not isinstance(result_artifact, YoutubeMetadataArtifact):
         await billing.refund(hold, "the metadata worker returned an unexpected result")
         raise HTTPException(status_code=500, detail="youtube_metadata worker returned unexpected artifact type")
-    await billing.settle(hold)
 
     lineage = LineageEnvelope(
         run_id=body.run_id,
@@ -417,15 +416,18 @@ async def metadata_worker_endpoint(
         model=used_model,
         created_at=datetime.now(),
     )
-    record = await write_artifact(
-        storage,
-        result_artifact,
-        name="youtube_metadata",
-        stage="metadata",
-        run_id=body.run_id,
-        user_id=current_tenant_id(),
-        lineage=lineage,
-    )
+    # BILL-F2: the metadata is only worth its price once it is saved; a failed write gives the hold back.
+    async with billing.refund_on_error(hold, "saving the metadata"):
+        record = await write_artifact(
+            storage,
+            result_artifact,
+            name="youtube_metadata",
+            stage="metadata",
+            run_id=body.run_id,
+            user_id=current_tenant_id(),
+            lineage=lineage,
+        )
+    await billing.settle(hold)
 
     return MetadataWorkerResponse(
         artifact_key=record.r2_key,

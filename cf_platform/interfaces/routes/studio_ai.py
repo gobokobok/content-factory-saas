@@ -274,21 +274,25 @@ async def studio_generate_scene_image(
     except BaseException as exc:
         await billing.refund(hold, f"image generation failed: {exc!r}")
         raise
-    await billing.settle(hold)
 
-    try:
-        preview_url = await storage.generate_presigned_url(result["file_key"], expires_in=3600)
-    except Exception:
-        preview_url = None
-    return {
-        "scene_n": scene_n,
-        "file_key": result["file_key"],
-        "source": AI_GENERATED_SOURCE,
-        "preview_url": preview_url,
-        "ai_prompt": result["ai_prompt"],
-        "spend": _with_credits(spend_summary(result["ledger"], ctx.cost_usd, ctx.cap_usd), settings),
-        "generated_at": datetime.now().isoformat(),
-    }
+    # BILL-F2: build the whole response before the charge is final; if that fails the user got
+    # an error page, not an image, so the hold goes back (the file stays in the storyboard).
+    async with billing.refund_on_error(hold, "preparing the image response"):
+        try:
+            preview_url = await storage.generate_presigned_url(result["file_key"], expires_in=3600)
+        except Exception:
+            preview_url = None
+        response = {
+            "scene_n": scene_n,
+            "file_key": result["file_key"],
+            "source": AI_GENERATED_SOURCE,
+            "preview_url": preview_url,
+            "ai_prompt": result["ai_prompt"],
+            "spend": _with_credits(spend_summary(result["ledger"], ctx.cost_usd, ctx.cap_usd), settings),
+            "generated_at": datetime.now().isoformat(),
+        }
+    await billing.settle(hold)
+    return response
 
 
 @router.post("/studio/runs/{run_id}/scenes/{scene_n}/prompt-preview")

@@ -43,6 +43,10 @@ class UsageStore(Protocol):
         """Add usd to the day's spend unless that would pass cap_usd. Returns (ok, spend after / before)."""
         ...
 
+    async def release_spend(self, tenant_id: str, day: date, usd: float) -> float:
+        """Take usd back off the day's spend, never below zero. Returns the spend after."""
+        ...
+
     async def spend_today(self, tenant_id: str, day: date) -> float:
         """The dollars reserved for tenant_id on day."""
         ...
@@ -72,6 +76,12 @@ class InMemoryUsageStore:
             return False, current
         self._spend[(tenant_id, day)] = current + usd
         return True, current + usd
+
+    async def release_spend(self, tenant_id: str, day: date, usd: float) -> float:
+        """Take usd back off the day's spend, never below zero."""
+        after = max(self._spend.get((tenant_id, day), 0.0) - usd, 0.0)
+        self._spend[(tenant_id, day)] = after
+        return after
 
     async def spend_today(self, tenant_id: str, day: date) -> float:
         """The dollars reserved for tenant_id on day."""
@@ -126,6 +136,15 @@ class PostgresUsageStore:
         if row is None:
             return False, await self.spend_today(tenant_id, day)
         return True, float(row[0])
+
+    async def release_spend(self, tenant_id: str, day: date, usd: float) -> float:
+        """Take usd back off the day's spend, never below zero (one atomic statement)."""
+        row = await self._one(
+            "UPDATE tenant_usage SET spend_usd = GREATEST(spend_usd - %s, 0), updated_at = now() "
+            "WHERE tenant_id = %s AND day = %s RETURNING spend_usd",
+            (usd, tenant_id, day),
+        )
+        return float(row[0]) if row else 0.0
 
     async def spend_today(self, tenant_id: str, day: date) -> float:
         """The dollars reserved for tenant_id on day."""
@@ -274,6 +293,17 @@ async def spend_gate(usd: float, what: str = "this", settings: PlatformSettings 
             status_code=429,
             detail=f"You have reached today's usage limit, so {what} can't run now. It resets at midnight UTC.",
         )
+
+
+async def release_spend(tenant_id: str, usd: float, day: date | None = None) -> None:
+    """Give usd of a day's spend reservation back (a refunded or settled-down action), never below zero.
+
+    The owner's tenant is not bound by ``spend_gate``, so there is nothing of its to release.
+    ``day`` is the UTC day the reservation was taken on (today when omitted).
+    """
+    if tenant_id == OWNER_TENANT_ID or usd <= 0:
+        return
+    await get_usage_store().release_spend(tenant_id, day or _today(), usd)
 
 
 async def reserve_upload(n_bytes: int, settings: PlatformSettings | None = None) -> None:

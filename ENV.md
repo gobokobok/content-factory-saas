@@ -161,8 +161,15 @@ New variables for the `platform/` layer. See docs/v2_platform_plan.md and DECISI
 | `ACCEPT_LEGACY_COOKIE` | P-AUTH | Accept the pre-P-AUTH constant session cookie as the owner (F6 bridge). Default `true`; set `false` after the owner has signed in once. |
 | `ALLOW_IN_MEMORY_STORE` | P-AUTH | Allow process-memory repositories when `DATABASE_URL` is empty. Default `false` — a server without a database answers 503 (S6). Only for a laptop. |
 | `ALLOWED_ORIGINS` | P-AUTH | Comma-separated extra origins that may send POST / PUT / PATCH / DELETE; the site's own origin is always allowed. |
-| `TERMS_VERSION` | P-AUTH | Version of the terms a first sign-in must accept (S9). Bumping it asks everyone again. Default `2026-10-14`. |
+| `TERMS_VERSION` | P-AUTH | Version of the terms a first sign-in must accept (S9). Bumping it asks everyone again. Default `2026-10-22` (LEGAL-S1 rewrote the terms and added the privacy notice). |
 | `ABUSE_CONTACT_EMAIL` | P-AUTH | Address "Report a problem" mails (S9, D115). Empty hides the link. |
+| `LEGAL_CONTROLLER_NAME` / `LEGAL_CONTROLLER_ADDRESS` | LEGAL-S1 | Who the privacy notice and terms name as the controller and the postal address. Empty shows a "to be completed" marker and a banner on `/privacy` and `/terms`. |
+| `LEGAL_CONTACT_EMAIL` | LEGAL-S1 | Where data requests (access, erasure) go. Empty falls back to `ABUSE_CONTACT_EMAIL`, then to a marker. |
+| `LEGAL_GOVERNING_LAW` | LEGAL-S1 | The law and courts the terms name (a sentence, e.g. "the laws of Latvia"). Empty shows a marker. |
+| `LEGAL_TRANSFER_BASIS` | LEGAL-S1 | The transfer mechanism for data sent to the US providers, as a phrase for the privacy notice (e.g. "the EU–US Data Privacy Framework or standard contractual clauses, as each provider offers"). The operator confirms it for each provider. Empty shows a marker. |
+| `MINIMUM_AGE` | LEGAL-S1 | Lowest age the terms allow. Default `16`. |
+| `PROMPT_LOG_RETENTION_DAYS` | LEGAL-S1 | `prompt_log` rows older than this are deleted by the retention job. Default `90`; `0` keeps them for ever. |
+| `RETENTION_JOB_INTERVAL_HOURS` | LEGAL-S1 | How often the retention job runs (also once at start-up): deletes old `prompt_log` rows, expired sessions and used or expired sign-in states. Default `24`; `0` turns it off. |
 | `DEMO_ACCESS_EMAIL` | login page | Address the login page's "Apply for the demo access" link mails (default: the owner's). Empty hides the link. |
 | `TELEGRAM_ROUTES_ENABLED` | P-AUTH | `true` mounts the Telegram webhook. Default off (D093, S6). Read at import time. |
 | `CAP_SCRIPT_WORDS` | P-AUTH | Server cap on a script's words for non-owner tenants (S8, D120). Default `1200`. |
