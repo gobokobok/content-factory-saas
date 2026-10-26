@@ -116,7 +116,7 @@ Everything built in P-BILL-1 and its close-out has run once on DEV with real pro
 - [ ] The seven smoke steps in DONE.md (P-BILL-1) pass as owner and as a second Google account, billing off, then on
 - [ ] Close-out smoke (DONE.md, P-BILL-1 close-out): a refused or failed action restores the day's cap; `/privacy` and `/terms` signed out; an existing account re-accepts; `scripts/erase_tenant.py` dry run on a test account
 - [ ] DEV log read: no `billing: could not settle|refund`, no `key=` other than `REDACTED`, migrations 0006 and 0007 `ok`
-- [ ] BILL-F3 operator inputs: `scripts/cost_report.py` with the invoices, `EST_*` set, `IMAGE_RESOLUTION=2K` and `nano-banana-2-1` at 0.03, `ACCEPT_LEGACY_COOKIE=false`
+- [ ] BILL-F3 operator inputs: `scripts/cost_report.py` with the invoices, `EST_*` set, `nano-banana-2-1` at 0.03 and `IMAGE_RESOLUTION=2K` on DEV (PROD already has 2K)
 - [ ] The markup against one real video's raw cost, and the Credits screens on a phone
 ### Files to read
 `DONE.md` (P-BILL-1, close-out, BETA-0), `docs/RUNBOOK.md` (Calibrating prices, Erasing an account), `docs/SECURITY.md` (audit 2026-10-22)

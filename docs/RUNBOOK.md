@@ -155,12 +155,19 @@ Purpose: prove a backup restores and the app can read it, **without touching DEV
 
 
 ## Prod check — 2026-10-26 (Sprint review: P-BILL-1)
-**Range:** none. **Could not look:** `railway logs` answered "Unauthorized. Please login with `railway login`" on the operator's machine, so no log was read. This is a finding, not "no issues".
-**What a read would cover:** PROD is still v0.24.0, so it holds none of the code of this review's range (credits, beta access, the audit fixes, migrations 0006 and 0007). DEV carries all of it and no check has ever read the DEV log.
-**Known from the commits, not from logs:** PROD's database has no saved image model, so before `4a3f533` (DEV only) image generation there falls back to the expensive `gpt-image-2` model; this stays true on PROD until the release.
-**To read after `railway login`:** DEV log for `billing: could not settle|refund` (should never appear), `key=` other than `REDACTED`, migrations 0006 / 0007 `ok`; PROD log since 2026-10-14 for the usual groups.
-**Stories opened:** SWEEP-1 includes the DEV log read. No observability story: the 2026-10-14 check read PROD fine; the gap is a login.
-**Next check due:** before `/release`, or at SWEEP-1 for DEV.
+**Range:** the live deployments' logs, read after `railway login`: PROD 2026-10-26 08:55 → 12:29 UTC (189 lines, 6 container starts), DEV 2026-10-26 13:06 UTC → now (91 lines, one start: the deploy of `83d06a4`). `railway logs` shows only the live deployment, so nothing earlier is readable. Ids: DEV project `c47b8459…`, environment `4c0bce8d…`, service `b16e136c…` (`content-factory-dev`); PROD project `86885180…`, environment `e9bcc69c…`, service `1fbe36d2…`.
+
+**Errors:** none. No 5xx, no traceback, no `key=` on either. DEV: `cf_platform migrations: ok`, `checkpointer setup: ok`, retention ran. PROD: `migrations: ok` after every start; 1× 401 on `/create` and 1× 404 on a run's `/metadata` before the step ran. 8× `psycopg.pool` connection warnings on PROD at 10:27 and 11:02 UTC (Postgres refusing, then "starting up"); the app reconnected within a second both times and migrations passed. Not a defect of ours, but the database restarted twice in one morning.
+**What the logs cannot say:** neither log holds a paid action (no voiceover, image, render or metadata call), so "no `billing: could not settle|refund`" is true but proves nothing; SWEEP-1 has to produce the traffic. The migration lines say `ok`, not which files; `GET /platform/billing/me` answering 200 on both means the 0006 tables exist.
+
+**Found, not in the logs — PROD does not match what the records say:**
+- **PROD is not on v0.24.0 and does not wait for a release.** v0.25.0 went out on 2026-10-13 (CD run green, `RELEASES.md`). Since 2026-10-17 PROD has also received builds of `main` from GitHub (deployments for `da8332d`, `4a3f533`, and a redeploy of `987e697` on 2026-10-26 10:46 +02:00), outside `cd.yml`, which deploys tags only. It therefore runs the P-BILL-1 and beta code up to `987e697` (2026-10-22). It does **not** have `a2badd5` or `63343f9`: BILL-F1 (daily cap released on refund), BILL-F2 (no charge for a lost result), LEGAL-S1 (`/privacy`, new terms, erase tool), the two audit HIGH fixes (View-as-Basic charging; erasure pagination) and BILL-F3's zero-price refusal.
+- **`BILLING_ENABLED=true` on both DEV and PROD** (read from the Railway variables; no secret printed), with `ACCEPT_LEGACY_COOKIE=false` on both. PROD also has `SIGNUP_CREDITS=500`, `IMAGE_RESOLUTION=2K`, `KIE_IMAGE_MODEL=nano-banana-2-1`; DEV has 3 addresses in `ALLOWED_EMAILS`, PROD none (so PROD admits only the invite list in the database, which was not read). `SIGNUP_OPEN` is unset on PROD and empty on DEV (counts as unset).
+- **So the beta gate in SPRINT.md is already past on the variable side**, with the gate's own stories unbuilt on PROD. Whether any friend has signed in on PROD, or been charged, is not in these logs; the 2026-10-26 request mix is one operator session.
+**Not checked:** who is on the PROD invite list, the credit ledger, how the GitHub-to-Railway deploy trigger on the PROD service is configured (the Railway dashboard shows it; the CLI does not).
+
+**Stories opened:** PROD-ALIGN (proposed to the operator 2026-10-26, see BACKLOG_ACTIVE.md once approved).
+**Next check due:** at SWEEP-1 (read DEV during the smoke), and before the next `/release`.
 
 ---
 
