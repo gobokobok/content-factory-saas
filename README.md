@@ -53,15 +53,15 @@ Super screens are a separate script that a Basic session never downloads.
 
 **New video.** Topic, format, look, language, a master visual style and the cast are fixed before anything is generated, because every later step depends on them.
 
-![New video screen](docs/screenshots/live-01-new-video.jpg)
+![New video screen](docs/screenshots/live-01-new-video.png)
 
 **Storyboard.** One row per scene: its time range from the voiceover, the words spoken, the characters and places in it, the camera motion and the generated image. Scenes can be merged, split and edited.
 
-![Storyboard step of a run](docs/screenshots/live-02-storyboard.jpg)
+![Storyboard step of a run](docs/screenshots/live-02-storyboard.png)
 
 **Render.** Captions and background music are chosen here; the finished video plays in the page and can be downloaded.
 
-![Render step of a run](docs/screenshots/live-03-render.jpg)
+![Render step of a run](docs/screenshots/live-03-render.png)
 
 ## Architecture
 
