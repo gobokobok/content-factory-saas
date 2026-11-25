@@ -5,139 +5,148 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-async-009688.svg)](https://fastapi.tiangolo.com/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-orchestration-orange.svg)](https://langchain-ai.github.io/langgraph/)
 
-**An automated AI video production pipeline.** Give it a niche; it discovers trending topics, writes and fact-checks a script, generates a voiceover, storyboards every scene against real word-level timestamps, acquires matching footage, and renders a finished vertical video — with a human approval gate at each editorial decision.
+**A platform that turns an idea into a finished video.** It finds topics, writes and fact-checks the script, generates the voiceover, plans every scene against word-level timestamps, gets AI images or stock footage for each scene, and renders the video with captions and music. A person approves each editorial decision on the way.
 
-Built as the production system behind a data-driven YouTube Shorts channel, and run daily in production on Railway.
+It started as the pipeline behind a data-driven YouTube Shorts channel. It is now a multi-user product with Google sign-in, per-account isolation, prepaid credits and hard spend limits.
 
-## Pipeline
+**Live:** [cf.graholskis.com](https://cf.graholskis.com) (invite-only beta; the sign-in page has a link to ask for demo access).
 
-```mermaid
-flowchart LR
-    subgraph Discovery["🔍 Discovery & Script (v2 platform)"]
-        A[Niche] --> B[Topic discovery<br/>Reddit · Google Trends · YouTube]
-        B --> C[Idea scoring<br/>& selection]
-        C --> D[Script writing<br/>fact-check · refine loop]
-    end
-    subgraph Production["🎬 Video Production"]
-        E[Voiceover<br/>TTS / upload] --> F[Word-level alignment<br/>Deepgram Nova-2]
-        F --> G[Storyboard<br/>Claude · timestamp-aware]
-        G --> H[Asset acquisition<br/>Pexels → Replicate/Flux fallback]
-        H --> I[FFmpeg assembly<br/>captions · music · motion]
-        I --> J[Final video<br/>+ YouTube metadata]
-    end
-    D --> E
-```
+## Contents
 
-Every artifact (script, storyboard, asset manifest, render) is written to **Cloudflare R2** and indexed in **Postgres**, so any step can be inspected, retried, or resumed. The operator drives the pipeline from a zero-framework HTML/JS **Studio UI** or via a **Telegram bot** interface.
+- [What it does](#what-it-does)
+- [The product](#the-product)
+- [Architecture](#architecture)
+- [Accounts, credits and safety](#accounts-credits-and-safety)
+- [Stack](#stack)
+- [Repository layout](#repository-layout)
+- [Running locally](#running-locally)
+- [Deployment](#deployment)
+- [How this was built](#how-this-was-built)
+- [Status](#status)
 
-## Studio walkthrough
+## What it does
 
-A run steps through six stages, each producing a versioned artifact before the next stage unlocks.
+![Production flow: idea, script, voice, storyboard, assets, render, metadata](docs/diagrams/pipeline.svg)
 
-<table>
-<tr>
-<td width="50%">
+| Step | What happens | Services |
+|------|--------------|----------|
+| 1. Idea | Topics are collected from Reddit, Google Trends and YouTube, scored, and kept in a shortlist per project. | Claude |
+| 2. Script | The script is written, fact-checked, patched and re-scored in a bounded loop. It can also be pasted, or taken from an uploaded voiceover. | Claude |
+| 3. Voice | Text-to-speech in a named voice, or an uploaded recording. The audio is transcribed to word-level timestamps and checked for language and missing narration. | Gemini TTS, ElevenLabs, Deepgram |
+| 4. Storyboard | Scenes are planned against the timestamps, so cuts land on real speech boundaries. Scenes can be split, merged and edited. | Claude |
+| 5. Assets | Each scene gets an AI image in one master style with a reusable cast, or stock footage with semantic re-ranking. A failed scene degrades; it does not fail the run. | kie.ai, OpenAI, Pexels, Pixabay, Wikimedia |
+| 6. Render | Captions timed to speech, music, motion and colour grade, in 9:16 or 16:9. A second path exports a CapCut project for manual finishing. | FFmpeg |
+| 7. Metadata | A title, description, tags and pinned comment are drafted from the final script. | Claude |
 
-**1 · Settings** — aspect ratio, style, background music, and caption burn-in are locked in before any generation starts, since they affect every downstream stage.
+Every artifact (script, storyboard, asset manifest, render) is stored in Cloudflare R2 and indexed in Postgres, so any step can be inspected, retried or resumed. Each execution records the worker version, prompt version, model and sampling parameters.
 
-<img src="docs/screenshots/01-settings.png" alt="Studio Settings stage">
+## The product
 
-</td>
-<td width="50%">
+The whole application is one page, `/create`. What an account sees depends on its type.
 
-**2 · Script** — paste a voiceover script directly, or generate one from an idea/title with a target duration; the editor shows a live word count.
+| Account | What it gets |
+|---------|--------------|
+| **Basic** | The Creator flow: write a story, pick a voice and characters, see the cost in credits, get a video. Libraries for its own videos, AI generations and background music. |
+| **Super** | Everything in Basic, plus projects with an idea shortlist, the three script sources, voiceover upload with transcript editing, storyboard controls, stock acquisition, sound effects, the Metadata step, CapCut export, all five libraries, integrations and defaults. |
 
-<img src="docs/screenshots/02-script.png" alt="Studio Script stage">
+Super screens are a separate script that a Basic session never downloads.
 
-</td>
-</tr>
-<tr>
-<td width="50%">
+**New video.** Topic, format, look, language, a master visual style and the cast are fixed before anything is generated, because every later step depends on them.
 
-**3 · Voice** — TTS generates the voiceover, then Deepgram Nova-2 produces word-level timestamps the storyboard stage will cut scenes against.
+![New video screen](docs/screenshots/live-01-new-video.jpg)
 
-<img src="docs/screenshots/03-voice.png" alt="Studio Voice stage">
+**Storyboard.** One row per scene: its time range from the voiceover, the words spoken, the characters and places in it, the camera motion and the generated image. Scenes can be merged, split and edited.
 
-</td>
-<td width="50%">
+![Storyboard step of a run](docs/screenshots/live-02-storyboard.jpg)
 
-**4 · Storyboard** — the scene-by-scene plan: type (B-roll/Character/Event), visual query, motion, on-screen text, and acquired asset preview, all editable inline.
+**Render.** Captions and background music are chosen here; the finished video plays in the page and can be downloaded.
 
-<img src="docs/screenshots/04-storyboard.png" alt="Studio Storyboard stage">
+![Render step of a run](docs/screenshots/live-03-render.jpg)
 
-</td>
-</tr>
-<tr>
-<td width="50%">
+## Architecture
 
-**5 · Video** — FFmpeg assembles scenes, voiceover, captions, and music into the final MP4, previewable and downloadable in-browser.
+![System diagram: browser, FastAPI service, LangGraph workers, Postgres, Cloudflare R2, providers](docs/diagrams/architecture.svg)
 
-<img src="docs/screenshots/05-video.png" alt="Studio Video stage">
+- **Workers are pure functions.** Each of the 36 worker modules is a stateless LangGraph node: typed state in, typed output out, exactly one artifact per execution. Routing and loop bounds sit on the graph edges, never inside a worker.
+- **State is a message bus, not a data store.** Graph state carries artifact references and a typed control signal. The durable truth is the artifact in R2, indexed in Postgres.
+- **Human gates.** A run pauses at an editorial checkpoint and resumes from the Postgres checkpointer when the person decides.
+- **Thin routes.** Pipeline steps are pure async functions with explicit inputs and outputs, so they run without an HTTP request.
+- **One timeline, two render paths.** Scene timing is resolved in one place and feeds both the FFmpeg render and the CapCut export.
 
-</td>
-<td width="50%">
+More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/v2_platform_plan.md](docs/v2_platform_plan.md).
 
-**6 · Metadata** — Claude drafts a suggested YouTube title, description, tags, and pinned comment from the finished script.
+## Accounts, credits and safety
 
-<img src="docs/screenshots/06-metadata.png" alt="Studio Metadata stage">
+- **Sign-in.** Google is the only way in. The owner manages an invite list; removing an address switches the account off.
+- **Isolation.** Every row and every stored file belongs to one account. Provider keys saved by a user are encrypted.
+- **Access.** A Basic account may call only the routes on an allow-list. Everything else requires Super, checked on the server.
+- **Credits.** One credit is one cent of provider cost. A hold is placed before each paid call, settled at the real cost afterwards, and refunded in full if the call fails. A hold that does not fit the balance is refused before anything starts.
+- **Limits.** Per-account caps on script length, runs per day, daily spend, storage and concurrent renders, plus one render gate for the whole server.
+- **Moderation.** Two layers with a log, for text and images.
+- **Operations.** Start-up refuses weak secrets, logs redact signed URLs and tokens, the container runs as a non-root user on a pinned base image, and there is a written backup, restore and account-erasure procedure.
 
-</td>
-</tr>
-</table>
+See [docs/SECURITY.md](docs/SECURITY.md) and [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
-## Highlights
+## Stack
 
-- **LangGraph orchestration with durable checkpoints** — workers are pure, stateless graph nodes; state carries only artifact references and typed control signals. Loop bounds and routing live on graph edges, never inside workers. Every execution records `worker_version + prompt_version + model + sampling params` for full reproducibility.
-- **27 specialized workers** — topic discovery, opportunity scoring, hook generation/selection, script writing with a bounded fact-check → patch → re-score refinement loop, narrative lens, storyboard generation, visual direction, asset acquisition, render, YouTube metadata.
-- **Timestamp-grounded storyboards** — Deepgram word-level alignment feeds the storyboard prompt, so scene cuts land on real speech boundaries, not estimates.
-- **Resilient asset acquisition** — stock footage search (Pexels) with semantic re-ranking (sentence-transformers), falling back to AI image generation (Replicate/Flux) per scene; partial failures degrade gracefully instead of failing the run.
-- **Human-in-the-loop gates** — the graph pauses at editorial checkpoints (topic choice, script approval, asset review) and resumes from the Postgres checkpointer when the operator decides.
-- **Disciplined delivery** — 93 test files in CI, two-environment deploys (push → DEV, git tag → PROD), 65+ logged architecture decisions, every function docstringed, no hardcoded config.
+| Layer | Choice |
+|-------|--------|
+| Backend | Python 3.11, FastAPI, Pydantic v2 |
+| Orchestration | LangGraph with a Postgres checkpointer |
+| Data | PostgreSQL (psycopg), Cloudflare R2 (S3 API) |
+| Language models | Claude API |
+| Voice | Gemini TTS, ElevenLabs, Deepgram (word-level alignment) |
+| Images and footage | kie.ai, OpenAI, Replicate, Pexels, Pixabay, Wikimedia, sentence-transformers for re-ranking |
+| Video | FFmpeg, CapCut project export |
+| Auth | Google OAuth |
+| Frontend | Plain HTML and JavaScript, no framework and no build step |
+| Delivery | Docker, Railway, GitHub Actions, pytest |
 
 ## Repository layout
 
 | Path | What it is |
-|------|-----------|
-| `cf_platform/` | **v2 platform** — LangGraph workers, stage graphs, orchestrator, Postgres metadata index, Telegram interface |
-| `src/` | **v1 pipeline** — shipped first, still serving production video assembly; reached from v2 only through a one-way adapter (`cf_platform/adapters/legacy_video.py`) |
-| `tests/` | Unit + route tests for both layers, run in CI on every push |
-| `docs/` | Architecture, migration plan, prompt engineering log, testing strategy |
-| `tools/` | Standalone browser tools (no server required) |
+|------|------------|
+| `cf_platform/` | The platform: LangGraph workers, stage graphs, accounts, billing, limits, moderation, Postgres repositories and migrations, API routes |
+| `src/` | The FastAPI app, sign-in, the pages in `src/static/`, and the original video pipeline (asset acquisition, captions, FFmpeg), reached from the platform only through `cf_platform/adapters/legacy_video.py` |
+| `tests/` | About 3,400 automated tests in 154 files, run in CI on every push |
+| `docs/` | Architecture, security, runbook, prompt log, testing strategy, UI guidelines |
+| `scripts/` | Bootstrap, release, cost report, account erasure |
+| `tools/` | Standalone browser tools and the CapCut helper |
 
-The two-codebase layout is deliberate: v1 shipped and stayed stable while the v2 platform is being built alongside it, migrating one stage at a time — the strangler-fig pattern. The full migration spec lives in [docs/v2_platform_plan.md](docs/v2_platform_plan.md).
-
-## How this was built
-
-This project is developed solo with AI-assisted tooling under an explicit engineering methodology — every architectural choice is written down before code:
-
-- [DECISIONS.md](DECISIONS.md) — 65+ numbered architecture & dependency decisions (ADR-style), including reversals and their reasons
-- [METHODOLOGY.md](METHODOLOGY.md) — the sprint workflow: story-driven development, definition of done, human-touchpoint rule
-- [CONVENTIONS.md](CONVENTIONS.md) — enforced Python standards (pure async step functions, thin routes, typed contracts)
-- [docs/PROMPTS.md](docs/PROMPTS.md) — versioned prompt-engineering changelog (storyboard prompt is at v0.16+, each revision motivated by observed failures)
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — current state, migration path, and target architecture
-
-## Stack
-
-**FastAPI** (async Python 3.11) · **LangGraph** + Postgres checkpointer · **Claude API** (script, storyboard, metadata) · **Deepgram** (forced alignment) · **Pexels / Replicate** (assets) · **FFmpeg** (assembly) · **Cloudflare R2** (artifact store) · **Railway** (deploy) · plain HTML/JS operator UI — no frontend framework by design.
+The two-package layout is deliberate. The first pipeline kept running while the platform replaced it one stage at a time (the strangler-fig pattern).
 
 ## Running locally
 
 ```bash
-bash scripts/bootstrap.sh          # venv + dependencies + .env.local template
+bash scripts/bootstrap.sh          # venv, dependencies, .env.local template
 source .venv/bin/activate
-# fill in .env.local — see ENV.md for every variable
+# fill in .env.local; ENV.md lists every variable
 uvicorn src.main:app --reload
 ```
 
-Health check: `curl http://localhost:8000/health` · Studio UI: `http://localhost:8000/`
+Health check: `curl http://localhost:8000/health`. The app is at `http://localhost:8000/create`.
 
-Requires API keys for Anthropic, Pexels, Replicate, Freesound, plus Cloudflare R2 credentials. A Postgres `DATABASE_URL` enables the v2 platform features; without it the legacy pipeline still runs (fault isolation is a design rule — see D048).
+It needs API keys for the providers you use and Cloudflare R2 credentials. A Postgres `DATABASE_URL` turns on accounts, projects and billing. `scripts/preview_core.py` serves the screens with in-memory storage, to look at them without any credentials.
 
 ## Deployment
 
-| Trigger | Environment |
-|---------|-------------|
-| Push to `main` | DEV — Railway auto-deploy |
-| Git tag `v*.*.*` | PROD — GitHub Actions → Railway (`scripts/promote.sh`) |
+| Environment | Railway service | How it deploys |
+|-------------|-----------------|----------------|
+| DEV | `content-factory-dev` | Every push to `main` |
+| PROD | `content-factory-saas` | A release tag `v*.*.*`, through GitHub Actions, with a `/health` check after the deploy |
 
-CI runs the full non-integration test suite on every push; PROD only ever deploys a tagged commit.
+Migrations run at start-up under a lock, and `/health` reports their state. Releases are listed in [RELEASES.md](RELEASES.md).
+
+## How this was built
+
+I built this solo with AI-assisted tooling, under a written process. Every architectural choice is recorded before the code.
+
+- [DECISIONS.md](DECISIONS.md): 122 numbered architecture and dependency decisions, including reversals and the reason for them
+- [METHODOLOGY.md](METHODOLOGY.md): the sprint workflow, the definition of done, and the rule that every sprint ends with something a person can use
+- [CONVENTIONS.md](CONVENTIONS.md): the Python standards (pure async step functions, thin routes, typed contracts)
+- [docs/PROMPTS.md](docs/PROMPTS.md): the prompt log, where each revision is tied to a failure I observed
+- [docs/TESTING.md](docs/TESTING.md): the test strategy for each layer
+
+## Status
+
+An invite-only beta is live. Credits are on, at cost, with no payment provider yet. Next on the roadmap: platform settings and measurement, then payments and self-service data export and deletion, then character references, load testing before open sign-up, and a Russian-language version. The full plan is in [SPRINT.md](SPRINT.md).
